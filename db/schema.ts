@@ -1,0 +1,331 @@
+import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sql } from "drizzle-orm";
+
+/* ---------------------------------------------------------------------- */
+/* Layer 1 — Master Data                                                   */
+/* ---------------------------------------------------------------------- */
+
+export const positions = sqliteTable("positions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  category: text("category", { enum: ["FOH", "BOH"] }).notNull(),
+  // Confirmed 2026-08-08: there are exactly THREE shared tip pools, not a
+  // per-role split.
+  //   POOL_1_DINE_IN — Server, Runner, Bartender, Host, Busser. Point-weighted.
+  //   POOL_2_TAKEOUT_ONLINE — Host, Operator, Packer, Bag Handler. Point-weighted.
+  //     Takeout tip (register) + online-platform tip WHEN THE PLATFORM'S OWN
+  //     COURIER does the delivery (restaurant staff only packed/handed off).
+  //     (Operator/Bag Handler may have zero people until the restaurant is
+  //     busy enough to hire for those roles — the split just naturally
+  //     handles however many people are rostered that shift)
+  //   POOL_3_DELIVERY — Delivery Guy. EQUAL split (NOT point-weighted) of
+  //     Toast-based delivery CC tip (4.5% deducted) + online-platform tip
+  //     WHEN THE RESTAURANT'S OWN DRIVER does the delivery. Cash tips handed
+  //     directly to the driver are NOT pooled at all — paid 100% to that
+  //     individual, tracked separately for reporting only.
+  //   NONE — Manager, Floor Manager: no tip pool, commission-only via the
+  //     generic incentive rules engine (restaurant chooses per-shift % or
+  //     weekly token pool — both supported, not decided which yet)
+  tipPoolGroup: text("tip_pool_group", { enum: ["POOL_1_DINE_IN", "POOL_2_TAKEOUT_ONLINE", "POOL_3_DELIVERY", "NONE"] }).notNull().default("NONE"),
+  // Confirmed 2026-08-08: STAFF normally only see roster entries in their own
+  // category (FOH sees FOH, BOH sees BOH). Positions flagged true here (e.g.
+  // Floor Manager, Manager) are visible to STAFF regardless of category, so
+  // everyone can see who's running the shift.
+  alwaysVisibleInRoster: integer("always_visible_in_roster", { mode: "boolean" }).notNull().default(false),
+  // Corrected 2026-08-08: leadership positions (Floor Manager, Manager) are
+  // "หัวหน้า" — their earnings must be hidden from OTHER staff regardless of
+  // the FOH/BOH peer-earnings settings below. This is independent of
+  // alwaysVisibleInRoster: a position can be schedule-visible but pay-hidden
+  // (the common leadership case), and in principle the reverse could exist
+  // too, so kept as two separate flags rather than coupled.
+  earningsHiddenFromStaff: integer("earnings_hidden_from_staff", { mode: "boolean" }).notNull().default(false),
+  // Template value only — not used in calculation, just a suggested starting
+  // point shown in the UI when adding a new employee to this position.
+  defaultTipPointValue: real("default_tip_point_value"),
+});
+
+export const employees = sqliteTable("employees", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  hireDate: text("hire_date"), // ISO date string
+  primaryPositionId: integer("primary_position_id").references(() => positions.id),
+  // Separate from Position (what job they do) — this is what they're allowed
+  // to SEE in the system. STAFF gets the restricted roster view; MANAGER/ADMIN
+  // see everything. Confirmed 2026-08-08.
+  systemRole: text("system_role", { enum: ["STAFF", "MANAGER", "ADMIN"] }).notNull().default("STAFF"),
+});
+
+// FOH only — many-to-many: one person can hold several positions, each at
+// its own tip-point value (e.g. Server@1.00 and Bartender@0.80 for the same person).
+export const employeePositions = sqliteTable(
+  "employee_positions",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id),
+    positionId: integer("position_id").notNull().references(() => positions.id),
+    tipPointValue: real("tip_point_value").notNull().default(1.0),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    trainedDate: text("trained_date"),
+  },
+  (t) => ({
+    uniqEmployeePosition: uniqueIndex("uniq_employee_position").on(t.employeeId, t.positionId),
+  })
+);
+
+export const sections = sqliteTable("sections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+});
+
+// Single-row settings table (restaurantId reserved for future multi-tenant use).
+export const restaurantSettings = sqliteTable("restaurant_settings", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  restaurantId: integer("restaurant_id").notNull().default(1),
+  ccTipDeductionRate: real("cc_tip_deduction_rate").notNull().default(0), // e.g. 0.045 for 4.5%. Default 0 — NOT hardcoded per restaurant.
+  // Whether STAFF can see PEERS' money figures (tip share / wage) in the
+  // roster view — confirmed 2026-08-08 as restaurant-configurable, but with
+  // different defaults: FOH defaults ON (shared/pooled tips, less sensitive),
+  // BOH defaults OFF (individually-set wages and bonuses, more sensitive —
+  // showing them risks friction since amounts legitimately differ per person).
+  // Self always sees their own numbers regardless of these settings.
+  rosterShowPeerEarningsFOH: integer("roster_show_peer_earnings_foh", { mode: "boolean" }).notNull().default(true),
+  rosterShowPeerEarningsBOH: integer("roster_show_peer_earnings_boh", { mode: "boolean" }).notNull().default(false),
+});
+
+export const onlinePlatforms = sqliteTable("online_platforms", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  restaurantId: integer("restaurant_id").notNull().default(1),
+  name: text("name").notNull(), // e.g. Grubhub, UberEats, DoorDash, HungryPanda
+});
+
+// FOH flat wage — shared rate per position, varies by meal period.
+export const positionShiftRates = sqliteTable(
+  "position_shift_rates",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    positionId: integer("position_id").notNull().references(() => positions.id),
+    period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
+    flatRate: real("flat_rate").notNull(),
+  },
+  (t) => ({
+    uniqPositionPeriod: uniqueIndex("uniq_position_period").on(t.positionId, t.period),
+  })
+);
+
+// BOH individual wage — NOT shared by position, varies per person and per period.
+export const employeeWageRates = sqliteTable("employee_wage_rates", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  positionId: integer("position_id").notNull().references(() => positions.id),
+  period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
+  rate: real("rate").notNull(),
+  effectiveFrom: text("effective_from"),
+});
+
+/* ---------------------------------------------------------------------- */
+/* Layer 1 — Shift & Roster                                                */
+/* ---------------------------------------------------------------------- */
+
+// One record per meal period, NOT per calendar day — confirmed necessary
+// because staff positions can differ between lunch and dinner on the same date.
+export const shifts = sqliteTable(
+  "shifts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    date: text("date").notNull(), // ISO date string
+    period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
+    status: text("status", { enum: ["draft", "finalized"] }).notNull().default("draft"),
+    finalizedAt: text("finalized_at"),
+  },
+  (t) => ({
+    uniqDatePeriod: uniqueIndex("uniq_date_period").on(t.date, t.period),
+  })
+);
+
+export const shiftRosterEntries = sqliteTable("shift_roster_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  positionId: integer("position_id").notNull().references(() => positions.id),
+  sectionId: integer("section_id").references(() => sections.id), // FOH only
+  pointValueOverride: real("point_value_override"), // day-only override of EmployeePosition.tipPointValue
+  overrideReason: text("override_reason"),
+});
+
+export const shiftSales = sqliteTable("shift_sales", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id).unique(),
+  totalSales: real("total_sales").notNull().default(0),
+  ccTipTotal: real("cc_tip_total").notNull().default(0),
+  // Manually-identified subset of ccTipTotal from takeout orders paid at the
+  // restaurant's own register (same pattern as host-upsell tip identification
+  // — Toast doesn't separate this automatically). Feeds Pool 2, NOT Pool 1.
+  // ASSUMPTION pending confirmation: the 4.5% deduction applies to this the
+  // same as dine-in, since both run through the same card terminal.
+  takeoutCcTip: real("takeout_cc_tip").notNull().default(0),
+  // Delivery orders placed by phone or the restaurant's own future platform,
+  // paid via Toast (not cash, not a third-party platform). Gets the same
+  // 4.5% deduction, feeds Pool 3 (Delivery Guy), split equally not by point.
+  deliveryToastTip: real("delivery_toast_tip").notNull().default(0),
+  cashSales: real("cash_sales").notNull().default(0),
+  grossFoodSales: real("gross_food_sales").notNull().default(0),
+  grossBeverageSales: real("gross_beverage_sales").notNull().default(0),
+});
+
+export const onlinePlatformSalesRecords = sqliteTable("online_platform_sales_records", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id),
+  onlinePlatformId: integer("online_platform_id").notNull().references(() => onlinePlatforms.id),
+  salesAmount: real("sales_amount").notNull().default(0),
+  commissionFee: real("commission_fee").notNull().default(0),
+  netAmount: real("net_amount").notNull().default(0),
+  // Tips collected by the platform itself, passed through to the restaurant.
+  // Neither bucket gets the 4.5% CC deduction — confirmed, never touches the
+  // restaurant's own card terminal. Split into two buckets because routing
+  // depends on WHO delivered the order (confirmed 2026-08-08):
+  tipAmountPlatformCourier: real("tip_amount_platform_courier").notNull().default(0), // platform's own courier delivered -> Pool 2
+  tipAmountRestaurantDelivery: real("tip_amount_restaurant_delivery").notNull().default(0), // restaurant's own Delivery Guy delivered -> Pool 3
+});
+
+/* ---------------------------------------------------------------------- */
+/* Layer 1 — Core Tip/Wage Calculation (locked business logic,             */
+/* deliberately NOT part of the generic rules engine below)                */
+/* ---------------------------------------------------------------------- */
+
+// Dollar figures only — feeds the confirmed CC-tip routing rule
+// (net host-upsell tip routes to Host pool instead of general pool).
+export const hostUpsellTipRecords = sqliteTable("host_upsell_tip_records", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id), // the host
+  saleAmount: real("sale_amount").notNull().default(0),
+  ccTipAmount: real("cc_tip_amount").notNull().default(0),
+});
+
+// Calculation snapshot per shift, per confirmed order:
+// 1) deduct rate off total ccTip -> netCcTip
+// 2) deduct rate off hostUpsellTip -> netHostUpsellTip, routes to Host pool
+// 3) netCcTip - netHostUpsellTip = netGeneralCcTip, split by role/section
+// 4) within each role, split by point-value proportion
+// Cash tips handed directly to a Delivery Guy — NOT pooled, paid 100% to
+// that individual. Tracked here for reporting/Earnings Summary purposes only,
+// does not feed the tip pool calculation at all.
+export const deliveryCashTipRecords = sqliteTable("delivery_cash_tip_records", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  amount: real("amount").notNull().default(0),
+});
+
+export const tipPoolCalculations = sqliteTable("tip_pool_calculations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id).unique(),
+  grossCcTip: real("gross_cc_tip").notNull(),
+  deductionRate: real("deduction_rate").notNull(),
+  netCcTip: real("net_cc_tip").notNull(),
+  totalHostUpsellTip: real("total_host_upsell_tip").notNull().default(0),
+  netHostUpsellTip: real("net_host_upsell_tip").notNull().default(0),
+  netGeneralCcTip: real("net_general_cc_tip").notNull(),
+  perRoleBreakdown: text("per_role_breakdown", { mode: "json" }).$type<Record<string, number>>(),
+});
+
+// Core wage/tip result per employee per shift. Bonus-engine payouts
+// (IncentivePayoutRecord below) are added on top when producing the final
+// report, not merged into this table.
+export const employeePayouts = sqliteTable("employee_payouts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  pointValueUsed: real("point_value_used"),
+  tipPoolShare: real("tip_pool_share").notNull().default(0),
+  flatWageAmount: real("flat_wage_amount").notNull().default(0),
+  hostUpsellTipShare: real("host_upsell_tip_share"),
+  totalCorePayout: real("total_core_payout").notNull().default(0),
+});
+
+/* ---------------------------------------------------------------------- */
+/* Layer 2 — Generic Metrics + Incentive Rules Engine                      */
+/* Restaurant-configurable bonuses. No schema change needed to add a       */
+/* new bonus type — see mapping examples in the schema doc.                */
+/* ---------------------------------------------------------------------- */
+
+export const metricDefinitions = sqliteTable("metric_definitions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  key: text("key").notNull().unique(),
+  label: text("label").notNull(),
+  valueType: text("value_type", { enum: ["money", "number", "count"] }).notNull(),
+  // SHIFT = one value per shift (e.g. total_sales)
+  // EMPLOYEE_SHIFT = one value per employee per shift (e.g. host_qualifying_drink_count)
+  scope: text("scope", { enum: ["SHIFT", "EMPLOYEE_SHIFT"] }).notNull(),
+  collectionMoment: text("collection_moment", { enum: ["open", "close", "both", "manual"] }).notNull(),
+  required: integer("required", { mode: "boolean" }).notNull().default(false),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+});
+
+export const metricValues = sqliteTable("metric_values", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  metricDefinitionId: integer("metric_definition_id").notNull().references(() => metricDefinitions.id),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id),
+  employeeId: integer("employee_id").references(() => employees.id), // null when scope=SHIFT
+  value: real("value").notNull(),
+});
+
+export const incentiveRules = sqliteTable("incentive_rules", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  description: text("description"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  evaluationPeriod: text("evaluation_period", { enum: ["SHIFT", "WEEK", "MONTH"] }).notNull(),
+  rewardType: text("reward_type", { enum: ["FLAT", "PERCENT_OF_METRIC", "ADJUST_TIP_POINT"] }).notNull(),
+  rewardValue: real("reward_value").notNull(),
+  rewardCap: real("reward_cap"), // e.g. host bonus capped at +0.2 points
+  distributionMethod: text("distribution_method", { enum: ["PER_TARGET_FLAT", "WEIGHTED_POOL"] }).notNull(),
+  weightSource: text("weight_source", { enum: ["MANUAL", "METRIC_SUM"] }),
+  weightMetricKey: text("weight_metric_key"), // used when weightSource = METRIC_SUM
+  poolSourceMetricKey: text("pool_source_metric_key"), // which metric funds the pool when rewardType = PERCENT_OF_METRIC
+});
+
+export const incentiveRuleConditions = sqliteTable("incentive_rule_conditions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ruleId: integer("rule_id").notNull().references(() => incentiveRules.id),
+  metricKey: text("metric_key").notNull(),
+  operator: text("operator", { enum: [">=", ">", "<=", "<", "between"] }).notNull(),
+  value: real("value").notNull(),
+  valueTo: real("value_to"), // used when operator = between
+});
+
+export const incentiveRuleTargets = sqliteTable("incentive_rule_targets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ruleId: integer("rule_id").notNull().references(() => incentiveRules.id),
+  targetType: text("target_type", { enum: ["POSITION", "EMPLOYEE", "CATEGORY"] }).notNull(),
+  targetId: text("target_id").notNull(), // positionId, employeeId, or "FOH"/"BOH" as text
+});
+
+// Manual per-employee weighting, default 1.00 if unset —
+// same override pattern as EmployeePosition.tipPointValue.
+export const employeeRuleWeights = sqliteTable(
+  "employee_rule_weights",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    ruleId: integer("rule_id").notNull().references(() => incentiveRules.id),
+    employeeId: integer("employee_id").notNull().references(() => employees.id),
+    weight: real("weight").notNull().default(1.0),
+    effectiveFrom: text("effective_from"),
+  },
+  (t) => ({
+    uniqRuleEmployee: uniqueIndex("uniq_rule_employee").on(t.ruleId, t.employeeId),
+  })
+);
+
+// Computed output, audit trail — feeds the future Earnings Summary feature.
+export const incentivePayoutRecords = sqliteTable("incentive_payout_records", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  ruleId: integer("rule_id").notNull().references(() => incentiveRules.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  periodType: text("period_type", { enum: ["SHIFT", "WEEK", "MONTH"] }).notNull(),
+  periodKey: text("period_key").notNull(), // shiftId as string, or ISO week/month string
+  computedAmount: real("computed_amount").notNull(),
+  metricSnapshot: text("metric_snapshot", { mode: "json" }).$type<Record<string, unknown>>(),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+});
