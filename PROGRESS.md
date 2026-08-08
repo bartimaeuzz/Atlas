@@ -136,6 +136,40 @@ error box; the real closing-report Save button didn't).
   silently finalized on a failed save).
 - 30 tests still passing (no calc logic changed, only error messages/wiring).
 
+## Preview-before-finalize safety step added (2026-08-08, later same day)
+
+Oliver flagged this looking at his own test Summary Report: "Save & Finalize"
+locked a shift immediately with no chance to review, so a data-entry mistake
+would get permanently baked into a locked payroll record with no UI path to
+undo it. Split the flow into three explicit steps:
+
+- **Closing Report** — "Save (draft)" persists without locking (unchanged);
+  the second button is now **"Save & Preview"** instead of finalizing
+  directly.
+- **Preview** (`/shifts/[id]/preview`, new) — computes the real payout live
+  from whatever's currently saved, using the exact same calc engine as the
+  real finalize step, but writes NOTHING to the database. Shows the same
+  breakdown as the Summary Report. Go back to Closing Report, change
+  anything, come back — it just recomputes fresh each time. Also where the
+  same friendly validation errors show up now (e.g. "Takeout tip + delivery
+  tip is more than Total CC Tip") if the numbers aren't ready yet.
+- **Confirm & Finalize** — a separate explicit button on the Preview page.
+  Only this step writes the locked snapshot and marks the shift finalized.
+  Recomputes fresh from the database at the moment it's clicked (not from
+  whatever the browser had cached), so it's always accurate.
+
+Implementation: extracted the "gather inputs + compute" half of finalizing
+into a shared `lib/shift/computeFinalizationPreview.ts`, used by both the
+Preview page (compute only) and the real finalize action (compute + write).
+Removed a small piece of now-dead duplicate code in the process.
+
+Verified directly against the DB: after Save & Preview, confirmed zero
+`TipPoolCalculation`/`EmployeePayout` rows exist and the shift is still
+`draft`; computed the preview and noted the numbers; then ran Confirm &
+Finalize and confirmed the shift became `finalized` with exactly 1
+calculation row + 8 payout rows, and the locked totals matched the preview
+exactly. 30 tests still passing (calc engine itself didn't change).
+
 ## Known gap — not wired in yet
 
 The host cocktail/mocktail drink bonus (qualifying-drink-count × $/drink,

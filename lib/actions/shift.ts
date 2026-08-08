@@ -6,10 +6,9 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
-  onlinePlatforms, restaurantSettings, tipPoolCalculations, employeePayouts,
+  onlinePlatforms, tipPoolCalculations, employeePayouts,
 } from "@/db/schema";
-import { loadShiftCalcData } from "@/lib/shift/loadRosterForCalc";
-import { buildFinalizationResult, type FinalizeRosterRow } from "@/lib/calc/finalizeShift";
+import { computeFinalizationPreview } from "@/lib/shift/computeFinalizationPreview";
 
 /** Creates a new draft shift for a date + meal period, then sends the
  * manager straight into building the roster for it. */
@@ -100,14 +99,16 @@ export async function saveClosingReportSales(
   return { error: null };
 }
 
-/** "Save & Finalize" from the closing report form — persists whatever's in
- * the form fields right now, THEN runs the same finalize/lock logic as
- * finalizeShift below, in one submit (so the manager doesn't have to click
- * Save first and Finalize second). Same error-handling reasoning as
- * saveClosingReportSales above — redirect() is deliberately called AFTER
- * the try/catch (not inside it), since Next's redirect() works by throwing
- * a special internal signal that must NOT be caught by our own catch block. */
-export async function saveClosingReportAndFinalize(
+/** "Save & Preview" from the closing report form — persists whatever's in
+ * the form fields right now, then sends the manager to the Preview page
+ * (computed live, nothing locked yet) instead of finalizing immediately.
+ * Split into an explicit Save-then-Preview-then-Confirm flow on 2026-08-08
+ * after Oliver pointed out that finalizing right away, with no review step,
+ * meant a typo could get permanently baked into a locked payroll record —
+ * see confirmFinalize below for the step that actually locks it. Same
+ * error-handling reasoning as saveClosingReportSales above — redirect() is
+ * deliberately called AFTER the try/catch, not inside it. */
+export async function saveClosingReportAndPreview(
   _prevState: ClosingReportActionState,
   formData: FormData
 ): Promise<ClosingReportActionState> {
@@ -117,6 +118,28 @@ export async function saveClosingReportAndFinalize(
   try {
     await assertDraft(shiftId);
     await upsertClosingReportSales(shiftId, formData);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+
+  revalidatePath(`/shifts/${shiftId}/preview`);
+  redirect(`/shifts/${shiftId}/preview`);
+}
+
+/** The actual lock step — only reachable from the Preview page, after the
+ * manager has already seen the computed numbers. Recomputes fresh from
+ * current DB state (not from whatever the client had in memory) so it's
+ * always accurate even if something changed since the preview was shown,
+ * then writes the locked snapshot. */
+export async function confirmFinalize(
+  _prevState: ClosingReportActionState,
+  formData: FormData
+): Promise<ClosingReportActionState> {
+  const shiftId = Number(formData.get("shiftId"));
+  if (!shiftId) return { error: "Missing shift id" };
+
+  try {
+    await assertDraft(shiftId);
     await runFinalize(shiftId);
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
@@ -197,63 +220,13 @@ async function upsertPointOverrides(shiftId: number, formData: FormData) {
   }
 }
 
-/** "Save" — computes the real tip-pool + wage payout from whatever's been
- * entered so far, writes it as a locked snapshot (TipPoolCalculation +
- * EmployeePayout), and marks the shift finalized. Chosen deliberately over
- * recompute-on-view: a closing report is a historical record and shouldn't
- * silently change if settings (deduction rate, point values) change later. */
-export async function finalizeShift(formData: FormData) {
-  const shiftId = Number(formData.get("shiftId"));
-  if (!shiftId) throw new Error("Missing shift id");
-
-  await assertDraft(shiftId);
-  await runFinalize(shiftId);
-
-  revalidatePath(`/shifts/${shiftId}`);
-  revalidatePath("/shifts");
-  redirect(`/shifts/${shiftId}/summary`);
-}
-
+/** The actual write step — computes via the shared helper (same one the
+ * Preview page uses) and writes the locked snapshot. Chosen deliberately
+ * over recompute-on-view for the Summary Report: a closing report is a
+ * historical record and shouldn't silently change if settings (deduction
+ * rate, split method, point values) change later. */
 async function runFinalize(shiftId: number) {
-  const calcData = await loadShiftCalcData(shiftId);
-  if (!calcData.shift) throw new Error("Shift not found");
-  if (calcData.roster.length === 0) throw new Error("Add at least one person to the roster before saving");
-
-  const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
-  if (!sales) throw new Error("Enter closing report sales figures before saving");
-
-  const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
-  const deductionRate = settings?.ccTipDeductionRate ?? 0;
-  const pool1SplitMethod = settings?.pool1SplitMethod ?? "POINT_WEIGHTED";
-  const pool2SplitMethod = settings?.pool2SplitMethod ?? "POINT_WEIGHTED";
-  const pool3SplitMethod = settings?.pool3SplitMethod ?? "EQUAL_SPLIT";
-
-  const platformRecords = await db
-    .select()
-    .from(onlinePlatformSalesRecords)
-    .where(eq(onlinePlatformSalesRecords.shiftId, shiftId));
-  const platformCourierTips = round2(sum(platformRecords.map((r) => r.tipAmountPlatformCourier)));
-  const platformDeliveryTips = round2(sum(platformRecords.map((r) => r.tipAmountRestaurantDelivery)));
-
-  const roster: FinalizeRosterRow[] = calcData.roster.map((r) => ({
-    employeeId: r.employeeId,
-    tipPoolGroups: r.tipPoolGroups,
-    pointValue: r.pointValue,
-    flatWage: r.flatWage,
-  }));
-
-  const result = buildFinalizationResult({
-    deductionRate,
-    grossCcTip: sales.ccTipTotal,
-    takeoutCcTip: sales.takeoutCcTip,
-    deliveryToastTip: sales.deliveryToastTip,
-    platformCourierTips,
-    platformDeliveryTips,
-    pool1SplitMethod,
-    pool2SplitMethod,
-    pool3SplitMethod,
-    roster,
-  });
+  const { result } = await computeFinalizationPreview(shiftId);
 
   await db.insert(tipPoolCalculations).values({ shiftId, ...result.tipPoolCalculation });
   for (const payout of result.employeePayouts) {
@@ -274,11 +247,3 @@ async function assertDraft(shiftId: number) {
   }
 }
 
-function sum(nums: number[]): number {
-  return nums.reduce((a, b) => a + b, 0);
-}
-
-function round2(n: number): number {
-  const epsilon = n >= 0 ? 1e-9 : -1e-9;
-  return Math.round((n + epsilon) * 100) / 100;
-}

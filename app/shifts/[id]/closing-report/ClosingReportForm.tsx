@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import {
-  saveClosingReportSales, saveClosingReportAndFinalize,
+  saveClosingReportSales, saveClosingReportAndPreview,
   type ClosingReportActionState,
 } from "@/lib/actions/shift";
 import type { ClosingReportData } from "@/lib/shift/loadClosingReportData";
@@ -19,9 +19,9 @@ export function ClosingReportForm({
   isFinalized: boolean;
 }) {
   const [saveState, saveFormAction, isSaving] = useActionState(saveClosingReportSales, initialState);
-  const [finalizeState, finalizeFormAction, isFinalizing] = useActionState(saveClosingReportAndFinalize, initialState);
+  const [previewState, previewFormAction, isGoingToPreview] = useActionState(saveClosingReportAndPreview, initialState);
   const s = data.sales;
-  const error = saveState.error ?? finalizeState.error;
+  const error = saveState.error ?? previewState.error;
 
   return (
     <form className="space-y-8">
@@ -108,17 +108,17 @@ export function ClosingReportForm({
         <div className="flex gap-3">
           <button
             formAction={saveFormAction}
-            disabled={isSaving || isFinalizing}
+            disabled={isSaving || isGoingToPreview}
             className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50 disabled:opacity-50"
           >
             {isSaving ? "Saving…" : "Save (draft)"}
           </button>
           <button
-            formAction={finalizeFormAction}
-            disabled={isSaving || isFinalizing}
+            formAction={previewFormAction}
+            disabled={isSaving || isGoingToPreview}
             className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 disabled:opacity-50"
           >
-            {isFinalizing ? "Saving…" : "Save & Finalize → View Summary"}
+            {isGoingToPreview ? "Saving…" : "Save & Preview →"}
           </button>
         </div>
       )}
