@@ -1,10 +1,12 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shifts, shiftRosterEntries, employees, positions, employeePositions, shiftSales,
-  positionShiftRates, employeeWageRates,
+  positionShiftRates, employeeWageRates, positionTipPools,
 } from "@/db/schema";
 import { calculateFlatWage } from "@/lib/calc/flatWage";
+
+export type TipPoolGroup = "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY";
 
 export interface RosterRow {
   rosterEntryId: number;
@@ -13,7 +15,10 @@ export interface RosterRow {
   positionId: number;
   positionName: string;
   positionCategory: "FOH" | "BOH";
-  tipPoolGroup: "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY" | "NONE";
+  /** Which tip pool(s) this position participates in — a position (e.g.
+   * Host) can be in more than one, so this is an array now, not a single
+   * value. Empty array = no tip pool (Manager, Chef, ...). */
+  tipPoolGroups: TipPoolGroup[];
   pointValue: number; // resolved: override -> EmployeePosition -> 1.0 fallback
   /** Flat wage for THIS row, or null if this employee's wage is already
    * counted on another row this shift (see loadShiftCalcData doc). */
@@ -32,13 +37,15 @@ export interface ShiftCalcData {
  * calc engine expects it (day-only override wins over the employee's
  * standing EmployeePosition value).
  *
- * Wage handling: an employee can have MULTIPLE roster rows in the same
- * shift (e.g. Host has a Pool-1 row and a separate "Host (Takeout/Online)"
- * Pool-2 row — a modeling choice so tipPoolGroup can stay one-value-per-
- * Position). That's still ONE physical shift worked, so the flat wage is
- * only resolved on ONE of their rows (their primaryPositionId if it's among
- * their rows this shift, else the first row) — other rows show
- * flatWage: null with a note, so the UI doesn't double-count pay.
+ * Wage handling: an employee CAN still have multiple roster rows in the
+ * same shift if they're genuinely working two different positions (e.g.
+ * someone covering both Bartender and Runner for one shift). That's still
+ * ONE physical shift worked, so the flat wage is only resolved on ONE of
+ * their rows (their primaryPositionId if it's among their rows this shift,
+ * else the first row) — other rows show flatWage: null with a note, so the
+ * UI doesn't double-count pay. (Note: this used to also trigger for Host,
+ * who needed two rows to cover Pool 1 + Pool 2 — that's fixed now, Host is
+ * one row with two tipPoolGroups, see positionTipPools in db/schema.ts.)
  */
 export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
@@ -55,7 +62,6 @@ export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData>
       positionId: positions.id,
       positionName: positions.name,
       positionCategory: positions.category,
-      tipPoolGroup: positions.tipPoolGroup,
       pointOverride: shiftRosterEntries.pointValueOverride,
       standingPoint: employeePositions.tipPointValue,
     })
@@ -70,6 +76,17 @@ export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData>
       )
     )
     .where(eq(shiftRosterEntries.shiftId, shiftId));
+
+  const positionIds = Array.from(new Set(rows.map((r) => r.positionId)));
+  const tipPoolRows = positionIds.length
+    ? await db.select().from(positionTipPools).where(inArray(positionTipPools.positionId, positionIds))
+    : [];
+  const poolGroupsByPositionId = new Map<number, TipPoolGroup[]>();
+  for (const r of tipPoolRows) {
+    const list = poolGroupsByPositionId.get(r.positionId) ?? [];
+    list.push(r.tipPoolGroup as TipPoolGroup);
+    poolGroupsByPositionId.set(r.positionId, list);
+  }
 
   const positionShiftRateRows = await db
     .select()
@@ -98,7 +115,7 @@ export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData>
       positionId: r.positionId,
       positionName: r.positionName,
       positionCategory: r.positionCategory as "FOH" | "BOH",
-      tipPoolGroup: r.tipPoolGroup as RosterRow["tipPoolGroup"],
+      tipPoolGroups: poolGroupsByPositionId.get(r.positionId) ?? [],
       pointValue: r.pointOverride ?? r.standingPoint ?? 1.0,
       flatWage: null, // resolved below, once per employee
       wageNote: null,

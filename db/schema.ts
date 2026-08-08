@@ -9,24 +9,6 @@ export const positions = sqliteTable("positions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   category: text("category", { enum: ["FOH", "BOH"] }).notNull(),
-  // Confirmed 2026-08-08: there are exactly THREE shared tip pools, not a
-  // per-role split.
-  //   POOL_1_DINE_IN — Server, Runner, Bartender, Host, Busser. Point-weighted.
-  //   POOL_2_TAKEOUT_ONLINE — Host, Operator, Packer, Bag Handler. Point-weighted.
-  //     Takeout tip (register) + online-platform tip WHEN THE PLATFORM'S OWN
-  //     COURIER does the delivery (restaurant staff only packed/handed off).
-  //     (Operator/Bag Handler may have zero people until the restaurant is
-  //     busy enough to hire for those roles — the split just naturally
-  //     handles however many people are rostered that shift)
-  //   POOL_3_DELIVERY — Delivery Guy. EQUAL split (NOT point-weighted) of
-  //     Toast-based delivery CC tip (4.5% deducted) + online-platform tip
-  //     WHEN THE RESTAURANT'S OWN DRIVER does the delivery. Cash tips handed
-  //     directly to the driver are NOT pooled at all — paid 100% to that
-  //     individual, tracked separately for reporting only.
-  //   NONE — Manager, Floor Manager: no tip pool, commission-only via the
-  //     generic incentive rules engine (restaurant chooses per-shift % or
-  //     weekly token pool — both supported, not decided which yet)
-  tipPoolGroup: text("tip_pool_group", { enum: ["POOL_1_DINE_IN", "POOL_2_TAKEOUT_ONLINE", "POOL_3_DELIVERY", "NONE"] }).notNull().default("NONE"),
   // Confirmed 2026-08-08: STAFF normally only see roster entries in their own
   // category (FOH sees FOH, BOH sees BOH). Positions flagged true here (e.g.
   // Floor Manager, Manager) are visible to STAFF regardless of category, so
@@ -43,6 +25,42 @@ export const positions = sqliteTable("positions", {
   // point shown in the UI when adding a new employee to this position.
   defaultTipPointValue: real("default_tip_point_value"),
 });
+
+// Many-to-many: which tip pool(s) a Position participates in. Replaces an
+// earlier single-value tipPoolGroup column on Position (corrected 2026-08-08
+// after Oliver found a real bug it caused: Host needed two separate Position
+// rows — "Host" for Pool 1 and "Host (Takeout/Online)" for Pool 2 — sharing
+// one employee, and a manager could silently forget to add the second
+// roster row, which meant that Host lost their Pool 2 tip share with no
+// warning. Now "Host" is ONE Position with two rows here (Pool 1 + Pool 2),
+// so a single roster entry covers both pools automatically. A Position with
+// zero rows here is in no tip pool at all (e.g. Manager, Chef).
+// THREE pools exist total:
+//   POOL_1_DINE_IN — Server, Runner, Bartender, Host, Busser. Point-weighted.
+//   POOL_2_TAKEOUT_ONLINE — Host, Operator, Packer, Bag Handler. Point-weighted.
+//     Takeout tip (register) + online-platform tip WHEN THE PLATFORM'S OWN
+//     COURIER does the delivery (restaurant staff only packed/handed off).
+//   POOL_3_DELIVERY — Delivery Guy. EQUAL split (NOT point-weighted) of
+//     Toast-based delivery CC tip (4.5% deducted) + online-platform tip
+//     WHEN THE RESTAURANT'S OWN DRIVER does the delivery. Cash tips handed
+//     directly to the driver are NOT pooled at all — paid 100% to that
+//     individual, tracked separately for reporting only.
+// Deliberately kept open-ended (any position can be ticked into any number
+// of pools) rather than hard-coding "Server = Pool 1 only" as a business
+// rule — this app is meant to be sold to other restaurants that may run
+// their floor differently. A future Position admin UI can pre-check sane
+// defaults per position without hard-locking them.
+export const positionTipPools = sqliteTable(
+  "position_tip_pools",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    positionId: integer("position_id").notNull().references(() => positions.id),
+    tipPoolGroup: text("tip_pool_group", { enum: ["POOL_1_DINE_IN", "POOL_2_TAKEOUT_ONLINE", "POOL_3_DELIVERY"] }).notNull(),
+  },
+  (t) => ({
+    uniqPositionTipPool: uniqueIndex("uniq_position_tip_pool").on(t.positionId, t.tipPoolGroup),
+  })
+);
 
 export const employees = sqliteTable("employees", {
   id: integer("id").primaryKey({ autoIncrement: true }),

@@ -71,7 +71,11 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
       {!isFinalized && (
         <section className="mb-8 border rounded p-4">
           <h2 className="text-lg font-medium mb-3">Add someone</h2>
-          <form action={addRosterEntry} className="grid sm:grid-cols-4 gap-3 items-end">
+          <p className="text-xs text-neutral-500 mb-3">
+            Point value adjustments happen later, on the Closing Report page right before Save —
+            not here. This page is just who&apos;s working today.
+          </p>
+          <form action={addRosterEntry} className="grid sm:grid-cols-3 gap-3 items-end">
             <input type="hidden" name="shiftId" value={shiftId} />
             <label className="text-sm">
               <span className="block text-neutral-500 mb-1">Employee</span>
@@ -88,10 +92,6 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
                   <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
                 ))}
               </select>
-            </label>
-            <label className="text-sm">
-              <span className="block text-neutral-500 mb-1">Point override (optional)</span>
-              <input type="number" step={0.1} name="pointValueOverride" className="border rounded px-2 py-1 w-full" />
             </label>
             <button type="submit" className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800">
               Add

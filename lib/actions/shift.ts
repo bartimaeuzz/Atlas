@@ -37,9 +37,6 @@ export async function addRosterEntry(formData: FormData) {
   const shiftId = Number(formData.get("shiftId"));
   const employeeId = Number(formData.get("employeeId"));
   const positionId = Number(formData.get("positionId"));
-  const pointOverrideRaw = formData.get("pointValueOverride");
-  const pointValueOverride =
-    pointOverrideRaw != null && String(pointOverrideRaw).trim() !== "" ? Number(pointOverrideRaw) : null;
 
   if (!shiftId || !employeeId || !positionId) {
     throw new Error("Employee and position are required");
@@ -47,11 +44,15 @@ export async function addRosterEntry(formData: FormData) {
 
   await assertDraft(shiftId);
 
+  // Point value override is NOT set here on purpose — it's a closing-time
+  // judgment call ("did great today"), entered on the Closing Report page
+  // right before Save, not a staffing decision made when building the
+  // roster hours earlier. New entries start with no override (resolves to
+  // the employee's standing point value until someone bumps it later).
   await db.insert(shiftRosterEntries).values({
     shiftId,
     employeeId,
     positionId,
-    pointValueOverride,
   });
 
   revalidatePath(`/shifts/${shiftId}/roster`);
@@ -98,6 +99,8 @@ export async function saveClosingReportAndFinalize(formData: FormData) {
 }
 
 async function upsertClosingReportSales(shiftId: number, formData: FormData) {
+  await upsertPointOverrides(shiftId, formData);
+
   const num = (key: string) => Number(formData.get(key) ?? 0) || 0;
 
   const salesValues = {
@@ -147,6 +150,24 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData) {
   }
 }
 
+/** Point value overrides live on the closing report, not the roster page —
+ * see the comment in addRosterEntry above for why. Only touches rows whose
+ * input was actually present on the submitted form (tip-pool-eligible rows
+ * render an input; NONE-pool rows like Manager don't, so they're skipped
+ * here automatically). Blank input clears the override back to the
+ * employee's standing point value. */
+async function upsertPointOverrides(shiftId: number, formData: FormData) {
+  const rosterRows = await db.select().from(shiftRosterEntries).where(eq(shiftRosterEntries.shiftId, shiftId));
+  for (const entry of rosterRows) {
+    const raw = formData.get(`point_${entry.id}`);
+    if (raw == null) continue;
+    const trimmed = String(raw).trim();
+    const pointValueOverride = trimmed === "" ? null : Number(trimmed);
+    if (pointValueOverride != null && Number.isNaN(pointValueOverride)) continue;
+    await db.update(shiftRosterEntries).set({ pointValueOverride }).where(eq(shiftRosterEntries.id, entry.id));
+  }
+}
+
 /** "Save" — computes the real tip-pool + wage payout from whatever's been
  * entered so far, writes it as a locked snapshot (TipPoolCalculation +
  * EmployeePayout), and marks the shift finalized. Chosen deliberately over
@@ -184,7 +205,7 @@ async function runFinalize(shiftId: number) {
 
   const roster: FinalizeRosterRow[] = calcData.roster.map((r) => ({
     employeeId: r.employeeId,
-    tipPoolGroup: r.tipPoolGroup,
+    tipPoolGroups: r.tipPoolGroups,
     pointValue: r.pointValue,
     flatWage: r.flatWage,
   }));

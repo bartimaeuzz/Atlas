@@ -46,6 +46,38 @@ export default async function ClosingReportPage({ params }: { params: Promise<{ 
         </fieldset>
 
         <fieldset disabled={isFinalized}>
+          <legend className="text-lg font-medium mb-3">Tip points</legend>
+          <p className="text-xs text-neutral-500 mb-3">
+            Bump someone&apos;s point value for today only — e.g. they upsold a ton of drinks, or
+            covered for someone. Defaults to their standing value; leave alone to change nothing.
+            This does NOT change their permanent record, only this shift.
+          </p>
+          {data.pointValueRows.length === 0 ? (
+            <p className="text-sm text-neutral-500">No tip-pool-eligible staff on the roster yet.</p>
+          ) : (
+            <table className="text-sm border-collapse">
+              <tbody>
+                {data.pointValueRows.map((r) => (
+                  <tr key={r.rosterEntryId}>
+                    <td className="pr-4 py-1">{r.employeeName}</td>
+                    <td className="pr-4 py-1 text-neutral-500">{r.positionName}</td>
+                    <td className="pr-4 py-1">
+                      <input
+                        type="number"
+                        step={0.1}
+                        name={`point_${r.rosterEntryId}`}
+                        defaultValue={r.pointValue}
+                        className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </fieldset>
+
+        <fieldset disabled={isFinalized}>
           <legend className="text-lg font-medium mb-3">Online platform sales</legend>
           <p className="text-xs text-neutral-500 mb-3">
             Split tips by who delivered: platform-courier tips feed Pool 2 (Host/Operator/Packer/Bag

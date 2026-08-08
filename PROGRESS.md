@@ -49,6 +49,31 @@
   result exactly (e.g. Erika — who spans Pool 1 and Pool 2 as Host — showed
   $339.44 total on both the computation output and the page).
 
+## Fixed (2026-08-08, later same day) — Host double-entry bug + point override timing
+
+Oliver caught a real bug while testing: Host was modeled as two separate
+Position rows ("Host" for Pool 1, "Host (Takeout/Online)" for Pool 2)
+sharing one employee — if a manager only added the Pool 1 row to a shift's
+roster, that person silently lost their Pool 2 tip share with no warning.
+
+- **`Position` ↔ tip pool is now many-to-many** (`db/schema.ts`'s new
+  `positionTipPools` table), not a single fixed value per position. Host is
+  now ONE position belonging to both Pool 1 and Pool 2 — one roster entry
+  covers both, nothing to forget. Deliberately kept open-ended rather than
+  hard-coding "Server = Pool 1 only" as a rule, since other restaurants
+  buying this app may run their floor differently.
+- **Point value overrides moved from the Roster page to the Closing Report
+  page.** Oliver's reasoning: a point bump is a closing-time judgment call
+  ("they upsold a ton today"), not a staffing decision made when building
+  the roster hours earlier. The roster page now only handles who's working;
+  the closing-report page has a "Tip points" section, editable right up
+  until Save.
+- Playground calculator, `finalizeShift.ts`, and `loadRosterForCalc.ts` all
+  updated for pool membership being an array now (`tipPoolGroups`) instead
+  of a single value. Core `tipPool.ts` math untouched — it never cared how
+  many roster rows a person came from, just their pooled point value.
+- 27 tests total, all passing. Re-verified end-to-end against the real DB.
+
 ## Known gap — not wired in yet
 
 The host cocktail/mocktail drink bonus (qualifying-drink-count × $/drink,

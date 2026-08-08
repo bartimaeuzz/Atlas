@@ -14,9 +14,14 @@
 
 import { calculateTwoPoolTips, round2, type PoolRosterEntry } from "./tipPool";
 
+export type TipPoolGroup = "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY";
+
 export interface FinalizeRosterRow {
   employeeId: number;
-  tipPoolGroup: "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY" | "NONE";
+  /** Which tip pool(s) this roster row's position participates in — a
+   * position (e.g. Host) can belong to more than one pool, so a single row
+   * can contribute to multiple pool shares. Empty = no tip pool. */
+  tipPoolGroups: TipPoolGroup[];
   pointValue: number;
   /** Flat wage for THIS row, or null if not the wage-bearing row for this
    * employee this shift (same one-row-per-employee rule as loadRosterForCalc). */
@@ -61,13 +66,13 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
   } = input;
 
   const pool1Roster: PoolRosterEntry[] = roster
-    .filter((r) => r.tipPoolGroup === "POOL_1_DINE_IN")
+    .filter((r) => r.tipPoolGroups.includes("POOL_1_DINE_IN"))
     .map((r) => ({ employeeId: r.employeeId, pointValue: r.pointValue }));
   const pool2Roster: PoolRosterEntry[] = roster
-    .filter((r) => r.tipPoolGroup === "POOL_2_TAKEOUT_ONLINE")
+    .filter((r) => r.tipPoolGroups.includes("POOL_2_TAKEOUT_ONLINE"))
     .map((r) => ({ employeeId: r.employeeId, pointValue: r.pointValue }));
   const pool3EmployeeIds = roster
-    .filter((r) => r.tipPoolGroup === "POOL_3_DELIVERY")
+    .filter((r) => r.tipPoolGroups.includes("POOL_3_DELIVERY"))
     .map((r) => r.employeeId);
 
   const calc = calculateTwoPoolTips({
@@ -96,10 +101,12 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
 
   const employeePayouts: FinalizeEmployeePayout[] = uniqueEmployeeIds.map((employeeId) => {
     const rowsForEmployee = roster.filter((r) => r.employeeId === employeeId);
-    const tipPoolRows = rowsForEmployee.filter((r) => r.tipPoolGroup !== "NONE");
-    // Only record a single point value if unambiguous (one tip-pool row).
-    // Someone spanning two pools (e.g. Host in Pool 1 + Pool 2) doesn't have
-    // one point value to report here — leave null rather than guess.
+    const tipPoolRows = rowsForEmployee.filter((r) => r.tipPoolGroups.length > 0);
+    // Only record a single point value if unambiguous (one tip-pool-eligible
+    // roster ROW). A row can now cover multiple pools by itself (Host is one
+    // row with two tipPoolGroups), so this resolves cleanly in that case —
+    // it only stays null if the employee has two SEPARATE roster rows this
+    // shift (e.g. genuinely working two different positions).
     const pointValueUsed = tipPoolRows.length === 1 ? tipPoolRows[0].pointValue : null;
     const wageRow = rowsForEmployee.find((r) => r.flatWage != null);
     const flatWageAmount = wageRow?.flatWage ?? 0;

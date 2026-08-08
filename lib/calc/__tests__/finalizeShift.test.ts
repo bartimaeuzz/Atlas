@@ -9,8 +9,8 @@ function round2(n: number): number {
 
 test("finalize: splits pool 1 by point value and attaches wage once per employee", () => {
   const roster: FinalizeRosterRow[] = [
-    { employeeId: 1, tipPoolGroup: "POOL_1_DINE_IN", pointValue: 1.0, flatWage: 60 }, // Server
-    { employeeId: 2, tipPoolGroup: "POOL_1_DINE_IN", pointValue: 0.8, flatWage: 60 }, // Server
+    { employeeId: 1, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 60 }, // Server
+    { employeeId: 2, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 0.8, flatWage: 60 }, // Server
   ];
 
   const result = buildFinalizationResult({
@@ -36,10 +36,12 @@ test("finalize: splits pool 1 by point value and attaches wage once per employee
   assert.equal(p1.totalCorePayout, round2(p1.tipPoolShare + 60));
 });
 
-test("finalize: employee spanning two pools (Host) gets summed share, null pointValueUsed", () => {
+test("finalize: one row spanning two pools (Host) gets summed share AND a defined pointValueUsed", () => {
+  // Host is modeled as ONE roster row whose position belongs to both Pool 1
+  // and Pool 2 (see db/schema.ts positionTipPools) — fixed 2026-08-08 after
+  // the old two-separate-rows model let a manager forget the Pool 2 row.
   const roster: FinalizeRosterRow[] = [
-    { employeeId: 10, tipPoolGroup: "POOL_1_DINE_IN", pointValue: 1.0, flatWage: 55 },
-    { employeeId: 10, tipPoolGroup: "POOL_2_TAKEOUT_ONLINE", pointValue: 1.0, flatWage: null },
+    { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN", "POOL_2_TAKEOUT_ONLINE"], pointValue: 0.5, flatWage: 55 },
   ];
 
   const result = buildFinalizationResult({
@@ -53,17 +55,42 @@ test("finalize: employee spanning two pools (Host) gets summed share, null point
   });
 
   const payout = result.employeePayouts.find((p) => p.employeeId === 10)!;
-  assert.equal(payout.pointValueUsed, null);
-  // sole member of both pools -> gets 100% of pool1 + 100% of pool2
+  // sole member of both pools -> gets 100% of pool1 + 100% of pool2, and the
+  // point value is unambiguous now since it's a single roster row.
+  assert.equal(payout.pointValueUsed, 0.5);
   const expectedPool1 = round2((100 - 40) * 0.955);
   const expectedPool2 = round2(40 * 0.955 + 20);
   assert.equal(payout.tipPoolShare, round2(expectedPool1 + expectedPool2));
-  assert.equal(payout.flatWageAmount, 55); // counted once, from the Pool 1 row
+  assert.equal(payout.flatWageAmount, 55);
+});
+
+test("finalize: employee with two SEPARATE tip-pool roster rows (different positions) has null pointValueUsed", () => {
+  // Distinct from the Host case above — this is someone genuinely covering
+  // two different jobs in one shift (e.g. Bartender AND Runner), which is
+  // still legitimately ambiguous for a single "point value used" figure.
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 40, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 70 },
+    { employeeId: 40, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 0.6, flatWage: null },
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0.045,
+    grossCcTip: 100,
+    takeoutCcTip: 0,
+    deliveryToastTip: 0,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+  });
+
+  const payout = result.employeePayouts.find((p) => p.employeeId === 40)!;
+  assert.equal(payout.pointValueUsed, null);
+  assert.equal(payout.flatWageAmount, 70); // counted once, from the wage-bearing row
 });
 
 test("finalize: NONE-pool employee (Manager) still gets a payout row with wage only", () => {
   const roster: FinalizeRosterRow[] = [
-    { employeeId: 20, tipPoolGroup: "NONE", pointValue: 1.0, flatWage: 100 },
+    { employeeId: 20, tipPoolGroups: [], pointValue: 1.0, flatWage: 100 },
   ];
 
   const result = buildFinalizationResult({
@@ -86,8 +113,8 @@ test("finalize: NONE-pool employee (Manager) still gets a payout row with wage o
 
 test("finalize: pool 3 (delivery) is split equally regardless of point value", () => {
   const roster: FinalizeRosterRow[] = [
-    { employeeId: 30, tipPoolGroup: "POOL_3_DELIVERY", pointValue: 1.0, flatWage: null },
-    { employeeId: 31, tipPoolGroup: "POOL_3_DELIVERY", pointValue: 1.0, flatWage: null },
+    { employeeId: 30, tipPoolGroups: ["POOL_3_DELIVERY"], pointValue: 1.0, flatWage: null },
+    { employeeId: 31, tipPoolGroups: ["POOL_3_DELIVERY"], pointValue: 1.0, flatWage: null },
   ];
 
   const result = buildFinalizationResult({

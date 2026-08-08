@@ -31,18 +31,18 @@ export function CalculatorForm({
   const [result, setResult] = useState<ReturnType<typeof calculateTwoPoolTips> | null>(null);
 
   const pool1Roster: PoolRosterEntry[] = roster
-    .filter((r) => r.tipPoolGroup === "POOL_1_DINE_IN")
+    .filter((r) => r.tipPoolGroups.includes("POOL_1_DINE_IN"))
     .map((r) => ({ employeeId: r.employeeId, pointValue: points[r.rosterEntryId] ?? r.pointValue }));
 
   const pool2Roster: PoolRosterEntry[] = roster
-    .filter((r) => r.tipPoolGroup === "POOL_2_TAKEOUT_ONLINE")
+    .filter((r) => r.tipPoolGroups.includes("POOL_2_TAKEOUT_ONLINE"))
     .map((r) => ({ employeeId: r.employeeId, pointValue: points[r.rosterEntryId] ?? r.pointValue }));
 
   const pool3EmployeeIds = roster
-    .filter((r) => r.tipPoolGroup === "POOL_3_DELIVERY")
+    .filter((r) => r.tipPoolGroups.includes("POOL_3_DELIVERY"))
     .map((r) => r.employeeId);
 
-  const hosts = roster.filter((r) => r.tipPoolGroup === "POOL_1_DINE_IN" && r.positionName.startsWith("Host"));
+  const hosts = roster.filter((r) => r.tipPoolGroups.includes("POOL_1_DINE_IN") && r.positionName.startsWith("Host"));
 
   const employeeNameById = useMemo(() => {
     const m = new Map<number, string>();
@@ -257,7 +257,17 @@ function RosterTable({
     POOL_3_DELIVERY: [],
     NONE: [],
   };
-  for (const r of roster) groups[r.tipPoolGroup].push(r);
+  // A row can now belong to more than one pool at once (e.g. Host is in
+  // both Pool 1 and Pool 2 via one roster row) — show it in every group it
+  // belongs to, not just one, so the "what pool is this person in" view
+  // stays accurate.
+  for (const r of roster) {
+    if (r.tipPoolGroups.length === 0) {
+      groups.NONE.push(r);
+    } else {
+      for (const g of r.tipPoolGroups) groups[g].push(r);
+    }
+  }
 
   const labels: Record<string, string> = {
     POOL_1_DINE_IN: "Pool 1 (dine-in)",
