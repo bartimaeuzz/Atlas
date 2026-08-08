@@ -6,42 +6,72 @@
   next/font/google (blocked by the sandbox's network policy), uses system fonts
 - Database: SQLite via Drizzle ORM (Prisma dropped earlier for the same reason)
 - Full schema in `db/schema.ts` — 23 tables
-- `db/seed.ts` — sample data: three-pool tip structure, roster visibility settings
+- `db/seed.ts` — sample data: three-pool tip structure, roster visibility
+  settings, 4 online platforms (Grubhub/UberEats/DoorDash/HungryPanda)
 - **Core tip-pool calculation engine** (`lib/calc/tipPool.ts`, `lib/calc/flatWage.ts`)
   — Pool 1 (dine-in), Pool 2 (takeout + platform-courier), Pool 3 (delivery,
-  equal split). Exact-cent reconciliation. 13 unit tests.
+  equal split). Exact-cent reconciliation.
 - **Roster visibility engine** (`lib/roster/visibility.ts`) — STAFF/MANAGER/ADMIN
   roles, category-scoped visibility, leadership pay hard-hidden from staff.
-  10 unit tests.
-- **UI: `/shifts/[id]`** — plain/utility styling on purpose (logic first,
-  cosmetics later). Shows the real roster grouped by pool with EDITABLE point
-  values per row (play with "what if Erika were 0.2 instead of 1.0"), resolved
-  flat wage per employee (shared FOH rate or individual BOH rate, counted once
-  even for employees with two roster rows), a form for the shift's financial
-  inputs and host drink bonus counts, a Calculate button that runs the exact
-  same tested `calculateTwoPoolTips` function live in the browser, and a
-  "Total estimated payout" rollup (tips + wage) per person. No auth or shift
-  list/creation yet — just `/shifts/1`, the seeded Dinner shift.
-  Verified end-to-end against the real seeded DB, not just isolated unit
-  tests: Erika (Host) correctly shows up in both pools with wage counted once,
-  Kris's 0.8 point value correctly changes her share, resolved wages sum to
-  exactly 500 matching hand-calculation, both pools reconcile exactly to the cent.
-- **23 unit tests total, all passing** (`npm test`)
+- **Real, saved daily workflow** — the actual point of this round of work:
+  - **`/shifts`** — list of all shifts with status (draft/finalized)
+  - **`/shifts/new`** — create a shift (date + Lunch/Dinner), redirects into its roster
+  - **`/shifts/[id]/roster`** — add/remove people on the shift's roster (employee +
+    position + optional point override), persisted to `ShiftRosterEntry`
+  - **`/shifts/[id]/closing-report`** — enter the day's sales: total sales, CC tip
+    total, takeout/delivery CC tip subsets, cash sales, food/beverage split, PLUS
+    per-platform online sales (sales amount, commission, tip split by who
+    delivered — platform courier vs. restaurant's own driver). "Save (draft)"
+    persists without locking; "Save & Finalize" persists AND locks.
+  - **"Save & Finalize"** — runs the real tip-pool + flat-wage calculation
+    (`lib/calc/finalizeShift.ts`, new pure function, unit tested) against
+    whatever's on the roster and in the closing report, writes it as a locked
+    snapshot into `TipPoolCalculation` + `EmployeePayout`, and marks the shift
+    `finalized`. Chosen deliberately over recompute-on-view — a closing report
+    is a historical record and shouldn't silently change later if settings
+    change (confirmed with Oliver 2026-08-08).
+  - **`/shifts/[id]/summary`** — read-only Summary Report for a finalized shift:
+    sales totals, pool-by-pool tip breakdown, and a per-employee payout table
+    (point value used, tip pool share, flat wage, total), pulling only from
+    the locked snapshot, never recalculating live.
+  - Once a shift is finalized, its roster and closing-report pages show a
+    locked banner and stop accepting edits (server actions reject writes to
+    a finalized shift).
+- **`/shifts/[id]`** (unchanged) — the original playground calculator: plain
+  styling on purpose, editable point values, manual financial inputs, runs
+  the same tested engine live in the browser. Kept as a separate "what-if"
+  tool, NOT wired to the saved roster/closing-report/summary flow above.
+- **26 unit tests total, all passing** (`npm test`)
+- Verified the saved flow end-to-end against the real DB (not just unit
+  tests): created a shift, added a mixed roster (Pool 1 + Pool 2 + NONE-pool
+  staff), entered sales + online platform tips, ran Save & Finalize, and
+  confirmed the rendered Summary Report's dollar figures match the computed
+  result exactly (e.g. Erika — who spans Pool 1 and Pool 2 as Host — showed
+  $339.44 total on both the computation output and the page).
+
+## Known gap — not wired in yet
+
+The host cocktail/mocktail drink bonus (qualifying-drink-count × $/drink,
+pulled off the top of Pool 1) exists in `lib/calc/tipPool.ts` and the
+playground calculator, but is **not yet captured anywhere in the persisted
+closing-report flow** — `finalizeShift` always passes an empty bonus list.
+No schema field currently holds "qualifying drink count" for a real saved
+shift. Needs a decision on where that count gets entered/stored before it's
+wired into `finalize`.
 
 ## How to run
 
 **First time only:**
 ```
 npm run setup     # installs dependencies + creates db/atlas.db + loads sample data
-npm run dev       # starts the app — open /shifts/1
+npm run dev       # starts the app — open /shifts
 ```
 
 **After that, day to day:** just `npm run dev` again. It keeps running and
 hot-reloads as files change — you do NOT need to redo install/db:push/db:seed
 every time. Only re-run `npm run setup` if this doc (or I) tells you the
 schema or sample data changed, or if you want to reset the sample data back
-to its starting point (safe to run repeatedly now — resets ids too, so
-`/shifts/1` always stays valid).
+to its starting point (safe to run repeatedly now — resets ids too).
 
 ```
 npm test          # runs all calculation + permission tests, anytime
@@ -49,9 +79,9 @@ npm test          # runs all calculation + permission tests, anytime
 
 ## Not started yet
 
-- Shift list / create-new-shift UI (only the one seeded shift is reachable)
-- Editing roster / master data through the UI (all still seed-only)
+- Editing master data through the UI (employees, positions, wage rates — all still seed-only)
 - Generic Metrics + Incentive Rules engine (schema exists, no logic/UI yet)
+- Host drink bonus persistence (see "Known gap" above)
 - Auth (systemRole field exists on Employee, no actual login system yet)
 - Deploy to Vercel
 - Validation against real Youk Thai numbers (`2026 - R.xlsx` not yet provided)

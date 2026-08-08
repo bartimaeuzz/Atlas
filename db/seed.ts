@@ -2,7 +2,7 @@ import { db } from "./client";
 import {
   positions, employees, employeePositions, positionShiftRates,
   restaurantSettings, shifts, shiftRosterEntries, shiftSales,
-  metricDefinitions, employeeWageRates,
+  metricDefinitions, employeeWageRates, onlinePlatforms,
 } from "./schema";
 import { sql } from "drizzle-orm";
 
@@ -32,6 +32,14 @@ async function seed() {
     rosterShowPeerEarningsFOH: true,
     rosterShowPeerEarningsBOH: false,
   });
+
+  // Confirmed 2026-08-05: 4 online platforms, Bento no longer active.
+  await db.insert(onlinePlatforms).values([
+    { restaurantId: 1, name: "Grubhub" },
+    { restaurantId: 1, name: "UberEats" },
+    { restaurantId: 1, name: "DoorDash" },
+    { restaurantId: 1, name: "HungryPanda" },
+  ]);
 
   // --- Positions, with confirmed tip pool group ---
   const [server] = await db.insert(positions).values({ name: "Server", category: "FOH", tipPoolGroup: "POOL_1_DINE_IN", defaultTipPointValue: 1.0 }).returning();

@@ -209,7 +209,7 @@ function sum(nums: number[]): number {
 // 0.955 should round to 558.68 but plain rounding gave 558.67. Caught by a
 // unit test, not a hunch — worth keeping this comment so nobody "simplifies"
 // it back to a floating point bug in a payroll calculation.
-function round2(n: number): number {
+export function round2(n: number): number {
   const epsilon = n >= 0 ? 1e-9 : -1e-9;
   return Math.round((n + epsilon) * 100) / 100;
 }
