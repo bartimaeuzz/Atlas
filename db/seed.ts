@@ -31,6 +31,9 @@ async function seed() {
     ccTipDeductionRate: 0.045,
     rosterShowPeerEarningsFOH: true,
     rosterShowPeerEarningsBOH: false,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
   });
 
   // Confirmed 2026-08-05: 4 online platforms, Bento no longer active.

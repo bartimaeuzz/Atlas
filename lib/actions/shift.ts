@@ -195,6 +195,9 @@ async function runFinalize(shiftId: number) {
 
   const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
   const deductionRate = settings?.ccTipDeductionRate ?? 0;
+  const pool1SplitMethod = settings?.pool1SplitMethod ?? "POINT_WEIGHTED";
+  const pool2SplitMethod = settings?.pool2SplitMethod ?? "POINT_WEIGHTED";
+  const pool3SplitMethod = settings?.pool3SplitMethod ?? "EQUAL_SPLIT";
 
   const platformRecords = await db
     .select()
@@ -217,6 +220,9 @@ async function runFinalize(shiftId: number) {
     deliveryToastTip: sales.deliveryToastTip,
     platformCourierTips,
     platformDeliveryTips,
+    pool1SplitMethod,
+    pool2SplitMethod,
+    pool3SplitMethod,
     roster,
   });
 

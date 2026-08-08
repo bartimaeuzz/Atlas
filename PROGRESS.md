@@ -74,6 +74,42 @@ roster, that person silently lost their Pool 2 tip share with no warning.
   many roster rows a person came from, just their pooled point value.
 - 27 tests total, all passing. Re-verified end-to-end against the real DB.
 
+## Pool split method is now a per-restaurant setting (2026-08-08, later same day)
+
+Oliver asked whether it'd be fair for restaurants to choose point-weighted
+vs. equal split per pool (some restaurants want skill/seniority reflected,
+others want pools to reinforce "everyone's equal" and avoid friction). Built
+it as a real setting, not a hardcoded rule:
+
+- `RestaurantSettings.pool1SplitMethod` / `pool2SplitMethod` / `pool3SplitMethod`,
+  each `POINT_WEIGHTED` or `EQUAL_SPLIT`. Defaults match prior behavior
+  exactly (Pool 1 & 2 point-weighted, Pool 3 equal) — nothing changes for
+  Youk Thai unless someone flips a setting.
+- `lib/calc/tipPool.ts` generalized: `PoolRosterEntry[]` + a split-method
+  parameter for all three pools (previously Pool 3 only ever took a bare
+  `employeeId[]` with no point data at all — fixed that too, since it would
+  have silently ignored the new setting otherwise).
+- `finalizeShift.ts` and the closing-report save flow read the setting from
+  `RestaurantSettings` at finalize time and pass it through.
+- Playground calculator (`/shifts/[id]`) got three dropdowns to flip each
+  pool's split method live and see the effect — point-value inputs
+  grey out for any pool currently set to equal split.
+- Verified directly against the DB: gave two employees very different point
+  values (2.0 vs 0.1) with Pool 1 set to EQUAL_SPLIT, confirmed their shares
+  came out identical despite the point gap, confirmed the default
+  (POINT_WEIGHTED) still produces the expected unequal split.
+- 30 tests total, all passing.
+
+**Explicitly NOT done (deferred to backlog, confirmed with Oliver):** making
+the tip pools themselves — how many exist, who's a member, and what dollar
+figures fund each one — restaurant-configurable. Oliver raised this as a
+real concern (other restaurants may need more/different pools, e.g. tipping
+out to BOH, a bar-specific pool, no delivery pool at all). Only the pool
+count/membership rules/funding formulas are still hardcoded to Youk Thai's
+three pools; only the split METHOD within those three is now configurable.
+Revisit once there's a second real restaurant's requirements to design
+against instead of guessing — see the schema memory for the full reasoning.
+
 ## Known gap — not wired in yet
 
 The host cocktail/mocktail drink bonus (qualifying-drink-count × $/drink,

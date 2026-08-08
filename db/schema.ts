@@ -109,6 +109,20 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // Self always sees their own numbers regardless of these settings.
   rosterShowPeerEarningsFOH: integer("roster_show_peer_earnings_foh", { mode: "boolean" }).notNull().default(true),
   rosterShowPeerEarningsBOH: integer("roster_show_peer_earnings_boh", { mode: "boolean" }).notNull().default(false),
+  // Confirmed 2026-08-08: whether each tip pool splits by point value or
+  // splits equally is a per-restaurant, per-pool choice — not a fixed rule.
+  // Reasoning from Oliver: some restaurants want skill/seniority reflected
+  // in pay, others want the pool to reinforce "we're one team" and avoid
+  // friction over point judgment calls. Defaults match the behavior this
+  // app already had before this setting existed, so nothing changes for
+  // Youk Thai unless someone flips it. NOTE: this only covers split METHOD
+  // for the three pools that already exist — it does NOT make the pools
+  // themselves (count, membership rules, funding formula) configurable.
+  // That's a bigger, deliberately deferred change — see the "CONFIRMED
+  // ARCHITECTURAL LIMITATION" note in the Track 2 schema memory.
+  pool1SplitMethod: text("pool1_split_method", { enum: ["POINT_WEIGHTED", "EQUAL_SPLIT"] }).notNull().default("POINT_WEIGHTED"),
+  pool2SplitMethod: text("pool2_split_method", { enum: ["POINT_WEIGHTED", "EQUAL_SPLIT"] }).notNull().default("POINT_WEIGHTED"),
+  pool3SplitMethod: text("pool3_split_method", { enum: ["POINT_WEIGHTED", "EQUAL_SPLIT"] }).notNull().default("EQUAL_SPLIT"),
 });
 
 export const onlinePlatforms = sqliteTable("online_platforms", {

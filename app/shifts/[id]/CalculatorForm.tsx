@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { calculateTwoPoolTips, type HostDrinkBonusEntry, type PoolRosterEntry } from "@/lib/calc/tipPool";
+import { calculateTwoPoolTips, type HostDrinkBonusEntry, type PoolRosterEntry, type PoolSplitMethod } from "@/lib/calc/tipPool";
 import type { RosterRow } from "@/lib/shift/loadRosterForCalc";
 
 export function CalculatorForm({
@@ -19,6 +19,9 @@ export function CalculatorForm({
   );
 
   const [deductionRate, setDeductionRate] = useState(0.045);
+  const [pool1SplitMethod, setPool1SplitMethod] = useState<PoolSplitMethod>("POINT_WEIGHTED");
+  const [pool2SplitMethod, setPool2SplitMethod] = useState<PoolSplitMethod>("POINT_WEIGHTED");
+  const [pool3SplitMethod, setPool3SplitMethod] = useState<PoolSplitMethod>("EQUAL_SPLIT");
   const [grossCcTip, setGrossCcTip] = useState(initialCcTipTotal);
   const [takeoutCcTip, setTakeoutCcTip] = useState(0);
   const [deliveryToastTip, setDeliveryToastTip] = useState(0);
@@ -38,9 +41,9 @@ export function CalculatorForm({
     .filter((r) => r.tipPoolGroups.includes("POOL_2_TAKEOUT_ONLINE"))
     .map((r) => ({ employeeId: r.employeeId, pointValue: points[r.rosterEntryId] ?? r.pointValue }));
 
-  const pool3EmployeeIds = roster
+  const pool3Roster: PoolRosterEntry[] = roster
     .filter((r) => r.tipPoolGroups.includes("POOL_3_DELIVERY"))
-    .map((r) => r.employeeId);
+    .map((r) => ({ employeeId: r.employeeId, pointValue: points[r.rosterEntryId] ?? r.pointValue }));
 
   const hosts = roster.filter((r) => r.tipPoolGroups.includes("POOL_1_DINE_IN") && r.positionName.startsWith("Host"));
 
@@ -74,11 +77,14 @@ export function CalculatorForm({
         takeoutCcTip,
         hostDrinkBonus,
         pool1Roster,
+        pool1SplitMethod,
         platformCourierTips,
         pool2Roster,
+        pool2SplitMethod,
         deliveryToastTip,
         platformDeliveryTips,
-        pool3EmployeeIds,
+        pool3Roster,
+        pool3SplitMethod,
       });
       setResult(r);
       setHasCalculated(true);
@@ -113,7 +119,25 @@ export function CalculatorForm({
           BOH: individual employee rate) and only counted once per person even if they
           have two rows (e.g. Host spans Pool 1 and Pool 2).
         </p>
-        <RosterTable roster={roster} points={points} onPointChange={(id, v) => setPoints((p) => ({ ...p, [id]: v }))} />
+        <RosterTable
+          roster={roster}
+          points={points}
+          onPointChange={(id, v) => setPoints((p) => ({ ...p, [id]: v }))}
+          splitMethods={{ POOL_1_DINE_IN: pool1SplitMethod, POOL_2_TAKEOUT_ONLINE: pool2SplitMethod, POOL_3_DELIVERY: pool3SplitMethod }}
+        />
+      </section>
+
+      <section>
+        <h2 className="text-lg font-medium mb-3">Pool split method</h2>
+        <p className="text-xs text-neutral-500 mb-3">
+          Per-restaurant setting, not a fixed rule — point-weighted rewards higher point
+          values, equal split ignores points entirely for that pool.
+        </p>
+        <div className="grid sm:grid-cols-3 gap-3 max-w-xl">
+          <SplitMethodField label="Pool 1 (dine-in)" value={pool1SplitMethod} onChange={setPool1SplitMethod} />
+          <SplitMethodField label="Pool 2 (takeout + platform-courier)" value={pool2SplitMethod} onChange={setPool2SplitMethod} />
+          <SplitMethodField label="Pool 3 (delivery)" value={pool3SplitMethod} onChange={setPool3SplitMethod} />
+        </div>
       </section>
 
       <section>
@@ -246,10 +270,12 @@ function RosterTable({
   roster,
   points,
   onPointChange,
+  splitMethods,
 }: {
   roster: RosterRow[];
   points: Record<number, number>;
   onPointChange: (rosterEntryId: number, value: number) => void;
+  splitMethods: Record<"POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY", PoolSplitMethod>;
 }) {
   const groups: Record<string, RosterRow[]> = {
     POOL_1_DINE_IN: [],
@@ -269,19 +295,24 @@ function RosterTable({
     }
   }
 
-  const labels: Record<string, string> = {
+  const baseLabels: Record<string, string> = {
     POOL_1_DINE_IN: "Pool 1 (dine-in)",
     POOL_2_TAKEOUT_ONLINE: "Pool 2 (takeout + platform-courier)",
-    POOL_3_DELIVERY: "Pool 3 (delivery, equal split — points not used)",
+    POOL_3_DELIVERY: "Pool 3 (delivery)",
     NONE: "No tip pool (commission-only)",
   };
 
   return (
     <div className="grid sm:grid-cols-2 gap-4">
-      {Object.entries(groups).map(([key, rows]) =>
-        rows.length === 0 ? null : (
+      {Object.entries(groups).map(([key, rows]) => {
+        if (rows.length === 0) return null;
+        const method = key === "NONE" ? null : splitMethods[key as keyof typeof splitMethods];
+        const label = method
+          ? `${baseLabels[key]} — ${method === "EQUAL_SPLIT" ? "equal split, points ignored" : "point-weighted"}`
+          : baseLabels[key];
+        return (
           <div key={key} className="border rounded p-3">
-            <div className="text-xs font-medium text-neutral-500 mb-2">{labels[key]}</div>
+            <div className="text-xs font-medium text-neutral-500 mb-2">{label}</div>
             <table className="text-sm w-full">
               <tbody>
                 {rows.map((r) => (
@@ -289,13 +320,14 @@ function RosterTable({
                     <td className="py-0.5">{r.employeeName}</td>
                     <td className="py-0.5 text-neutral-500">{r.positionName}</td>
                     <td className="py-0.5 text-right">
-                      {key === "POOL_3_DELIVERY" ? (
+                      {key === "NONE" ? (
                         <span className="text-neutral-400">—</span>
                       ) : (
                         <input
                           type="number"
                           step={0.1}
-                          className="border rounded px-1 py-0.5 w-16 text-right tabular-nums"
+                          disabled={method === "EQUAL_SPLIT"}
+                          className="border rounded px-1 py-0.5 w-16 text-right tabular-nums disabled:bg-neutral-100 disabled:text-neutral-400"
                           value={points[r.rosterEntryId] ?? r.pointValue}
                           onChange={(e) => onPointChange(r.rosterEntryId, Number(e.target.value))}
                         />
@@ -309,9 +341,33 @@ function RosterTable({
               </tbody>
             </table>
           </div>
-        )
-      )}
+        );
+      })}
     </div>
+  );
+}
+
+function SplitMethodField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: PoolSplitMethod;
+  onChange: (v: PoolSplitMethod) => void;
+}) {
+  return (
+    <label className="text-sm block">
+      <span className="block text-neutral-500 mb-1">{label}</span>
+      <select
+        className="border rounded px-2 py-1 w-full"
+        value={value}
+        onChange={(e) => onChange(e.target.value as PoolSplitMethod)}
+      >
+        <option value="POINT_WEIGHTED">Point-weighted</option>
+        <option value="EQUAL_SPLIT">Equal split</option>
+      </select>
+    </label>
   );
 }
 

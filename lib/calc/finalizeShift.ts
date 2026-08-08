@@ -12,7 +12,7 @@
  * where that count should be captured/persisted in the real flow.
  */
 
-import { calculateTwoPoolTips, round2, type PoolRosterEntry } from "./tipPool";
+import { calculateTwoPoolTips, round2, type PoolRosterEntry, type PoolSplitMethod } from "./tipPool";
 
 export type TipPoolGroup = "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY";
 
@@ -35,6 +35,9 @@ export interface FinalizeShiftInput {
   deliveryToastTip: number;
   platformCourierTips: number;
   platformDeliveryTips: number;
+  pool1SplitMethod: PoolSplitMethod;
+  pool2SplitMethod: PoolSplitMethod;
+  pool3SplitMethod: PoolSplitMethod;
   roster: FinalizeRosterRow[];
 }
 
@@ -62,7 +65,8 @@ export interface FinalizeShiftResult {
 export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShiftResult {
   const {
     deductionRate, grossCcTip, takeoutCcTip, deliveryToastTip,
-    platformCourierTips, platformDeliveryTips, roster,
+    platformCourierTips, platformDeliveryTips,
+    pool1SplitMethod, pool2SplitMethod, pool3SplitMethod, roster,
   } = input;
 
   const pool1Roster: PoolRosterEntry[] = roster
@@ -71,9 +75,9 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
   const pool2Roster: PoolRosterEntry[] = roster
     .filter((r) => r.tipPoolGroups.includes("POOL_2_TAKEOUT_ONLINE"))
     .map((r) => ({ employeeId: r.employeeId, pointValue: r.pointValue }));
-  const pool3EmployeeIds = roster
+  const pool3Roster: PoolRosterEntry[] = roster
     .filter((r) => r.tipPoolGroups.includes("POOL_3_DELIVERY"))
-    .map((r) => r.employeeId);
+    .map((r) => ({ employeeId: r.employeeId, pointValue: r.pointValue }));
 
   const calc = calculateTwoPoolTips({
     deductionRate,
@@ -81,11 +85,14 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     takeoutCcTip,
     hostDrinkBonus: [],
     pool1Roster,
+    pool1SplitMethod,
     platformCourierTips,
     pool2Roster,
+    pool2SplitMethod,
     deliveryToastTip,
     platformDeliveryTips,
-    pool3EmployeeIds,
+    pool3Roster,
+    pool3SplitMethod,
   });
 
   const tipShareByEmployee = new Map<number, number>();

@@ -1,27 +1,37 @@
 /**
- * Core tip-pool calculation — THREE separate pools (confirmed 2026-08-08):
+ * Core tip-pool calculation — THREE separate pools (confirmed 2026-08-08),
+ * FUNDING is fixed per pool, but the SPLIT METHOD (point-weighted vs. equal)
+ * for each pool is a per-restaurant setting, not a hardcoded rule (added
+ * 2026-08-08 after Oliver raised the fairness question — some restaurants
+ * want skill/seniority reflected in pay, others want pools to reinforce
+ * "everyone gets the same" and avoid friction over point judgment calls):
  *
  *   Pool 1 (dine-in) — Server, Runner, Bartender, Host, Busser share CC tips
- *   from guests eating in the restaurant, POINT-WEIGHTED. The host's
- *   cocktail/mocktail upsell bonus ($X per qualifying drink) is pulled off
- *   the top of Pool 1 before the point-weighted split, and paid entirely to
- *   that host — on top of their normal point-weighted Pool 1 share (which
- *   can ALSO be bumped by up to the rule's cap, e.g. +0.2 points). These are
- *   two additive components, not alternatives.
+ *   from guests eating in the restaurant. Youk Thai defaults this to
+ *   POINT-WEIGHTED. The host's cocktail/mocktail upsell bonus ($X per
+ *   qualifying drink) is pulled off the top of Pool 1 before the split, and
+ *   paid entirely to that host — on top of their normal Pool 1 share (which
+ *   can ALSO be bumped by up to the rule's cap, e.g. +0.2 points, when
+ *   Pool 1 is point-weighted). These are two additive components, not
+ *   alternatives.
  *
  *   Pool 2 (takeout + platform-courier) — Host, Operator, Packer, Bag
- *   Handler share this, POINT-WEIGHTED. Funded by: takeout tips paid at the
- *   restaurant's own register (4.5% deducted — manually-identified subset of
- *   the day's total CC tip, same pattern as host-upsell identification) PLUS
- *   online-platform tips for orders where the PLATFORM'S OWN COURIER did the
- *   delivery (not deducted — restaurant staff only packed/handed off).
+ *   Handler share this. Youk Thai defaults this to POINT-WEIGHTED. Funded
+ *   by: takeout tips paid at the restaurant's own register (4.5% deducted —
+ *   manually-identified subset of the day's total CC tip, same pattern as
+ *   host-upsell identification) PLUS online-platform tips for orders where
+ *   the PLATFORM'S OWN COURIER did the delivery (not deducted — restaurant
+ *   staff only packed/handed off).
  *
- *   Pool 3 (delivery) — Delivery Guy only, EQUAL split (NOT point-weighted —
- *   confirmed explicitly). Funded by: Toast-based delivery tips, i.e. phone
- *   orders or the restaurant's own future platform (4.5% deducted) PLUS
- *   online-platform tips where the RESTAURANT'S OWN driver did the delivery
- *   (not deducted). Cash tips handed directly to a driver are NOT pooled at
- *   all — paid 100% to that individual, tracked separately for reporting.
+ *   Pool 3 (delivery) — Delivery Guy only. Youk Thai defaults this to
+ *   EQUAL_SPLIT (their reasoning: delivery work doesn't vary by skill the
+ *   way serving does) — but like the other two pools, this is now a
+ *   restaurant setting, not a hardcoded rule. Funded by: Toast-based
+ *   delivery tips, i.e. phone orders or the restaurant's own future platform
+ *   (4.5% deducted) PLUS online-platform tips where the RESTAURANT'S OWN
+ *   driver did the delivery (not deducted). Cash tips handed directly to a
+ *   driver are NOT pooled at all — paid 100% to that individual, tracked
+ *   separately for reporting.
  *
  *   Host is a member of BOTH Pool 1 and Pool 2. Routing an online-platform
  *   tip to Pool 2 vs Pool 3 depends entirely on who delivered that order —
@@ -29,7 +39,20 @@
  *
  * Manager / Floor Manager are in NO pool — commission-only, handled entirely
  * by the generic incentive rules engine, not this file.
+ *
+ * NOTE: the pool COUNT and FUNDING FORMULAS above are still hardcoded, not
+ * restaurant-configurable — confirmed as a known, deliberately deferred
+ * limitation (see "CONFIRMED ARCHITECTURAL LIMITATION" in project memory).
+ * Only the split method within each of these three fixed pools is a setting.
  */
+
+/** Confirmed 2026-08-08: whether a pool splits by point value or splits
+ * equally is itself a per-restaurant, per-pool CHOICE (RestaurantSettings.
+ * pool1SplitMethod / pool2SplitMethod / pool3SplitMethod), not a fixed rule
+ * — Youk Thai defaults to point-weighted for Pool 1/2 and equal for Pool 3,
+ * matching this file's behavior before this setting existed, but another
+ * restaurant could configure any pool either way. */
+export type PoolSplitMethod = "POINT_WEIGHTED" | "EQUAL_SPLIT";
 
 export interface PoolRosterEntry {
   employeeId: number;
@@ -50,15 +73,18 @@ export interface TwoPoolTipCalcInput {
   takeoutCcTip: number; // manually-identified subset of grossCcTip from takeout orders (register pickup)
   hostDrinkBonus: HostDrinkBonusEntry[];
   pool1Roster: PoolRosterEntry[]; // Server/Runner/Bartender/Host/Busser on shift, with this shift's point value
+  pool1SplitMethod: PoolSplitMethod;
 
   // Pool 2 inputs
   platformCourierTips: number; // online-platform tips where the PLATFORM'S courier delivered (not deducted)
   pool2Roster: PoolRosterEntry[]; // Host/Operator/Packer/Bag Handler on shift
+  pool2SplitMethod: PoolSplitMethod;
 
   // Pool 3 inputs
   deliveryToastTip: number; // manually-identified subset of grossCcTip from phone/own-platform delivery orders (gets deducted)
   platformDeliveryTips: number; // online-platform tips where the RESTAURANT'S OWN driver delivered (not deducted)
-  pool3EmployeeIds: number[]; // Delivery Guy employee ids on shift — EQUAL split, no point value needed
+  pool3Roster: PoolRosterEntry[]; // Delivery Guy on shift, with point value (only matters if pool3SplitMethod = POINT_WEIGHTED)
+  pool3SplitMethod: PoolSplitMethod; // Youk Thai's default is EQUAL_SPLIT, but this is now a choice, not a rule
 }
 
 export interface TwoPoolTipCalcResult {
@@ -86,9 +112,9 @@ export interface TwoPoolTipCalcResult {
 
 export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalcResult {
   const {
-    deductionRate, grossCcTip, takeoutCcTip, hostDrinkBonus, pool1Roster,
-    platformCourierTips, pool2Roster,
-    deliveryToastTip, platformDeliveryTips, pool3EmployeeIds,
+    deductionRate, grossCcTip, takeoutCcTip, hostDrinkBonus, pool1Roster, pool1SplitMethod,
+    platformCourierTips, pool2Roster, pool2SplitMethod,
+    deliveryToastTip, platformDeliveryTips, pool3Roster, pool3SplitMethod,
   } = input;
 
   if (deductionRate < 0 || deductionRate > 1) throw new Error("deductionRate must be between 0 and 1");
@@ -117,17 +143,17 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
     );
   }
 
-  const pool1ShareByEmployee = splitByPointsExact(netPool1AfterHostBonus, pool1Roster);
+  const pool1ShareByEmployee = splitByMethod(netPool1AfterHostBonus, pool1Roster, pool1SplitMethod);
 
   // ---- Pool 2: takeout (register) + platform-courier-delivered online orders ----
   const netTakeoutCcTip = round2(takeoutCcTip * (1 - deductionRate));
   const totalPool2 = round2(netTakeoutCcTip + platformCourierTips);
-  const pool2ShareByEmployee = splitByPointsExact(totalPool2, pool2Roster);
+  const pool2ShareByEmployee = splitByMethod(totalPool2, pool2Roster, pool2SplitMethod);
 
   // ---- Pool 3: delivery (Toast phone/own-platform orders + restaurant-driver-delivered online orders) ----
   const netDeliveryToastTip = round2(deliveryToastTip * (1 - deductionRate));
   const totalPool3 = round2(netDeliveryToastTip + platformDeliveryTips);
-  const pool3ShareByEmployee = splitEqually(totalPool3, pool3EmployeeIds);
+  const pool3ShareByEmployee = splitByMethod(totalPool3, pool3Roster, pool3SplitMethod);
 
   return {
     pool1: {
@@ -153,16 +179,22 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
   };
 }
 
-/** Pool 3 (Delivery Guy) is explicitly EQUAL split, not point-weighted —
- * confirmed by Oliver. Implemented as splitByPointsExact with every employee
- * at point value 1.0, so it reuses the same exact-cent reconciliation logic
- * rather than duplicating it, but callers don't need to think about points
- * for this pool at all. */
-function splitEqually(poolAmount: number, employeeIds: number[]): Record<number, number> {
-  return splitByPointsExact(
-    poolAmount,
-    employeeIds.map((employeeId) => ({ employeeId, pointValue: 1.0 }))
-  );
+/** Dispatches to the pool's configured split method. EQUAL_SPLIT is
+ * implemented as splitByPointsExact with every point value forced to 1.0,
+ * so both methods reuse the same exact-cent reconciliation logic (largest-
+ * remainder) rather than duplicating rounding behavior. */
+function splitByMethod(
+  poolAmount: number,
+  roster: PoolRosterEntry[],
+  method: PoolSplitMethod
+): Record<number, number> {
+  if (method === "EQUAL_SPLIT") {
+    return splitByPointsExact(
+      poolAmount,
+      roster.map((r) => ({ employeeId: r.employeeId, pointValue: 1.0 }))
+    );
+  }
+  return splitByPointsExact(poolAmount, roster);
 }
 
 /** Splits `poolAmount` across roster entries proportional to point value,

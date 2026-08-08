@@ -15,6 +15,9 @@ test("finalize: splits pool 1 by point value and attaches wage once per employee
 
   const result = buildFinalizationResult({
     deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
     grossCcTip: 630,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
@@ -46,6 +49,9 @@ test("finalize: one row spanning two pools (Host) gets summed share AND a define
 
   const result = buildFinalizationResult({
     deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
     grossCcTip: 100,
     takeoutCcTip: 40,
     deliveryToastTip: 0,
@@ -75,6 +81,9 @@ test("finalize: employee with two SEPARATE tip-pool roster rows (different posit
 
   const result = buildFinalizationResult({
     deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
     grossCcTip: 100,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
@@ -95,6 +104,9 @@ test("finalize: NONE-pool employee (Manager) still gets a payout row with wage o
 
   const result = buildFinalizationResult({
     deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
     grossCcTip: 0,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
@@ -111,7 +123,35 @@ test("finalize: NONE-pool employee (Manager) still gets a payout row with wage o
   assert.equal(payout.pointValueUsed, null);
 });
 
-test("finalize: pool 3 (delivery) is split equally regardless of point value", () => {
+test("finalize: split method is configurable per pool, not just Pool 3's default", () => {
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 50, tipPoolGroups: ["POOL_2_TAKEOUT_ONLINE"], pointValue: 1.0, flatWage: null },
+    { employeeId: 51, tipPoolGroups: ["POOL_2_TAKEOUT_ONLINE"], pointValue: 0.5, flatWage: null },
+  ];
+
+  // Same roster, Pool 2 flipped from its usual POINT_WEIGHTED to EQUAL_SPLIT.
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "EQUAL_SPLIT",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 0,
+    takeoutCcTip: 0,
+    deliveryToastTip: 0,
+    platformCourierTips: 100,
+    platformDeliveryTips: 0,
+    roster,
+  });
+
+  const p1 = result.employeePayouts.find((p) => p.employeeId === 50)!;
+  const p2 = result.employeePayouts.find((p) => p.employeeId === 51)!;
+  // If this were still point-weighted, 1.0 vs 0.5 would split 66.67/33.33.
+  // With EQUAL_SPLIT it's 50/50 despite the uneven point values.
+  assert.equal(p1.tipPoolShare, 50);
+  assert.equal(p2.tipPoolShare, 50);
+});
+
+test("finalize: pool 3 (delivery) is split equally by default, regardless of point value", () => {
   const roster: FinalizeRosterRow[] = [
     { employeeId: 30, tipPoolGroups: ["POOL_3_DELIVERY"], pointValue: 1.0, flatWage: null },
     { employeeId: 31, tipPoolGroups: ["POOL_3_DELIVERY"], pointValue: 1.0, flatWage: null },
@@ -119,6 +159,9 @@ test("finalize: pool 3 (delivery) is split equally regardless of point value", (
 
   const result = buildFinalizationResult({
     deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
     grossCcTip: 100,
     takeoutCcTip: 0,
     deliveryToastTip: 100,
