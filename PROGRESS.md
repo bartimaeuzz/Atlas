@@ -110,6 +110,32 @@ three pools; only the split METHOD within those three is now configurable.
 Revisit once there's a second real restaurant's requirements to design
 against instead of guessing — see the schema memory for the full reasoning.
 
+## Closing report error handling fixed (2026-08-08, later same day)
+
+Oliver hit this testing Pool 1/2: entered Takeout Tip = 20 but left Total CC
+Tip blank/0, which correctly failed validation — but the error would have
+shown as Next.js's generic/technical error page on the real Save flow, not
+a helpful inline message (the playground calculator already had a nicer
+error box; the real closing-report Save button didn't).
+
+- Validation messages in `tipPool.ts` rewritten to be specific and
+  actionable, with the actual numbers included (e.g. now says "Takeout tip
+  ($20) plus delivery tip ($0) adds up to more than the Total CC Tip you
+  entered ($0)... make sure you filled in Total CC Tip").
+- `saveClosingReportSales` / `saveClosingReportAndFinalize` converted to
+  React's `useActionState` pattern — they now catch errors and return
+  `{ error }` instead of throwing uncaught. `redirect()` is deliberately
+  called AFTER the try/catch (not inside it) since it works by throwing a
+  special internal signal that must not be swallowed by our own catch.
+- Closing report page split into a thin Server Component (`page.tsx`, loads
+  data) + a new Client Component (`ClosingReportForm.tsx`, holds the form +
+  `useActionState` + a red error banner matching the playground's style).
+- Verified directly: called the action with Oliver's exact bad input
+  (Takeout=20, Total CC Tip blank), confirmed it returns a friendly message
+  instead of throwing, confirmed the shift stays in `draft` status (not
+  silently finalized on a failed save).
+- 30 tests still passing (no calc logic changed, only error messages/wiring).
+
 ## Known gap — not wired in yet
 
 The host cocktail/mocktail drink bonus (qualifying-drink-count × $/drink,

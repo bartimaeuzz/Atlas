@@ -69,29 +69,58 @@ export async function removeRosterEntry(formData: FormData) {
   revalidatePath(`/shifts/${shiftId}/roster`);
 }
 
-/** Upserts the one ShiftSales row + all four OnlinePlatformSalesRecord rows
- * for a shift in one submit — this is the "closing report" sales entry. */
-export async function saveClosingReportSales(formData: FormData) {
-  const shiftId = Number(formData.get("shiftId"));
-  if (!shiftId) throw new Error("Missing shift id");
+export interface ClosingReportActionState {
+  error: string | null;
+}
 
-  await assertDraft(shiftId);
-  await upsertClosingReportSales(shiftId, formData);
+/** Upserts the one ShiftSales row + all four OnlinePlatformSalesRecord rows
+ * for a shift in one submit — this is the "closing report" sales entry.
+ *
+ * Signature matches React's useActionState (prevState, formData) so the
+ * client form can catch validation errors (e.g. Takeout + Delivery tip
+ * exceeding Total CC Tip) and show them inline instead of letting them
+ * escape as an uncaught error, which would otherwise render Next.js's
+ * generic/technical error page — not something a restaurant manager should
+ * ever see mid-shift. Caught directly by Oliver testing this 2026-08-08. */
+export async function saveClosingReportSales(
+  _prevState: ClosingReportActionState,
+  formData: FormData
+): Promise<ClosingReportActionState> {
+  const shiftId = Number(formData.get("shiftId"));
+  if (!shiftId) return { error: "Missing shift id" };
+
+  try {
+    await assertDraft(shiftId);
+    await upsertClosingReportSales(shiftId, formData);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 
   revalidatePath(`/shifts/${shiftId}/closing-report`);
+  return { error: null };
 }
 
 /** "Save & Finalize" from the closing report form — persists whatever's in
  * the form fields right now, THEN runs the same finalize/lock logic as
  * finalizeShift below, in one submit (so the manager doesn't have to click
- * Save first and Finalize second). */
-export async function saveClosingReportAndFinalize(formData: FormData) {
+ * Save first and Finalize second). Same error-handling reasoning as
+ * saveClosingReportSales above — redirect() is deliberately called AFTER
+ * the try/catch (not inside it), since Next's redirect() works by throwing
+ * a special internal signal that must NOT be caught by our own catch block. */
+export async function saveClosingReportAndFinalize(
+  _prevState: ClosingReportActionState,
+  formData: FormData
+): Promise<ClosingReportActionState> {
   const shiftId = Number(formData.get("shiftId"));
-  if (!shiftId) throw new Error("Missing shift id");
+  if (!shiftId) return { error: "Missing shift id" };
 
-  await assertDraft(shiftId);
-  await upsertClosingReportSales(shiftId, formData);
-  await runFinalize(shiftId);
+  try {
+    await assertDraft(shiftId);
+    await upsertClosingReportSales(shiftId, formData);
+    await runFinalize(shiftId);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 
   revalidatePath(`/shifts/${shiftId}`);
   revalidatePath("/shifts");

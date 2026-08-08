@@ -117,12 +117,21 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
     deliveryToastTip, platformDeliveryTips, pool3Roster, pool3SplitMethod,
   } = input;
 
-  if (deductionRate < 0 || deductionRate > 1) throw new Error("deductionRate must be between 0 and 1");
-  if (grossCcTip < 0) throw new Error("grossCcTip cannot be negative");
-  if (takeoutCcTip < 0) throw new Error("takeoutCcTip cannot be negative");
-  if (deliveryToastTip < 0) throw new Error("deliveryToastTip cannot be negative");
+  if (deductionRate < 0 || deductionRate > 1) {
+    throw new Error(
+      `Deduction rate should be between 0 and 1 (e.g. 0.045 for 4.5%) — got ${deductionRate}. Check Restaurant Settings.`
+    );
+  }
+  if (grossCcTip < 0) throw new Error(`Gross CC tip can't be negative — got ${grossCcTip}. Check the Total CC Tip field.`);
+  if (takeoutCcTip < 0) throw new Error(`Takeout CC tip can't be negative — got ${takeoutCcTip}.`);
+  if (deliveryToastTip < 0) throw new Error(`Delivery Toast tip can't be negative — got ${deliveryToastTip}.`);
   if (takeoutCcTip + deliveryToastTip > grossCcTip) {
-    throw new Error("takeoutCcTip + deliveryToastTip cannot exceed grossCcTip");
+    throw new Error(
+      `Takeout tip ($${takeoutCcTip}) plus delivery tip ($${deliveryToastTip}) adds up to more than the Total CC Tip ` +
+      `you entered ($${grossCcTip}). Total CC Tip should be the restaurant's FULL day's card tip total — takeout and ` +
+      `delivery tips are a SUBSET of it, not added on top. Most likely fix: make sure you filled in Total CC Tip ` +
+      `(it's easy to enter Takeout/Delivery first and forget it).`
+    );
   }
 
   // ---- Pool 1: dine-in ----
@@ -139,7 +148,8 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
   const netPool1AfterHostBonus = round2(netDineInCcTip - totalHostDrinkBonus);
   if (netPool1AfterHostBonus < 0) {
     throw new Error(
-      "Host drink bonus exceeds the dine-in pool for this shift — check the qualifying drink count / per-drink amount before finalizing this report."
+      `The host drink bonus ($${totalHostDrinkBonus}) is more than this shift's dine-in tip pool ($${netDineInCcTip} ` +
+      `after deduction). Check the qualifying drink count and $-per-drink amount before saving.`
     );
   }
 
