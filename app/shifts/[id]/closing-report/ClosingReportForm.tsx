@@ -84,6 +84,49 @@ export function ClosingReportForm({
       </fieldset>
 
       <fieldset disabled={isFinalized}>
+        <legend className="text-lg font-medium mb-3">Bonus metrics</legend>
+        <p className="text-xs text-neutral-500 mb-3">
+          Restaurant-configurable bonuses — today that's the host cocktail/mocktail
+          count (paid $ per drink, pulled off the top of Pool 1 before the split, see
+          Preview). Adding a new bonus later shows up here automatically, no page
+          changes needed.
+        </p>
+        {data.metricRows.length === 0 ? (
+          <p className="text-sm text-neutral-500">No bonus-eligible staff on the roster yet.</p>
+        ) : (
+          <table className="text-sm border-collapse">
+            <thead>
+              <tr className="text-neutral-500">
+                <th className="text-left font-normal pr-4 pb-1">Employee</th>
+                <th className="text-left font-normal pr-4 pb-1">Position</th>
+                <th className="text-left font-normal pr-4 pb-1">Metric</th>
+                <th className="text-left font-normal pr-4 pb-1">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.metricRows.map((r) => (
+                <tr key={`${r.metricDefinitionId}_${r.employeeId}`}>
+                  <td className="pr-4 py-1">{r.employeeName}</td>
+                  <td className="pr-4 py-1 text-neutral-500">{r.positionName}</td>
+                  <td className="pr-4 py-1 text-neutral-500">{r.metricLabel}</td>
+                  <td className="pr-4 py-1">
+                    <input
+                      type="number"
+                      step={1}
+                      min={0}
+                      name={`metric_${r.metricDefinitionId}_${r.employeeId}`}
+                      defaultValue={r.currentValue}
+                      className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </fieldset>
+
+      <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium mb-3">Online platform sales</legend>
         <p className="text-xs text-neutral-500 mb-3">
           Split tips by who delivered: platform-courier tips feed Pool 2 (Host/Operator/Packer/Bag

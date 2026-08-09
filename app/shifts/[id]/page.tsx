@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/db/client";
+import { metricDefinitions, positionMetrics } from "@/db/schema";
 import { loadShiftCalcData } from "@/lib/shift/loadRosterForCalc";
 import { CalculatorForm } from "./CalculatorForm";
 import { notFound } from "next/navigation";
@@ -8,6 +11,20 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
   const data = await loadShiftCalcData(shiftId);
 
   if (!data.shift) notFound();
+
+  // Which positions are eligible for the host drink bonus — driven by the
+  // positionMetrics table now, not a positionName.startsWith("Host") string
+  // match (that hack predates this table; the real closing report uses the
+  // same source of truth via loadClosingReportData).
+  const [hostMetric] = await db
+    .select()
+    .from(metricDefinitions)
+    .where(eq(metricDefinitions.key, "host_qualifying_drink_count"));
+  const hostBonusEligiblePositionIds = hostMetric
+    ? (await db.select().from(positionMetrics).where(eq(positionMetrics.metricDefinitionId, hostMetric.id))).map(
+        (r) => r.positionId
+      )
+    : [];
 
   return (
     <main className="max-w-4xl mx-auto p-8 font-sans">
@@ -23,6 +40,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
       <CalculatorForm
         roster={data.roster}
         initialCcTipTotal={data.sales?.ccTipTotal ?? 0}
+        hostBonusEligiblePositionIds={hostBonusEligiblePositionIds}
       />
     </main>
   );

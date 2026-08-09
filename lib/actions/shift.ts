@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
-  onlinePlatforms, tipPoolCalculations, employeePayouts,
+  onlinePlatforms, tipPoolCalculations, employeePayouts, metricValues,
 } from "@/db/schema";
 import { computeFinalizationPreview } from "@/lib/shift/computeFinalizationPreview";
 
@@ -152,6 +152,7 @@ export async function confirmFinalize(
 
 async function upsertClosingReportSales(shiftId: number, formData: FormData) {
   await upsertPointOverrides(shiftId, formData);
+  await upsertMetricValues(shiftId, formData);
 
   const num = (key: string) => Number(formData.get(key) ?? 0) || 0;
 
@@ -217,6 +218,42 @@ async function upsertPointOverrides(shiftId: number, formData: FormData) {
     const pointValueOverride = trimmed === "" ? null : Number(trimmed);
     if (pointValueOverride != null && Number.isNaN(pointValueOverride)) continue;
     await db.update(shiftRosterEntries).set({ pointValueOverride }).where(eq(shiftRosterEntries.id, entry.id));
+  }
+}
+
+/** "Bonus metrics" (e.g. Host qualifying drink count) live in the generic
+ * metricValues table, keyed by (shiftId, metricDefinitionId, employeeId) —
+ * NOT by rosterEntryId, since a metric describes the employee's shift, not
+ * a specific roster row. Form field names are `metric_<metricDefinitionId>_<employeeId>`,
+ * rendered only for eligible (position, metric) pairs by loadClosingReportData,
+ * so this just scans for whatever showed up rather than re-deriving
+ * eligibility server-side — same trust-the-rendered-form pattern as
+ * upsertPointOverrides above. Blank/0 clears it back to 0 (no bonus).*/
+async function upsertMetricValues(shiftId: number, formData: FormData) {
+  for (const [key, raw] of formData.entries()) {
+    const match = /^metric_(\d+)_(\d+)$/.exec(key);
+    if (!match) continue;
+    const metricDefinitionId = Number(match[1]);
+    const employeeId = Number(match[2]);
+    const trimmed = String(raw).trim();
+    const value = trimmed === "" ? 0 : Number(trimmed);
+    if (Number.isNaN(value)) continue;
+
+    const [existing] = await db
+      .select()
+      .from(metricValues)
+      .where(
+        and(
+          eq(metricValues.shiftId, shiftId),
+          eq(metricValues.metricDefinitionId, metricDefinitionId),
+          eq(metricValues.employeeId, employeeId)
+        )
+      );
+    if (existing) {
+      await db.update(metricValues).set({ value }).where(eq(metricValues.id, existing.id));
+    } else {
+      await db.insert(metricValues).values({ shiftId, metricDefinitionId, employeeId, value });
+    }
   }
 }
 

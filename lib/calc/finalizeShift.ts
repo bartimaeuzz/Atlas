@@ -5,14 +5,21 @@
  * separate from the DB-touching server action so this stays unit-testable
  * without a database, same pattern as tipPool.ts and visibility.ts.
  *
- * NOTE: the host cocktail/mocktail drink bonus (see tipPool.ts's
- * HostDrinkBonusEntry) is NOT wired in here yet — it only exists in the
- * standalone playground calculator (/shifts/[id]) for now. This function
- * always passes an empty hostDrinkBonus array. Revisit once Oliver confirms
- * where that count should be captured/persisted in the real flow.
+ * Host cocktail/mocktail drink bonus is wired in via the `hostDrinkBonus`
+ * input (2026-08-09) — the caller resolves it from the generic metrics
+ * engine (metricValues for host_qualifying_drink_count x
+ * RestaurantSettings.hostDrinkBonusPerDrinkAmount), this function just
+ * hands it straight to calculateTwoPoolTips like the playground calculator
+ * always did. Per-employee amounts are written to EmployeePayout.hostUpsellTipShare
+ * (an existing but previously-unused column — see the schema memory's note
+ * on the old, mismatched HostUpsellTipRecord table; that table is unrelated
+ * dead code, not what feeds this).
  */
 
-import { calculateTwoPoolTips, round2, type PoolRosterEntry, type PoolSplitMethod } from "./tipPool";
+import {
+  calculateTwoPoolTips, round2,
+  type HostDrinkBonusEntry, type PoolRosterEntry, type PoolSplitMethod,
+} from "./tipPool";
 
 export type TipPoolGroup = "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY";
 
@@ -33,6 +40,7 @@ export interface FinalizeShiftInput {
   grossCcTip: number;
   takeoutCcTip: number;
   deliveryToastTip: number;
+  hostDrinkBonus: HostDrinkBonusEntry[];
   platformCourierTips: number;
   platformDeliveryTips: number;
   pool1SplitMethod: PoolSplitMethod;
@@ -46,6 +54,14 @@ export interface FinalizeEmployeePayout {
   pointValueUsed: number | null;
   tipPoolShare: number;
   flatWageAmount: number;
+  /** Host cocktail/mocktail drink bonus for this employee, 0 if none. Paid
+   * on top of (not instead of) their normal Pool 1 point-weighted share —
+   * it's already been pulled off the top of Pool 1 before that split runs,
+   * so this is purely additive here, no double-counting. Field name matches
+   * the existing (previously-unused) EmployeePayout.hostUpsellTipShare
+   * column so lib/actions/shift.ts can keep writing this via a plain
+   * object spread — see the header comment for the naming note. */
+  hostUpsellTipShare: number;
   totalCorePayout: number;
 }
 
@@ -64,7 +80,7 @@ export interface FinalizeShiftResult {
 
 export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShiftResult {
   const {
-    deductionRate, grossCcTip, takeoutCcTip, deliveryToastTip,
+    deductionRate, grossCcTip, takeoutCcTip, deliveryToastTip, hostDrinkBonus,
     platformCourierTips, platformDeliveryTips,
     pool1SplitMethod, pool2SplitMethod, pool3SplitMethod, roster,
   } = input;
@@ -83,7 +99,7 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     deductionRate,
     grossCcTip,
     takeoutCcTip,
-    hostDrinkBonus: [],
+    hostDrinkBonus,
     pool1Roster,
     pool1SplitMethod,
     platformCourierTips,
@@ -118,12 +134,14 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     const wageRow = rowsForEmployee.find((r) => r.flatWage != null);
     const flatWageAmount = wageRow?.flatWage ?? 0;
     const tipPoolShare = tipShareByEmployee.get(employeeId) ?? 0;
+    const hostUpsellTipShare = calc.hostDrinkBonusByEmployee[employeeId] ?? 0;
     return {
       employeeId,
       pointValueUsed,
       tipPoolShare,
       flatWageAmount,
-      totalCorePayout: round2(tipPoolShare + flatWageAmount),
+      hostUpsellTipShare,
+      totalCorePayout: round2(tipPoolShare + flatWageAmount + hostUpsellTipShare),
     };
   });
 
@@ -132,8 +150,12 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
       grossCcTip: round2(grossCcTip),
       deductionRate,
       netCcTip: round2(grossCcTip * (1 - deductionRate)),
-      totalHostUpsellTip: 0,
-      netHostUpsellTip: 0,
+      // "HostUpsellTip" here means the host drink bonus (naming predates
+      // this being wired in) — no separate deduction applies to it beyond
+      // the deduction already baked into Pool 1 before the bonus is pulled
+      // off the top, so total and net are the same figure.
+      totalHostUpsellTip: calc.pool1.totalHostDrinkBonus,
+      netHostUpsellTip: calc.pool1.totalHostDrinkBonus,
       netGeneralCcTip: calc.pool1.netPool1AfterHostBonus,
       perRoleBreakdown: {
         pool1: calc.pool1.netPool1AfterHostBonus,

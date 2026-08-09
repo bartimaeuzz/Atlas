@@ -18,8 +18,8 @@
 
 **Explicitly deferred — don't build these speculatively without checking first:**
 - Position admin UI (create/edit positions with pool-membership checkboxes) — Oliver specifically asked to be reminded about this one.
-- Host drink bonus not wired into the persisted closing-report flow yet (see "Known gap" section below).
 - Generic/restaurant-configurable tip pool structure (count, membership, funding beyond the fixed 3 pools) — confirmed backlog item, deliberately not built until there's a second real restaurant's requirements to design against.
+- Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — the host drink bonus (2026-08-09) uses the engine's storage tables (MetricDefinition, MetricValue, the new positionMetrics) directly with hardcoded logic in finalizeShift.ts, not a generic rule evaluator. Build that dispatcher once a second bonus scenario (BOH sales-split, Manager weekly token) is actually being wired in — same "concrete first" sequencing already used for this engine.
 
 **People:** Oliver = business/PM, non-technical, tests everything himself in the browser and reports real bugs he finds — treat his bug reports as ground truth. Seth (Auu) = Oliver's brother, developer on the separate Track 1 app; not currently building Track 2, may review it later.
 
@@ -196,15 +196,62 @@ Finalize and confirmed the shift became `finalized` with exactly 1
 calculation row + 8 payout rows, and the locked totals matched the preview
 exactly. 30 tests still passing (calc engine itself didn't change).
 
-## Known gap — not wired in yet
+## Host drink bonus wired into the persisted flow (2026-08-09) — first real use of the Metrics engine
 
-The host cocktail/mocktail drink bonus (qualifying-drink-count × $/drink,
-pulled off the top of Pool 1) exists in `lib/calc/tipPool.ts` and the
-playground calculator, but is **not yet captured anywhere in the persisted
-closing-report flow** — `finalizeShift` always passes an empty bonus list.
-No schema field currently holds "qualifying drink count" for a real saved
-shift. Needs a decision on where that count gets entered/stored before it's
-wired into `finalize`.
+Closed the gap noted below (kept for history) — this was the first concrete
+slice of the "generic Metrics + Incentive Rules engine" (schema existed
+since the original Track 2 design, zero logic/UI until now). Deliberately
+used only the engine's storage layer (`MetricDefinition`, `MetricValue`)
+plus a small new `positionMetrics` join table, not the full
+`IncentiveRule`/conditions/targets/weights evaluator — the reward math
+(drink count × $/drink, pulled off Pool 1's top, capped by the pool itself)
+was already correct and tested in `tipPool.ts`'s `HostDrinkBonusEntry`
+mechanism; re-deriving it generically added risk without adding value yet.
+Full rule evaluation stays deferred until a second bonus scenario (BOH
+sales-split, Manager weekly token) is actually being built — see the START
+HERE section's deferred list.
+
+- **`positionMetrics`** (new table): which positions are eligible to have a
+  given EMPLOYEE_SHIFT metric collected — e.g. Host ↔ `host_qualifying_drink_count`.
+  Generic on purpose: a future bonus metric just needs new rows here, not
+  new closing-report page code. Also replaced a `positionName.startsWith("Host")`
+  hack that lived in the playground calculator (`CalculatorForm.tsx`) — both
+  the real closing report and the playground now read eligibility from the
+  same source.
+- **`RestaurantSettings.hostDrinkBonusPerDrinkAmount`** (new, default 0,
+  Youk Thai seeded to $1.00) — restaurant-configurable $/drink rate.
+- **Closing Report** gets a new "Bonus metrics" section — generic loop over
+  enabled EMPLOYEE_SHIFT metrics × eligible roster rows (today just Host's
+  drink count; a future metric grows this section automatically). Saves
+  into the existing `metricValues` table, same upsert pattern as the
+  existing "Tip points" section.
+- **`finalizeShift.ts`** no longer passes a hardcoded empty `hostDrinkBonus`
+  array — `computeFinalizationPreview.ts` now resolves it from saved
+  `metricValues` × the per-drink rate. `FinalizeEmployeePayout` gained
+  `hostUpsellTipShare` (reusing an existing-but-previously-unused
+  `EmployeePayout` column name — unrelated to the older, still-dead
+  `HostUpsellTipRecord` table, which stores dollar amounts not a drink
+  count and remains unused tech debt from before this round).
+- **Preview + Summary Report** both render the bonus now: a "Host drink
+  bonus (pulled off Pool 1 top)" line when nonzero, and a per-employee
+  "Drink bonus" column in the payout table.
+- 32 tests total (was 30) — two new tests: the bonus flowing through
+  end-to-end additively (host gets their normal Pool 1 share PLUS the flat
+  bonus, not either/or), and a bonus larger than the pool throwing the
+  existing friendly error instead of silently clamping.
+- Verified directly against the real DB: saved a drink count for Erika via
+  the same code path the closing-report form uses, confirmed the Preview
+  page computes the bonus correctly with zero DB writes, then finalized and
+  confirmed the locked `EmployeePayout`/`TipPoolCalculation` rows match
+  exactly. Also verified `loadClosingReportData` only surfaces Host as
+  eligible for the metric (not the whole roster).
+
+**Original gap note, kept for history:** the host cocktail/mocktail drink
+bonus (qualifying-drink-count × $/drink, pulled off the top of Pool 1)
+existed in `lib/calc/tipPool.ts` and the playground calculator, but wasn't
+captured anywhere in the persisted closing-report flow — `finalizeShift`
+always passed an empty bonus list. No schema field held "qualifying drink
+count" for a real saved shift. Resolved above.
 
 ## How to run
 
@@ -227,8 +274,7 @@ npm test          # runs all calculation + permission tests, anytime
 ## Not started yet
 
 - Editing master data through the UI (employees, positions, wage rates — all still seed-only)
-- Generic Metrics + Incentive Rules engine (schema exists, no logic/UI yet)
-- Host drink bonus persistence (see "Known gap" above)
+- Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet
 - Auth (systemRole field exists on Employee, no actual login system yet)
 - Deploy to Vercel
 - Validation against real Youk Thai numbers (`2026 - R.xlsx` not yet provided)

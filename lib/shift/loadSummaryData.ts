@@ -11,6 +11,9 @@ export interface SummaryPayoutRow {
   pointValueUsed: number | null;
   tipPoolShare: number;
   flatWageAmount: number;
+  /** Host cocktail/mocktail drink bonus, 0 if not applicable — already
+   * included in totalCorePayout, shown separately for transparency. */
+  hostUpsellTipShare: number;
   totalCorePayout: number;
 }
 
@@ -22,6 +25,7 @@ export interface SummaryData {
     deductionRate: number;
     netCcTip: number;
     netGeneralCcTip: number;
+    totalHostUpsellTip: number;
     perRoleBreakdown: Record<string, number> | null;
   } | null;
   payouts: SummaryPayoutRow[];
@@ -42,6 +46,7 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
       pointValueUsed: employeePayouts.pointValueUsed,
       tipPoolShare: employeePayouts.tipPoolShare,
       flatWageAmount: employeePayouts.flatWageAmount,
+      hostUpsellTipShare: employeePayouts.hostUpsellTipShare,
       totalCorePayout: employeePayouts.totalCorePayout,
     })
     .from(employeePayouts)
@@ -55,6 +60,8 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
   const onlinePlatformTotal = platformRecords.reduce((a, r) => a + r.salesAmount, 0);
   void onlinePlatforms; // reserved for a future per-platform breakdown on this page
 
+  const normalizedPayoutRows = payoutRows.map((p) => ({ ...p, hostUpsellTipShare: p.hostUpsellTipShare ?? 0 }));
+
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, finalizedAt: shift.finalizedAt },
     sales: sales ? { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales } : null,
@@ -64,10 +71,11 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
           deductionRate: calc.deductionRate,
           netCcTip: calc.netCcTip,
           netGeneralCcTip: calc.netGeneralCcTip,
+          totalHostUpsellTip: calc.totalHostUpsellTip,
           perRoleBreakdown: calc.perRoleBreakdown,
         }
       : null,
-    payouts: payoutRows.sort((a, b) => b.totalCorePayout - a.totalCorePayout),
+    payouts: normalizedPayoutRows.sort((a, b) => b.totalCorePayout - a.totalCorePayout),
     onlinePlatformTotal,
   };
 }

@@ -3,3 +3,4 @@ node_modules/
 db/*.db
 .env*.local
 .DS_Store
+tsconfig.tsbuildinfo

@@ -1,6 +1,9 @@
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { shifts, shiftSales, onlinePlatforms, onlinePlatformSalesRecords } from "@/db/schema";
+import {
+  shifts, shiftSales, onlinePlatforms, onlinePlatformSalesRecords,
+  metricDefinitions, positionMetrics, metricValues,
+} from "@/db/schema";
 import { loadShiftCalcData, type TipPoolGroup } from "@/lib/shift/loadRosterForCalc";
 
 export interface PlatformSalesRow {
@@ -18,6 +21,21 @@ export interface PointValueRow {
   positionName: string;
   tipPoolGroups: TipPoolGroup[];
   pointValue: number; // current resolved value (override if set, else standing value)
+}
+
+/** One "enter a number for this metric, for this person" input on the
+ * closing report. Generic across whatever EMPLOYEE_SHIFT metrics exist and
+ * whichever positions are eligible for them (via positionMetrics) — adding
+ * a new bonus metric later means seeding data, not new page code. */
+export interface MetricEntryRow {
+  rosterEntryId: number;
+  employeeId: number;
+  employeeName: string;
+  positionName: string;
+  metricDefinitionId: number;
+  metricKey: string;
+  metricLabel: string;
+  currentValue: number; // 0 if nothing saved yet
 }
 
 export interface ClosingReportData {
@@ -38,11 +56,13 @@ export interface ClosingReportData {
    * not a staffing decision). NONE-pool rows (Manager, Chef, ...) are
    * excluded since they have no point-weighted share to adjust. */
   pointValueRows: PointValueRow[];
+  /** "Bonus metrics" section — e.g. Host qualifying drink count. */
+  metricRows: MetricEntryRow[];
 }
 
 export async function loadClosingReportData(shiftId: number): Promise<ClosingReportData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, sales: null, platformSales: [], pointValueRows: [] };
+  if (!shift) return { shift: null, sales: null, platformSales: [], pointValueRows: [], metricRows: [] };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
 
@@ -76,6 +96,73 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       pointValue: r.pointValue,
     }));
 
+  // "Bonus metrics" section: enabled EMPLOYEE_SHIFT metrics collected at
+  // close, matched against which roster rows are eligible via positionMetrics.
+  const employeeShiftMetrics = await db
+    .select()
+    .from(metricDefinitions)
+    .where(
+      and(
+        eq(metricDefinitions.scope, "EMPLOYEE_SHIFT"),
+        eq(metricDefinitions.enabled, true)
+      )
+    );
+  const closeMetrics = employeeShiftMetrics.filter(
+    (m) => m.collectionMoment === "close" || m.collectionMoment === "both"
+  );
+
+  const metricRows: MetricEntryRow[] = [];
+  if (closeMetrics.length > 0) {
+    const metricIds = closeMetrics.map((m) => m.id);
+    const rosterPositionIds = Array.from(new Set(calcData.roster.map((r) => r.positionId)));
+
+    const eligibility = rosterPositionIds.length
+      ? await db
+          .select()
+          .from(positionMetrics)
+          .where(
+            and(
+              inArray(positionMetrics.positionId, rosterPositionIds),
+              inArray(positionMetrics.metricDefinitionId, metricIds)
+            )
+          )
+      : [];
+    const eligiblePositionIdsByMetric = new Map<number, Set<number>>();
+    for (const e of eligibility) {
+      const set = eligiblePositionIdsByMetric.get(e.metricDefinitionId) ?? new Set<number>();
+      set.add(e.positionId);
+      eligiblePositionIdsByMetric.set(e.metricDefinitionId, set);
+    }
+
+    const existingValues = await db
+      .select()
+      .from(metricValues)
+      .where(and(eq(metricValues.shiftId, shiftId), inArray(metricValues.metricDefinitionId, metricIds)));
+    const valueByMetricAndEmployee = new Map<string, number>();
+    for (const v of existingValues) {
+      if (v.employeeId == null) continue;
+      valueByMetricAndEmployee.set(`${v.metricDefinitionId}:${v.employeeId}`, v.value);
+    }
+
+    for (const metric of closeMetrics) {
+      const eligiblePositionIds = eligiblePositionIdsByMetric.get(metric.id);
+      if (!eligiblePositionIds || eligiblePositionIds.size === 0) continue;
+      for (const r of calcData.roster) {
+        if (!eligiblePositionIds.has(r.positionId)) continue;
+        metricRows.push({
+          rosterEntryId: r.rosterEntryId,
+          employeeId: r.employeeId,
+          employeeName: r.employeeName,
+          positionName: r.positionName,
+          metricDefinitionId: metric.id,
+          metricKey: metric.key,
+          metricLabel: metric.label,
+          currentValue: valueByMetricAndEmployee.get(`${metric.id}:${r.employeeId}`) ?? 0,
+        });
+      }
+    }
+  }
+
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
     sales: sales
@@ -91,5 +178,6 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       : null,
     platformSales,
     pointValueRows,
+    metricRows,
   };
 }

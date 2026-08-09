@@ -1,8 +1,12 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { shiftSales, onlinePlatformSalesRecords, restaurantSettings } from "@/db/schema";
+import {
+  shiftSales, onlinePlatformSalesRecords, restaurantSettings,
+  metricDefinitions, metricValues,
+} from "@/db/schema";
 import { loadShiftCalcData } from "./loadRosterForCalc";
 import { buildFinalizationResult, type FinalizeRosterRow, type FinalizeShiftResult } from "@/lib/calc/finalizeShift";
+import type { HostDrinkBonusEntry } from "@/lib/calc/tipPool";
 
 export interface FinalizationPreview {
   shift: { id: number; date: string; period: string; status: string };
@@ -41,6 +45,34 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
   const pool1SplitMethod = settings?.pool1SplitMethod ?? "POINT_WEIGHTED";
   const pool2SplitMethod = settings?.pool2SplitMethod ?? "POINT_WEIGHTED";
   const pool3SplitMethod = settings?.pool3SplitMethod ?? "EQUAL_SPLIT";
+  const hostDrinkBonusPerDrinkAmount = settings?.hostDrinkBonusPerDrinkAmount ?? 0;
+
+  // Host cocktail/mocktail drink bonus — resolved from the generic metrics
+  // engine (metricValues for host_qualifying_drink_count), not a bespoke
+  // field. Any employee with a saved count > 0 for this shift gets a bonus
+  // entry; calculateTwoPoolTips ignores anyone not in pool1Roster anyway,
+  // so no need to filter by position here too.
+  const hostDrinkBonus: HostDrinkBonusEntry[] = [];
+  if (hostDrinkBonusPerDrinkAmount > 0) {
+    const [hostMetric] = await db
+      .select()
+      .from(metricDefinitions)
+      .where(eq(metricDefinitions.key, "host_qualifying_drink_count"));
+    if (hostMetric) {
+      const drinkCountRows = await db
+        .select()
+        .from(metricValues)
+        .where(and(eq(metricValues.shiftId, shiftId), eq(metricValues.metricDefinitionId, hostMetric.id)));
+      for (const row of drinkCountRows) {
+        if (row.employeeId == null || row.value <= 0) continue;
+        hostDrinkBonus.push({
+          employeeId: row.employeeId,
+          qualifyingDrinkCount: row.value,
+          perDrinkAmount: hostDrinkBonusPerDrinkAmount,
+        });
+      }
+    }
+  }
 
   const platformRecords = await db
     .select()
@@ -61,6 +93,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     grossCcTip: sales.ccTipTotal,
     takeoutCcTip: sales.takeoutCcTip,
     deliveryToastTip: sales.deliveryToastTip,
+    hostDrinkBonus,
     platformCourierTips,
     platformDeliveryTips,
     pool1SplitMethod,

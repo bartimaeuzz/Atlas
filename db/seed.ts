@@ -2,7 +2,7 @@ import { db } from "./client";
 import {
   positions, positionTipPools, employees, employeePositions, positionShiftRates,
   restaurantSettings, shifts, shiftRosterEntries, shiftSales,
-  metricDefinitions, employeeWageRates, onlinePlatforms,
+  metricDefinitions, positionMetrics, employeeWageRates, onlinePlatforms,
 } from "./schema";
 import { sql } from "drizzle-orm";
 
@@ -13,7 +13,8 @@ async function seed() {
   // alone resets the sample data.
   const tableNames = [
     "incentive_payout_records", "employee_rule_weights", "incentive_rule_targets",
-    "incentive_rule_conditions", "incentive_rules", "metric_values", "metric_definitions",
+    "incentive_rule_conditions", "incentive_rules", "metric_values", "position_metrics",
+    "metric_definitions",
     "delivery_cash_tip_records", "tip_pool_calculations", "employee_payouts",
     "host_upsell_tip_records", "online_platform_sales_records", "shift_sales",
     "shift_roster_entries", "shifts", "employee_wage_rates", "position_shift_rates",
@@ -34,6 +35,7 @@ async function seed() {
     pool1SplitMethod: "POINT_WEIGHTED",
     pool2SplitMethod: "POINT_WEIGHTED",
     pool3SplitMethod: "EQUAL_SPLIT",
+    hostDrinkBonusPerDrinkAmount: 1.0,
   });
 
   // Confirmed 2026-08-05: 4 online platforms, Bento no longer active.
@@ -141,10 +143,19 @@ async function seed() {
     grossBeverageSales: 800,
   });
 
-  await db.insert(metricDefinitions).values([
+  const [totalSalesMetric, hostDrinkMetric, managerTokenMetric] = await db.insert(metricDefinitions).values([
     { key: "total_sales", label: "Total sales", valueType: "money", scope: "SHIFT", collectionMoment: "close", required: true, enabled: true },
     { key: "host_qualifying_drink_count", label: "Host cocktail/mocktail count", valueType: "count", scope: "EMPLOYEE_SHIFT", collectionMoment: "close", required: false, enabled: true },
     { key: "manager_shift_worked", label: "Manager shift worked (token)", valueType: "count", scope: "EMPLOYEE_SHIFT", collectionMoment: "manual", required: false, enabled: true },
+  ]).returning();
+  void totalSalesMetric;
+  void managerTokenMetric;
+
+  // Only Host is eligible to have the drink-count metric entered on the
+  // closing report today. Adding a future BOH sales-split metric later just
+  // means a new positionMetrics row here, not new closing-report UI code.
+  await db.insert(positionMetrics).values([
+    { positionId: host.id, metricDefinitionId: hostDrinkMetric.id },
   ]);
 
   console.log("Seed complete. Dinner shift id:", dinnerShift.id, "| Delivery Guy position id (unstaffed today):", deliveryGuy.id);

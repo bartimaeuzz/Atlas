@@ -49,6 +49,12 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1 max-w-md">
           <Row label="Deduction rate" value={`${(data.tipPoolCalculation.deductionRate * 100).toFixed(1)}%`} />
           <Row label="Net CC tip (after deduction)" value={`$${data.tipPoolCalculation.netCcTip.toFixed(2)}`} />
+          {data.tipPoolCalculation.totalHostUpsellTip > 0 && (
+            <Row
+              label="Host drink bonus (pulled off Pool 1 top)"
+              value={`$${data.tipPoolCalculation.totalHostUpsellTip.toFixed(2)}`}
+            />
+          )}
           {data.tipPoolCalculation.perRoleBreakdown && (
             <>
               <Row label="Pool 1 (dine-in)" value={`$${(data.tipPoolCalculation.perRoleBreakdown.pool1 ?? 0).toFixed(2)}`} />
@@ -67,6 +73,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               <th className="py-1.5">Employee</th>
               <th className="py-1.5 text-right">Point value</th>
               <th className="py-1.5 text-right">Tip pool share</th>
+              <th className="py-1.5 text-right">Drink bonus</th>
               <th className="py-1.5 text-right">Flat wage</th>
               <th className="py-1.5 text-right">Total</th>
             </tr>
@@ -77,6 +84,9 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
                 <td className="py-1.5">{p.employeeName}</td>
                 <td className="py-1.5 text-right tabular-nums">{p.pointValueUsed ?? "—"}</td>
                 <td className="py-1.5 text-right tabular-nums">${p.tipPoolShare.toFixed(2)}</td>
+                <td className="py-1.5 text-right tabular-nums">
+                  {p.hostUpsellTipShare > 0 ? `$${p.hostUpsellTipShare.toFixed(2)}` : "—"}
+                </td>
                 <td className="py-1.5 text-right tabular-nums">${p.flatWageAmount.toFixed(2)}</td>
                 <td className="py-1.5 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
               </tr>
@@ -88,13 +98,15 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               <td></td>
               <td></td>
               <td></td>
+              <td></td>
               <td className="py-2 text-right tabular-nums">${totalPayout.toFixed(2)}</td>
             </tr>
           </tfoot>
         </table>
         <p className="text-xs text-neutral-500 mt-2">
-          Doesn&apos;t include Manager/Floor Manager commission or the host drink bonus yet — those live
-          in the Incentive Rules engine, not built into this saved flow yet.
+          Doesn&apos;t include Manager/Floor Manager commission yet — that still needs the full
+          Incentive Rules evaluation engine (conditions/targets/weights), not built yet. The host
+          drink bonus above is wired in.
         </p>
       </section>
     </main>

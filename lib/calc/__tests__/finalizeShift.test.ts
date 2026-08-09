@@ -21,6 +21,7 @@ test("finalize: splits pool 1 by point value and attaches wage once per employee
     grossCcTip: 630,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
+    hostDrinkBonus: [],
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
@@ -55,6 +56,7 @@ test("finalize: one row spanning two pools (Host) gets summed share AND a define
     grossCcTip: 100,
     takeoutCcTip: 40,
     deliveryToastTip: 0,
+    hostDrinkBonus: [],
     platformCourierTips: 20,
     platformDeliveryTips: 0,
     roster,
@@ -87,6 +89,7 @@ test("finalize: employee with two SEPARATE tip-pool roster rows (different posit
     grossCcTip: 100,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
+    hostDrinkBonus: [],
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
@@ -110,6 +113,7 @@ test("finalize: NONE-pool employee (Manager) still gets a payout row with wage o
     grossCcTip: 0,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
+    hostDrinkBonus: [],
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
@@ -138,6 +142,7 @@ test("finalize: split method is configurable per pool, not just Pool 3's default
     grossCcTip: 0,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
+    hostDrinkBonus: [],
     platformCourierTips: 100,
     platformDeliveryTips: 0,
     roster,
@@ -165,6 +170,7 @@ test("finalize: pool 3 (delivery) is split equally by default, regardless of poi
     grossCcTip: 100,
     takeoutCcTip: 0,
     deliveryToastTip: 100,
+    hostDrinkBonus: [],
     platformCourierTips: 0,
     platformDeliveryTips: 50,
     roster,
@@ -175,4 +181,65 @@ test("finalize: pool 3 (delivery) is split equally by default, regardless of poi
   assert.equal(p1.tipPoolShare, p2.tipPoolShare);
   const expectedTotal = round2(100 * 0.955 + 50);
   assert.equal(round2(p1.tipPoolShare + p2.tipPoolShare), expectedTotal);
+});
+
+test("finalize: host drink bonus is pulled off Pool 1 top and added to that host's payout", () => {
+  // Erika (Host) sells 3 qualifying drinks at $1/drink = $3 bonus, pulled off
+  // the top of Pool 1 before the point-weighted split, paid 100% to her —
+  // additive on top of her normal Pool 1 share, not instead of it. Kris
+  // (Server) gets a share of what's left, no bonus.
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 55 }, // Erika, Host
+    { employeeId: 20, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 60 }, // Kris, Server
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 100,
+    takeoutCcTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: [{ employeeId: 10, qualifyingDrinkCount: 3, perDrinkAmount: 1 }],
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+  });
+
+  const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
+  const kris = result.employeePayouts.find((p) => p.employeeId === 20)!;
+
+  assert.equal(result.tipPoolCalculation.totalHostUpsellTip, 3);
+  // $100 pool, minus $3 bonus off the top = $97 split 50/50 by equal points.
+  assert.equal(round2(erika.tipPoolShare + kris.tipPoolShare), 97);
+  assert.equal(erika.tipPoolShare, kris.tipPoolShare); // equal points, equal pool share
+  assert.equal(erika.hostUpsellTipShare, 3);
+  assert.equal(kris.hostUpsellTipShare, 0);
+  // Erika's total is her pool share PLUS the bonus PLUS her wage — additive, not either/or.
+  assert.equal(erika.totalCorePayout, round2(erika.tipPoolShare + 3 + 55));
+});
+
+test("finalize: host drink bonus larger than the pool throws a friendly error, doesn't silently clamp", () => {
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: null },
+  ];
+
+  assert.throws(
+    () =>
+      buildFinalizationResult({
+        deductionRate: 0,
+        pool1SplitMethod: "POINT_WEIGHTED",
+        pool2SplitMethod: "POINT_WEIGHTED",
+        pool3SplitMethod: "EQUAL_SPLIT",
+        grossCcTip: 10,
+        takeoutCcTip: 0,
+        deliveryToastTip: 0,
+        hostDrinkBonus: [{ employeeId: 10, qualifyingDrinkCount: 20, perDrinkAmount: 1 }], // $20 bonus > $10 pool
+        platformCourierTips: 0,
+        platformDeliveryTips: 0,
+        roster,
+      }),
+    /more than this shift's dine-in tip pool/
+  );
 });

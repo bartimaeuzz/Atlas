@@ -123,6 +123,11 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   pool1SplitMethod: text("pool1_split_method", { enum: ["POINT_WEIGHTED", "EQUAL_SPLIT"] }).notNull().default("POINT_WEIGHTED"),
   pool2SplitMethod: text("pool2_split_method", { enum: ["POINT_WEIGHTED", "EQUAL_SPLIT"] }).notNull().default("POINT_WEIGHTED"),
   pool3SplitMethod: text("pool3_split_method", { enum: ["POINT_WEIGHTED", "EQUAL_SPLIT"] }).notNull().default("EQUAL_SPLIT"),
+  // $ paid per qualifying drink a host upsells, pulled off the top of Pool 1
+  // before the point-weighted split (see calculateTwoPoolTips's hostDrinkBonus
+  // param). Restaurant-configurable; default 0 means the bonus is off unless
+  // a restaurant sets a rate. Youk Thai seeded to $1.00.
+  hostDrinkBonusPerDrinkAmount: real("host_drink_bonus_per_drink_amount").notNull().default(0),
 });
 
 export const onlinePlatforms = sqliteTable("online_platforms", {
@@ -294,6 +299,24 @@ export const metricDefinitions = sqliteTable("metric_definitions", {
   required: integer("required", { mode: "boolean" }).notNull().default(false),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
 });
+
+// Which positions are eligible to have a given EMPLOYEE_SHIFT metric
+// collected on the closing report (e.g. Host <-> host_qualifying_drink_count).
+// Generic on purpose: adding a new per-employee bonus metric later just means
+// seeding new rows here, not new UI code -- the closing report loops over
+// whatever's eligible. Replaces the old positionName.startsWith("Host") hack
+// that lived in the playground calculator before this table existed.
+export const positionMetrics = sqliteTable(
+  "position_metrics",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    positionId: integer("position_id").notNull().references(() => positions.id),
+    metricDefinitionId: integer("metric_definition_id").notNull().references(() => metricDefinitions.id),
+  },
+  (t) => ({
+    uniqPositionMetric: uniqueIndex("uniq_position_metric").on(t.positionId, t.metricDefinitionId),
+  })
+);
 
 export const metricValues = sqliteTable("metric_values", {
   id: integer("id").primaryKey({ autoIncrement: true }),

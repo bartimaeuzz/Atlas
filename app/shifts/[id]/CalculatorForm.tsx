@@ -7,9 +7,15 @@ import type { RosterRow } from "@/lib/shift/loadRosterForCalc";
 export function CalculatorForm({
   roster,
   initialCcTipTotal,
+  hostBonusEligiblePositionIds,
 }: {
   roster: RosterRow[];
   initialCcTipTotal: number;
+  /** Positions eligible for the drink-count bonus input below, sourced from
+   * db/schema.ts's positionMetrics table — replaces the old
+   * positionName.startsWith("Host") hack (same source of truth the real
+   * closing report's "Bonus metrics" section uses). */
+  hostBonusEligiblePositionIds: number[];
 }) {
   // Points are editable per roster row — matches how the schema actually
   // works (ShiftRosterEntry.pointValueOverride is per role-assignment for
@@ -45,7 +51,9 @@ export function CalculatorForm({
     .filter((r) => r.tipPoolGroups.includes("POOL_3_DELIVERY"))
     .map((r) => ({ employeeId: r.employeeId, pointValue: points[r.rosterEntryId] ?? r.pointValue }));
 
-  const hosts = roster.filter((r) => r.tipPoolGroups.includes("POOL_1_DINE_IN") && r.positionName.startsWith("Host"));
+  const hosts = roster.filter(
+    (r) => r.tipPoolGroups.includes("POOL_1_DINE_IN") && hostBonusEligiblePositionIds.includes(r.positionId)
+  );
 
   const employeeNameById = useMemo(() => {
     const m = new Map<number, string>();
