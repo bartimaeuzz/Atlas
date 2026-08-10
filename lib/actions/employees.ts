@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees, employeePositions, employeeWageRates, positions } from "@/db/schema";
+import { hashPin } from "@/lib/auth/pin";
 
 export interface EmployeeActionState {
   error: string | null;
@@ -172,4 +173,26 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
 export async function toggleEmployeeActive(employeeId: number, nextActive: boolean) {
   await db.update(employees).set({ active: nextActive }).where(eq(employees.id, employeeId));
   revalidatePath("/employees");
+}
+
+/** Set or reset an employee's staff-login PIN (2026-08-10) — lets an
+ * admin/manager assign a PIN from the Employee admin page without ever
+ * touching the DB directly, and gives a path to reset a forgotten one.
+ * Same useActionState error pattern as the rest of this file; deliberately
+ * a SEPARATE form/action from updateEmployee above rather than one more
+ * field on that form — a PIN reset is a distinct, occasional action, not
+ * part of the normal "edit this person's info" flow, and keeping it
+ * separate means a manager can't accidentally wipe someone's PIN while
+ * editing an unrelated field. */
+export async function setEmployeePin(_prevState: EmployeeActionState, formData: FormData): Promise<EmployeeActionState> {
+  const employeeId = Number(formData.get("employeeId"));
+  const pin = String(formData.get("pin") ?? "").trim();
+
+  if (!employeeId) return { error: "Missing employee id" };
+  if (!/^\d{4,8}$/.test(pin)) return { error: "PIN must be 4–8 digits" };
+
+  await db.update(employees).set({ pinHash: hashPin(pin) }).where(eq(employees.id, employeeId));
+
+  revalidatePath(`/employees/${employeeId}/edit`);
+  return { error: null };
 }

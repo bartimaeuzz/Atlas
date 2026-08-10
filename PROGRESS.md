@@ -687,6 +687,85 @@ it; and separately verified the actual finalize WRITE path — both the
 `incentivePayoutRecords` audit-trail rows are written correctly with the
 right rule id, amount, and metric snapshot.
 
+## Staff self-service login + "My Pay" view (2026-08-10)
+
+First staff-facing feature in the app — everything before this round was
+manager-facing only. Closes out the long-standing "Earnings Summary"
+backlog item and finally puts `lib/roster/visibility.ts` (designed and
+unit-tested back on 2026-08-08) to real use — it had never been wired
+into a live page until now.
+
+**Login mechanism — a judgment call made without Oliver in the loop**
+(he asked for a bigger overnight build and stepped away, explicitly
+inviting this): PIN-based login, not email/password. Reasoning: this is a
+shared restaurant terminal, not a personal device — whoever's on shift
+picks their name from a list and enters a short PIN, the same pattern
+POS/scheduling terminals commonly use. No new dependency needed (PINs are
+hashed with Node's built-in `scrypt`, not bcrypt). **If this isn't the
+login style Oliver actually wanted, it's a contained, swappable piece —
+only `lib/auth/pin.ts`, the `pinHash` column, and the login form would
+need to change, nothing downstream cares HOW the session got created.**
+
+**Explicit scope boundary:** this round protects ONLY the two new pages
+(`/login`, `/me`). Every existing manager-facing page (`/shifts`,
+`/employees`, `/positions`, `/settings`) remains open/unauthenticated,
+exactly as before. Gating the whole manager app behind a login is a
+separate, bigger decision, deliberately not made unprompted.
+
+**What shipped:**
+- `employees.pinHash` (nullable — null means that person can't log in yet)
+  and a new `staffSessions` table (random token in an httpOnly cookie,
+  looked up server-side, 14-hour expiry — roughly a shift length, not a
+  "remember forever" session).
+- `lib/auth/pin.ts` — `hashPin`/`verifyPin`, scrypt + salt, 5 unit tests.
+- `lib/auth/session.ts` — `createSession`/`resolveSessionToken`/
+  `getCurrentStaffSession` (the last one is the one pages actually call —
+  reads the cookie for the current request).
+- `lib/actions/auth.ts` — `login` (useActionState, same error-inline
+  pattern as every other form in this app) and `logout`.
+- `/login` — pick your name from a dropdown of active employees, enter
+  your PIN. Already-signed-in visitors get bounced straight to `/me`.
+- Employee admin gained a "Staff login PIN" section (`SetPinForm.tsx` +
+  `setEmployeePin` action) — deliberately a SEPARATE form from the main
+  employee edit form, not one more field on it, so a routine profile edit
+  can't accidentally wipe someone's PIN.
+- `lib/staff/loadMyEarnings.ts` — the first real caller of
+  `getVisibleRosterEntries`. For a given employee: every finalized shift
+  they have a locked payout for (their own numbers always shown in full),
+  plus a "who else worked this shift" list correctly filtered by the
+  restaurant's visibility settings (FOH/BOH category restriction, peer-
+  earnings show/hide, manager sees everything).
+- `/me` — "My Pay" page. Lifetime total across all finalized shifts up
+  top, then a card per shift: full personal breakdown (pool shares, drink
+  bonus, wage, extra pay, incentive, total) plus the visibility-filtered
+  coworker list.
+- NavBar split into a server wrapper (`NavBar.tsx`, resolves the session
+  cookie) + `NavBarClient.tsx` (the existing interactive nav, now also
+  showing "My Pay"/name/Sign out when logged in, or "Staff Login" when
+  not) — needed because a client component can't read an httpOnly cookie
+  directly.
+- Seed: every seeded employee gets a test PIN of "1234" (clearly commented
+  as seed-only, never a runtime fallback) so a fresh reseed is immediately
+  testable — try signing in as Erika, Bomb, or Papi.
+
+**Side effect worth knowing about:** because the NavBar now reads the
+session cookie on every request, pages that were previously statically
+prerendered (the shift list, employee list, etc.) are now all
+server-rendered on demand instead. Not a bug — cookie-dependent content
+can't be statically cached — just a real change in the build output
+(`npm run build`'s route table now shows every route as `ƒ Dynamic`,
+where several used to show `○ Static`). No noticeable difference to how
+the app feels to use at this scale.
+
+62 tests passing (was 57). Verified against the real DB: PIN accept/reject,
+session create+resolve, and — the actual point of this feature — three
+different viewers seeing three different things on the SAME finalized
+shift: a FOH staff member (Erika) sees only her FOH coworkers, not the two
+BOH people at all; a BOH staff member (Papi) sees only BOH coworkers, and
+even then his coworker's (Bomb's) dollar figures are hidden per the
+default peer-earnings setting while his own numbers are always shown; the
+shift's MANAGER (Bomb) sees the entire roster with full money on every row.
+
 ## Not started yet
 
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet

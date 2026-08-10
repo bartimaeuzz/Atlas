@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadEmployeeForEdit, loadAllPositionsForAssignment } from "@/lib/employees/loadEmployeesList";
 import { EmployeeForm } from "../../EmployeeForm";
+import { SetPinForm } from "../../SetPinForm";
 
 export default async function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -19,6 +20,9 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
       </p>
       <h1 className="text-2xl font-semibold mb-6">Edit employee — {employee.name}</h1>
       <EmployeeForm existing={employee} allPositions={allPositions} />
+      <div className="mt-6">
+        <SetPinForm employeeId={employee.id} hasPinSet={employee.hasPinSet} />
+      </div>
     </main>
   );
 }

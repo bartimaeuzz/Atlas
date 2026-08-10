@@ -26,6 +26,11 @@ export interface EmployeeListRow {
   systemRole: "STAFF" | "MANAGER" | "ADMIN";
   positions: EmployeePositionRow[];
   wageRates: EmployeeWageRateRow[];
+  /** Whether a staff-login PIN has been set (2026-08-10) — never expose
+   * the actual pinHash to a loader/page, just this boolean, so the edit
+   * page can show "Set PIN" vs "Reset PIN" without the hash ever leaving
+   * the server. */
+  hasPinSet: boolean;
 }
 
 /** Powers the /employees list + edit form — same shape as
@@ -94,6 +99,7 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
       primaryPositionId: e.primaryPositionId,
       primaryPositionName: e.primaryPositionId ? positionById.get(e.primaryPositionId)?.name ?? null : null,
       systemRole: e.systemRole as "STAFF" | "MANAGER" | "ADMIN",
+      hasPinSet: e.pinHash !== null,
       positions: ensurePrimaryPositionIncluded(
         positionRows
           .filter((r) => r.employeeId === e.id)
@@ -139,6 +145,7 @@ export async function loadEmployeeForEdit(employeeId: number): Promise<EmployeeL
     primaryPositionId: employee.primaryPositionId,
     primaryPositionName: employee.primaryPositionId ? positionById.get(employee.primaryPositionId)?.name ?? null : null,
     systemRole: employee.systemRole as "STAFF" | "MANAGER" | "ADMIN",
+    hasPinSet: employee.pinHash !== null,
     positions: ensurePrimaryPositionIncluded(
       positionRows.map((r) => {
         const p = positionById.get(r.positionId);

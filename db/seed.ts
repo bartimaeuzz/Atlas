@@ -5,7 +5,8 @@ import {
   metricDefinitions, positionMetrics, employeeWageRates, onlinePlatforms,
   incentiveRules, incentiveRuleConditions, incentiveRuleTargets,
 } from "./schema";
-import { sql } from "drizzle-orm";
+import { sql, eq } from "drizzle-orm";
+import { hashPin } from "../lib/auth/pin";
 
 async function seed() {
   // Safe to run this more than once — clears everything first (children
@@ -13,6 +14,7 @@ async function seed() {
   // need to delete db/atlas.db by hand or re-run db:push every time; this
   // alone resets the sample data.
   const tableNames = [
+    "staff_sessions",
     "incentive_payout_records", "employee_rule_weights", "incentive_rule_targets",
     "incentive_rule_conditions", "incentive_rules", "metric_values", "position_metrics",
     "metric_definitions",
@@ -213,7 +215,18 @@ async function seed() {
     targetId: "BOH",
   });
 
+  // Staff login PINs (2026-08-10) — TEST-ONLY default. Every seeded
+  // employee gets the same PIN, "1234", purely so a fresh reseed is
+  // immediately testable end-to-end (log in as anyone, see /me). A real
+  // restaurant would assign individual PINs per person from the Employee
+  // admin "Staff login PIN" section instead — this default only exists in
+  // seed data, never as a runtime fallback (setEmployeePin requires a real
+  // 4-8 digit PIN chosen by whoever sets it).
+  const testPinHash = hashPin("1234");
+  await db.update(employees).set({ pinHash: testPinHash }).where(eq(employees.active, true));
+
   console.log("Seed complete. Dinner shift id:", dinnerShift.id, "| Delivery Guy position id (unstaffed today):", deliveryGuy.id);
+  console.log('Staff login test PIN for every seeded employee: "1234" (e.g. sign in as Erika, Bomb, Papi, ...)');
 }
 
 seed().catch((e) => {

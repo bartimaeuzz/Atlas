@@ -78,6 +78,14 @@ export const employees = sqliteTable("employees", {
   // to SEE in the system. STAFF gets the restricted roster view; MANAGER/ADMIN
   // see everything. Confirmed 2026-08-08.
   systemRole: text("system_role", { enum: ["STAFF", "MANAGER", "ADMIN"] }).notNull().default("STAFF"),
+  // Staff self-service login (2026-08-10) — a simple PIN, not an
+  // email/password, matching how a shared restaurant terminal actually
+  // gets used (one device, whoever's on shift punches in). Stored as
+  // "salt:hash" hex via Node's built-in scrypt (lib/auth/pin.ts) — no new
+  // dependency needed for a v1 internal tool. Null = no PIN set yet, can't
+  // log in (see setEmployeePin in lib/actions/employees.ts for how an
+  // admin assigns/resets one from the Employee admin page).
+  pinHash: text("pin_hash"),
 });
 
 // FOH only — many-to-many: one person can hold several positions, each at
@@ -100,6 +108,26 @@ export const employeePositions = sqliteTable(
 export const sections = sqliteTable("sections", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
+});
+
+// Staff self-service login sessions (2026-08-10) — deliberately simple
+// server-side session store (a random token in an httpOnly cookie, looked
+// up here) rather than a JWT, since we already have SQLite sitting right
+// there and don't need a stateless session for this scale. expiresAt is
+// checked on every lookup (see lib/auth/session.ts); logging out just
+// deletes the row, which also means an admin could revoke a session by
+// deleting rows here directly if that's ever needed (no UI for that yet —
+// not asked for). Scope note: this protects the NEW staff-facing pages
+// (/login, /me) only — the existing manager-facing pages (/shifts,
+// /employees, /positions, /settings) remain open/unauthenticated, same as
+// before this round. Gating the whole manager app behind login is a
+// separate, bigger decision, deliberately not made here.
+export const staffSessions = sqliteTable("staff_sessions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  token: text("token").notNull().unique(),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+  expiresAt: text("expires_at").notNull(),
 });
 
 // Single-row settings table (restaurantId reserved for future multi-tenant use).
