@@ -766,6 +766,85 @@ even then his coworker's (Bomb's) dollar figures are hidden per the
 default peer-earnings setting while his own numbers are always shown; the
 shift's MANAGER (Bomb) sees the entire roster with full money on every row.
 
+## Point value on My Pay + week/month grouping + comprehensive seed rewrite (2026-08-10)
+
+Oliver tested the staff login round himself and came back with 5 concrete
+points, plus his real live Position/Employee admin screens as reference
+data:
+
+1. My Pay didn't show the point value that actually determined a payout —
+   fixed, each shift card now shows it with a one-line explanation of what
+   it means.
+2. My Pay needed week/month grouping with a filter, "so employee can keep
+   track their income easily for financial product purposes."
+3. Seed data needed to cover a full 7-day week so that grouping is
+   actually testable.
+4. Seed data needed every shift fully staffed already, so Oliver stops
+   manually rebuilding the roster by hand every time a schema change
+   forces a reseed.
+5. He gave exact numbers for BOH (`$100 Lunch / $200 Dinner`, explicit
+   placeholder "for now") and pointed at his own live Position/Employee
+   admin screens as the real position list and FOH wage rates to use.
+
+**What this surfaced, unprompted:** Oliver's live dev database had 19
+employees and 17 positions he'd built up by hand across previous testing
+sessions — none of which existed in the old, much smaller seed script.
+Every time a schema change forced `npm run db:seed`, he'd been silently
+losing that and rebuilding it from scratch. Fixed at the root: the seed
+script's baseline team is now HIS actual 19-person roster and 17
+positions (FOH flat rates and tip pool membership copied directly from
+his live Position admin), not a small illustrative sample — so a reseed
+now regenerates something close to what he already had, instead of
+wiping it down to almost nothing.
+
+**Shared finalize-write helper extracted first** (`lib/shift/finalizeShiftWrites.ts`) —
+seeding 14 shifts as fully finalized needed the exact same write logic
+`runFinalize` already had (TipPoolCalculation, EmployeePayout rows,
+IncentivePayoutRecord audit rows, status flip). Pulled out once so both
+call sites share it instead of drifting.
+
+**Seed now builds a full week**: Mon 2026-08-03 through Sun 2026-08-09,
+Lunch + Dinner each (14 shifts total), all 19 employees rostered at their
+PRIMARY position on every shift — maximizes test coverage per Oliver's
+"all positions filled" ask, at the cost of NOT modeling realistic
+day-to-day scheduling variance (nobody has a day off in this seed — noted
+as a known, deliberate simplification). Manager/Operator/Packer stay
+unstaffed on every shift, matching Oliver's actual live data (no
+employee's primary position is any of the three) — same "it's fine for a
+position to exist with nobody in it yet" precedent as the original
+Delivery Guy placeholder. Sales figures vary by day and deliberately cross
+the $10k incentive threshold on Friday and Saturday dinner only, so the
+BOH bonus visibly fires on 2 of the 14 shifts and not the other 12 — a
+live demonstration of the incentive engine baked right into the seed, no
+manual number-editing needed to see it work.
+
+**My Pay UI**: new `app/me/MyEarningsView.tsx` (client component) groups
+the flat shift list by week or by calendar month (toggle button, defaults
+to Week), sub-grouped by day within each period, with a subtotal at every
+level (week/month, day, and the existing per-shift total). No new date
+library — the grouping math (find the most recent Monday, bucket by
+`YYYY-MM`) is simple enough to write directly, and dates are parsed
+pinned to UTC noon specifically to dodge the classic "date string parses
+as the previous day in a negative-UTC-offset timezone" bug.
+
+62 tests still passing (no new unit tests this round — the new seed data
+and grouping UI are both verified against the real DB/rendering, not
+appropriate for the pure-function `__tests__` convention). Verified
+against the real DB: Papi (BOH) has exactly 14 finalized shifts with the
+$20 incentive firing on exactly the 2 days that crossed $10k and nowhere
+else, his lifetime total matches a manual sum; Aey (systemRole MANAGER)
+sees the full 19-person roster on every shift; Erika (FOH staff) never
+sees any of the 5 BOH coworkers, confirming the category restriction
+still holds against the much bigger roster; and all 7 seeded dates
+correctly bucket into the single week starting Monday 2026-08-03.
+
+**Backlog, not built this round:** CSV/PDF export of the week/month view
+for actual "financial product" use (loan applications, proof-of-income
+documents) — Oliver mentioned this as motivation but didn't ask for it
+directly yet. The seed also only covers one week, so month view won't
+show more than that single week until a future round extends the date
+range — flagged as a known, easy-to-extend limitation, not a bug.
+
 ## Not started yet
 
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet

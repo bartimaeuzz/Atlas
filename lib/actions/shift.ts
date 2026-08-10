@@ -6,10 +6,10 @@ import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
-  onlinePlatforms, tipPoolCalculations, employeePayouts, metricValues,
-  shiftWageAdjustments, incentivePayoutRecords,
+  onlinePlatforms, metricValues,
+  shiftWageAdjustments,
 } from "@/db/schema";
-import { computeFinalizationPreview } from "@/lib/shift/computeFinalizationPreview";
+import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
 
 /** Creates a new draft shift for a date + meal period, then sends the
  * manager straight into building the roster for it. */
@@ -339,33 +339,10 @@ async function upsertWageAdjustments(shiftId: number, formData: FormData) {
  * historical record and shouldn't silently change if settings (deduction
  * rate, split method, point values) change later. */
 async function runFinalize(shiftId: number) {
-  const { result, incentiveRulePayouts, sales } = await computeFinalizationPreview(shiftId);
-
-  await db.insert(tipPoolCalculations).values({ shiftId, ...result.tipPoolCalculation });
-  for (const payout of result.employeePayouts) {
-    await db.insert(employeePayouts).values({ shiftId, ...payout });
-  }
-
-  // Audit trail (2026-08-10) — one row per (rule, employee) that actually
-  // fired this shift, separate from the per-employee total already folded
-  // into employeePayouts.incentiveAmount above. metricSnapshot captures
-  // what the rule saw at the moment it fired, for future reference if the
-  // underlying sales figure is ever corrected after the fact.
-  for (const rulePayout of incentiveRulePayouts) {
-    await db.insert(incentivePayoutRecords).values({
-      ruleId: rulePayout.ruleId,
-      employeeId: rulePayout.employeeId,
-      periodType: "SHIFT",
-      periodKey: String(shiftId),
-      computedAmount: rulePayout.amount,
-      metricSnapshot: { total_sales: sales.totalSales },
-    });
-  }
-
-  await db
-    .update(shifts)
-    .set({ status: "finalized", finalizedAt: new Date().toISOString() })
-    .where(eq(shifts.id, shiftId));
+  // Compute + write both now live in finalizeShiftWrites.ts (2026-08-10) —
+  // shared with db/seed.ts, which needs to finalize a whole week of test
+  // shifts at once. See that file's header comment.
+  await finalizeShiftWrites(shiftId);
 }
 
 async function assertDraft(shiftId: number) {
