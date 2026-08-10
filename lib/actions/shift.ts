@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import {
   shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
   onlinePlatforms, tipPoolCalculations, employeePayouts, metricValues,
+  shiftWageAdjustments,
 } from "@/db/schema";
 import { computeFinalizationPreview } from "@/lib/shift/computeFinalizationPreview";
 
@@ -153,6 +154,7 @@ export async function confirmFinalize(
 async function upsertClosingReportSales(shiftId: number, formData: FormData) {
   await upsertPointOverrides(shiftId, formData);
   await upsertMetricValues(shiftId, formData);
+  await upsertWageAdjustments(shiftId, formData);
 
   const num = (key: string) => Number(formData.get(key) ?? 0) || 0;
 
@@ -279,6 +281,53 @@ async function upsertMetricValues(shiftId: number, formData: FormData) {
       } else {
         await db.insert(metricValues).values({ shiftId, metricDefinitionId, employeeId, value });
       }
+    }
+  }
+}
+
+/** Wage adjustments (2026-08-10) — optional per-employee override + extra
+ * pay for shift-coverage situations. Trust-the-rendered-form pattern again:
+ * scan for whichever employeeIds actually have inputs (loadClosingReportData
+ * renders one row per roster employee), no need to re-derive who's on the
+ * roster here. Fields:
+ *   - wageOverride_<employeeId>: blank = null (use auto wage), else replaces it.
+ *   - extraPay_<employeeId>: blank/0 = 0 (no extra pay), always additive.
+ *   - wageReason_<employeeId>: optional free-text note, blank = null.
+ * Skips writing a row at all if both amounts are blank/0 and there's no
+ * existing row, so a shift with no coverage situations doesn't accumulate
+ * empty rows. */
+async function upsertWageAdjustments(shiftId: number, formData: FormData) {
+  const employeeIds = new Set<number>();
+  for (const key of formData.keys()) {
+    const match = /^(?:wageOverride|extraPay|wageReason)_(\d+)$/.exec(key);
+    if (match) employeeIds.add(Number(match[1]));
+  }
+
+  for (const employeeId of employeeIds) {
+    const overrideRaw = String(formData.get(`wageOverride_${employeeId}`) ?? "").trim();
+    const extraRaw = String(formData.get(`extraPay_${employeeId}`) ?? "").trim();
+    const reasonRaw = String(formData.get(`wageReason_${employeeId}`) ?? "").trim();
+
+    const wageOverrideAmount = overrideRaw === "" ? null : Number(overrideRaw);
+    if (wageOverrideAmount != null && Number.isNaN(wageOverrideAmount)) continue;
+    const extraPayAmount = extraRaw === "" ? 0 : Number(extraRaw);
+    if (Number.isNaN(extraPayAmount)) continue;
+    const reason = reasonRaw === "" ? null : reasonRaw;
+
+    const [existing] = await db
+      .select()
+      .from(shiftWageAdjustments)
+      .where(and(eq(shiftWageAdjustments.shiftId, shiftId), eq(shiftWageAdjustments.employeeId, employeeId)));
+
+    if (!existing && wageOverrideAmount === null && extraPayAmount === 0 && reason === null) continue;
+
+    if (existing) {
+      await db
+        .update(shiftWageAdjustments)
+        .set({ wageOverrideAmount, extraPayAmount, reason })
+        .where(eq(shiftWageAdjustments.id, existing.id));
+    } else {
+      await db.insert(shiftWageAdjustments).values({ shiftId, employeeId, wageOverrideAmount, extraPayAmount, reason });
     }
   }
 }

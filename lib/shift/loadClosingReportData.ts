@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shifts, shiftSales, onlinePlatforms, onlinePlatformSalesRecords,
-  metricDefinitions, positionMetrics, metricValues,
+  metricDefinitions, positionMetrics, metricValues, shiftWageAdjustments,
 } from "@/db/schema";
 import { loadShiftCalcData, type TipPoolGroup } from "@/lib/shift/loadRosterForCalc";
 
@@ -50,6 +50,28 @@ export interface ShiftMetricRow {
   currentValue: number; // 0 if nothing saved yet
 }
 
+/** "Wage adjustments" section — one row per EMPLOYEE on the roster (not
+ * per role/roster-row, since wage is a per-person concept even when
+ * someone holds multiple roles this shift). Added 2026-08-10 for shift-
+ * coverage situations (e.g. Erika works Host but covers Aey's Bartender
+ * shift when Aey calls in sick) — tip pool share and the host drink bonus
+ * already handle multi-role shifts correctly on their own; wage was the
+ * one gap, since only one role's wage normally counts per person. */
+export interface WageAdjustmentRow {
+  employeeId: number;
+  employeeName: string;
+  /** Which role's rate the system would use automatically, for context —
+   * NOT necessarily what actually gets paid if an override is entered. */
+  wageBearingPositionName: string;
+  /** The auto-resolved wage for reference, or null if no rate is set for
+   * that position/period (shown so the manager knows what they're
+   * overriding, or why an override might be needed). */
+  autoResolvedWage: number | null;
+  wageOverrideAmount: number | null; // null = use autoResolvedWage
+  extraPayAmount: number; // 0 if none, always additive
+  reason: string | null;
+}
+
 export interface ClosingReportData {
   shift: { id: number; date: string; period: string; status: string } | null;
   sales: {
@@ -75,11 +97,13 @@ export interface ClosingReportData {
    * the host team's shared drink count (one number, split equally among
    * the eligible people staffed this shift). */
   shiftMetricRows: ShiftMetricRow[];
+  /** "Wage adjustments" section — optional override + extra pay per employee. */
+  wageAdjustmentRows: WageAdjustmentRow[];
 }
 
 export async function loadClosingReportData(shiftId: number): Promise<ClosingReportData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [] };
+  if (!shift) return { shift: null, sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [] };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
 
@@ -235,6 +259,39 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
     }
   }
 
+  // "Wage adjustments" section: one row per unique employee on the roster,
+  // pointing at whichever of their roles is the auto wage-bearing one
+  // (same selection loadShiftCalcData already does — a row's wageNote
+  // starts with "Wage counted under..." if it's NOT the wage-bearing row).
+  const wageAdjustmentRecords = await db
+    .select()
+    .from(shiftWageAdjustments)
+    .where(eq(shiftWageAdjustments.shiftId, shiftId));
+  const adjustmentByEmployeeId = new Map(wageAdjustmentRecords.map((a) => [a.employeeId, a]));
+
+  const rowsByEmployeeId = new Map<number, typeof calcData.roster>();
+  for (const r of calcData.roster) {
+    const list = rowsByEmployeeId.get(r.employeeId) ?? [];
+    list.push(r);
+    rowsByEmployeeId.set(r.employeeId, list);
+  }
+
+  const wageAdjustmentRows: WageAdjustmentRow[] = [];
+  for (const [employeeId, rows] of rowsByEmployeeId) {
+    const wageBearingRow = rows.find((r) => !r.wageNote?.startsWith("Wage counted under")) ?? rows[0];
+    const adjustment = adjustmentByEmployeeId.get(employeeId);
+    wageAdjustmentRows.push({
+      employeeId,
+      employeeName: wageBearingRow.employeeName,
+      wageBearingPositionName: wageBearingRow.positionName,
+      autoResolvedWage: wageBearingRow.flatWage,
+      wageOverrideAmount: adjustment?.wageOverrideAmount ?? null,
+      extraPayAmount: adjustment?.extraPayAmount ?? 0,
+      reason: adjustment?.reason ?? null,
+    });
+  }
+  wageAdjustmentRows.sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
     sales: sales
@@ -252,5 +309,6 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
     pointValueRows,
     metricRows,
     shiftMetricRows,
+    wageAdjustmentRows,
   };
 }

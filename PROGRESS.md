@@ -299,6 +299,74 @@ number, not each report their own.
   Summary Report show $2.50 each (not $5 each, not one person getting all
   of it).
 
+## Wage adjustments — override + extra pay for shift-coverage situations (2026-08-10)
+
+Oliver's real scenario (not multi-role staffing, which he confirmed doesn't
+happen at Youk Thai): Erika works as Host but is asked to cover Aey's
+Bartender role mid-shift after Aey calls in sick. She should keep her
+Host-side tip pool share and drink bonus (both already worked correctly —
+see the "false alarm" investigation below), but her **wage** needs
+restaurant-level flexibility, since only one roster row's wage auto-counts
+per person per shift.
+
+Oliver's explicit spec: two separate optional fields per employee, both
+shown as distinct lines in the finalized report, never merged into
+"Flat wage":
+
+- **Override** — replaces the auto-resolved wage entirely when set (e.g.
+  swap Erika's Host rate for the Bartender coverage rate).
+- **Extra pay** — always additive on top of whichever wage applies (auto or
+  overridden), for ad hoc bonuses/adjustments that aren't a wage swap.
+
+Implementation:
+
+- New `shiftWageAdjustments` table: `shiftId`, `employeeId`,
+  `wageOverrideAmount` (nullable — null means "use auto-resolved"),
+  `extraPayAmount` (defaults to 0), `reason` (optional free-text note).
+  Unique on `(shiftId, employeeId)` — one adjustment per person per shift.
+- `employeePayouts` gained an `extraPayAmount` column (mirrors the existing
+  `hostUpsellTipShare` pattern — a previously-nonexistent additive line,
+  now a first-class snapshot column).
+- `finalizeShift.ts`: `FinalizeShiftInput.wageAdjustments: Record<employeeId,
+  WageAdjustment>`. Resolution order per employee: auto-resolved wage from
+  the wage-bearing roster row, then `overrideAmount ?? autoResolvedWage`,
+  then `extraPayAmount` always added on top. `totalCorePayout` = tip pool
+  share + (override or auto wage) + host drink bonus share + extra pay.
+- `loadClosingReportData.ts` returns `wageAdjustmentRows` — one row per
+  unique employee on the roster, showing their auto-resolved wage for
+  reference alongside editable override/extra-pay/reason fields.
+- Closing Report UI: new "Wage adjustments" section, one row per employee,
+  optional override amount + optional extra pay + optional reason. Save
+  action parses `wageOverride_<employeeId>`, `extraPay_<employeeId>`,
+  `wageReason_<employeeId>` fields and upserts into `shiftWageAdjustments`.
+- Preview and Summary Report pages both render "Extra pay" as its own
+  column, separate from "Flat wage" and "Tip pool share" — matches the
+  house style established for the host drink bonus column.
+- 36 tests total (was 34) — added two `finalizeShift` tests: one proving
+  override replaces the auto wage while extra pay stays additive on top
+  (with an untouched coworker in the same shift as a control), one proving
+  extra pay alone (no override) adds on top of the normal auto-resolved
+  wage.
+- Verified directly against the real DB: staffed Erika as Host, entered a
+  $70 override (replacing her $55 auto Host wage) plus $15 extra pay with
+  a reason note, confirmed the closing-report loader reflects it, computed
+  a live Preview showing flatWageAmount=$70 and extraPayAmount=$15
+  separately, finalized (wrote `tipPoolCalculations` + `employeePayouts`),
+  and confirmed the Summary Report loader (`loadSummaryData`) shows both
+  fields correctly and separately — not merged, not lost.
+
+Also worth recording since it's what prompted this feature: Oliver reported
+what looked like a data-loss bug (adding Papi as Line Cook then again as
+Host appeared to silently overwrite the Line Cook row). Investigated
+directly against the real DB — confirmed no overwrite; all roster rows
+persist. The Preview/Summary payout table correctly consolidates one
+person's multiple roster rows into a single paycheck line (by design, one
+payout per person), which just wasn't visually legible as "all your roles
+are combined here." Multi-role staffing itself already works correctly
+(tip share sums across all pool-eligible rows, host bonus eligibility
+checks all of a person's rows) — wage was the only genuine gap, which this
+feature closes.
+
 ## How to run
 
 **First time only:**

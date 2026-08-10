@@ -190,6 +190,34 @@ export const shiftRosterEntries = sqliteTable("shift_roster_entries", {
   overrideReason: text("override_reason"),
 });
 
+// Handles shift-coverage situations (2026-08-10) — e.g. Erika works Host
+// but is asked to cover Aey's Bartender shift when Aey calls in sick. Tip
+// pool share and the host drink bonus already handle multi-role shifts
+// correctly on their own (each roster row contributes its own pool
+// membership); WAGE was the one gap, since only ONE role's wage normally
+// counts per person per shift. Deliberately per-EMPLOYEE, not per roster
+// row — wage is a per-person concept even when someone holds multiple
+// roles, so tying this to one specific row would be arbitrary.
+// wageOverrideAmount: null = use the normal auto-resolved wage; set = use
+// this number instead (for when the auto-pick chose the wrong role).
+// extraPayAmount: ALWAYS additive on top of whatever wage applies, shown
+// as its own separate line in Preview/Summary — for ad hoc coverage pay
+// that shouldn't be folded silently into "their normal wage."
+export const shiftWageAdjustments = sqliteTable(
+  "shift_wage_adjustments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    shiftId: integer("shift_id").notNull().references(() => shifts.id),
+    employeeId: integer("employee_id").notNull().references(() => employees.id),
+    wageOverrideAmount: real("wage_override_amount"), // null = auto-resolved
+    extraPayAmount: real("extra_pay_amount").notNull().default(0),
+    reason: text("reason"), // optional note, e.g. "covered Bartender for Aey (sick)"
+  },
+  (t) => ({
+    uniqShiftEmployee: uniqueIndex("uniq_shift_wage_adjustment").on(t.shiftId, t.employeeId),
+  })
+);
+
 export const shiftSales = sqliteTable("shift_sales", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   shiftId: integer("shift_id").notNull().references(() => shifts.id).unique(),
@@ -276,8 +304,15 @@ export const employeePayouts = sqliteTable("employee_payouts", {
   employeeId: integer("employee_id").notNull().references(() => employees.id),
   pointValueUsed: real("point_value_used"),
   tipPoolShare: real("tip_pool_share").notNull().default(0),
+  // "Regular" wage — either the auto-resolved rate, or the manual override
+  // if one was entered (see shiftWageAdjustments). Deliberately still
+  // called flatWageAmount, not split into "auto" vs "override" columns —
+  // once finalized, a manager doesn't need to know it was overridden, just
+  // what the final number was. extraPayAmount below is the separate,
+  // always-visible additive line.
   flatWageAmount: real("flat_wage_amount").notNull().default(0),
   hostUpsellTipShare: real("host_upsell_tip_share"),
+  extraPayAmount: real("extra_pay_amount").notNull().default(0),
   totalCorePayout: real("total_core_payout").notNull().default(0),
 });
 

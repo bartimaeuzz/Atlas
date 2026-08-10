@@ -81,6 +81,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                   <th className="py-1.5 text-right">Tip pool share</th>
                   <th className="py-1.5 text-right">Drink bonus</th>
                   <th className="py-1.5 text-right">Flat wage</th>
+                  <th className="py-1.5 text-right">Extra pay</th>
                   <th className="py-1.5 text-right">Total</th>
                 </tr>
               </thead>
@@ -94,6 +95,9 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                       {p.hostUpsellTipShare > 0 ? `$${p.hostUpsellTipShare.toFixed(2)}` : "—"}
                     </td>
                     <td className="py-1.5 text-right tabular-nums">${p.flatWageAmount.toFixed(2)}</td>
+                    <td className="py-1.5 text-right tabular-nums">
+                      {p.extraPayAmount > 0 ? `$${p.extraPayAmount.toFixed(2)}` : "—"}
+                    </td>
                     <td className="py-1.5 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
                   </tr>
                 ))}
@@ -101,6 +105,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
               <tfoot>
                 <tr className="border-t-2 font-medium">
                   <td className="py-2">Total</td>
+                  <td></td>
                   <td></td>
                   <td></td>
                   <td></td>

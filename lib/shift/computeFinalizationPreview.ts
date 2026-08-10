@@ -2,10 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shiftSales, onlinePlatformSalesRecords, restaurantSettings,
-  metricDefinitions, metricValues, positionMetrics,
+  metricDefinitions, metricValues, positionMetrics, shiftWageAdjustments,
 } from "@/db/schema";
 import { loadShiftCalcData } from "./loadRosterForCalc";
-import { buildFinalizationResult, type FinalizeRosterRow, type FinalizeShiftResult } from "@/lib/calc/finalizeShift";
+import {
+  buildFinalizationResult,
+  type FinalizeRosterRow, type FinalizeShiftResult, type WageAdjustment,
+} from "@/lib/calc/finalizeShift";
 import type { HostDrinkBonusInput } from "@/lib/calc/tipPool";
 
 export interface FinalizationPreview {
@@ -102,6 +105,18 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     flatWage: r.flatWage,
   }));
 
+  // Wage adjustments (2026-08-10) — optional per-employee override + extra
+  // pay for shift-coverage situations. Keyed by employeeId for the calc
+  // engine; only employees who actually have a saved adjustment appear here.
+  const wageAdjustmentRecords = await db
+    .select()
+    .from(shiftWageAdjustments)
+    .where(eq(shiftWageAdjustments.shiftId, shiftId));
+  const wageAdjustments: Record<number, WageAdjustment> = {};
+  for (const a of wageAdjustmentRecords) {
+    wageAdjustments[a.employeeId] = { overrideAmount: a.wageOverrideAmount, extraPayAmount: a.extraPayAmount };
+  }
+
   const result = buildFinalizationResult({
     deductionRate,
     grossCcTip: sales.ccTipTotal,
@@ -114,6 +129,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     pool2SplitMethod,
     pool3SplitMethod,
     roster,
+    wageAdjustments,
   });
 
   const employeeNames: Record<number, string> = {};

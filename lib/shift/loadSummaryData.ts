@@ -14,6 +14,10 @@ export interface SummaryPayoutRow {
   /** Host cocktail/mocktail drink bonus, 0 if not applicable — already
    * included in totalCorePayout, shown separately for transparency. */
   hostUpsellTipShare: number;
+  /** Ad hoc extra pay for shift coverage (2026-08-10), 0 if none — already
+   * included in totalCorePayout, shown separately, never merged silently
+   * into flatWageAmount. */
+  extraPayAmount: number;
   totalCorePayout: number;
 }
 
@@ -47,6 +51,7 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
       tipPoolShare: employeePayouts.tipPoolShare,
       flatWageAmount: employeePayouts.flatWageAmount,
       hostUpsellTipShare: employeePayouts.hostUpsellTipShare,
+      extraPayAmount: employeePayouts.extraPayAmount,
       totalCorePayout: employeePayouts.totalCorePayout,
     })
     .from(employeePayouts)

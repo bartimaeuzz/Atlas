@@ -35,6 +35,16 @@ export interface FinalizeRosterRow {
   flatWage: number | null;
 }
 
+/** Optional per-employee wage adjustment for shift-coverage situations
+ * (added 2026-08-10, e.g. Erika works Host but covers Aey's Bartender
+ * shift when Aey calls in sick). overrideAmount, if set, REPLACES the
+ * auto-resolved flat wage entirely; extraPayAmount is ALWAYS additive on
+ * top of whichever wage applies, shown as its own separate payout line. */
+export interface WageAdjustment {
+  overrideAmount: number | null;
+  extraPayAmount: number;
+}
+
 export interface FinalizeShiftInput {
   deductionRate: number;
   grossCcTip: number;
@@ -47,6 +57,9 @@ export interface FinalizeShiftInput {
   pool2SplitMethod: PoolSplitMethod;
   pool3SplitMethod: PoolSplitMethod;
   roster: FinalizeRosterRow[];
+  /** Keyed by employeeId. Employees with no entry get their normal
+   * auto-resolved wage and no extra pay — this param is entirely optional. */
+  wageAdjustments: Record<number, WageAdjustment>;
 }
 
 export interface FinalizeEmployeePayout {
@@ -62,6 +75,10 @@ export interface FinalizeEmployeePayout {
    * column so lib/actions/shift.ts can keep writing this via a plain
    * object spread — see the header comment for the naming note. */
   hostUpsellTipShare: number;
+  /** Ad hoc extra pay for this shift (e.g. covering another role), always
+   * additive on top of flatWageAmount — shown as its own separate line,
+   * never silently folded into "their normal wage." 0 if none. */
+  extraPayAmount: number;
   totalCorePayout: number;
 }
 
@@ -82,7 +99,7 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
   const {
     deductionRate, grossCcTip, takeoutCcTip, deliveryToastTip, hostDrinkBonus,
     platformCourierTips, platformDeliveryTips,
-    pool1SplitMethod, pool2SplitMethod, pool3SplitMethod, roster,
+    pool1SplitMethod, pool2SplitMethod, pool3SplitMethod, roster, wageAdjustments,
   } = input;
 
   const pool1Roster: PoolRosterEntry[] = roster
@@ -132,7 +149,12 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     // shift (e.g. genuinely working two different positions).
     const pointValueUsed = tipPoolRows.length === 1 ? tipPoolRows[0].pointValue : null;
     const wageRow = rowsForEmployee.find((r) => r.flatWage != null);
-    const flatWageAmount = wageRow?.flatWage ?? 0;
+    const autoResolvedWage = wageRow?.flatWage ?? 0;
+    const adjustment = wageAdjustments[employeeId];
+    // Override REPLACES the auto-resolved wage entirely; extra pay is
+    // ALWAYS additive on top, regardless of whether an override was used.
+    const flatWageAmount = adjustment?.overrideAmount ?? autoResolvedWage;
+    const extraPayAmount = adjustment?.extraPayAmount ?? 0;
     const tipPoolShare = tipShareByEmployee.get(employeeId) ?? 0;
     const hostUpsellTipShare = calc.hostDrinkBonusByEmployee[employeeId] ?? 0;
     return {
@@ -141,7 +163,8 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
       tipPoolShare,
       flatWageAmount,
       hostUpsellTipShare,
-      totalCorePayout: round2(tipPoolShare + flatWageAmount + hostUpsellTipShare),
+      extraPayAmount,
+      totalCorePayout: round2(tipPoolShare + flatWageAmount + hostUpsellTipShare + extraPayAmount),
     };
   });
 

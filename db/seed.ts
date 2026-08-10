@@ -16,6 +16,7 @@ async function seed() {
     "incentive_rule_conditions", "incentive_rules", "metric_values", "position_metrics",
     "metric_definitions",
     "delivery_cash_tip_records", "tip_pool_calculations", "employee_payouts",
+    "shift_wage_adjustments",
     "host_upsell_tip_records", "online_platform_sales_records", "shift_sales",
     "shift_roster_entries", "shifts", "employee_wage_rates", "position_shift_rates",
     "employee_positions", "employees", "online_platforms", "position_tip_pools",

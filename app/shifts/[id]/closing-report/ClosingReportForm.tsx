@@ -148,6 +148,74 @@ export function ClosingReportForm({
       </fieldset>
 
       <fieldset disabled={isFinalized}>
+        <legend className="text-lg font-medium mb-3">Wage adjustments</legend>
+        <p className="text-xs text-neutral-500 mb-3">
+          Optional, for shift-coverage situations — e.g. Erika works Host but covers Aey&apos;s
+          Bartender shift when Aey calls in sick. &quot;Override&quot; replaces the system&apos;s
+          normal wage pick if it&apos;s wrong; &quot;Extra pay&quot; is always added ON TOP and shows
+          as its own line in Preview/Summary, separate from the regular wage. Leave both blank to
+          change nothing.
+        </p>
+        {data.wageAdjustmentRows.length === 0 ? (
+          <p className="text-sm text-neutral-500">Nobody on the roster yet.</p>
+        ) : (
+          <table className="text-sm border-collapse">
+            <thead>
+              <tr className="text-neutral-500">
+                <th className="text-left font-normal pr-4 pb-1">Employee</th>
+                <th className="text-left font-normal pr-4 pb-1">Auto wage</th>
+                <th className="text-left font-normal pr-4 pb-1">Override</th>
+                <th className="text-left font-normal pr-4 pb-1">Extra pay</th>
+                <th className="text-left font-normal pr-4 pb-1">Reason</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.wageAdjustmentRows.map((r) => (
+                <tr key={r.employeeId}>
+                  <td className="pr-4 py-1">
+                    {r.employeeName}
+                    <span className="block text-xs text-neutral-500">{r.wageBearingPositionName}</span>
+                  </td>
+                  <td className="pr-4 py-1 text-neutral-500">
+                    {r.autoResolvedWage != null ? `$${r.autoResolvedWage.toFixed(2)}` : "—"}
+                  </td>
+                  <td className="pr-4 py-1">
+                    <input
+                      type="number"
+                      step={0.01}
+                      name={`wageOverride_${r.employeeId}`}
+                      defaultValue={r.wageOverrideAmount ?? ""}
+                      placeholder="auto"
+                      className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                    />
+                  </td>
+                  <td className="pr-4 py-1">
+                    <input
+                      type="number"
+                      step={0.01}
+                      name={`extraPay_${r.employeeId}`}
+                      defaultValue={r.extraPayAmount || ""}
+                      placeholder="0"
+                      className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                    />
+                  </td>
+                  <td className="pr-4 py-1">
+                    <input
+                      type="text"
+                      name={`wageReason_${r.employeeId}`}
+                      defaultValue={r.reason ?? ""}
+                      placeholder="optional note"
+                      className="border rounded px-2 py-1 w-40 disabled:bg-neutral-100"
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </fieldset>
+
+      <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium mb-3">Online platform sales</legend>
         <p className="text-xs text-neutral-500 mb-3">
           Split tips by who delivered: platform-courier tips feed Pool 2 (Host/Operator/Packer/Bag

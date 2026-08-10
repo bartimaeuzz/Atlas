@@ -25,6 +25,7 @@ test("finalize: splits pool 1 by point value and attaches wage once per employee
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
+    wageAdjustments: {},
   });
 
   const netPool1 = round2(630 * 0.955);
@@ -60,6 +61,7 @@ test("finalize: one row spanning two pools (Host) gets summed share AND a define
     platformCourierTips: 20,
     platformDeliveryTips: 0,
     roster,
+    wageAdjustments: {},
   });
 
   const payout = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -93,6 +95,7 @@ test("finalize: employee with two SEPARATE tip-pool roster rows (different posit
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
+    wageAdjustments: {},
   });
 
   const payout = result.employeePayouts.find((p) => p.employeeId === 40)!;
@@ -117,6 +120,7 @@ test("finalize: NONE-pool employee (Manager) still gets a payout row with wage o
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
+    wageAdjustments: {},
   });
 
   assert.equal(result.employeePayouts.length, 1);
@@ -146,6 +150,7 @@ test("finalize: split method is configurable per pool, not just Pool 3's default
     platformCourierTips: 100,
     platformDeliveryTips: 0,
     roster,
+    wageAdjustments: {},
   });
 
   const p1 = result.employeePayouts.find((p) => p.employeeId === 50)!;
@@ -174,6 +179,7 @@ test("finalize: pool 3 (delivery) is split equally by default, regardless of poi
     platformCourierTips: 0,
     platformDeliveryTips: 50,
     roster,
+    wageAdjustments: {},
   });
 
   const p1 = result.employeePayouts.find((p) => p.employeeId === 30)!;
@@ -206,6 +212,7 @@ test("finalize: host drink bonus is pulled off Pool 1 top and added to that host
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
+    wageAdjustments: {},
   });
 
   const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -244,6 +251,7 @@ test("finalize: host drink bonus splits equally between TWO hosts working the sa
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
+    wageAdjustments: {},
   });
 
   const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -276,7 +284,80 @@ test("finalize: host drink bonus larger than the pool throws a friendly error, d
         platformCourierTips: 0,
         platformDeliveryTips: 0,
         roster,
+        wageAdjustments: {},
       }),
     /more than this shift's dine-in tip pool/
   );
+});
+
+test("finalize: wage override replaces auto-resolved wage, extra pay is additive on top", () => {
+  // Scenario from Oliver (2026-08-10): Erika works Host but covers Aey's
+  // Bartender role mid-shift after Aey calls in sick. The restaurant wants
+  // to override Erika's auto-resolved wage to reflect the coverage, AND
+  // separately hand her $15 extra pay for the trouble — both should show
+  // up as distinct lines, never silently merged into "Flat wage".
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 55 }, // Erika, Host (auto wage $55)
+    { employeeId: 11, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 60 }, // unaffected coworker
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 100,
+    takeoutCcTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: {
+      10: { overrideAmount: 70, extraPayAmount: 15 }, // override Host's $55 -> Bartender coverage rate $70, plus $15 extra
+    },
+  });
+
+  const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
+  const coworker = result.employeePayouts.find((p) => p.employeeId === 11)!;
+
+  assert.equal(erika.flatWageAmount, 70); // override replaced the auto $55, not added to it
+  assert.equal(erika.extraPayAmount, 15); // extra pay is its own separate line
+  assert.equal(
+    erika.totalCorePayout,
+    round2(erika.tipPoolShare + 70 + 15),
+    "totalCorePayout should sum tip share + overridden wage + extra pay"
+  );
+
+  // Coworker with no adjustment is untouched: auto wage, zero extra pay.
+  assert.equal(coworker.flatWageAmount, 60);
+  assert.equal(coworker.extraPayAmount, 0);
+});
+
+test("finalize: extra pay alone (no override) is additive on top of the normal auto-resolved wage", () => {
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 55 },
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 100,
+    takeoutCcTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: {
+      10: { overrideAmount: null, extraPayAmount: 20 }, // no override, just $20 on top
+    },
+  });
+
+  const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
+  assert.equal(erika.flatWageAmount, 55); // untouched auto wage
+  assert.equal(erika.extraPayAmount, 20);
+  assert.equal(erika.totalCorePayout, round2(erika.tipPoolShare + 55 + 20));
 });
