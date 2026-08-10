@@ -595,6 +595,37 @@ on the seeded dinner shift, confirmed it flows undeducted through Preview,
 finalize, and the Summary Report, and confirmed every payout row's pool
 shares sum correctly to its total.
 
+## Roster "Add someone" position dropdown now reflects Employee admin assignments (2026-08-10)
+
+Oliver's other observation testing the roster: the Position dropdown
+showed every position flat, with no connection to what we'd just built in
+Employee admin (which positions a person is actually set up to work). New
+`loadEmployeeAssignedPositionIds()` in `lib/employees/loadEmployeesList.ts`
+returns an employeeId -> assigned positionId[] lookup, reusing the same
+defensive primaryPositionId backfill built for Employee admin (so someone
+like Papi, whose real `employeePositions` row may still be missing on an
+older DB, correctly shows their primary position as assigned). Threaded
+through `loadRosterPageData.ts` into a new `employeeAssignedPositionIds`
+field.
+
+`AddRosterEntryForm.tsx`'s Employee select is now controlled; the Position
+select re-groups live as the employee selection changes — assigned
+positions in an "Assigned to this person" group, everyone else in an
+"Other positions" group with greyed-out (but still fully selectable) text.
+Deliberately NOT a hard restriction — same flexibility reasoning as the
+duplicate-add confirm dialog shipped earlier this project: a restaurant
+may genuinely need someone to cover a position they're not formally set
+up for, so this only nudges, never blocks. If an employee has no
+assignments at all yet (brand new, never touched in Employee admin), the
+dropdown falls back to a flat unstyled list rather than showing everything
+greyed out, which would look broken.
+
+No new unit tests (pure UI wiring off already-tested loader logic).
+Verified against the real DB: Erika's lookup correctly shows only Host
+(her seeded position), Papi's lookup correctly shows Line Cook via the
+primaryPositionId backfill, and every active employee has an entry in the
+lookup (even if empty).
+
 ## Not started yet
 
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet

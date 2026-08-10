@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { shifts, shiftRosterEntries, employees, positions } from "@/db/schema";
+import { loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
 
 export interface RosterPageEntry {
   rosterEntryId: number;
@@ -17,11 +18,15 @@ export interface RosterPageData {
   roster: RosterPageEntry[];
   allEmployees: { id: number; name: string }[];
   allPositions: { id: number; name: string; category: "FOH" | "BOH" }[];
+  /** employeeId -> assigned positionId[], from Employee admin (2026-08-10)
+   * — powers the "Add someone" dropdown's grey-out-but-still-selectable
+   * behavior for positions that employee isn't set up for. */
+  employeeAssignedPositionIds: Record<number, number[]>;
 }
 
 export async function loadRosterPageData(shiftId: number): Promise<RosterPageData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, roster: [], allEmployees: [], allPositions: [] };
+  if (!shift) return { shift: null, roster: [], allEmployees: [], allPositions: [], employeeAssignedPositionIds: {} };
 
   const rows = await db
     .select({
@@ -51,10 +56,13 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
     .from(positions)
     .where(eq(positions.active, true));
 
+  const employeeAssignedPositionIds = await loadEmployeeAssignedPositionIds();
+
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
     roster: rows.map((r) => ({ ...r, positionCategory: r.positionCategory as "FOH" | "BOH" })),
     allEmployees,
     allPositions: allPositions.map((p) => ({ ...p, category: p.category as "FOH" | "BOH" })),
+    employeeAssignedPositionIds,
   };
 }

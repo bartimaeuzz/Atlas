@@ -94,6 +94,7 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
             roster={data.roster}
             allEmployees={data.allEmployees}
             allPositions={data.allPositions}
+            employeeAssignedPositionIds={data.employeeAssignedPositionIds}
           />
         </section>
       )}

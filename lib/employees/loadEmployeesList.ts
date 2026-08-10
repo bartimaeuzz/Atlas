@@ -186,3 +186,32 @@ export async function loadAllPositionsForAssignment(): Promise<AssignablePositio
     }))
     .sort((a, b) => (a.category === b.category ? a.name.localeCompare(b.name) : a.category === "FOH" ? -1 : 1));
 }
+
+/** Lean employeeId -> assigned positionId[] lookup, for the roster page's
+ * "Add someone" dropdown (2026-08-10, Oliver: the position dropdown
+ * should reflect who's actually assigned to what from Employee admin,
+ * not show every position flat for everyone). Reuses the same defensive
+ * backfill as loadEmployeesList — a primaryPositionId always counts as
+ * assigned, even if the employeePositions row hasn't been created yet
+ * (see ensurePrimaryPositionIncluded's comment for why). Deliberately NOT
+ * used to restrict what CAN be selected — Roster's "Add someone" form
+ * greys out non-assigned positions but keeps them choosable, same
+ * flexibility reasoning as the multi-role confirm dialog. */
+export async function loadEmployeeAssignedPositionIds(): Promise<Record<number, number[]>> {
+  const allEmployees = await db.select().from(employees);
+  if (allEmployees.length === 0) return {};
+
+  const employeeIds = allEmployees.map((e) => e.id);
+  const positionRows = await db
+    .select()
+    .from(employeePositions)
+    .where(inArray(employeePositions.employeeId, employeeIds));
+
+  const result: Record<number, number[]> = {};
+  for (const e of allEmployees) {
+    const assigned = new Set(positionRows.filter((r) => r.employeeId === e.id).map((r) => r.positionId));
+    if (e.primaryPositionId !== null) assigned.add(e.primaryPositionId);
+    result[e.id] = Array.from(assigned);
+  }
+  return result;
+}
