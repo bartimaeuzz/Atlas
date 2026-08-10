@@ -490,6 +490,25 @@ unit tests); staffed Aey as both Bartender and Sous Chef and confirmed the
 roster loader returns exactly the two rows + role count the badge and
 confirm-dialog logic need. 38 tests passing, build clean.
 
+## Persistent nav bar + missing back-links filled in (2026-08-10)
+
+Oliver asked directly: several pages (New Shift, New/Edit Position,
+Settings, the playground calculator) had no way back except editing the
+URL bar by hand, and there was no way to see "where am I" while navigating
+into a shift. Root cause: navigation had been added ad hoc, per page, as
+each page shipped — no shared layout-level nav ever existed.
+
+Fixed with a persistent top nav bar in the root layout (`app/NavBar.tsx`),
+so it shows on every page without needing to touch each page individually:
+Atlas (home) / Shifts / Positions / Settings, with the current section
+highlighted (`usePathname`). This alone fixes the "stuck on a page" problem
+everywhere at once. Also added the specific contextual back-links that were
+missing: `/shifts/new` and the playground calculator (`/shifts/[id]`) now
+have "← All shifts"; `/positions/new` and `/positions/[id]/edit` now have
+"← Positions". No unit tests (pure navigation UI, not logic); verified by
+building, seeding, running the real dev server, and curling every affected
+route to confirm the nav bar and each new back-link actually render.
+
 ## Not started yet
 
 - Employee admin UI (create/edit employees, including per-employee BOH

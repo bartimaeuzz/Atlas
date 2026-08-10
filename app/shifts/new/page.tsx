@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createShift } from "@/lib/actions/shift";
 
 export default function NewShiftPage() {
@@ -5,6 +6,9 @@ export default function NewShiftPage() {
 
   return (
     <main className="max-w-md mx-auto p-8 font-sans">
+      <p className="text-sm mb-1">
+        <Link href="/shifts" className="text-neutral-500 hover:underline">← All shifts</Link>
+      </p>
       <h1 className="text-2xl font-semibold mb-1">New shift</h1>
       <p className="text-sm text-neutral-500 mb-6">
         One record per meal period — pick the date and Lunch or Dinner, then build the roster.

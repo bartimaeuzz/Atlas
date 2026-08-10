@@ -4,6 +4,7 @@ import { metricDefinitions, positionMetrics } from "@/db/schema";
 import { loadShiftCalcData } from "@/lib/shift/loadRosterForCalc";
 import { CalculatorForm } from "./CalculatorForm";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 
 export default async function ShiftPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,6 +29,9 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
 
   return (
     <main className="max-w-4xl mx-auto p-8 font-sans">
+      <p className="text-sm mb-1">
+        <Link href="/shifts" className="text-neutral-500 hover:underline">← All shifts</Link>
+      </p>
       <h1 className="text-2xl font-semibold mb-1">
         Shift #{data.shift.id} — {data.shift.date} ({data.shift.period})
       </h1>
