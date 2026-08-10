@@ -984,6 +984,30 @@ code changed, so this handoff needs a reseed but NOT another
 
 ## Not started yet
 
+## Backlog (2026-08-10) — disciplinary/correction deductions
+
+Oliver's ask, explicitly deferred ("save it in a backlog as well to do
+it later"): the restaurant needs a way to deduct pay for disciplinary
+issues (late to work, breaking restaurant property, etc.). Since FOH/BOH
+wages are flat-rate per shift (not hourly), a deduction can't come out of
+hours worked — it has to be a direct dollar amount taken off that
+person's payout. Floor Manager should be able to add these manually,
+entered before the shift is finalized (same timing as the existing wage
+override/extra pay fields on the Closing Report). Needs to show up in
+both the employee's own My Pay view and the Preview/Summary "payout by
+employee" table, as its own line — not silently netted into another
+number.
+
+**Likely fits the existing `shiftWageAdjustments` pattern** (override +
+extra pay + reason, added 2026-08-10 for the Erika/Aey shift-coverage
+case) as a third field — e.g. a `deductionAmount` + `deductionReason` —
+rather than a new table. Not designed yet: whether it should be visible
+to OTHER coworkers (versus just the disciplined employee + managers),
+whether there's a running/lifetime total anywhere, and whether it needs
+any approval step beyond the Floor Manager entering it. Confirm scope
+with Oliver before building.
+
+
 ## Backlog (2026-08-10) — per-column, per-viewer earnings visibility on My Pay
 
 Oliver's ask, explicitly deferred ("don't need to do it right now... save
