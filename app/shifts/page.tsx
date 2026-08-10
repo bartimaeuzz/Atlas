@@ -8,9 +8,14 @@ export default async function ShiftsListPage() {
     <main className="max-w-2xl mx-auto p-8 font-sans">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Shifts</h1>
-        <Link href="/shifts/new" className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 text-sm">
-          + New shift
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/positions" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50 text-sm">
+            Positions
+          </Link>
+          <Link href="/shifts/new" className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 text-sm">
+            + New shift
+          </Link>
+        </div>
       </div>
 
       {shifts.length === 0 ? (

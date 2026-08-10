@@ -43,7 +43,13 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
     .from(employees)
     .where(eq(employees.active, true));
 
-  const allPositions = await db.select({ id: positions.id, name: positions.name, category: positions.category }).from(positions);
+  // Retired positions stay valid for shifts that already reference them
+  // (this loader's `roster` rows above join freely regardless of active
+  // status), but shouldn't be offered when staffing a NEW roster entry.
+  const allPositions = await db
+    .select({ id: positions.id, name: positions.name, category: positions.category })
+    .from(positions)
+    .where(eq(positions.active, true));
 
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },

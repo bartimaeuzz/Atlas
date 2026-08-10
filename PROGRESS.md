@@ -385,9 +385,59 @@ to its starting point (safe to run repeatedly now — resets ids too).
 npm test          # runs all calculation + permission tests, anytime
 ```
 
+## Position admin UI (2026-08-10) — first master-data editing UI, no more seed-file surgery for positions
+
+Backlog item Oliver flagged earlier ("Position admin UI... be reminded about this later") — this round built it. Also closes the loop on a question Oliver asked directly: "if wage rates aren't on this page, where does someone go for a raise?" Answer, and the actual design split used:
+
+- **FOH wage (`positionShiftRates`) is a property of the POSITION** — one
+  shared Lunch/Dinner rate for everyone who works it. Belongs naturally on
+  the Position page, so it's included this round: raise the whole
+  position's rate in one place, applies to whoever's rostered next.
+- **BOH wage (`employeeWageRates`) is a property of the EMPLOYEE**, not the
+  position — a raise for one specific line cook can't be expressed at the
+  Position level at all. Still no UI for this; flagged as the very next
+  piece of master-data UI to build (Employee admin), not attempted this
+  round to keep this one shippable.
+
+What shipped:
+- `positions.active` column (boolean, default true) — retire, never hard
+  delete, matching the existing `employees.active` pattern. A retired
+  position stays fully valid for every historical shift that already
+  references it (roster entries, wage rates, tip pool calcs untouched); it
+  just stops being offered when staffing a NEW shift's roster
+  (`loadRosterPageData`'s `allPositions` query now filters `active: true`).
+- `/positions` — list page, all positions (active + retired, retired shown
+  greyed out), with pool membership and FOH rate shown inline.
+- `/positions/new` and `/positions/[id]/edit` — shared `PositionForm`
+  client component: name, category (FOH/BOH radio), tip pool membership
+  (checkboxes for Pool 1/2/3), the two visibility flags
+  (`alwaysVisibleInRoster`, `earningsHiddenFromStaff`), default tip point
+  value, and — only shown when category is FOH — Lunch/Dinner flat rate
+  inputs. Retire/Reactivate is a plain button (no form), calls
+  `togglePositionActive` directly via `useTransition`.
+- `lib/actions/positions.ts` — `createPosition`/`updatePosition` follow
+  the same `(prevState, formData) => {error}` + "redirect() outside the
+  try/catch" pattern as the shift actions, including a duplicate-name
+  check. Pool membership + FOH rates are synced via delete-then-reinsert
+  on the child tables (`positionTipPools`, `positionShiftRates`) — simple
+  and safe since nothing has a foreign key pointing INTO those two tables.
+- No new unit tests added — this is straightforward CRUD/wiring code, not
+  pure calculation logic, matching this project's existing testing
+  convention (`__tests__` dirs exist only under `lib/calc` and
+  `lib/roster`, reserved for pure functions and the privacy-sensitive
+  visibility logic). Verified instead with a direct-DB script exercising
+  the full loop: create a position with pool membership + rates → confirm
+  both list and edit loaders return it correctly → simulate a raise
+  (Dinner rate 60→70) → retire it → confirm it disappears from
+  `loadRosterPageData`'s roster dropdown while the seeded/existing Host
+  position stays untouched → reactivate → confirm it reappears. 36 tests
+  still passing (unchanged), full build clean.
+
 ## Not started yet
 
-- Editing master data through the UI (employees, positions, wage rates — all still seed-only)
+- Employee admin UI (create/edit employees, including per-employee BOH
+  wage rate — see the Position admin note directly above for why this is
+  the natural next piece)
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet
 - Auth (systemRole field exists on Employee, no actual login system yet)
 - Deploy to Vercel

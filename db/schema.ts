@@ -24,6 +24,12 @@ export const positions = sqliteTable("positions", {
   // Template value only — not used in calculation, just a suggested starting
   // point shown in the UI when adding a new employee to this position.
   defaultTipPointValue: real("default_tip_point_value"),
+  // Retire, don't hard-delete — matches employees.active. A retired
+  // position must stay valid for historical shifts that already reference
+  // it (roster entries, wage rates, tip pool calcs), it just stops being
+  // offered when staffing NEW shifts. Added 2026-08-10 for the Position
+  // admin UI (see PROGRESS.md).
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
 });
 
 // Many-to-many: which tip pool(s) a Position participates in. Replaces an
