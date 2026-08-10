@@ -38,6 +38,18 @@ export interface MetricEntryRow {
   currentValue: number; // 0 if nothing saved yet
 }
 
+/** One "enter a number for this metric, for the WHOLE SHIFT" input — e.g.
+ * the host team's shared drink count, split equally among however many
+ * people worked Host. Only shown when at least one eligible position is
+ * actually staffed this shift (no point asking for a host bonus count on
+ * a shift with no host). */
+export interface ShiftMetricRow {
+  metricDefinitionId: number;
+  metricKey: string;
+  metricLabel: string;
+  currentValue: number; // 0 if nothing saved yet
+}
+
 export interface ClosingReportData {
   shift: { id: number; date: string; period: string; status: string } | null;
   sales: {
@@ -56,13 +68,18 @@ export interface ClosingReportData {
    * not a staffing decision). NONE-pool rows (Manager, Chef, ...) are
    * excluded since they have no point-weighted share to adjust. */
   pointValueRows: PointValueRow[];
-  /** "Bonus metrics" section — e.g. Host qualifying drink count. */
+  /** "Bonus metrics" section, per-employee inputs — for EMPLOYEE_SHIFT
+   * metrics where each eligible person reports their own number. */
   metricRows: MetricEntryRow[];
+  /** "Bonus metrics" section, shift-level inputs — for SHIFT metrics like
+   * the host team's shared drink count (one number, split equally among
+   * the eligible people staffed this shift). */
+  shiftMetricRows: ShiftMetricRow[];
 }
 
 export async function loadClosingReportData(shiftId: number): Promise<ClosingReportData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, sales: null, platformSales: [], pointValueRows: [], metricRows: [] };
+  if (!shift) return { shift: null, sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [] };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
 
@@ -163,6 +180,61 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
     }
   }
 
+  // "Bonus metrics" (shift-level): enabled SHIFT metrics collected at close,
+  // shown only if at least one eligible position (via positionMetrics) is
+  // actually staffed this shift — e.g. the host team's shared drink count.
+  const shiftMetrics = await db
+    .select()
+    .from(metricDefinitions)
+    .where(
+      and(
+        eq(metricDefinitions.scope, "SHIFT"),
+        eq(metricDefinitions.enabled, true)
+      )
+    );
+  const shiftCloseMetrics = shiftMetrics.filter(
+    (m) => m.collectionMoment === "close" || m.collectionMoment === "both"
+  );
+
+  const shiftMetricRows: ShiftMetricRow[] = [];
+  if (shiftCloseMetrics.length > 0) {
+    const metricIds = shiftCloseMetrics.map((m) => m.id);
+    const rosterPositionIds = Array.from(new Set(calcData.roster.map((r) => r.positionId)));
+
+    const eligibility = rosterPositionIds.length
+      ? await db
+          .select()
+          .from(positionMetrics)
+          .where(
+            and(
+              inArray(positionMetrics.positionId, rosterPositionIds),
+              inArray(positionMetrics.metricDefinitionId, metricIds)
+            )
+          )
+      : [];
+    const eligibleMetricIds = new Set(eligibility.map((e) => e.metricDefinitionId));
+
+    const existingShiftValues = await db
+      .select()
+      .from(metricValues)
+      .where(and(eq(metricValues.shiftId, shiftId), inArray(metricValues.metricDefinitionId, metricIds)));
+    const shiftValueByMetric = new Map<number, number>();
+    for (const v of existingShiftValues) {
+      if (v.employeeId != null) continue; // shift-level rows have no employeeId
+      shiftValueByMetric.set(v.metricDefinitionId, v.value);
+    }
+
+    for (const metric of shiftCloseMetrics) {
+      if (!eligibleMetricIds.has(metric.id)) continue;
+      shiftMetricRows.push({
+        metricDefinitionId: metric.id,
+        metricKey: metric.key,
+        metricLabel: metric.label,
+        currentValue: shiftValueByMetric.get(metric.id) ?? 0,
+      });
+    }
+  }
+
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
     sales: sales
@@ -179,5 +251,6 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
     platformSales,
     pointValueRows,
     metricRows,
+    shiftMetricRows,
   };
 }

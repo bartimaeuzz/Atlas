@@ -21,7 +21,7 @@ test("finalize: splits pool 1 by point value and attaches wage once per employee
     grossCcTip: 630,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
-    hostDrinkBonus: [],
+    hostDrinkBonus: null,
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
@@ -56,7 +56,7 @@ test("finalize: one row spanning two pools (Host) gets summed share AND a define
     grossCcTip: 100,
     takeoutCcTip: 40,
     deliveryToastTip: 0,
-    hostDrinkBonus: [],
+    hostDrinkBonus: null,
     platformCourierTips: 20,
     platformDeliveryTips: 0,
     roster,
@@ -89,7 +89,7 @@ test("finalize: employee with two SEPARATE tip-pool roster rows (different posit
     grossCcTip: 100,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
-    hostDrinkBonus: [],
+    hostDrinkBonus: null,
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
@@ -113,7 +113,7 @@ test("finalize: NONE-pool employee (Manager) still gets a payout row with wage o
     grossCcTip: 0,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
-    hostDrinkBonus: [],
+    hostDrinkBonus: null,
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
@@ -142,7 +142,7 @@ test("finalize: split method is configurable per pool, not just Pool 3's default
     grossCcTip: 0,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
-    hostDrinkBonus: [],
+    hostDrinkBonus: null,
     platformCourierTips: 100,
     platformDeliveryTips: 0,
     roster,
@@ -170,7 +170,7 @@ test("finalize: pool 3 (delivery) is split equally by default, regardless of poi
     grossCcTip: 100,
     takeoutCcTip: 0,
     deliveryToastTip: 100,
-    hostDrinkBonus: [],
+    hostDrinkBonus: null,
     platformCourierTips: 0,
     platformDeliveryTips: 50,
     roster,
@@ -184,10 +184,11 @@ test("finalize: pool 3 (delivery) is split equally by default, regardless of poi
 });
 
 test("finalize: host drink bonus is pulled off Pool 1 top and added to that host's payout", () => {
-  // Erika (Host) sells 3 qualifying drinks at $1/drink = $3 bonus, pulled off
-  // the top of Pool 1 before the point-weighted split, paid 100% to her —
-  // additive on top of her normal Pool 1 share, not instead of it. Kris
-  // (Server) gets a share of what's left, no bonus.
+  // Erika (Host) working alone: host team's shared count is 3 drinks at
+  // $1/drink = $3 bonus, pulled off the top of Pool 1 before the
+  // point-weighted split, paid 100% to her (sole recipient) — additive on
+  // top of her normal Pool 1 share, not instead of it. Kris (Server) gets
+  // a share of what's left, no bonus (not a Host).
   const roster: FinalizeRosterRow[] = [
     { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 55 }, // Erika, Host
     { employeeId: 20, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 60 }, // Kris, Server
@@ -201,7 +202,7 @@ test("finalize: host drink bonus is pulled off Pool 1 top and added to that host
     grossCcTip: 100,
     takeoutCcTip: 0,
     deliveryToastTip: 0,
-    hostDrinkBonus: [{ employeeId: 10, qualifyingDrinkCount: 3, perDrinkAmount: 1 }],
+    hostDrinkBonus: { qualifyingDrinkCount: 3, perDrinkAmount: 1, recipientEmployeeIds: [10] },
     platformCourierTips: 0,
     platformDeliveryTips: 0,
     roster,
@@ -220,6 +221,42 @@ test("finalize: host drink bonus is pulled off Pool 1 top and added to that host
   assert.equal(erika.totalCorePayout, round2(erika.tipPoolShare + 3 + 55));
 });
 
+test("finalize: host drink bonus splits equally between TWO hosts working the same shift", () => {
+  // Erika and Alesso both worked Host this shift — one shared count of 6
+  // drinks x $1 = $6, split equally ($3 each), regardless of their
+  // (unequal) Pool 1 point values. Corrected 2026-08-10: the original
+  // version had each host self-report their own count; the real rule is
+  // one pooled waiting-area count for the whole host team.
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 55 }, // Erika, Host
+    { employeeId: 11, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 0.5, flatWage: 55 }, // Alesso, also Host today
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 100,
+    takeoutCcTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: { qualifyingDrinkCount: 6, perDrinkAmount: 1, recipientEmployeeIds: [10, 11] },
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+  });
+
+  const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
+  const alesso = result.employeePayouts.find((p) => p.employeeId === 11)!;
+
+  assert.equal(result.tipPoolCalculation.totalHostUpsellTip, 6);
+  assert.equal(erika.hostUpsellTipShare, 3);
+  assert.equal(alesso.hostUpsellTipShare, 3); // equal split despite 1.0 vs 0.5 point values
+  // Their normal Pool 1 shares still differ by point value — only the
+  // drink bonus is forced equal, not their whole payout.
+  assert.ok(erika.tipPoolShare > alesso.tipPoolShare);
+});
+
 test("finalize: host drink bonus larger than the pool throws a friendly error, doesn't silently clamp", () => {
   const roster: FinalizeRosterRow[] = [
     { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: null },
@@ -235,7 +272,7 @@ test("finalize: host drink bonus larger than the pool throws a friendly error, d
         grossCcTip: 10,
         takeoutCcTip: 0,
         deliveryToastTip: 0,
-        hostDrinkBonus: [{ employeeId: 10, qualifyingDrinkCount: 20, perDrinkAmount: 1 }], // $20 bonus > $10 pool
+        hostDrinkBonus: { qualifyingDrinkCount: 20, perDrinkAmount: 1, recipientEmployeeIds: [10] }, // $20 bonus > $10 pool
         platformCourierTips: 0,
         platformDeliveryTips: 0,
         roster,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { calculateTwoPoolTips, type HostDrinkBonusEntry, type PoolRosterEntry, type PoolSplitMethod } from "@/lib/calc/tipPool";
+import { calculateTwoPoolTips, type HostDrinkBonusInput, type PoolRosterEntry, type PoolSplitMethod } from "@/lib/calc/tipPool";
 import type { RosterRow } from "@/lib/shift/loadRosterForCalc";
 
 export function CalculatorForm({
@@ -34,7 +34,10 @@ export function CalculatorForm({
   const [platformCourierTips, setPlatformCourierTips] = useState(0);
   const [platformDeliveryTips, setPlatformDeliveryTips] = useState(0);
   const [perDrinkAmount, setPerDrinkAmount] = useState(1);
-  const [drinkCounts, setDrinkCounts] = useState<Record<number, number>>({});
+  // ONE shared count for the whole host team's shift, not per host —
+  // corrected 2026-08-10 to match the real business rule (a pooled
+  // waiting-area drink count, split equally among whoever worked Host).
+  const [sharedDrinkCount, setSharedDrinkCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [hasCalculated, setHasCalculated] = useState(false);
   const [result, setResult] = useState<ReturnType<typeof calculateTwoPoolTips> | null>(null);
@@ -70,13 +73,10 @@ export function CalculatorForm({
 
   function handleCalculate() {
     setError(null);
-    const hostDrinkBonus: HostDrinkBonusEntry[] = hosts
-      .map((h) => ({
-        employeeId: h.employeeId,
-        qualifyingDrinkCount: drinkCounts[h.employeeId] ?? 0,
-        perDrinkAmount,
-      }))
-      .filter((h) => h.qualifyingDrinkCount > 0);
+    const hostDrinkBonus: HostDrinkBonusInput | null =
+      sharedDrinkCount > 0 && hosts.length > 0
+        ? { qualifyingDrinkCount: sharedDrinkCount, perDrinkAmount, recipientEmployeeIds: hosts.map((h) => h.employeeId) }
+        : null;
 
     try {
       const r = calculateTwoPoolTips({
@@ -162,28 +162,15 @@ export function CalculatorForm({
 
       {hosts.length > 0 && (
         <section>
-          <h2 className="text-lg font-medium mb-3">Host cocktail/mocktail bonus</h2>
-          <NumberField label="$ per qualifying drink" value={perDrinkAmount} onChange={setPerDrinkAmount} step={0.5} />
-          <table className="mt-3 text-sm border-collapse">
-            <tbody>
-              {hosts.map((h) => (
-                <tr key={h.employeeId}>
-                  <td className="pr-4 py-1">{h.employeeName}</td>
-                  <td>
-                    <input
-                      type="number"
-                      className="border rounded px-2 py-1 w-24"
-                      value={drinkCounts[h.employeeId] ?? 0}
-                      onChange={(e) =>
-                        setDrinkCounts((prev) => ({ ...prev, [h.employeeId]: Number(e.target.value) }))
-                      }
-                    />
-                  </td>
-                  <td className="pl-2 text-neutral-500">qualifying drinks sold</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <h2 className="text-lg font-medium mb-3">Host team cocktail/mocktail bonus</h2>
+          <p className="text-xs text-neutral-500 mb-3">
+            One shared count for the whole host team&apos;s waiting-area drink sales this shift —
+            split equally among {hosts.map((h) => h.employeeName).join(", ")}, not entered per person.
+          </p>
+          <div className="flex gap-4">
+            <NumberField label="$ per qualifying drink" value={perDrinkAmount} onChange={setPerDrinkAmount} step={0.5} />
+            <NumberField label="Qualifying drinks sold (whole team)" value={sharedDrinkCount} onChange={setSharedDrinkCount} step={1} />
+          </div>
         </section>
       )}
 

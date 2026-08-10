@@ -253,6 +253,52 @@ captured anywhere in the persisted closing-report flow — `finalizeShift`
 always passed an empty bonus list. No schema field held "qualifying drink
 count" for a real saved shift. Resolved above.
 
+## Corrected: host drink bonus is ONE shared count for the team, not per-host (2026-08-10)
+
+Oliver tested the version above himself and caught a real modeling error:
+it captured a drink count **per individual host**, but the actual business
+rule is one shared count for the whole host team's waiting-area drink
+sales, split **equally** among whoever worked Host that shift — not
+individually self-reported. Two hosts on one shift should split one pooled
+number, not each report their own.
+
+- **`host_qualifying_drink_count` metric changed from EMPLOYEE_SHIFT to
+  SHIFT scope** — one `MetricValue` row per shift (`employeeId: null`), not
+  one per host. `positionMetrics` still defines who's in the "host team"
+  that splits it, just reinterpreted (membership, not per-person input
+  eligibility).
+- **`tipPool.ts`'s `HostDrinkBonusEntry[]` (per-employee count) replaced
+  with `HostDrinkBonusInput`** — one `{ qualifyingDrinkCount, perDrinkAmount,
+  recipientEmployeeIds }`. The dollar total is still pulled off Pool 1's
+  top exactly as before; the split among `recipientEmployeeIds` is always
+  **equal** (reuses the existing exact-cent `splitByPointsExact` helper),
+  regardless of Pool 1's own split-method setting — this bonus is
+  deliberately never point-weighted.
+- **Closing Report** UI changed from a per-host table to ONE shared number
+  input (only shown if at least one Host is staffed). `loadClosingReportData`
+  now distinguishes SHIFT-scope metrics (one input) from EMPLOYEE_SHIFT-scope
+  metrics (one input per eligible person, still supported generically for a
+  future metric that's genuinely per-person). Form field naming split into
+  `metric_shift_<id>` vs `metric_emp_<id>_<employeeId>` so the two cases
+  can never be mixed up by the save action's parser.
+- Also flipped `total_sales`'s `MetricDefinition` row to `enabled: false` —
+  it was a vestigial seed-data placeholder from the original schema design,
+  never actually wired to anything (the real total sales figure is
+  `ShiftSales.totalSales`, entered via the Sales section). Left enabled it
+  would have started showing up as a confusing duplicate input once the
+  generic SHIFT-metric UI went live.
+- 34 tests total (was 32) — rewrote the host-bonus tests for the new shape,
+  added a dedicated test proving equal split across 3 people with uneven
+  point values (2.0/0.1/1.0) still divides the bonus within a cent of
+  equal, and a `finalizeShift` test with two hosts (1.0 and 0.5 point
+  values) splitting one shared count 50/50 despite their unequal Pool 1
+  point values.
+- Verified directly against the real DB, reproducing Oliver's exact test
+  case: staffed Erika AND Alesso as Host on one shift, saved a single
+  shared count of 5 drinks, confirmed both Preview and the finalized
+  Summary Report show $2.50 each (not $5 each, not one person getting all
+  of it).
+
 ## How to run
 
 **First time only:**

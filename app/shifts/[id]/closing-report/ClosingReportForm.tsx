@@ -86,14 +86,31 @@ export function ClosingReportForm({
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium mb-3">Bonus metrics</legend>
         <p className="text-xs text-neutral-500 mb-3">
-          Restaurant-configurable bonuses — today that's the host cocktail/mocktail
-          count (paid $ per drink, pulled off the top of Pool 1 before the split, see
-          Preview). Adding a new bonus later shows up here automatically, no page
-          changes needed.
+          Restaurant-configurable bonuses — today that's the host team&apos;s shared
+          drink count (paid $ per drink, pulled off the top of Pool 1 before the
+          split, then split equally among whoever worked Host — see Preview).
+          Adding a new bonus later shows up here automatically, no page changes needed.
         </p>
-        {data.metricRows.length === 0 ? (
-          <p className="text-sm text-neutral-500">No bonus-eligible staff on the roster yet.</p>
-        ) : (
+
+        {data.shiftMetricRows.length > 0 && (
+          <div className="space-y-3 mb-4">
+            {data.shiftMetricRows.map((r) => (
+              <label key={r.metricDefinitionId} className="text-sm block max-w-xs">
+                <span className="block text-neutral-500 mb-1">{r.metricLabel}</span>
+                <input
+                  type="number"
+                  step={1}
+                  min={0}
+                  name={`metric_shift_${r.metricDefinitionId}`}
+                  defaultValue={r.currentValue}
+                  className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                />
+              </label>
+            ))}
+          </div>
+        )}
+
+        {data.metricRows.length > 0 && (
           <table className="text-sm border-collapse">
             <thead>
               <tr className="text-neutral-500">
@@ -114,7 +131,7 @@ export function ClosingReportForm({
                       type="number"
                       step={1}
                       min={0}
-                      name={`metric_${r.metricDefinitionId}_${r.employeeId}`}
+                      name={`metric_emp_${r.metricDefinitionId}_${r.employeeId}`}
                       defaultValue={r.currentValue}
                       className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
                     />
@@ -123,6 +140,10 @@ export function ClosingReportForm({
               ))}
             </tbody>
           </table>
+        )}
+
+        {data.shiftMetricRows.length === 0 && data.metricRows.length === 0 && (
+          <p className="text-sm text-neutral-500">No bonus-eligible staff on the roster yet.</p>
         )}
       </fieldset>
 

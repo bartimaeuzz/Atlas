@@ -144,16 +144,29 @@ async function seed() {
   });
 
   const [totalSalesMetric, hostDrinkMetric, managerTokenMetric] = await db.insert(metricDefinitions).values([
-    { key: "total_sales", label: "Total sales", valueType: "money", scope: "SHIFT", collectionMoment: "close", required: true, enabled: true },
-    { key: "host_qualifying_drink_count", label: "Host cocktail/mocktail count", valueType: "count", scope: "EMPLOYEE_SHIFT", collectionMoment: "close", required: false, enabled: true },
+    // Disabled: this was a seed-data placeholder from the original schema
+    // design doc, superseded before it was ever wired up — the real total
+    // sales figure is ShiftSales.totalSales, entered via the Sales section
+    // on the closing report, not this generic metrics mechanism. Left
+    // enabled: false (rather than deleted) so the row/key still exists for
+    // reference, but it will never show up in the generic Bonus metrics UI.
+    { key: "total_sales", label: "Total sales", valueType: "money", scope: "SHIFT", collectionMoment: "close", required: true, enabled: false },
+    // SHIFT scope, not EMPLOYEE_SHIFT: this is ONE shared count for the whole
+    // host team's waiting-area drink sales, not a per-host self-reported
+    // number. Corrected 2026-08-10 after Oliver tested the first version
+    // (per-host input) and clarified the real business rule: the bonus
+    // splits equally among whoever worked Host that shift, funded by one
+    // pooled glass count, not added per individual report.
+    { key: "host_qualifying_drink_count", label: "Host team drink count (shared, split equally)", valueType: "count", scope: "SHIFT", collectionMoment: "close", required: false, enabled: true },
     { key: "manager_shift_worked", label: "Manager shift worked (token)", valueType: "count", scope: "EMPLOYEE_SHIFT", collectionMoment: "manual", required: false, enabled: true },
   ]).returning();
   void totalSalesMetric;
   void managerTokenMetric;
 
-  // Only Host is eligible to have the drink-count metric entered on the
-  // closing report today. Adding a future BOH sales-split metric later just
-  // means a new positionMetrics row here, not new closing-report UI code.
+  // Which positions count as "host team" for the shared drink-count bonus
+  // -- whoever's staffed in these positions this shift splits it equally.
+  // Adding a future BOH sales-split metric later just means a new
+  // positionMetrics row here, not new closing-report UI code.
   await db.insert(positionMetrics).values([
     { positionId: host.id, metricDefinitionId: hostDrinkMetric.id },
   ]);

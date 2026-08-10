@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
@@ -221,38 +221,64 @@ async function upsertPointOverrides(shiftId: number, formData: FormData) {
   }
 }
 
-/** "Bonus metrics" (e.g. Host qualifying drink count) live in the generic
- * metricValues table, keyed by (shiftId, metricDefinitionId, employeeId) —
- * NOT by rosterEntryId, since a metric describes the employee's shift, not
- * a specific roster row. Form field names are `metric_<metricDefinitionId>_<employeeId>`,
- * rendered only for eligible (position, metric) pairs by loadClosingReportData,
+/** "Bonus metrics" live in the generic metricValues table. Two distinct
+ * field naming patterns, deliberately disambiguated so the regex can't
+ * mix them up:
+ *   - `metric_shift_<metricDefinitionId>` — ONE value for the whole shift
+ *     (e.g. the host team's shared drink count — corrected 2026-08-10,
+ *     was per-employee before). Stored with employeeId = null.
+ *   - `metric_emp_<metricDefinitionId>_<employeeId>` — one value per
+ *     eligible person (for a future metric that genuinely is per-employee).
+ * Rendered only for eligible (position, metric) pairs by loadClosingReportData,
  * so this just scans for whatever showed up rather than re-deriving
  * eligibility server-side — same trust-the-rendered-form pattern as
- * upsertPointOverrides above. Blank/0 clears it back to 0 (no bonus).*/
+ * upsertPointOverrides above. Blank/0 clears it back to 0 (no bonus). */
 async function upsertMetricValues(shiftId: number, formData: FormData) {
   for (const [key, raw] of formData.entries()) {
-    const match = /^metric_(\d+)_(\d+)$/.exec(key);
-    if (!match) continue;
-    const metricDefinitionId = Number(match[1]);
-    const employeeId = Number(match[2]);
     const trimmed = String(raw).trim();
     const value = trimmed === "" ? 0 : Number(trimmed);
     if (Number.isNaN(value)) continue;
 
-    const [existing] = await db
-      .select()
-      .from(metricValues)
-      .where(
-        and(
-          eq(metricValues.shiftId, shiftId),
-          eq(metricValues.metricDefinitionId, metricDefinitionId),
-          eq(metricValues.employeeId, employeeId)
-        )
-      );
-    if (existing) {
-      await db.update(metricValues).set({ value }).where(eq(metricValues.id, existing.id));
-    } else {
-      await db.insert(metricValues).values({ shiftId, metricDefinitionId, employeeId, value });
+    const shiftMatch = /^metric_shift_(\d+)$/.exec(key);
+    if (shiftMatch) {
+      const metricDefinitionId = Number(shiftMatch[1]);
+      const [existing] = await db
+        .select()
+        .from(metricValues)
+        .where(
+          and(
+            eq(metricValues.shiftId, shiftId),
+            eq(metricValues.metricDefinitionId, metricDefinitionId),
+            isNull(metricValues.employeeId)
+          )
+        );
+      if (existing) {
+        await db.update(metricValues).set({ value }).where(eq(metricValues.id, existing.id));
+      } else {
+        await db.insert(metricValues).values({ shiftId, metricDefinitionId, employeeId: null, value });
+      }
+      continue;
+    }
+
+    const empMatch = /^metric_emp_(\d+)_(\d+)$/.exec(key);
+    if (empMatch) {
+      const metricDefinitionId = Number(empMatch[1]);
+      const employeeId = Number(empMatch[2]);
+      const [existing] = await db
+        .select()
+        .from(metricValues)
+        .where(
+          and(
+            eq(metricValues.shiftId, shiftId),
+            eq(metricValues.metricDefinitionId, metricDefinitionId),
+            eq(metricValues.employeeId, employeeId)
+          )
+        );
+      if (existing) {
+        await db.update(metricValues).set({ value }).where(eq(metricValues.id, existing.id));
+      } else {
+        await db.insert(metricValues).values({ shiftId, metricDefinitionId, employeeId, value });
+      }
     }
   }
 }

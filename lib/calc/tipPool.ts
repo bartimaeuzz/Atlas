@@ -8,12 +8,14 @@
  *
  *   Pool 1 (dine-in) — Server, Runner, Bartender, Host, Busser share CC tips
  *   from guests eating in the restaurant. Youk Thai defaults this to
- *   POINT-WEIGHTED. The host's cocktail/mocktail upsell bonus ($X per
- *   qualifying drink) is pulled off the top of Pool 1 before the split, and
- *   paid entirely to that host — on top of their normal Pool 1 share (which
- *   can ALSO be bumped by up to the rule's cap, e.g. +0.2 points, when
- *   Pool 1 is point-weighted). These are two additive components, not
- *   alternatives.
+ *   POINT-WEIGHTED. The host TEAM's cocktail/mocktail upsell bonus ($X per
+ *   qualifying drink, ONE shared count for the whole shift, not per host —
+ *   corrected 2026-08-10 after Oliver clarified it's a pooled waiting-area
+ *   drink count, not individually self-reported) is pulled off the top of
+ *   Pool 1 before the split, then divided EQUALLY among whoever worked Host
+ *   that shift — on top of their normal Pool 1 share (which can ALSO be
+ *   bumped by up to the rule's cap, e.g. +0.2 points, when Pool 1 is
+ *   point-weighted). These are two additive components, not alternatives.
  *
  *   Pool 2 (takeout + platform-courier) — Host, Operator, Packer, Bag
  *   Handler share this. Youk Thai defaults this to POINT-WEIGHTED. Funded
@@ -59,10 +61,17 @@ export interface PoolRosterEntry {
   pointValue: number;
 }
 
-export interface HostDrinkBonusEntry {
-  employeeId: number; // the host
+/** ONE shared count for the whole host team's waiting-area drink sales that
+ * shift (not a per-host self-reported number — corrected 2026-08-10). The
+ * resulting dollar bonus (qualifyingDrinkCount x perDrinkAmount) is pulled
+ * off Pool 1's top, then split EQUALLY across recipientEmployeeIds
+ * (whoever worked Host that shift) — never point-weighted, regardless of
+ * Pool 1's own split method setting. null/omitted recipientEmployeeIds or
+ * qualifyingDrinkCount of 0 means no bonus this shift. */
+export interface HostDrinkBonusInput {
   qualifyingDrinkCount: number;
   perDrinkAmount: number; // e.g. 1.00
+  recipientEmployeeIds: number[]; // whoever worked Host this shift, splits equally
 }
 
 export interface TwoPoolTipCalcInput {
@@ -71,7 +80,7 @@ export interface TwoPoolTipCalcInput {
   // Pool 1 inputs
   grossCcTip: number; // Toast total CC tip — includes dine-in, takeout, AND phone/own-platform delivery
   takeoutCcTip: number; // manually-identified subset of grossCcTip from takeout orders (register pickup)
-  hostDrinkBonus: HostDrinkBonusEntry[];
+  hostDrinkBonus: HostDrinkBonusInput | null;
   pool1Roster: PoolRosterEntry[]; // Server/Runner/Bartender/Host/Busser on shift, with this shift's point value
   pool1SplitMethod: PoolSplitMethod;
 
@@ -138,12 +147,20 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
   const grossDineInCcTip = round2(grossCcTip - takeoutCcTip - deliveryToastTip);
   const netDineInCcTip = round2(grossDineInCcTip * (1 - deductionRate));
 
-  const hostDrinkBonusByEmployee: Record<number, number> = {};
-  for (const h of hostDrinkBonus) {
-    const amount = round2(h.qualifyingDrinkCount * h.perDrinkAmount);
-    hostDrinkBonusByEmployee[h.employeeId] = round2((hostDrinkBonusByEmployee[h.employeeId] ?? 0) + amount);
-  }
-  const totalHostDrinkBonus = round2(sum(Object.values(hostDrinkBonusByEmployee)));
+  const totalHostDrinkBonus =
+    hostDrinkBonus && hostDrinkBonus.recipientEmployeeIds.length > 0
+      ? round2(hostDrinkBonus.qualifyingDrinkCount * hostDrinkBonus.perDrinkAmount)
+      : 0;
+  // Equal split among the host team, regardless of Pool 1's own split
+  // method — this bonus is explicitly NOT point-weighted (confirmed
+  // 2026-08-10), unlike the normal Pool 1 share these same people also get.
+  const hostDrinkBonusByEmployee: Record<number, number> =
+    totalHostDrinkBonus > 0 && hostDrinkBonus
+      ? splitByPointsExact(
+          totalHostDrinkBonus,
+          hostDrinkBonus.recipientEmployeeIds.map((employeeId) => ({ employeeId, pointValue: 1.0 }))
+        )
+      : {};
 
   const netPool1AfterHostBonus = round2(netDineInCcTip - totalHostDrinkBonus);
   if (netPool1AfterHostBonus < 0) {

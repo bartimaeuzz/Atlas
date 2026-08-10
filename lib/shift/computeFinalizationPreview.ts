@@ -2,11 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shiftSales, onlinePlatformSalesRecords, restaurantSettings,
-  metricDefinitions, metricValues,
+  metricDefinitions, metricValues, positionMetrics,
 } from "@/db/schema";
 import { loadShiftCalcData } from "./loadRosterForCalc";
 import { buildFinalizationResult, type FinalizeRosterRow, type FinalizeShiftResult } from "@/lib/calc/finalizeShift";
-import type { HostDrinkBonusEntry } from "@/lib/calc/tipPool";
+import type { HostDrinkBonusInput } from "@/lib/calc/tipPool";
 
 export interface FinalizationPreview {
   shift: { id: number; date: string; period: string; status: string };
@@ -47,29 +47,43 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
   const pool3SplitMethod = settings?.pool3SplitMethod ?? "EQUAL_SPLIT";
   const hostDrinkBonusPerDrinkAmount = settings?.hostDrinkBonusPerDrinkAmount ?? 0;
 
-  // Host cocktail/mocktail drink bonus — resolved from the generic metrics
-  // engine (metricValues for host_qualifying_drink_count), not a bespoke
-  // field. Any employee with a saved count > 0 for this shift gets a bonus
-  // entry; calculateTwoPoolTips ignores anyone not in pool1Roster anyway,
-  // so no need to filter by position here too.
-  const hostDrinkBonus: HostDrinkBonusEntry[] = [];
+  // Host TEAM cocktail/mocktail drink bonus — ONE shared count for the
+  // whole shift (SHIFT-scope metric, corrected 2026-08-10: this was
+  // originally built as a per-host count, but the real business rule is a
+  // single pooled waiting-area count split equally among whoever worked
+  // Host that shift). Resolved from the generic metrics engine
+  // (metricValues for host_qualifying_drink_count) — not a bespoke field.
+  let hostDrinkBonus: HostDrinkBonusInput | null = null;
   if (hostDrinkBonusPerDrinkAmount > 0) {
     const [hostMetric] = await db
       .select()
       .from(metricDefinitions)
       .where(eq(metricDefinitions.key, "host_qualifying_drink_count"));
     if (hostMetric) {
-      const drinkCountRows = await db
+      const [drinkCountRow] = await db
         .select()
         .from(metricValues)
         .where(and(eq(metricValues.shiftId, shiftId), eq(metricValues.metricDefinitionId, hostMetric.id)));
-      for (const row of drinkCountRows) {
-        if (row.employeeId == null || row.value <= 0) continue;
-        hostDrinkBonus.push({
-          employeeId: row.employeeId,
-          qualifyingDrinkCount: row.value,
-          perDrinkAmount: hostDrinkBonusPerDrinkAmount,
-        });
+      if (drinkCountRow && drinkCountRow.value > 0) {
+        const eligibility = await db
+          .select()
+          .from(positionMetrics)
+          .where(eq(positionMetrics.metricDefinitionId, hostMetric.id));
+        const eligiblePositionIds = new Set(eligibility.map((e) => e.positionId));
+        const recipientEmployeeIds = Array.from(
+          new Set(
+            calcData.roster
+              .filter((r) => eligiblePositionIds.has(r.positionId))
+              .map((r) => r.employeeId)
+          )
+        );
+        if (recipientEmployeeIds.length > 0) {
+          hostDrinkBonus = {
+            qualifyingDrinkCount: drinkCountRow.value,
+            perDrinkAmount: hostDrinkBonusPerDrinkAmount,
+            recipientEmployeeIds,
+          };
+        }
       }
     }
   }

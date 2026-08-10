@@ -18,7 +18,7 @@
 
 import {
   calculateTwoPoolTips, round2,
-  type HostDrinkBonusEntry, type PoolRosterEntry, type PoolSplitMethod,
+  type HostDrinkBonusInput, type PoolRosterEntry, type PoolSplitMethod,
 } from "./tipPool";
 
 export type TipPoolGroup = "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY";
@@ -40,7 +40,7 @@ export interface FinalizeShiftInput {
   grossCcTip: number;
   takeoutCcTip: number;
   deliveryToastTip: number;
-  hostDrinkBonus: HostDrinkBonusEntry[];
+  hostDrinkBonus: HostDrinkBonusInput | null;
   platformCourierTips: number;
   platformDeliveryTips: number;
   pool1SplitMethod: PoolSplitMethod;
