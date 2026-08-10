@@ -984,6 +984,25 @@ code changed, so this handoff needs a reseed but NOT another
 
 ## Not started yet
 
+## Backlog (2026-08-10) — per-column, per-viewer earnings visibility on My Pay
+
+Oliver's ask, explicitly deferred ("don't need to do it right now... save
+it as a backlog"): the current visibility settings
+(`rosterShowPeerEarningsFOH`/`BOH`) are coarse — they hide/show tip share
+and flat wage together, as one pair, per FOH/BOH category. He wants finer
+admin control: separate toggles per financial COLUMN (Tip, Wage,
+Incentive, Total) rather than one combined on/off, AND the ability for
+an admin to decide "whoever sees whatever" — implying per-employee or
+per-role granularity, not just per-category.
+
+**Not scoped or designed yet** — needs a real conversation before
+building, per usual: does "whoever sees whatever" mean per-employee
+overrides (a real access-control table, more complex) or just more
+columns added to the existing per-category toggle (simpler, consistent
+with the current settings model)? Revisit when this becomes the actual
+next request rather than guessing at the shape now.
+
+
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet
 - Auth (systemRole field exists on Employee, no actual login system yet)
 - Deploy to Vercel
