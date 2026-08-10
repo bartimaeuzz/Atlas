@@ -2,8 +2,9 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shifts, shiftSales, tipPoolCalculations, employeePayouts, employees,
-  onlinePlatforms, onlinePlatformSalesRecords,
+  onlinePlatforms, onlinePlatformSalesRecords, shiftRosterEntries, positions,
 } from "@/db/schema";
+import { sortPayoutsForDisplay } from "./payoutSort";
 
 export interface SummaryPayoutRow {
   employeeId: number;
@@ -30,6 +31,14 @@ export interface SummaryPayoutRow {
    * extraPayAmount/hostUpsellTipShare. */
   incentiveAmount: number;
   totalCorePayout: number;
+  /** Representative position for this shift (2026-08-10) — an employee
+   * can have more than one roster row in a multi-role shift; same
+   * "primaryPositionId row wins, else the first row" convention used
+   * elsewhere (loadRosterForCalc.ts, loadMyEarnings.ts). Shown as its own
+   * column and used to sort this table the same way as My Pay's coworker
+   * list, per Oliver's ask for consistent ordering across the app. */
+  positionName: string;
+  positionCategory: "FOH" | "BOH";
 }
 
 export interface SummaryData {
@@ -74,6 +83,41 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
     .innerJoin(employees, eq(employeePayouts.employeeId, employees.id))
     .where(eq(employeePayouts.shiftId, shiftId));
 
+  // Resolve a representative position per employee for this shift — the
+  // finalized snapshot (employeePayouts) doesn't carry position labels
+  // (it's money-only, deliberately), so this joins live to
+  // shiftRosterEntries + positions instead of adding a new snapshot
+  // column. Safe for a FINALIZED shift specifically: roster/closing-report
+  // edits are blocked once finalized (assertDraft), so this can't drift
+  // out from under a locked report the way live settings could.
+  const rosterRows = await db
+    .select({
+      employeeId: shiftRosterEntries.employeeId,
+      positionId: shiftRosterEntries.positionId,
+      positionName: positions.name,
+      positionCategory: positions.category,
+      primaryPositionId: employees.primaryPositionId,
+    })
+    .from(shiftRosterEntries)
+    .innerJoin(positions, eq(shiftRosterEntries.positionId, positions.id))
+    .innerJoin(employees, eq(shiftRosterEntries.employeeId, employees.id))
+    .where(eq(shiftRosterEntries.shiftId, shiftId));
+
+  const rosterRowsByEmployeeId = new Map<number, typeof rosterRows>();
+  for (const r of rosterRows) {
+    const list = rosterRowsByEmployeeId.get(r.employeeId) ?? [];
+    list.push(r);
+    rosterRowsByEmployeeId.set(r.employeeId, list);
+  }
+  const positionByEmployeeId = new Map<number, { positionName: string; positionCategory: "FOH" | "BOH" }>();
+  for (const [employeeId, rows] of rosterRowsByEmployeeId) {
+    const representative = rows.find((r) => r.positionId === r.primaryPositionId) ?? rows[0];
+    positionByEmployeeId.set(employeeId, {
+      positionName: representative.positionName,
+      positionCategory: representative.positionCategory as "FOH" | "BOH",
+    });
+  }
+
   const platformRecords = await db
     .select()
     .from(onlinePlatformSalesRecords)
@@ -81,7 +125,17 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
   const onlinePlatformTotal = platformRecords.reduce((a, r) => a + r.salesAmount, 0);
   void onlinePlatforms; // reserved for a future per-platform breakdown on this page
 
-  const normalizedPayoutRows = payoutRows.map((p) => ({ ...p, hostUpsellTipShare: p.hostUpsellTipShare ?? 0 }));
+  const normalizedPayoutRows: SummaryPayoutRow[] = payoutRows.map((p) => ({
+    ...p,
+    hostUpsellTipShare: p.hostUpsellTipShare ?? 0,
+    positionName: positionByEmployeeId.get(p.employeeId)?.positionName ?? "—",
+    positionCategory: positionByEmployeeId.get(p.employeeId)?.positionCategory ?? "FOH",
+  }));
+
+  const namesById = Object.fromEntries(normalizedPayoutRows.map((p) => [p.employeeId, p.employeeName]));
+  const positionsById = Object.fromEntries(
+    normalizedPayoutRows.map((p) => [p.employeeId, { positionName: p.positionName, positionCategory: p.positionCategory }])
+  );
 
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, finalizedAt: shift.finalizedAt },
@@ -96,7 +150,10 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
           perRoleBreakdown: calc.perRoleBreakdown,
         }
       : null,
-    payouts: normalizedPayoutRows.sort((a, b) => b.totalCorePayout - a.totalCorePayout),
+    // Sort matches My Pay's coworker list (2026-08-10, Oliver's ask):
+    // FOH before BOH, then position name, then employee name — replaces
+    // the previous highest-payout-first sort.
+    payouts: sortPayoutsForDisplay(normalizedPayoutRows, namesById, positionsById),
     onlinePlatformTotal,
   };
 }

@@ -74,6 +74,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           <thead>
             <tr className="text-left text-neutral-500 border-b">
               <th className="py-1.5">Employee</th>
+              <th className="py-1.5">Position</th>
               <th className="py-1.5 text-right">Point value</th>
               <th className="py-1.5 text-right" title="Pool 1 — dine-in">Pool 1</th>
               <th className="py-1.5 text-right" title="Pool 2 — takeout/online">Pool 2</th>
@@ -90,6 +91,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
             {data.payouts.map((p) => (
               <tr key={p.employeeId} className="border-b">
                 <td className="py-1.5">{p.employeeName}</td>
+                <td className="py-1.5 text-neutral-500">{p.positionName}</td>
                 <td className="py-1.5 text-right tabular-nums">{p.pointValueUsed ?? "—"}</td>
                 <td className="py-1.5 text-right tabular-nums">{p.pool1Share > 0 ? `$${p.pool1Share.toFixed(2)}` : "—"}</td>
                 <td className="py-1.5 text-right tabular-nums">{p.pool2Share > 0 ? `$${p.pool2Share.toFixed(2)}` : "—"}</td>
@@ -112,6 +114,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           <tfoot>
             <tr className="border-t-2 font-medium">
               <td className="py-2">Total</td>
+              <td></td>
               <td></td>
               <td></td>
               <td></td>

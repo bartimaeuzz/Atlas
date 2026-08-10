@@ -907,6 +907,81 @@ unrelated shifts; and the coworker list sort order (FOH-before-BOH, then
 position, then name) holds for both a manager's full view and a
 restricted staff view.
 
+## Corrected: Aey's manager access is a standing partner flag, not shift-derived (2026-08-10, later same round)
+
+The previous round's fix (above) removed Aey's hardcoded `systemRole:
+MANAGER` on the theory that her elevated access should be derived purely
+from which position she's rostered at each shift. Oliver corrected this
+directly — in Thai, flagging a language barrier in the earlier English
+exchange: Aey is one of the restaurant's PARTNERS, not just a
+cross-trained staff member. She works actual shifts (often as Bartender)
+but should see everything — including BOH wages — every single day,
+regardless of which position she's covering that day.
+
+**Fix:** restored `systemRole: "MANAGER"` on Aey's seed record. No code
+change was needed in `lib/staff/loadMyEarnings.ts` — its "effective role"
+computation already checks standing `systemRole` first and only falls
+back to the shift-scoped `grantsManagerAccess` check if standing role is
+plain STAFF, so simply restoring her seed value was sufficient.
+
+**The two mechanisms now correctly represent two different real
+situations, and both stay:**
+- `employees.systemRole = MANAGER/ADMIN` — permanent, person-level
+  elevation (Aey as partner, Oliver as owner/admin).
+- `positions.grantsManagerAccess` — temporary, shift-level elevation for
+  an ordinary staff member covering a Floor Manager/Manager shift for a
+  day (the scenario the previous round's fix was actually built for, and
+  still correctly handles).
+
+Verified against the real DB post-reseed: Aey, rostered as Bartender
+(her usual shift), sees all 19 coworkers including all 6 BOH staff and
+their wage figures — confirms standing MANAGER role, not the shift-scoped
+flag, is what's granting the access.
+
+## Pastry Chef corrected from FOH to BOH (2026-08-10, same round)
+
+Oliver caught a seed data mistake: "might be minor mistake from me but
+Pastry Chef is BOH not FOH in seed data." The position had been seeded
+with `category: "FOH"` and a `positionShiftRates` flat-rate row, which
+doesn't match how BOH wages actually work in this app (per-employee
+`employeeWageRates`, not a flat per-position rate).
+
+**Fix:** changed `category` to `"BOH"`, removed its `positionShiftRates`
+rows entirely, and added Chong (the Pastry Chef employee) to the seed's
+BOH wage list at the same $100 Lunch / $200 Dinner placeholder as the
+other five BOH staff. Verified: Pastry Chef now has zero
+`positionShiftRates` rows and Chong has two `employeeWageRates` rows
+(Lunch $100, Dinner $200), and shows up correctly in the BOH block of
+both the Preview and Summary payout tables.
+
+## Position column + consistent sort on Preview and Summary payout tables (2026-08-10, same round)
+
+Oliver asked for "Payout by employee" (Preview + Summary Report) to show
+each employee's position, sorted the same direction as My Pay's "Also
+worked this shift" list, for consistency across the app.
+
+**Fix:** added a shared `lib/shift/payoutSort.ts` helper
+(`sortPayoutsForDisplay`) implementing the same FOH-before-BOH, then
+position name, then employee name ordering already used in
+`loadMyEarnings.ts`'s `compareCoworkerRows`. Both
+`computeFinalizationPreview.ts` and `loadSummaryData.ts` now compute a
+`positionByEmployeeId` map (via the same representative-row convention
+used everywhere else for multi-role employees) and both the Preview page
+and Summary Report page render a new "Position" column and sort through
+the shared helper instead of their previous ad-hoc sorts (summary was
+previously sorted by payout amount descending).
+
+Verified against the real DB: Summary Report's 19-row payout table now
+reads as one alphabetized FOH block (by position, then name) followed by
+one alphabetized BOH block, ending with Pastry Chef (Chong) correctly in
+the BOH block.
+
+62 tests still passing, `tsc --noEmit` clean, production build clean.
+No schema change this round (`grantsManagerAccess` column was already
+added and pushed in the prior round) — only seed data and application
+code changed, so this handoff needs a reseed but NOT another
+`drizzle-kit push`.
+
 ## Not started yet
 
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet

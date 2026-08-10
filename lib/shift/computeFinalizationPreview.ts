@@ -28,6 +28,14 @@ export interface FinalizationPreview {
    * (Preview/Summary can show "which rule") and by runFinalize to write
    * the incentivePayoutRecords audit trail. */
   incentiveRulePayouts: IncentiveRulePayout[];
+  /** One representative position per employee for THIS shift (2026-08-10,
+   * Oliver asked for a Position column + consistent sort on the manager-
+   * facing payout table, matching My Pay's coworker list). An employee
+   * can have more than one roster row in a multi-role shift — same
+   * "wage-bearing row wins, else the first row" convention already used
+   * for wage resolution (see loadRosterForCalc.ts / loadClosingReportData.ts),
+   * reused here via the same wageNote signal rather than re-deriving it. */
+  positionByEmployeeId: Record<number, { positionName: string; positionCategory: "FOH" | "BOH" }>;
 }
 
 /**
@@ -201,12 +209,28 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
   const employeeNames: Record<number, string> = {};
   for (const r of calcData.roster) employeeNames[r.employeeId] = r.employeeName;
 
+  const rosterRowsByEmployeeId = new Map<number, typeof calcData.roster>();
+  for (const r of calcData.roster) {
+    const list = rosterRowsByEmployeeId.get(r.employeeId) ?? [];
+    list.push(r);
+    rosterRowsByEmployeeId.set(r.employeeId, list);
+  }
+  const positionByEmployeeId: FinalizationPreview["positionByEmployeeId"] = {};
+  for (const [employeeId, rows] of rosterRowsByEmployeeId) {
+    const representative = rows.find((r) => !r.wageNote?.startsWith("Wage counted under")) ?? rows[0];
+    positionByEmployeeId[employeeId] = {
+      positionName: representative.positionName,
+      positionCategory: representative.positionCategory,
+    };
+  }
+
   return {
     shift: calcData.shift,
     sales: { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales, cashTip: sales.cashTip },
     result,
     employeeNames,
     incentiveRulePayouts,
+    positionByEmployeeId,
   };
 }
 

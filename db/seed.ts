@@ -68,11 +68,12 @@ async function seed() {
   const [manager] = await db.insert(positions).values({ name: "Manager", category: "FOH", alwaysVisibleInRoster: true, earningsHiddenFromStaff: true, grantsManagerAccess: true, defaultTipPointValue: null }).returning();
   const [operator] = await db.insert(positions).values({ name: "Operator", category: "FOH", defaultTipPointValue: 1.0 }).returning();
   const [packer] = await db.insert(positions).values({ name: "Packer", category: "FOH", defaultTipPointValue: 1.0 }).returning();
-  // Pastry Chef is filed as FOH (not BOH) — matches how Oliver actually set
-  // it up in Position admin (it has a Lunch/Dinner flat rate like other FOH
-  // roles, rather than a per-employee BOH wage). Mirrored faithfully here
-  // rather than "corrected," since this reflects his real setup.
-  const [pastryChef] = await db.insert(positions).values({ name: "Pastry Chef", category: "FOH", defaultTipPointValue: null }).returning();
+  // Corrected 2026-08-10 (Oliver flagged this himself): Pastry Chef is
+  // BOH, not FOH — a misreading of his live Position admin screen in the
+  // previous round's seed rewrite. BOH wage is per-employee via
+  // employeeWageRates below, same as the other kitchen positions, not a
+  // shared flat rate.
+  const [pastryChef] = await db.insert(positions).values({ name: "Pastry Chef", category: "BOH", defaultTipPointValue: null }).returning();
   const [runner] = await db.insert(positions).values({ name: "Runner", category: "FOH", defaultTipPointValue: 1.0 }).returning();
   const [server] = await db.insert(positions).values({ name: "Server", category: "FOH", defaultTipPointValue: 1.0 }).returning();
 
@@ -119,8 +120,8 @@ async function seed() {
     { positionId: operator.id, period: "Dinner", flatRate: 50 },
     { positionId: packer.id, period: "Lunch", flatRate: 50 },
     { positionId: packer.id, period: "Dinner", flatRate: 60 },
-    { positionId: pastryChef.id, period: "Lunch", flatRate: 125 },
-    { positionId: pastryChef.id, period: "Dinner", flatRate: 175 },
+    // Pastry Chef removed from here (2026-08-10 fix) — it's BOH now, paid
+    // via employeeWageRates below, not a shared FOH flat rate.
     { positionId: runner.id, period: "Lunch", flatRate: 40 },
     { positionId: runner.id, period: "Dinner", flatRate: 50 },
     { positionId: server.id, period: "Lunch", flatRate: 50 },
@@ -134,13 +135,23 @@ async function seed() {
   // so they show correctly in Employee admin and the roster dropdown, but
   // the SEEDED SHIFTS only staff each person at their PRIMARY position —
   // see the shift-building loop below for why.
-  // Aey's systemRole is deliberately left at the default STAFF now
-  // (2026-08-10 — was incorrectly hardcoded to MANAGER before, see
-  // positions.grantsManagerAccess's schema comment for why). She's
-  // cross-trained on Floor Manager (see employeePositions below) and will
-  // correctly get elevated visibility on any shift she's actually
-  // ROSTERED there, without needing a standing flag.
-  const [aey] = await db.insert(employees).values({ name: "Aey", primaryPositionId: bartender.id }).returning();
+  // CORRECTED again 2026-08-10, same day: Oliver clarified (in Thai,
+  // after a language-barrier round trip) that Aey is actually a
+  // RESTAURANT PARTNER who works the floor in various positions day to
+  // day — her elevated access is a standing fact about who she is, not
+  // something that should turn on/off based on which position she
+  // happens to be rostered at on a given shift. So this DOES go back to
+  // a fixed systemRole: MANAGER (the previous round's "fix" wrongly
+  // assumed her Floor Manager access should be shift-scoped like a
+  // regular staff member occasionally covering that role — it should
+  // NOT be, for a partner). The shift-scoped `grantsManagerAccess`
+  // mechanism (positions.grantsManagerAccess, see schema comment) is
+  // KEPT, not removed — it still correctly covers a DIFFERENT real
+  // scenario: an ordinary STAFF employee filling in as Floor Manager for
+  // one shift should still see everything for that shift, same
+  // shift-coverage precedent as elsewhere in this app. Aey just doesn't
+  // need to rely on it, since her standing role already covers her.
+  const [aey] = await db.insert(employees).values({ name: "Aey", primaryPositionId: bartender.id, systemRole: "MANAGER" }).returning();
   const [alesso] = await db.insert(employees).values({ name: "Alesso", primaryPositionId: busser.id }).returning();
   const [bomb] = await db.insert(employees).values({ name: "Bomb", primaryPositionId: headChef.id }).returning();
   const [carlos] = await db.insert(employees).values({ name: "Carlos", primaryPositionId: deliveryGuy.id }).returning();
@@ -196,11 +207,11 @@ async function seed() {
   // flat for every BOH employee at their primary position, "for now"
   // (not meant to reflect real per-person variation yet — see
   // PROGRESS.md/schema memory's note on real BOH wage splitting unevenly
-  // by hours in practice). Only 5 of the 19 employees are BOH: Bomb, Game,
-  // Jose, Juan, Papi. (Chong/Pastry Chef is FOH, paid via the flat rate
-  // table above, not here.)
+  // by hours in practice). 6 of the 19 employees are BOH: Bomb, Chong,
+  // Game, Jose, Juan, Papi.
   const bohEmployeesAndPositions: [typeof bomb, typeof headChef][] = [
     [bomb, headChef],
+    [chong, pastryChef], // added 2026-08-10 — Pastry Chef corrected to BOH
     [game, sousChef],
     [jose, dishwasher],
     [juan, prep],
