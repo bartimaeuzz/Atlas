@@ -123,7 +123,10 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
                     {c.employeeName} <span className="text-neutral-400">— {c.positionName}</span>
                   </span>
                   {typeof c.tipShare === "number" && (
-                    <span className="tabular-nums text-neutral-500">${(c.tipShare as number).toFixed(2)}</span>
+                    <span className="tabular-nums text-neutral-500">
+                      ${(c.tipShare as number).toFixed(2)} tip
+                      {typeof c.flatWage === "number" && ` + $${(c.flatWage as number).toFixed(2)} wage`}
+                    </span>
                   )}
                 </li>
               ))}
