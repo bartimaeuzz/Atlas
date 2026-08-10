@@ -113,6 +113,15 @@ async function seed() {
     { employeeId: chui.id, positionId: server.id, tipPointValue: 1.0 },
     { employeeId: film.id, positionId: runner.id, tipPointValue: 1.0 },
     { employeeId: alesso.id, positionId: busser.id, tipPointValue: 1.0 },
+    // Bomb (Chef) and Papi (Line Cook) were missing here even though they
+    // have shiftRosterEntries + employeeWageRates rows below — a latent
+    // gap from when this table was originally scoped "FOH only." Fixed
+    // 2026-08-10: the Employee admin edit form defensively backfills this
+    // at read time too (see ensurePrimaryPositionIncluded in
+    // loadEmployeesList.ts), but fixing it here as well keeps every fresh
+    // reseed consistent from the start.
+    { employeeId: bomb.id, positionId: chef.id, tipPointValue: 1.0 },
+    { employeeId: papi.id, positionId: lineCook.id, tipPointValue: 1.0 },
   ]);
 
   const [dinnerShift] = await db.insert(shifts).values({ date: "2026-08-08", period: "Dinner", status: "draft" }).returning();

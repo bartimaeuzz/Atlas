@@ -509,13 +509,52 @@ have "← All shifts"; `/positions/new` and `/positions/[id]/edit` now have
 building, seeding, running the real dev server, and curling every affected
 route to confirm the nav bar and each new back-link actually render.
 
+## Employee admin UI (2026-08-10) — the per-employee BOH wage raise finally has a home
+
+Closes the gap named at the end of the Position admin round: FOH wage
+lives on the Position page (shared rate), but BOH wage is per-employee and
+had nowhere to go. Mirrors Position admin's shape: `/employees` list +
+`/employees/new` + `/employees/[id]/edit`, shared `EmployeeForm`. Fields:
+name, active (retire/reactivate, never hard-delete — same pattern as
+positions), hire date, system role, primary position, and a per-position
+checklist (assign + standing tip point value; BOH-assigned positions also
+get Lunch/Dinner wage rate inputs, shown conditionally). Primary position
+must be one of the assigned positions — validated server-side.
+`lib/actions/employees.ts` syncs `employeePositions` + `employeeWageRates`
+via delete-then-reinsert, same pattern as Position admin's child tables.
+
+**Caught a real pre-existing data-loss trap while verifying against the
+real DB, before shipping:** two seeded BOH employees (Bomb, Papi) had
+`employeeWageRates` history and a `primaryPositionId` but no matching
+`employeePositions` row — a latent gap from when that table was originally
+scoped "FOH only" (see its schema comment from 2026-08-08). Left alone,
+opening either of their Edit pages would render "Primary position: — none
+—" (the option wouldn't even be offered in the select) and hitting Save
+would silently wipe their wage rate — exactly the kind of trap this
+project has been careful to test for. Fixed two ways: `loadEmployeesList`
+/ `loadEmployeeForEdit` now defensively backfill — a `primaryPositionId`
+is always treated as assigned even without a real join-table row yet
+(synthesized with the position's default tip point value), so the form
+renders correctly and saving for real creates the missing row, closing
+the gap permanently for that employee. Also fixed `db/seed.ts` directly so
+fresh reseeds start consistent. This class of bug (defaulted/synthesized
+form state silently overwriting real data on save) is worth remembering
+as a recurring risk anywhere a form's initial state is assembled from
+more than one table — verify the round trip, not just the read.
+
+No new unit tests (CRUD, not pure calc logic — same convention as Position
+admin). 38 tests still passing. Verified end-to-end against the real DB:
+created an employee with an FOH position (tip point value) and a BOH
+position (wage rate), staffed them on the real dinner shift, confirmed the
+calc engine picked up their wage — then simulated a raise and confirmed
+the SAME shift recomputed with the new amount (the actual point of this
+feature). Separately reproduced the Papi trap by deleting his
+`employeePositions` row back out, confirmed the defensive backfill kept
+his wage rate visible and correct, and confirmed a simulated no-op Save
+no longer wipes it.
+
 ## Not started yet
 
-- Employee admin UI (create/edit employees, including per-employee BOH
-  wage rate — see the Position admin note directly above for why this is
-  the natural next piece) (create/edit employees, including per-employee BOH
-  wage rate — see the Position admin note directly above for why this is
-  the natural next piece)
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet
 - Auth (systemRole field exists on Employee, no actual login system yet)
 - Deploy to Vercel
