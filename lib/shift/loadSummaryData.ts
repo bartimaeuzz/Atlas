@@ -24,6 +24,11 @@ export interface SummaryPayoutRow {
   /** tipPoolShare + hostUpsellTipShare — every dollar that's a TIP,
    * distinct from wage. Added 2026-08-10. */
   totalTip: number;
+  /** Sum of every fired IncentiveRule payout this shift, 0 if none
+   * (2026-08-10 — see lib/calc/incentiveRules.ts). Already included in
+   * totalCorePayout, shown separately for transparency, same pattern as
+   * extraPayAmount/hostUpsellTipShare. */
+  incentiveAmount: number;
   totalCorePayout: number;
 }
 
@@ -62,6 +67,7 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
       hostUpsellTipShare: employeePayouts.hostUpsellTipShare,
       extraPayAmount: employeePayouts.extraPayAmount,
       totalTip: employeePayouts.totalTip,
+      incentiveAmount: employeePayouts.incentiveAmount,
       totalCorePayout: employeePayouts.totalCorePayout,
     })
     .from(employeePayouts)

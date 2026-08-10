@@ -348,6 +348,13 @@ export const employeePayouts = sqliteTable("employee_payouts", {
   // tipPoolShare + hostUpsellTipShare — every dollar that's a TIP, distinct
   // from wage/extra pay. Added 2026-08-10.
   totalTip: real("total_tip").notNull().default(0),
+  // Sum of every fired IncentiveRule payout for this employee this shift
+  // (2026-08-10 — first real use of the incentiveRules/incentiveRuleConditions/
+  // incentiveRuleTargets tables below, see lib/calc/incentiveRules.ts).
+  // Rule-level detail (which rule, what amount) is written separately to
+  // incentivePayoutRecords for audit purposes; this column is just the
+  // per-shift total, shown as its own column like extraPayAmount.
+  incentiveAmount: real("incentive_amount").notNull().default(0),
   totalCorePayout: real("total_core_payout").notNull().default(0),
 });
 

@@ -61,6 +61,13 @@ export interface FinalizeShiftInput {
   /** Keyed by employeeId. Employees with no entry get their normal
    * auto-resolved wage and no extra pay — this param is entirely optional. */
   wageAdjustments: Record<number, WageAdjustment>;
+  /** Keyed by employeeId — sum of every fired IncentiveRule payout for
+   * that employee this shift (2026-08-10, see lib/calc/incentiveRules.ts).
+   * Resolved by the caller (computeFinalizationPreview.ts) since it needs
+   * the full rule/condition/target set from the DB; this function just
+   * adds the already-computed total onto the payout, same pattern as
+   * hostDrinkBonus. Employees with no entry get 0. */
+  incentiveAmounts: Record<number, number>;
 }
 
 export interface FinalizeEmployeePayout {
@@ -90,6 +97,12 @@ export interface FinalizeEmployeePayout {
    * show "how much did I make in tips today" as its own number, distinct
    * from the grand total which also includes wage. */
   totalTip: number;
+  /** Sum of every fired IncentiveRule payout for this employee this shift
+   * (2026-08-10 — the $10k-total-sales BOH flat bonus is the first
+   * concrete rule using this). 0 if no rule fired for them. Shown as its
+   * own separate line, same house style as extraPayAmount/hostUpsellTipShare
+   * — never silently folded into another figure. */
+  incentiveAmount: number;
   totalCorePayout: number;
 }
 
@@ -111,6 +124,7 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     deductionRate, grossCcTip, takeoutCcTip, cashTip, deliveryToastTip, hostDrinkBonus,
     platformCourierTips, platformDeliveryTips,
     pool1SplitMethod, pool2SplitMethod, pool3SplitMethod, roster, wageAdjustments,
+    incentiveAmounts,
   } = input;
 
   const pool1Roster: PoolRosterEntry[] = roster
@@ -175,6 +189,7 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     const tipPoolShare = round2(pool1Share + pool2Share + pool3Share);
     const hostUpsellTipShare = calc.hostDrinkBonusByEmployee[employeeId] ?? 0;
     const totalTip = round2(tipPoolShare + hostUpsellTipShare);
+    const incentiveAmount = round2(incentiveAmounts[employeeId] ?? 0);
     return {
       employeeId,
       pointValueUsed,
@@ -186,7 +201,8 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
       hostUpsellTipShare,
       extraPayAmount,
       totalTip,
-      totalCorePayout: round2(tipPoolShare + flatWageAmount + hostUpsellTipShare + extraPayAmount),
+      incentiveAmount,
+      totalCorePayout: round2(tipPoolShare + flatWageAmount + hostUpsellTipShare + extraPayAmount + incentiveAmount),
     };
   });
 

@@ -1,8 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   shiftSales, onlinePlatformSalesRecords, restaurantSettings,
   metricDefinitions, metricValues, positionMetrics, shiftWageAdjustments,
+  incentiveRules, incentiveRuleConditions, incentiveRuleTargets,
 } from "@/db/schema";
 import { loadShiftCalcData } from "./loadRosterForCalc";
 import {
@@ -10,12 +11,23 @@ import {
   type FinalizeRosterRow, type FinalizeShiftResult, type WageAdjustment,
 } from "@/lib/calc/finalizeShift";
 import type { HostDrinkBonusInput } from "@/lib/calc/tipPool";
+import {
+  evaluateShiftIncentiveRules,
+  type IncentiveRuleDef, type IncentiveRosterEntry, type IncentiveRulePayout,
+} from "@/lib/calc/incentiveRules";
 
 export interface FinalizationPreview {
   shift: { id: number; date: string; period: string; status: string };
   sales: { totalSales: number; ccTipTotal: number; cashSales: number; cashTip: number };
   result: FinalizeShiftResult;
   employeeNames: Record<number, string>;
+  /** Rule-level detail behind result.employeePayouts[].incentiveAmount —
+   * which specific rule fired for whom, and for how much (2026-08-10).
+   * Kept separate from the per-employee total since one employee can be
+   * paid by more than one rule in the same shift. Used both for display
+   * (Preview/Summary can show "which rule") and by runFinalize to write
+   * the incentivePayoutRecords audit trail. */
+  incentiveRulePayouts: IncentiveRulePayout[];
 }
 
 /**
@@ -117,6 +129,58 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     wageAdjustments[a.employeeId] = { overrideAmount: a.wageOverrideAmount, extraPayAmount: a.extraPayAmount };
   }
 
+  // Generic Incentive Rules engine (2026-08-10) — first real evaluation,
+  // scoped to SHIFT-period/FLAT/PER_TARGET_FLAT rules only (see
+  // lib/calc/incentiveRules.ts header comment for what's deferred).
+  // shiftMetrics only has total_sales for now (read directly off ShiftSales,
+  // not the vestigial disabled metric_definitions row of the same key —
+  // see db/seed.ts's comment on why that row is disabled). Extend this map
+  // if a future rule needs a different SHIFT-scope metric.
+  const shiftMetrics: Record<string, number> = { total_sales: sales.totalSales };
+
+  const incentiveRosterEntries: IncentiveRosterEntry[] = calcData.roster.map((r) => ({
+    employeeId: r.employeeId,
+    positionId: r.positionId,
+    category: r.positionCategory,
+  }));
+
+  const allRules = await db.select().from(incentiveRules).where(eq(incentiveRules.enabled, true));
+  let incentiveRulePayouts: IncentiveRulePayout[] = [];
+  if (allRules.length > 0) {
+    const ruleIds = allRules.map((r) => r.id);
+    const conditionRows = await db
+      .select()
+      .from(incentiveRuleConditions)
+      .where(inArray(incentiveRuleConditions.ruleId, ruleIds));
+    const targetRows = await db
+      .select()
+      .from(incentiveRuleTargets)
+      .where(inArray(incentiveRuleTargets.ruleId, ruleIds));
+
+    const ruleDefs: IncentiveRuleDef[] = allRules.map((rule) => ({
+      id: rule.id,
+      name: rule.name,
+      enabled: rule.enabled,
+      evaluationPeriod: rule.evaluationPeriod,
+      rewardType: rule.rewardType,
+      rewardValue: rule.rewardValue,
+      distributionMethod: rule.distributionMethod,
+      conditions: conditionRows
+        .filter((c) => c.ruleId === rule.id)
+        .map((c) => ({ metricKey: c.metricKey, operator: c.operator, value: c.value, valueTo: c.valueTo })),
+      targets: targetRows
+        .filter((t) => t.ruleId === rule.id)
+        .map((t) => ({ targetType: t.targetType, targetId: t.targetId })),
+    }));
+
+    incentiveRulePayouts = evaluateShiftIncentiveRules(ruleDefs, shiftMetrics, incentiveRosterEntries);
+  }
+
+  const incentiveAmounts: Record<number, number> = {};
+  for (const payout of incentiveRulePayouts) {
+    incentiveAmounts[payout.employeeId] = round2((incentiveAmounts[payout.employeeId] ?? 0) + payout.amount);
+  }
+
   const result = buildFinalizationResult({
     deductionRate,
     grossCcTip: sales.ccTipTotal,
@@ -131,6 +195,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     pool3SplitMethod,
     roster,
     wageAdjustments,
+    incentiveAmounts,
   });
 
   const employeeNames: Record<number, string> = {};
@@ -141,6 +206,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     sales: { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales, cashTip: sales.cashTip },
     result,
     employeeNames,
+    incentiveRulePayouts,
   };
 }
 

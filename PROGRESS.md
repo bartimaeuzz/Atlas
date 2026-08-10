@@ -626,6 +626,67 @@ Verified against the real DB: Erika's lookup correctly shows only Host
 primaryPositionId backfill, and every active employee has an entry in the
 lookup (even if empty).
 
+## Incentive Rules engine — first real evaluation shipped (2026-08-10)
+
+Oliver's 4-point feedback round also asked for the previously-deferred
+generic Incentive Rules engine to finally be built out, scoped to one
+concrete test case: "if total sale hit $10,000 BOH should get $20 flat
+rate incentive... for test sake, real rule incentive amount should be
+flexible and each individual BOH staff would probably get different
+incentive amount." Confirmed via AskUserQuestion: flat rate for ALL BOH
+first (not per-employee weighting), SHIFT-period only — same "concrete
+first, generalize once a second real pattern emerges" sequencing already
+used for the host drink bonus and the pool-funding-engine deferral.
+
+The full schema (incentiveRules, incentiveRuleConditions,
+incentiveRuleTargets, employeeRuleWeights, incentivePayoutRecords) was
+already designed back on 2026-08-08 — this round wrote the evaluator.
+New `lib/calc/incentiveRules.ts` (pure, DB-free, 14 unit tests) —
+`evaluateShiftIncentiveRules(rules, shiftMetrics, roster)` — deliberately
+scoped this round to: evaluationPeriod=SHIFT, rewardType=FLAT,
+distributionMethod=PER_TARGET_FLAT, targets of type CATEGORY/POSITION/
+EMPLOYEE, condition operators >=/>/<=/</between. A rule using anything
+outside that scope (WEEK/MONTH period, PERCENT_OF_METRIC, ADJUST_TIP_POINT,
+WEIGHTED_POOL) is silently skipped, not an error — same "skip what's out
+of scope" approach used elsewhere. A rule with zero conditions never fires
+(treated as unconfigured, not "always true").
+
+Wired into `computeFinalizationPreview.ts`: loads enabled rules +
+conditions + targets from the DB, builds a `shiftMetrics` map (currently
+just `total_sales`, read directly off `ShiftSales.totalSales`, not the
+vestigial disabled `metric_definitions` row of the same key), evaluates
+against the roster's position category, and folds the result into
+`finalizeShift.ts`'s existing per-employee payout row as a new
+`incentiveAmount` field — additive on top of tip share/wage/extra pay,
+same house style as `extraPayAmount`/`hostUpsellTipShare`. `employeePayouts`
+gained an `incentiveAmount` column (snapshot). `runFinalize` (in
+`lib/actions/shift.ts`) also writes one `incentivePayoutRecords` row per
+(rule, employee) that actually fired — the audit trail table designed on
+2026-08-08 finally has its first real writer, capturing which rule fired,
+for how much, and a `metricSnapshot` of what it saw.
+
+Preview and Summary Report both gained an "Incentive" column (between
+Extra pay and Total). Summary's footnote updated to reflect what's
+actually wired in now vs. still deferred (Manager/Floor Manager weekly
+commission — needs per-employee weighting + WEEK-period evaluation, not
+built yet).
+
+Seeded the test rule itself: "BOH $10k Sales Bonus (test)" — SHIFT period,
+FLAT $20, PER_TARGET_FLAT, condition `total_sales >= 10000`, target
+CATEGORY:BOH. The seeded dinner shift's totalSales (4200) is well under
+the threshold, so a fresh reseed correctly shows NO bonus out of the box —
+bump Total Sales to $10,000+ on the closing report to see it fire for
+every BOH person on that shift's roster (Chef, Line Cook in the seeded
+data).
+
+57 tests passing (was 42). Verified against the real DB: below $10k → zero
+incentive for everyone; at exactly $10k → $20 each for Bomb (Chef) and
+Papi (Line Cook), $0 for FOH staff, `totalCorePayout` correctly includes
+it; and separately verified the actual finalize WRITE path — both the
+`employeePayouts.incentiveAmount` snapshot column and the
+`incentivePayoutRecords` audit-trail rows are written correctly with the
+right rule id, amount, and metric snapshot.
+
 ## Not started yet
 
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet

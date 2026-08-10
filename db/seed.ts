@@ -3,6 +3,7 @@ import {
   positions, positionTipPools, employees, employeePositions, positionShiftRates,
   restaurantSettings, shifts, shiftRosterEntries, shiftSales,
   metricDefinitions, positionMetrics, employeeWageRates, onlinePlatforms,
+  incentiveRules, incentiveRuleConditions, incentiveRuleTargets,
 } from "./schema";
 import { sql } from "drizzle-orm";
 
@@ -180,6 +181,37 @@ async function seed() {
   await db.insert(positionMetrics).values([
     { positionId: host.id, metricDefinitionId: hostDrinkMetric.id },
   ]);
+
+  // Incentive Rules engine (2026-08-10) — first real rule, per Oliver's own
+  // test case: "if total sale hit $10,000 BOH should get $20 flat rate
+  // incentive... for test sake." Scoped to flat-rate/SHIFT-period/
+  // CATEGORY:BOH-target only this round (see lib/calc/incentiveRules.ts).
+  // Seeded dinner shift's totalSales is 4200 (well under the threshold),
+  // so it correctly shows NO bonus on the seeded shift out of the box —
+  // bump totalSales to 10000+ on that shift (or any shift) to see it fire.
+  const [bohSalesBonusRule] = await db.insert(incentiveRules).values({
+    name: "BOH $10k Sales Bonus (test)",
+    description:
+      "Test rule: every BOH-category employee on the roster gets a flat $20 bonus when the shift's total sales hit $10,000. Real per-restaurant rules will vary the amount per employee — this is a fixed-amount placeholder to validate the engine end-to-end.",
+    enabled: true,
+    evaluationPeriod: "SHIFT",
+    rewardType: "FLAT",
+    rewardValue: 20,
+    distributionMethod: "PER_TARGET_FLAT",
+  }).returning();
+
+  await db.insert(incentiveRuleConditions).values({
+    ruleId: bohSalesBonusRule.id,
+    metricKey: "total_sales",
+    operator: ">=",
+    value: 10000,
+  });
+
+  await db.insert(incentiveRuleTargets).values({
+    ruleId: bohSalesBonusRule.id,
+    targetType: "CATEGORY",
+    targetId: "BOH",
+  });
 
   console.log("Seed complete. Dinner shift id:", dinnerShift.id, "| Delivery Guy position id (unstaffed today):", deliveryGuy.id);
 }

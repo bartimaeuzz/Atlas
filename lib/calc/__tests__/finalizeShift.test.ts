@@ -27,6 +27,7 @@ test("finalize: splits pool 1 by point value and attaches wage once per employee
     platformDeliveryTips: 0,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   const netPool1 = round2(630 * 0.955);
@@ -64,6 +65,7 @@ test("finalize: one row spanning two pools (Host) gets summed share AND a define
     platformDeliveryTips: 0,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   const payout = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -99,6 +101,7 @@ test("finalize: employee with two SEPARATE tip-pool roster rows (different posit
     platformDeliveryTips: 0,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   const payout = result.employeePayouts.find((p) => p.employeeId === 40)!;
@@ -125,6 +128,7 @@ test("finalize: NONE-pool employee (Manager) still gets a payout row with wage o
     platformDeliveryTips: 0,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   assert.equal(result.employeePayouts.length, 1);
@@ -156,6 +160,7 @@ test("finalize: split method is configurable per pool, not just Pool 3's default
     platformDeliveryTips: 0,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   const p1 = result.employeePayouts.find((p) => p.employeeId === 50)!;
@@ -186,6 +191,7 @@ test("finalize: pool 3 (delivery) is split equally by default, regardless of poi
     platformDeliveryTips: 50,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   const p1 = result.employeePayouts.find((p) => p.employeeId === 30)!;
@@ -220,6 +226,7 @@ test("finalize: host drink bonus is pulled off Pool 1 top and added to that host
     platformDeliveryTips: 0,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -260,6 +267,7 @@ test("finalize: host drink bonus splits equally between TWO hosts working the sa
     platformDeliveryTips: 0,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -294,6 +302,7 @@ test("finalize: host drink bonus larger than the pool throws a friendly error, d
         platformDeliveryTips: 0,
         roster,
         wageAdjustments: {},
+        incentiveAmounts: {},
       }),
     /more than this shift's dine-in tip pool/
   );
@@ -326,6 +335,7 @@ test("finalize: wage override replaces auto-resolved wage, extra pay is additive
     wageAdjustments: {
       10: { overrideAmount: 70, extraPayAmount: 15 }, // override Host's $55 -> Bartender coverage rate $70, plus $15 extra
     },
+    incentiveAmounts: {},
   });
 
   const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -365,6 +375,7 @@ test("finalize: extra pay alone (no override) is additive on top of the normal a
     wageAdjustments: {
       10: { overrideAmount: null, extraPayAmount: 20 }, // no override, just $20 on top
     },
+    incentiveAmounts: {},
   });
 
   const erika = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -395,6 +406,7 @@ test("finalize: pool1Share/pool2Share/pool3Share are tracked separately and sum 
     platformDeliveryTips: 0,
     roster,
     wageAdjustments: {},
+    incentiveAmounts: {},
   });
 
   const host = result.employeePayouts.find((p) => p.employeeId === 10)!;
@@ -414,4 +426,37 @@ test("finalize: pool1Share/pool2Share/pool3Share are tracked separately and sum 
   assert.equal(server.pool2Share, 0);
   assert.equal(server.pool3Share, 0);
   assert.equal(server.totalTip, server.tipPoolShare); // no drink bonus for Server
+});
+
+test("finalize: incentiveAmounts is added on top of tip share/wage/extra pay as its own separate line (2026-08-10)", () => {
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 20, tipPoolGroups: [], pointValue: 1.0, flatWage: 100 }, // BOH, e.g. Chef — got a $20 incentive
+    { employeeId: 21, tipPoolGroups: [], pointValue: 1.0, flatWage: 55 }, // BOH, e.g. Line Cook — no incentive this shift
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 0,
+    takeoutCcTip: 0,
+    cashTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: {},
+    incentiveAmounts: { 20: 20 },
+  });
+
+  const chef = result.employeePayouts.find((p) => p.employeeId === 20)!;
+  const lineCook = result.employeePayouts.find((p) => p.employeeId === 21)!;
+
+  assert.equal(chef.incentiveAmount, 20);
+  assert.equal(chef.totalCorePayout, round2(chef.tipPoolShare + chef.flatWageAmount + chef.hostUpsellTipShare + chef.extraPayAmount + 20));
+
+  assert.equal(lineCook.incentiveAmount, 0); // no rule fired for them
+  assert.equal(lineCook.totalCorePayout, round2(lineCook.flatWageAmount));
 });

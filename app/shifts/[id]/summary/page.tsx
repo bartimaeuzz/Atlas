@@ -82,6 +82,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               <th className="py-1.5 text-right font-medium">Total tip</th>
               <th className="py-1.5 text-right">Flat wage</th>
               <th className="py-1.5 text-right">Extra pay</th>
+              <th className="py-1.5 text-right">Incentive</th>
               <th className="py-1.5 text-right">Total</th>
             </tr>
           </thead>
@@ -101,6 +102,9 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
                 <td className="py-1.5 text-right tabular-nums">
                   {p.extraPayAmount > 0 ? `$${p.extraPayAmount.toFixed(2)}` : "—"}
                 </td>
+                <td className="py-1.5 text-right tabular-nums">
+                  {p.incentiveAmount > 0 ? `$${p.incentiveAmount.toFixed(2)}` : "—"}
+                </td>
                 <td className="py-1.5 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
               </tr>
             ))}
@@ -116,14 +120,16 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               <td></td>
               <td></td>
               <td></td>
+              <td></td>
               <td className="py-2 text-right tabular-nums">${totalPayout.toFixed(2)}</td>
             </tr>
           </tfoot>
         </table>
         <p className="text-xs text-neutral-500 mt-2">
-          Doesn&apos;t include Manager/Floor Manager commission yet — that still needs the full
-          Incentive Rules evaluation engine (conditions/targets/weights), not built yet. The host
-          drink bonus above is wired in.
+          Incentive column reflects any fired Incentive Rules (2026-08-10) — currently scoped to
+          flat-rate, per-shift, category-targeted rules (e.g. the $10k-total-sales BOH bonus).
+          Manager/Floor Manager weekly commission still needs per-employee weighting and WEEK-period
+          evaluation, not built yet.
         </p>
       </section>
     </main>
