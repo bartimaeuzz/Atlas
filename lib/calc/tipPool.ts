@@ -7,8 +7,10 @@
  * "everyone gets the same" and avoid friction over point judgment calls):
  *
  *   Pool 1 (dine-in) — Server, Runner, Bartender, Host, Busser share CC tips
- *   from guests eating in the restaurant. Youk Thai defaults this to
- *   POINT-WEIGHTED. The host TEAM's cocktail/mocktail upsell bonus ($X per
+ *   from guests eating in the restaurant, PLUS cash tips (added 2026-08-10,
+ *   entered manually by the floor manager at close — pooled the same way
+ *   as CC tips, just WITHOUT the deduction, since cash never touches a
+ *   card processor). Youk Thai defaults this to POINT-WEIGHTED. The host TEAM's cocktail/mocktail upsell bonus ($X per
  *   qualifying drink, ONE shared count for the whole shift, not per host —
  *   corrected 2026-08-10 after Oliver clarified it's a pooled waiting-area
  *   drink count, not individually self-reported) is pulled off the top of
@@ -80,6 +82,7 @@ export interface TwoPoolTipCalcInput {
   // Pool 1 inputs
   grossCcTip: number; // Toast total CC tip — includes dine-in, takeout, AND phone/own-platform delivery
   takeoutCcTip: number; // manually-identified subset of grossCcTip from takeout orders (register pickup)
+  cashTip: number; // manually entered by the floor manager at close — pooled into Pool 1, NOT deducted
   hostDrinkBonus: HostDrinkBonusInput | null;
   pool1Roster: PoolRosterEntry[]; // Server/Runner/Bartender/Host/Busser on shift, with this shift's point value
   pool1SplitMethod: PoolSplitMethod;
@@ -100,6 +103,8 @@ export interface TwoPoolTipCalcResult {
   pool1: {
     grossDineInCcTip: number;
     netDineInCcTip: number;
+    cashTip: number;
+    netPool1BeforeHostBonus: number; // netDineInCcTip + cashTip
     totalHostDrinkBonus: number;
     netPool1AfterHostBonus: number;
     shareByEmployee: Record<number, number>;
@@ -121,7 +126,7 @@ export interface TwoPoolTipCalcResult {
 
 export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalcResult {
   const {
-    deductionRate, grossCcTip, takeoutCcTip, hostDrinkBonus, pool1Roster, pool1SplitMethod,
+    deductionRate, grossCcTip, takeoutCcTip, cashTip, hostDrinkBonus, pool1Roster, pool1SplitMethod,
     platformCourierTips, pool2Roster, pool2SplitMethod,
     deliveryToastTip, platformDeliveryTips, pool3Roster, pool3SplitMethod,
   } = input;
@@ -133,6 +138,7 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
   }
   if (grossCcTip < 0) throw new Error(`Gross CC tip can't be negative — got ${grossCcTip}. Check the Total CC Tip field.`);
   if (takeoutCcTip < 0) throw new Error(`Takeout CC tip can't be negative — got ${takeoutCcTip}.`);
+  if (cashTip < 0) throw new Error(`Cash tip can't be negative — got ${cashTip}.`);
   if (deliveryToastTip < 0) throw new Error(`Delivery Toast tip can't be negative — got ${deliveryToastTip}.`);
   if (takeoutCcTip + deliveryToastTip > grossCcTip) {
     throw new Error(
@@ -146,6 +152,8 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
   // ---- Pool 1: dine-in ----
   const grossDineInCcTip = round2(grossCcTip - takeoutCcTip - deliveryToastTip);
   const netDineInCcTip = round2(grossDineInCcTip * (1 - deductionRate));
+
+  const netPool1BeforeHostBonus = round2(netDineInCcTip + cashTip);
 
   const totalHostDrinkBonus =
     hostDrinkBonus && hostDrinkBonus.recipientEmployeeIds.length > 0
@@ -162,11 +170,11 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
         )
       : {};
 
-  const netPool1AfterHostBonus = round2(netDineInCcTip - totalHostDrinkBonus);
+  const netPool1AfterHostBonus = round2(netPool1BeforeHostBonus - totalHostDrinkBonus);
   if (netPool1AfterHostBonus < 0) {
     throw new Error(
-      `The host drink bonus ($${totalHostDrinkBonus}) is more than this shift's dine-in tip pool ($${netDineInCcTip} ` +
-      `after deduction). Check the qualifying drink count and $-per-drink amount before saving.`
+      `The host drink bonus ($${totalHostDrinkBonus}) is more than this shift's dine-in tip pool ($${netPool1BeforeHostBonus} ` +
+      `after deduction, including cash tip). Check the qualifying drink count and $-per-drink amount before saving.`
     );
   }
 
@@ -186,6 +194,8 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
     pool1: {
       grossDineInCcTip,
       netDineInCcTip,
+      cashTip: round2(cashTip),
+      netPool1BeforeHostBonus,
       totalHostDrinkBonus,
       netPool1AfterHostBonus,
       shareByEmployee: pool1ShareByEmployee,

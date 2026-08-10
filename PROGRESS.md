@@ -553,6 +553,48 @@ feature). Separately reproduced the Papi trap by deleting his
 his wage rate visible and correct, and confirmed a simulated no-op Save
 no longer wipes it.
 
+## Cash tip field + per-pool tip columns + Total tip column (2026-08-10)
+
+Oliver flagged two real gaps while testing Employee admin: no way to enter
+cash tips at all, and the payout table only showed one combined "Tip pool
+share" figure with no way to see per-pool detail or a clean tip-only
+subtotal. Confirmed both via AskUserQuestion before touching money math.
+
+**Cash tip:** `ShiftSales.cashTip` (new column) — entered manually by the
+floor manager at close, pooled into Pool 1 exactly like CC tips but
+WITHOUT the deduction (no card-processing fee on cash). `tipPool.ts`'s
+`calculateTwoPoolTips` now takes `cashTip` as a Pool 1 input, added to the
+deducted CC portion before the host drink bonus is pulled off the top
+(`netPool1BeforeHostBonus = netDineInCcTip + cashTip`) — so a cash tip
+correctly reduces what's available for the drink bonus check too, same as
+the CC portion always did. New Closing Report field, new playground
+calculator field, new "Cash tip" line in Preview/Summary's Tip pools box
+(only shown when nonzero).
+
+**Per-pool + total tip columns:** `calculateTwoPoolTips` already computed
+`pool1.shareByEmployee` / `pool2.shareByEmployee` / `pool3.shareByEmployee`
+separately internally — `finalizeShift.ts` was just summing them into one
+`tipPoolShare` before this round, discarding the breakdown. Now tracked
+separately as `pool1Share`/`pool2Share`/`pool3Share` on
+`FinalizeEmployeePayout` (`tipPoolShare` kept as their sum, for anything
+that only needs the total), plus a new `totalTip` field
+(`tipPoolShare + hostUpsellTipShare` — every dollar that's a TIP, distinct
+from wage). `employeePayouts` gained matching snapshot columns. Preview +
+Summary payout tables now show Pool 1/Pool 2/Pool 3 as separate columns
+(dashed out when zero, to avoid a wall of zeros for single-pool staff) AND
+a bolded "Total tip" column — Oliver explicitly asked for both, not one or
+the other.
+
+6 new tests (42 total, was 38): cash tip pools into Pool 1 without
+deduction, cash tip can't be negative, host drink bonus correctly pulls
+off the top including the cash tip portion, and a finalizeShift test
+proving pool1Share/pool2Share/pool3Share sum to tipPoolShare and totalTip
+includes the drink bonus (using Host's real dual-pool membership as the
+test case). Verified end-to-end against the real DB: set a $75 cash tip
+on the seeded dinner shift, confirmed it flows undeducted through Preview,
+finalize, and the Summary Report, and confirmed every payout row's pool
+shares sum correctly to its total.
+
 ## Not started yet
 
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet

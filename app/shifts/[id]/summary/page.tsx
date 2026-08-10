@@ -49,6 +49,9 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1 max-w-md">
           <Row label="Deduction rate" value={`${(data.tipPoolCalculation.deductionRate * 100).toFixed(1)}%`} />
           <Row label="Net CC tip (after deduction)" value={`$${data.tipPoolCalculation.netCcTip.toFixed(2)}`} />
+          {(data.sales?.cashTip ?? 0) > 0 && (
+            <Row label="Cash tip (added to Pool 1, no deduction)" value={`$${(data.sales?.cashTip ?? 0).toFixed(2)}`} />
+          )}
           {data.tipPoolCalculation.totalHostUpsellTip > 0 && (
             <Row
               label="Host drink bonus (pulled off Pool 1 top)"
@@ -72,8 +75,11 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
             <tr className="text-left text-neutral-500 border-b">
               <th className="py-1.5">Employee</th>
               <th className="py-1.5 text-right">Point value</th>
-              <th className="py-1.5 text-right">Tip pool share</th>
+              <th className="py-1.5 text-right" title="Pool 1 — dine-in">Pool 1</th>
+              <th className="py-1.5 text-right" title="Pool 2 — takeout/online">Pool 2</th>
+              <th className="py-1.5 text-right" title="Pool 3 — delivery">Pool 3</th>
               <th className="py-1.5 text-right">Drink bonus</th>
+              <th className="py-1.5 text-right font-medium">Total tip</th>
               <th className="py-1.5 text-right">Flat wage</th>
               <th className="py-1.5 text-right">Extra pay</th>
               <th className="py-1.5 text-right">Total</th>
@@ -84,10 +90,13 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               <tr key={p.employeeId} className="border-b">
                 <td className="py-1.5">{p.employeeName}</td>
                 <td className="py-1.5 text-right tabular-nums">{p.pointValueUsed ?? "—"}</td>
-                <td className="py-1.5 text-right tabular-nums">${p.tipPoolShare.toFixed(2)}</td>
+                <td className="py-1.5 text-right tabular-nums">{p.pool1Share > 0 ? `$${p.pool1Share.toFixed(2)}` : "—"}</td>
+                <td className="py-1.5 text-right tabular-nums">{p.pool2Share > 0 ? `$${p.pool2Share.toFixed(2)}` : "—"}</td>
+                <td className="py-1.5 text-right tabular-nums">{p.pool3Share > 0 ? `$${p.pool3Share.toFixed(2)}` : "—"}</td>
                 <td className="py-1.5 text-right tabular-nums">
                   {p.hostUpsellTipShare > 0 ? `$${p.hostUpsellTipShare.toFixed(2)}` : "—"}
                 </td>
+                <td className="py-1.5 text-right tabular-nums font-medium">${p.totalTip.toFixed(2)}</td>
                 <td className="py-1.5 text-right tabular-nums">${p.flatWageAmount.toFixed(2)}</td>
                 <td className="py-1.5 text-right tabular-nums">
                   {p.extraPayAmount > 0 ? `$${p.extraPayAmount.toFixed(2)}` : "—"}
@@ -99,6 +108,9 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           <tfoot>
             <tr className="border-t-2 font-medium">
               <td className="py-2">Total</td>
+              <td></td>
+              <td></td>
+              <td></td>
               <td></td>
               <td></td>
               <td></td>

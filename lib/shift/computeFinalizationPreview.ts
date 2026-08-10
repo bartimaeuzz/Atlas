@@ -13,7 +13,7 @@ import type { HostDrinkBonusInput } from "@/lib/calc/tipPool";
 
 export interface FinalizationPreview {
   shift: { id: number; date: string; period: string; status: string };
-  sales: { totalSales: number; ccTipTotal: number; cashSales: number };
+  sales: { totalSales: number; ccTipTotal: number; cashSales: number; cashTip: number };
   result: FinalizeShiftResult;
   employeeNames: Record<number, string>;
 }
@@ -121,6 +121,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     deductionRate,
     grossCcTip: sales.ccTipTotal,
     takeoutCcTip: sales.takeoutCcTip,
+    cashTip: sales.cashTip,
     deliveryToastTip: sales.deliveryToastTip,
     hostDrinkBonus,
     platformCourierTips,
@@ -137,7 +138,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
 
   return {
     shift: calcData.shift,
-    sales: { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales },
+    sales: { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales, cashTip: sales.cashTip },
     result,
     employeeNames,
   };

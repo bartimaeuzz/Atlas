@@ -254,6 +254,12 @@ export const shiftSales = sqliteTable("shift_sales", {
   // 4.5% deduction, feeds Pool 3 (Delivery Guy), split equally not by point.
   deliveryToastTip: real("delivery_toast_tip").notNull().default(0),
   cashSales: real("cash_sales").notNull().default(0),
+  // Cash tips entered manually by the floor manager at close (2026-08-10,
+  // Oliver flagged this was missing entirely). Pooled into Pool 1 exactly
+  // like CC tips, but WITHOUT the deduction — there's no card-processing
+  // fee on cash, so nothing to deduct. Distinct from cashSales above
+  // (total cash revenue, not tips).
+  cashTip: real("cash_tip").notNull().default(0),
   grossFoodSales: real("gross_food_sales").notNull().default(0),
   grossBeverageSales: real("gross_beverage_sales").notNull().default(0),
 });
@@ -324,6 +330,12 @@ export const employeePayouts = sqliteTable("employee_payouts", {
   employeeId: integer("employee_id").notNull().references(() => employees.id),
   pointValueUsed: real("point_value_used"),
   tipPoolShare: real("tip_pool_share").notNull().default(0),
+  // Per-pool breakdown of tipPoolShare (2026-08-10, Oliver wanted this
+  // visible as separate columns rather than one combined figure) — sum of
+  // these three always equals tipPoolShare above.
+  pool1Share: real("pool1_share").notNull().default(0),
+  pool2Share: real("pool2_share").notNull().default(0),
+  pool3Share: real("pool3_share").notNull().default(0),
   // "Regular" wage — either the auto-resolved rate, or the manual override
   // if one was entered (see shiftWageAdjustments). Deliberately still
   // called flatWageAmount, not split into "auto" vs "override" columns —
@@ -333,6 +345,9 @@ export const employeePayouts = sqliteTable("employee_payouts", {
   flatWageAmount: real("flat_wage_amount").notNull().default(0),
   hostUpsellTipShare: real("host_upsell_tip_share"),
   extraPayAmount: real("extra_pay_amount").notNull().default(0),
+  // tipPoolShare + hostUpsellTipShare — every dollar that's a TIP, distinct
+  // from wage/extra pay. Added 2026-08-10.
+  totalTip: real("total_tip").notNull().default(0),
   totalCorePayout: real("total_core_payout").notNull().default(0),
 });
 

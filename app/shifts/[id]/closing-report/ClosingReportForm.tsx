@@ -42,6 +42,7 @@ export function ClosingReportForm({
           <Field label="Takeout CC tip (subset of above)" name="takeoutCcTip" defaultValue={s?.takeoutCcTip} />
           <Field label="Delivery Toast tip (subset of above)" name="deliveryToastTip" defaultValue={s?.deliveryToastTip} />
           <Field label="Cash sales" name="cashSales" defaultValue={s?.cashSales} />
+          <Field label="Cash tip (entered by floor manager, no deduction)" name="cashTip" defaultValue={s?.cashTip} />
           <Field label="Gross food sales" name="grossFoodSales" defaultValue={s?.grossFoodSales} />
           <Field label="Gross beverage sales" name="grossBeverageSales" defaultValue={s?.grossBeverageSales} />
         </div>

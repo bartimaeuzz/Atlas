@@ -80,6 +80,7 @@ export interface ClosingReportData {
     takeoutCcTip: number;
     deliveryToastTip: number;
     cashSales: number;
+    cashTip: number;
     grossFoodSales: number;
     grossBeverageSales: number;
   } | null;
@@ -301,6 +302,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
           takeoutCcTip: sales.takeoutCcTip,
           deliveryToastTip: sales.deliveryToastTip,
           cashSales: sales.cashSales,
+          cashTip: sales.cashTip,
           grossFoodSales: sales.grossFoodSales,
           grossBeverageSales: sales.grossBeverageSales,
         }

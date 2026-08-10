@@ -164,6 +164,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData) {
     takeoutCcTip: num("takeoutCcTip"),
     deliveryToastTip: num("deliveryToastTip"),
     cashSales: num("cashSales"),
+    cashTip: num("cashTip"),
     grossFoodSales: num("grossFoodSales"),
     grossBeverageSales: num("grossBeverageSales"),
   };

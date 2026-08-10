@@ -30,6 +30,7 @@ export function CalculatorForm({
   const [pool3SplitMethod, setPool3SplitMethod] = useState<PoolSplitMethod>("EQUAL_SPLIT");
   const [grossCcTip, setGrossCcTip] = useState(initialCcTipTotal);
   const [takeoutCcTip, setTakeoutCcTip] = useState(0);
+  const [cashTip, setCashTip] = useState(0);
   const [deliveryToastTip, setDeliveryToastTip] = useState(0);
   const [platformCourierTips, setPlatformCourierTips] = useState(0);
   const [platformDeliveryTips, setPlatformDeliveryTips] = useState(0);
@@ -83,6 +84,7 @@ export function CalculatorForm({
         deductionRate,
         grossCcTip,
         takeoutCcTip,
+        cashTip,
         hostDrinkBonus,
         pool1Roster,
         pool1SplitMethod,
@@ -154,6 +156,7 @@ export function CalculatorForm({
           <NumberField label="Deduction rate (e.g. 0.045 = 4.5%)" value={deductionRate} onChange={setDeductionRate} step={0.001} />
           <NumberField label="Gross CC tip (Toast total, all sources)" value={grossCcTip} onChange={setGrossCcTip} />
           <NumberField label="Takeout CC tip (subset of above)" value={takeoutCcTip} onChange={setTakeoutCcTip} />
+          <NumberField label="Cash tip (added to Pool 1, no deduction)" value={cashTip} onChange={setCashTip} />
           <NumberField label="Delivery Toast tip (subset of above)" value={deliveryToastTip} onChange={setDeliveryToastTip} />
           <NumberField label="Platform-courier-delivered tips" value={platformCourierTips} onChange={setPlatformCourierTips} />
           <NumberField label="Restaurant-driver-delivered platform tips" value={platformDeliveryTips} onChange={setPlatformDeliveryTips} />

@@ -49,6 +49,7 @@ export interface FinalizeShiftInput {
   deductionRate: number;
   grossCcTip: number;
   takeoutCcTip: number;
+  cashTip: number; // pooled into Pool 1, no deduction (2026-08-10)
   deliveryToastTip: number;
   hostDrinkBonus: HostDrinkBonusInput | null;
   platformCourierTips: number;
@@ -65,7 +66,12 @@ export interface FinalizeShiftInput {
 export interface FinalizeEmployeePayout {
   employeeId: number;
   pointValueUsed: number | null;
+  /** Sum of pool1Share + pool2Share + pool3Share — kept for anything that
+   * only needs the combined total. */
   tipPoolShare: number;
+  pool1Share: number;
+  pool2Share: number;
+  pool3Share: number;
   flatWageAmount: number;
   /** Host cocktail/mocktail drink bonus for this employee, 0 if none. Paid
    * on top of (not instead of) their normal Pool 1 point-weighted share —
@@ -79,6 +85,11 @@ export interface FinalizeEmployeePayout {
    * additive on top of flatWageAmount — shown as its own separate line,
    * never silently folded into "their normal wage." 0 if none. */
   extraPayAmount: number;
+  /** tipPoolShare + hostUpsellTipShare — every dollar that's a TIP, as
+   * opposed to wage or extra pay. Added 2026-08-10 so the payout table can
+   * show "how much did I make in tips today" as its own number, distinct
+   * from the grand total which also includes wage. */
+  totalTip: number;
   totalCorePayout: number;
 }
 
@@ -97,7 +108,7 @@ export interface FinalizeShiftResult {
 
 export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShiftResult {
   const {
-    deductionRate, grossCcTip, takeoutCcTip, deliveryToastTip, hostDrinkBonus,
+    deductionRate, grossCcTip, takeoutCcTip, cashTip, deliveryToastTip, hostDrinkBonus,
     platformCourierTips, platformDeliveryTips,
     pool1SplitMethod, pool2SplitMethod, pool3SplitMethod, roster, wageAdjustments,
   } = input;
@@ -116,6 +127,7 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     deductionRate,
     grossCcTip,
     takeoutCcTip,
+    cashTip,
     hostDrinkBonus,
     pool1Roster,
     pool1SplitMethod,
@@ -128,12 +140,14 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     pool3SplitMethod,
   });
 
-  const tipShareByEmployee = new Map<number, number>();
-  const addShare = (id: number, amt: number) =>
-    tipShareByEmployee.set(id, round2((tipShareByEmployee.get(id) ?? 0) + amt));
-  for (const [id, amt] of Object.entries(calc.pool1.shareByEmployee)) addShare(Number(id), amt);
-  for (const [id, amt] of Object.entries(calc.pool2.shareByEmployee)) addShare(Number(id), amt);
-  for (const [id, amt] of Object.entries(calc.pool3.shareByEmployee)) addShare(Number(id), amt);
+  // Kept per-pool (2026-08-10) rather than pre-summed — Oliver wanted the
+  // Preview/Summary payout table to be able to show Pool 1/2/3 as separate
+  // columns, not just one combined "tip pool share" figure. tipPoolShare
+  // below is still the sum of all three, kept for backward compatibility
+  // with anything that only cares about the total.
+  const pool1ShareByEmployee = calc.pool1.shareByEmployee;
+  const pool2ShareByEmployee = calc.pool2.shareByEmployee;
+  const pool3ShareByEmployee = calc.pool3.shareByEmployee;
 
   // One payout row per unique employee on the roster — including NONE-pool
   // staff (Manager, Chef, Line Cook, ...) so their flat wage still shows up.
@@ -155,15 +169,23 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     // ALWAYS additive on top, regardless of whether an override was used.
     const flatWageAmount = adjustment?.overrideAmount ?? autoResolvedWage;
     const extraPayAmount = adjustment?.extraPayAmount ?? 0;
-    const tipPoolShare = tipShareByEmployee.get(employeeId) ?? 0;
+    const pool1Share = pool1ShareByEmployee[employeeId] ?? 0;
+    const pool2Share = pool2ShareByEmployee[employeeId] ?? 0;
+    const pool3Share = pool3ShareByEmployee[employeeId] ?? 0;
+    const tipPoolShare = round2(pool1Share + pool2Share + pool3Share);
     const hostUpsellTipShare = calc.hostDrinkBonusByEmployee[employeeId] ?? 0;
+    const totalTip = round2(tipPoolShare + hostUpsellTipShare);
     return {
       employeeId,
       pointValueUsed,
       tipPoolShare,
+      pool1Share,
+      pool2Share,
+      pool3Share,
       flatWageAmount,
       hostUpsellTipShare,
       extraPayAmount,
+      totalTip,
       totalCorePayout: round2(tipPoolShare + flatWageAmount + hostUpsellTipShare + extraPayAmount),
     };
   });

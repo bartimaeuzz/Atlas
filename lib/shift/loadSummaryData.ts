@@ -10,6 +10,9 @@ export interface SummaryPayoutRow {
   employeeName: string;
   pointValueUsed: number | null;
   tipPoolShare: number;
+  pool1Share: number;
+  pool2Share: number;
+  pool3Share: number;
   flatWageAmount: number;
   /** Host cocktail/mocktail drink bonus, 0 if not applicable — already
    * included in totalCorePayout, shown separately for transparency. */
@@ -18,12 +21,15 @@ export interface SummaryPayoutRow {
    * included in totalCorePayout, shown separately, never merged silently
    * into flatWageAmount. */
   extraPayAmount: number;
+  /** tipPoolShare + hostUpsellTipShare — every dollar that's a TIP,
+   * distinct from wage. Added 2026-08-10. */
+  totalTip: number;
   totalCorePayout: number;
 }
 
 export interface SummaryData {
   shift: { id: number; date: string; period: string; status: string; finalizedAt: string | null } | null;
-  sales: { totalSales: number; ccTipTotal: number; cashSales: number } | null;
+  sales: { totalSales: number; ccTipTotal: number; cashSales: number; cashTip: number } | null;
   tipPoolCalculation: {
     grossCcTip: number;
     deductionRate: number;
@@ -49,9 +55,13 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
       employeeName: employees.name,
       pointValueUsed: employeePayouts.pointValueUsed,
       tipPoolShare: employeePayouts.tipPoolShare,
+      pool1Share: employeePayouts.pool1Share,
+      pool2Share: employeePayouts.pool2Share,
+      pool3Share: employeePayouts.pool3Share,
       flatWageAmount: employeePayouts.flatWageAmount,
       hostUpsellTipShare: employeePayouts.hostUpsellTipShare,
       extraPayAmount: employeePayouts.extraPayAmount,
+      totalTip: employeePayouts.totalTip,
       totalCorePayout: employeePayouts.totalCorePayout,
     })
     .from(employeePayouts)
@@ -69,7 +79,7 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
 
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, finalizedAt: shift.finalizedAt },
-    sales: sales ? { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales } : null,
+    sales: sales ? { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales, cashTip: sales.cashTip } : null,
     tipPoolCalculation: calc
       ? {
           grossCcTip: calc.grossCcTip,
