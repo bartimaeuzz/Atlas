@@ -26,8 +26,12 @@ async function seed() {
     "employee_positions", "employees", "online_platforms", "position_tip_pools",
     "positions", "sections", "restaurant_settings",
   ];
-  for (const t of tableNames) db.run(sql.raw(`DELETE FROM ${t}`));
-  for (const t of tableNames) db.run(sql.raw(`DELETE FROM sqlite_sequence WHERE name = '${t}'`));
+  // Sequential + awaited on purpose: order matters (children before parents,
+  // FK-safe), and since the libSQL driver migration (2026-08-10) db.run()
+  // is async — an unawaited loop here fires all deletes without waiting,
+  // racing the inserts below and leaving stale rows behind.
+  for (const t of tableNames) await db.run(sql.raw(`DELETE FROM ${t}`));
+  for (const t of tableNames) await db.run(sql.raw(`DELETE FROM sqlite_sequence WHERE name = '${t}'`));
 
   await db.insert(restaurantSettings).values({
     restaurantId: 1,

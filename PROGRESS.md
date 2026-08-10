@@ -984,6 +984,73 @@ code changed, so this handoff needs a reseed but NOT another
 
 ## Not started yet
 
+## DB driver migrated from better-sqlite3 to libSQL (Turso-ready) (2026-08-10)
+
+First step toward a real deployment (Oliver picked this over two other
+options — Incentive Rules generalization, real-data validation — via
+AskUserQuestion, explicitly to get off local-only SQLite so the app can
+finally be a live URL instead of a git-bundle-handoff loop).
+
+**Why this had to happen first:** the app ran on `better-sqlite3` against
+a local file (`db/atlas.db`). That's fine for a dev sandbox but doesn't
+work on Vercel — serverless functions don't have a persistent local
+disk, and `better-sqlite3` needs a native binary matched to the deploy
+target's OS/architecture, which breaks in serverless builds anyway. Turso
+is a hosted, SQLite-compatible database (the `libSQL` fork) built
+specifically for this — same SQL dialect, same Drizzle schema file,
+reachable over the network from anywhere including Vercel.
+
+**What changed:** `db/client.ts` now uses `@libsql/client` +
+`drizzle-orm/libsql` instead of `better-sqlite3` +
+`drizzle-orm/better-sqlite3`. Connection is env-var driven: with no
+`DATABASE_URL` set it opens the same local file as before (`file:./db/atlas.db`,
+override with `DATABASE_PATH`) — local dev is unchanged. Set
+`DATABASE_URL` (a `libsql://...` URL) + `DATABASE_AUTH_TOKEN` and it
+points at a hosted Turso database instead — no other code changes
+needed anywhere in the app for that switch. `drizzle.config.ts` updated
+to `dialect: "turso"` with the same env-var logic, so `drizzle-kit push`
+works identically against either target. `better-sqlite3` uninstalled —
+zero remaining references outside a couple of explanatory comments.
+
+**Two real bugs caught by this migration, not hypothetical:**
+1. `db/seed.ts`'s delete-then-recreate loop (`for (const t of tableNames)
+   db.run(...)`) was never awaited. This silently worked under
+   better-sqlite3 because that driver is synchronous under the hood —
+   the loop blocked on each statement whether or not `await` was there.
+   libSQL's driver is genuinely async; the same code fired all DELETEs
+   without waiting, raced the inserts that followed, and produced
+   `UNIQUE constraint failed` errors on reseed. Fixed by awaiting each
+   iteration (order matters here — children before parents, so this had
+   to stay sequential, not `Promise.all`). Audited the entire codebase
+   for the same pattern (any un-awaited `db.run`/`db.insert`/etc.) —
+   this was the only occurrence.
+2. The module-level `PRAGMA foreign_keys = ON` (needed every session,
+   same as it was under better-sqlite3) can't use top-level `await` —
+   `db/client.ts` is `require()`-d synchronously by `tsx`-run scripts
+   (seed, tests) via CommonJS, and Node throws `ERR_REQUIRE_ASYNC_MODULE`
+   on an async module in that context. Used a fire-and-forget
+   (`void client.execute(...)`) instead — safe in practice since it
+   resolves before any real application query gets a chance to run.
+
+**Verified thoroughly, not just unit tests:** 62 tests pass, `tsc
+--noEmit` clean, `npm run build` clean, `npx drizzle-kit push --force`
+reports "No changes detected" against the existing schema (confirms the
+new dialect config reads the same DB correctly), `npm run db:seed`
+completes cleanly end-to-end on the new driver, and — the real test — ran
+an actual production build (`next build && next start`) and curled
+`/shifts`, `/positions`, `/login` against the live server: all 200, and
+the shifts page correctly rendered all 14 real seeded shifts with their
+real dates/periods/status, proving the new driver works through Next's
+actual server-rendering runtime, not just standalone scripts.
+
+**Not done yet, this is prep only:** no Turso database exists yet — that
+requires Oliver to create an account (Claude can't create accounts on
+his behalf). No Vercel deployment yet either. Next: confirm with Oliver
+how he wants deployment wired up (GitHub-connected continuous deploy vs.
+one-off manual deploys) and walk him through the Turso account/env-var
+setup.
+
+
 ## Backlog (2026-08-10) — disciplinary/correction deductions
 
 Oliver's ask, explicitly deferred ("save it in a backlog as well to do
