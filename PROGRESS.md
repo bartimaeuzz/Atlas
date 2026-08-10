@@ -984,6 +984,50 @@ code changed, so this handoff needs a reseed but NOT another
 
 ## Not started yet
 
+## drizzle-kit push abandoned for Turso — replaced with generate + migrate (2026-08-10)
+
+While deploying, `drizzle-kit push --force` against a completely empty
+Turso database reported "No changes detected" instead of creating any
+of the 27 tables — a real, documented bug in how drizzle-kit's live
+introspection talks to Turso's HTTP protocol (confirmed against a known
+GitHub issue: Turso introspection can misreport an empty database).
+Worked around it live by generating the schema as plain SQL
+(`drizzle-kit generate`, which is local-only and unaffected — it never
+connects to the target) and running each CREATE TABLE/INDEX statement
+individually against Turso's SQL console. Also discovered mid-repair
+that pasting the ENTIRE multi-statement script into that console
+executes and reports success for the WHOLE batch but silently applies
+NOTHING — another symptom of the same underlying transaction-handling
+bug on Turso's HTTP protocol (matches a second known drizzle-kit/libSQL
+GitHub issue about transactions breaking on Turso specifically).
+Statement-by-statement execution is reliable; multi-statement is not.
+
+**Root fix, not just a one-off patch:** rather than keep doing this by
+hand for every future schema change, added `db/migrate.ts` using
+Drizzle's own `migrate()` function (`drizzle-orm/libsql/migrator`)
+instead of `drizzle-kit push`. This is a fundamentally different, more
+robust mechanism — `push` does a live diff/introspection against the
+target (the buggy part); `migrate()` just applies a fixed, ordered list
+of already-generated SQL files and tracks which ones it's already run
+in a `__drizzle_migrations` table on the target DB itself. No
+introspection, no diffing, so it sidesteps this whole bug class. This is
+also the mechanism Drizzle's own docs recommend for production —
+`push` is explicitly meant for rapid local prototyping, not deploys.
+
+New workflow for any FUTURE schema change: `npm run db:generate`
+(writes a new SQL file to `db/migrations/`, purely local, safe) then
+`npm run db:migrate` (applies only what's new, safe to re-run, works
+against either the local file or Turso depending on `DATABASE_URL`).
+`db:push` script kept in package.json for quick local-only prototyping
+but should NOT be used against Turso going forward.
+
+Verified independently of Oliver's Turso credentials: ran `db:migrate`
+twice against a fresh throwaway local SQLite file — first run created
+all 27 tables plus the tracking table (confirmed via direct row count),
+second run correctly detected the migration was already applied and did
+nothing (idempotent). 62 tests still passing, build clean.
+
+
 ## DB driver migrated from better-sqlite3 to libSQL (Turso-ready) (2026-08-10)
 
 First step toward a real deployment (Oliver picked this over two other
