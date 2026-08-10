@@ -9,6 +9,9 @@ export default async function ShiftsListPage() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold">Shifts</h1>
         <div className="flex gap-2">
+          <Link href="/settings" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50 text-sm">
+            Settings
+          </Link>
           <Link href="/positions" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50 text-sm">
             Positions
           </Link>

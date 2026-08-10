@@ -16,6 +16,9 @@ export default function Home() {
         <Link href="/positions" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50">
           Positions →
         </Link>
+        <Link href="/settings" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50">
+          Settings →
+        </Link>
         <Link href="/shifts/1" className="underline text-blue-600 self-center">
           Playground calculator (seeded shift, manual entry)
         </Link>

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadRosterPageData } from "@/lib/shift/loadRosterPageData";
-import { addRosterEntry, removeRosterEntry } from "@/lib/actions/shift";
+import { removeRosterEntry } from "@/lib/actions/shift";
+import { AddRosterEntryForm } from "./AddRosterEntryForm";
 
 export default async function RosterPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,26 +44,39 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
               </tr>
             </thead>
             <tbody>
-              {data.roster.map((r) => (
-                <tr key={r.rosterEntryId} className="border-b">
-                  <td className="py-1.5">{r.employeeName}</td>
-                  <td className="py-1.5 text-neutral-500">
-                    {r.positionName} <span className="text-xs">({r.positionCategory})</span>
-                  </td>
-                  <td className="py-1.5">{r.pointValueOverride ?? "—"}</td>
-                  <td className="py-1.5 text-right">
-                    {!isFinalized && (
-                      <form action={removeRosterEntry}>
-                        <input type="hidden" name="rosterEntryId" value={r.rosterEntryId} />
-                        <input type="hidden" name="shiftId" value={shiftId} />
-                        <button type="submit" className="text-red-600 hover:underline text-xs">
-                          Remove
-                        </button>
-                      </form>
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {data.roster.map((r) => {
+                const roleCount = data.roster.filter((x) => x.employeeId === r.employeeId).length;
+                return (
+                  <tr key={r.rosterEntryId} className="border-b">
+                    <td className="py-1.5">
+                      {r.employeeName}
+                      {roleCount > 1 && (
+                        <span
+                          className="ml-2 inline-block bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded"
+                          title="This person has multiple roles on this shift — paid on one combined paycheck."
+                        >
+                          {roleCount} roles
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-1.5 text-neutral-500">
+                      {r.positionName} <span className="text-xs">({r.positionCategory})</span>
+                    </td>
+                    <td className="py-1.5">{r.pointValueOverride ?? "—"}</td>
+                    <td className="py-1.5 text-right">
+                      {!isFinalized && (
+                        <form action={removeRosterEntry}>
+                          <input type="hidden" name="rosterEntryId" value={r.rosterEntryId} />
+                          <input type="hidden" name="shiftId" value={shiftId} />
+                          <button type="submit" className="text-red-600 hover:underline text-xs">
+                            Remove
+                          </button>
+                        </form>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -75,28 +89,12 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
             Point value adjustments happen later, on the Closing Report page right before Save —
             not here. This page is just who&apos;s working today.
           </p>
-          <form action={addRosterEntry} className="grid sm:grid-cols-3 gap-3 items-end">
-            <input type="hidden" name="shiftId" value={shiftId} />
-            <label className="text-sm">
-              <span className="block text-neutral-500 mb-1">Employee</span>
-              <select name="employeeId" required className="border rounded px-2 py-1 w-full">
-                {data.allEmployees.map((e) => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="text-sm">
-              <span className="block text-neutral-500 mb-1">Position</span>
-              <select name="positionId" required className="border rounded px-2 py-1 w-full">
-                {data.allPositions.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
-                ))}
-              </select>
-            </label>
-            <button type="submit" className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800">
-              Add
-            </button>
-          </form>
+          <AddRosterEntryForm
+            shiftId={shiftId}
+            roster={data.roster}
+            allEmployees={data.allEmployees}
+            allPositions={data.allPositions}
+          />
         </section>
       )}
 

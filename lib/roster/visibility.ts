@@ -12,7 +12,11 @@
  *   - STAFF see roster entries in their OWN position category (FOH sees FOH,
  *     BOH sees BOH), PLUS any position flagged `alwaysVisibleInRoster`
  *     (e.g. Floor Manager, Manager) regardless of category, so everyone can
- *     see who's running the shift.
+ *     see who's running the shift. Corrected 2026-08-10: this restriction
+ *     is now restaurant-configurable per category (`restrictFOHToOwnCategory`
+ *     / `restrictBOHToOwnCategory`, both default true = today's behavior)
+ *     — some restaurants want a fully open roster instead. Independent per
+ *     category, same reasoning as the peer-earnings split below.
  *   - Within what a STAFF member can see, money figures (tip share / flat
  *     wage) on OTHER people's entries are hidden/shown by this precedence:
  *       1. It's the viewer's own entry -> always shown.
@@ -52,6 +56,8 @@ export interface Viewer {
 export interface RosterVisibilitySettings {
   showPeerEarningsFOH: boolean;
   showPeerEarningsBOH: boolean;
+  restrictFOHToOwnCategory: boolean;
+  restrictBOHToOwnCategory: boolean;
 }
 
 export function getVisibleRosterEntries(
@@ -63,9 +69,12 @@ export function getVisibleRosterEntries(
     return allEntries;
   }
 
-  const visible = allEntries.filter(
-    (e) => e.positionCategory === viewer.ownCategory || e.alwaysVisibleInRoster
-  );
+  const viewerIsRestricted =
+    viewer.ownCategory === "FOH" ? settings.restrictFOHToOwnCategory : settings.restrictBOHToOwnCategory;
+
+  const visible = viewerIsRestricted
+    ? allEntries.filter((e) => e.positionCategory === viewer.ownCategory || e.alwaysVisibleInRoster)
+    : allEntries;
 
   return visible.map((entry) => {
     if (entry.employeeId === viewer.employeeId) return entry; // always see your own numbers

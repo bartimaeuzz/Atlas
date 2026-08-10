@@ -433,9 +433,68 @@ What shipped:
   position stays untouched → reactivate → confirm it reappears. 36 tests
   still passing (unchanged), full build clean.
 
+## Restaurant Settings page + configurable roster category visibility + multi-role UX polish (2026-08-10)
+
+Two things Oliver caught testing the Position admin UI himself:
+
+**1. Roster category visibility was hardcoded, not restaurant-configurable.**
+`lib/roster/visibility.ts` always restricted STAFF to their own category
+(FOH sees FOH, BOH sees BOH) — unlike the peer-earnings-money layer, which
+already was restaurant-configurable. Fixed: two new independent settings,
+`rosterRestrictFOHToOwnCategory` / `rosterRestrictBOHToOwnCategory`, both
+defaulting to `true` (today's behavior, nothing changes for Youk Thai
+unless flipped). `getVisibleRosterEntries` now applies the category filter
+conditionally per viewer's own category. Note: this module still isn't
+wired into any live page (no staff login/self-serve view exists yet — see
+Employee admin below), so the setting has no visible effect today; the
+design is just correct now for whenever that view ships. 38 tests total
+(was 36) — two new tests cover the flag off (opens the roster to the other
+category) and independence between the two flags.
+
+**Also surfaced: restaurantSettings had ZERO ui at all.** Every field on
+that table (`ccTipDeductionRate`, the peer-earnings flags, all three pool
+split methods, the host drink bonus rate) was seed-only — same class of
+gap Position admin closed for positions. Rather than build a settings page
+for just the two new visibility flags and leave the rest stranded, built
+one `/settings` page covering the whole table in this pass:
+`lib/settings/loadRestaurantSettings.ts`, `lib/actions/settings.ts`
+(`updateRestaurantSettings`, same server-action error pattern as
+everywhere else), `app/settings/page.tsx` + `SettingsForm.tsx`. Linked
+from both the root page and the Shifts list header.
+
+**2. Multi-role roster stress test — Aey as both Bartender (FOH) and Sous
+Chef (BOH), no warning shown.** Confirmed via AskUserQuestion: a
+confirmation prompt + a visual badge, not a hard block or an admin policy
+setting. Reasoning: the wage-adjustments round already proved multi-role
+payout math is correct (tip shares sum across pool-eligible rows, wage
+auto-resolves with an override available), and Oliver himself said other
+restaurants may genuinely use multi-role even though Youk Thai doesn't
+day-to-day — building a block/allow policy now would be solving a problem
+nobody's actually hit, the same trap this project has deliberately avoided
+elsewhere (e.g. the pool-funding-engine deferral). Shipped: the roster
+page's "Add someone" form is now a client component
+(`AddRosterEntryForm.tsx`) that checks — client-side, against the roster
+already loaded on the page, no extra round trip — whether the selected
+employee already has an entry this shift, and if so shows a
+`window.confirm()` naming their existing role(s) before submitting.
+Cancel aborts the add. Separately, the roster table now shows a small "N
+roles" badge next to anyone with more than one entry, so multi-role
+staffing is legible on the Roster page itself without needing to check
+Preview — directly closes the legibility gap from the earlier Papi
+false-alarm.
+
+Verified end-to-end against the real DB: flipped
+`rosterRestrictBOHToOwnCategory` off and confirmed `getVisibleRosterEntries`
+actually responds to the persisted setting (not just the pure-function
+unit tests); staffed Aey as both Bartender and Sous Chef and confirmed the
+roster loader returns exactly the two rows + role count the badge and
+confirm-dialog logic need. 38 tests passing, build clean.
+
 ## Not started yet
 
 - Employee admin UI (create/edit employees, including per-employee BOH
+  wage rate — see the Position admin note directly above for why this is
+  the natural next piece) (create/edit employees, including per-employee BOH
   wage rate — see the Position admin note directly above for why this is
   the natural next piece)
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet

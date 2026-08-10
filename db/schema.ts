@@ -134,6 +134,20 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // param). Restaurant-configurable; default 0 means the bonus is off unless
   // a restaurant sets a rate. Youk Thai seeded to $1.00.
   hostDrinkBonusPerDrinkAmount: real("host_drink_bonus_per_drink_amount").notNull().default(0),
+  // Whether STAFF viewers in each category are restricted to seeing ONLY
+  // roster entries in their own category (plus alwaysVisibleInRoster
+  // positions) — added 2026-08-10 after Oliver pointed out this was
+  // hardcoded in lib/roster/visibility.ts with no way to turn it off for a
+  // restaurant that wants a fully open roster. Independent per category,
+  // same reasoning as the peer-earnings split above (a restaurant might
+  // want FOH open but BOH restricted, or vice versa). Both default true,
+  // matching the behavior that existed before this setting did, so nothing
+  // changes for Youk Thai unless someone flips it. NOTE: this module isn't
+  // wired into a live page yet (no staff login/self-serve view exists —
+  // see PROGRESS.md's open items), so this setting has no visible effect
+  // today; it's here so the design is correct whenever that view ships.
+  rosterRestrictFOHToOwnCategory: integer("roster_restrict_foh_to_own_category", { mode: "boolean" }).notNull().default(true),
+  rosterRestrictBOHToOwnCategory: integer("roster_restrict_boh_to_own_category", { mode: "boolean" }).notNull().default(true),
 });
 
 export const onlinePlatforms = sqliteTable("online_platforms", {
