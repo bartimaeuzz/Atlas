@@ -63,9 +63,9 @@ async function seed() {
   const [bartender] = await db.insert(positions).values({ name: "Bartender", category: "FOH", defaultTipPointValue: 1.0 }).returning();
   const [busser] = await db.insert(positions).values({ name: "Busser", category: "FOH", defaultTipPointValue: 1.0 }).returning();
   const [deliveryGuy] = await db.insert(positions).values({ name: "Delivery Guy", category: "FOH", defaultTipPointValue: 1.0 }).returning();
-  const [floorManager] = await db.insert(positions).values({ name: "Floor Manager", category: "FOH", alwaysVisibleInRoster: true, earningsHiddenFromStaff: true, defaultTipPointValue: null }).returning();
+  const [floorManager] = await db.insert(positions).values({ name: "Floor Manager", category: "FOH", alwaysVisibleInRoster: true, earningsHiddenFromStaff: true, grantsManagerAccess: true, defaultTipPointValue: null }).returning();
   const [host] = await db.insert(positions).values({ name: "Host", category: "FOH", defaultTipPointValue: 1.0 }).returning();
-  const [manager] = await db.insert(positions).values({ name: "Manager", category: "FOH", alwaysVisibleInRoster: true, earningsHiddenFromStaff: true, defaultTipPointValue: null }).returning();
+  const [manager] = await db.insert(positions).values({ name: "Manager", category: "FOH", alwaysVisibleInRoster: true, earningsHiddenFromStaff: true, grantsManagerAccess: true, defaultTipPointValue: null }).returning();
   const [operator] = await db.insert(positions).values({ name: "Operator", category: "FOH", defaultTipPointValue: 1.0 }).returning();
   const [packer] = await db.insert(positions).values({ name: "Packer", category: "FOH", defaultTipPointValue: 1.0 }).returning();
   // Pastry Chef is filed as FOH (not BOH) — matches how Oliver actually set
@@ -134,7 +134,13 @@ async function seed() {
   // so they show correctly in Employee admin and the roster dropdown, but
   // the SEEDED SHIFTS only staff each person at their PRIMARY position —
   // see the shift-building loop below for why.
-  const [aey] = await db.insert(employees).values({ name: "Aey", primaryPositionId: bartender.id, systemRole: "MANAGER" }).returning();
+  // Aey's systemRole is deliberately left at the default STAFF now
+  // (2026-08-10 — was incorrectly hardcoded to MANAGER before, see
+  // positions.grantsManagerAccess's schema comment for why). She's
+  // cross-trained on Floor Manager (see employeePositions below) and will
+  // correctly get elevated visibility on any shift she's actually
+  // ROSTERED there, without needing a standing flag.
+  const [aey] = await db.insert(employees).values({ name: "Aey", primaryPositionId: bartender.id }).returning();
   const [alesso] = await db.insert(employees).values({ name: "Alesso", primaryPositionId: busser.id }).returning();
   const [bomb] = await db.insert(employees).values({ name: "Bomb", primaryPositionId: headChef.id }).returning();
   const [carlos] = await db.insert(employees).values({ name: "Carlos", primaryPositionId: deliveryGuy.id }).returning();

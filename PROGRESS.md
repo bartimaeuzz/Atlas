@@ -845,6 +845,68 @@ directly yet. The seed also only covers one week, so month view won't
 show more than that single week until a future round extends the date
 range — flagged as a known, easy-to-extend limitation, not a bug.
 
+## Manager access tied to the position worked THAT SHIFT, not a fixed flag (2026-08-10)
+
+Oliver caught a real modeling bug in the previous round's seed data by
+looking at his own Employees screenshot: Nancy — whose PRIMARY position
+literally IS Floor Manager — showed `systemRole: STAFF`, while Aey
+(primary Bartender, Floor Manager just one of five cross-trained
+positions) had been hardcoded `systemRole: MANAGER` in the seed rewrite.
+His question — "credential to see all people wage and tip is bond with
+roles or primary position?" — surfaced that the honest answer was
+"neither, it's a totally separate hand-set flag," which is exactly why it
+had drifted out of sync.
+
+**Fix, not a patch:** `employees.systemRole` (STAFF/MANAGER/ADMIN) stays
+for genuinely standing elevation (ADMIN — system ownership, independent
+of any floor role). But regular manager-tier roster visibility is now
+SHIFT-SCOPED, derived from whichever position an employee is actually
+rostered at for that specific shift, via a new `positions.grantsManagerAccess`
+flag (seeded true for Manager and Floor Manager — same two positions as
+the existing `alwaysVisibleInRoster`/`earningsHiddenFromStaff` flags, kept
+as a separate flag since it governs a conceptually different thing:
+whether working this role grants YOU elevated viewing, not what happens
+to YOUR OWN visibility/privacy).
+
+`lib/staff/loadMyEarnings.ts` now computes an "effective role" per shift:
+standing MANAGER/ADMIN always wins; otherwise, check whether the position
+the employee is rostered at for THAT shift has `grantsManagerAccess` —
+if so, they see everything for that shift only, same as a real manager
+covering the floor for a day would. Their other shifts, worked at a
+different position, are completely unaffected. Removed the seed's
+hardcoded `systemRole: "MANAGER"` on Aey entirely — she doesn't need it
+anymore; Nancy needed nothing added at all, since Floor Manager being her
+primary position now correctly elevates her automatically, every shift,
+with zero hand-maintained flag.
+
+**Schema note:** adding a column to `positions` via `drizzle-kit push`
+hit a `FOREIGN KEY constraint failed` this round — `positions` has many
+incoming foreign keys (positionTipPools, positionShiftRates,
+employeePositions, employeeWageRates, shiftRosterEntries, positionMetrics),
+and drizzle-kit's SQLite push strategy for a heavily-referenced table
+tries a table-rebuild that trips FK enforcement mid-migration. Worked
+around by adding the column directly via a plain `ALTER TABLE ... ADD
+COLUMN` with `PRAGMA foreign_keys = OFF` for that one statement, then
+re-running `drizzle-kit push` afterward to confirm the schema was back in
+sync (it was — "Changes applied" with zero data loss, verified via row
+counts before/after). Worth remembering for any FUTURE column added to
+`positions` specifically — plan for this same workaround.
+
+**Coworker sort order (Oliver's second ask):** "Also worked this shift"
+now sorts FOH before BOH, then position name (A–Z), then employee name
+(A–Z) — implemented once in the loader (`compareCoworkerRows` in
+`loadMyEarnings.ts`), applied before the visibility filter so every
+consumer gets an already-sorted list.
+
+62 tests still passing. Verified against the real DB: Nancy is
+automatically elevated (sees all 19) despite `systemRole: STAFF`; Aey is
+correctly RESTRICTED on her normal Bartender shifts (no BOH visible); a
+one-off test shift where Aey was rostered as Floor Manager confirmed the
+elevation is real for that shift without leaking into her other,
+unrelated shifts; and the coworker list sort order (FOH-before-BOH, then
+position, then name) holds for both a manager's full view and a
+restricted staff view.
+
 ## Not started yet
 
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet

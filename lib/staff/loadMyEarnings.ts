@@ -109,6 +109,7 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
       positionCategory: positions.category,
       alwaysVisibleInRoster: positions.alwaysVisibleInRoster,
       earningsHiddenFromStaff: positions.earningsHiddenFromStaff,
+      grantsManagerAccess: positions.grantsManagerAccess,
     })
     .from(shiftRosterEntries)
     .innerJoin(employees, eq(shiftRosterEntries.employeeId, employees.id))
@@ -157,11 +158,39 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
     });
 
     const myRepresentativeRow = rowsByEmployeeId.get(employeeId)?.[0];
+
+    // Effective role for THIS shift (2026-08-10) — a standing MANAGER/
+    // ADMIN systemRole always wins (that's a real, persistent elevation,
+    // e.g. an owner/admin who needs full access regardless of what
+    // they're rostered as). Otherwise, elevated visibility is earned by
+    // actually working a position flagged grantsManagerAccess THAT shift
+    // — see positions.grantsManagerAccess's schema comment for why this
+    // is shift-scoped rather than a fixed per-employee flag. A STAFF
+    // employee covering Floor Manager for one shift sees everything for
+    // THAT shift only; back on their normal position the next day, they
+    // see only what a regular STAFF viewer sees.
+    const shiftGrantsManagerAccess = myRepresentativeRow?.grantsManagerAccess ?? false;
+    const effectiveSystemRole: "STAFF" | "MANAGER" | "ADMIN" =
+      employee.systemRole === "ADMIN" || employee.systemRole === "MANAGER"
+        ? employee.systemRole
+        : shiftGrantsManagerAccess
+          ? "MANAGER"
+          : "STAFF";
+
     const viewer: Viewer = {
       employeeId,
-      systemRole: employee.systemRole,
+      systemRole: effectiveSystemRole,
       ownCategory: (myRepresentativeRow?.positionCategory as "FOH" | "BOH" | undefined) ?? "FOH",
     };
+
+    // Sort BEFORE filtering (2026-08-10, Oliver's ask) — FOH before BOH,
+    // then position name alphabetically, then employee name alphabetically
+    // — so "Also worked this shift" reads as a legible team roster rather
+    // than whatever order the DB happened to return rows in. Sorting here
+    // (not in the UI) means every consumer of loadMyEarnings gets an
+    // already-sorted list for free. getVisibleRosterEntries's filter/map
+    // preserve input order, so sorting allEntries first is sufficient.
+    allEntries.sort(compareCoworkerRows);
 
     const visibleEntries = getVisibleRosterEntries(viewer, allEntries, visibilitySettings) as MyEarningsCoworkerRow[];
 
@@ -194,4 +223,16 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
     shifts: resultShifts,
     lifetimeTotal: Math.round(lifetimeTotal * 100) / 100,
   };
+}
+
+/** FOH before BOH, then position name (A-Z), then employee name (A-Z). */
+function compareCoworkerRows(a: MyEarningsCoworkerRow, b: MyEarningsCoworkerRow): number {
+  const categoryRank = (c: string) => (c === "FOH" ? 0 : 1);
+  const categoryDiff = categoryRank(a.positionCategory) - categoryRank(b.positionCategory);
+  if (categoryDiff !== 0) return categoryDiff;
+
+  const positionDiff = a.positionName.localeCompare(b.positionName);
+  if (positionDiff !== 0) return positionDiff;
+
+  return a.employeeName.localeCompare(b.employeeName);
 }

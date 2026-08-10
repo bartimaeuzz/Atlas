@@ -21,6 +21,20 @@ export const positions = sqliteTable("positions", {
   // (the common leadership case), and in principle the reverse could exist
   // too, so kept as two separate flags rather than coupled.
   earningsHiddenFromStaff: integer("earnings_hidden_from_staff", { mode: "boolean" }).notNull().default(false),
+  // Whether working THIS position grants elevated (manager-tier) roster
+  // visibility for that shift (2026-08-10) — see lib/staff/loadMyEarnings.ts.
+  // Deliberately SHIFT-scoped, not a standing per-employee flag: Oliver
+  // caught a real modeling bug where an employee's fixed employees.systemRole
+  // had drifted out of sync with who was actually working as Floor Manager
+  // that day (Aey flagged MANAGER despite rarely working that position;
+  // Nancy — whose PRIMARY position literally IS Floor Manager — left at
+  // the default STAFF). Tying elevated visibility to the position worked
+  // THAT SHIFT instead of a hand-maintained employee flag makes this
+  // self-correcting: whoever is actually covering Floor Manager or Manager
+  // on a given shift gets full visibility for that shift, no matter who
+  // they normally are. employees.systemRole still exists for a genuinely
+  // standing elevation (ADMIN — system ownership, not a floor role).
+  grantsManagerAccess: integer("grants_manager_access", { mode: "boolean" }).notNull().default(false),
   // Template value only — not used in calculation, just a suggested starting
   // point shown in the UI when adding a new employee to this position.
   defaultTipPointValue: real("default_tip_point_value"),
