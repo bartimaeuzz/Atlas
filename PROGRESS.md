@@ -1375,3 +1375,70 @@ seeded data and `loadClosingReportData.defaultSalesTaxRate` matches the
 seeded 0.08875 (not kept as a permanent `verify_*.ts`, since it's a thin
 plumbing check rather than a new business rule). No schema changes this
 round — no migration needed, just commit + push.
+
+## Sortable Employees list (2026-08-10)
+
+Oliver: "a tiny touch wont hinder our work, can you add sorting to these
+column?" — the Employees admin list had no way to reorder rows other
+than the default (alphabetical by name from the loader).
+
+Extracted the table out of `app/employees/page.tsx` into a new client
+component, `EmployeesTable.tsx`, since sort state has to live in the
+browser while the page itself stays a server component doing the actual
+data load. Clicking a column header (Name, Primary position, Positions,
+Role) sorts by it ascending, clicking again reverses to descending; a
+▲/▼ indicator shows the active column and direction. Plain client-side
+`useMemo` + `localeCompare` — the employee list is small (tens of rows,
+not thousands) and this is a viewing convenience only, so a full
+server-round-trip/URL-param sort wasn't worth the extra complexity.
+
+Oliver later reported "Can you check it yourself? Nothing is happening"
+after this shipped. Rather than assume the code was broken, used the
+Claude-in-Chrome browser tool to personally load the live production
+site and click the column headers — sorting worked correctly both
+directions. Likely a stale-cache or click-location issue on Oliver's
+end, not a code bug; reported back instead of re-patching working code.
+
+**Verified:** no schema/logic changes, so no new unit tests were needed;
+confirmed working directly against the live production site.
+
+## Split peer-earnings visibility into independent Tip/Wage toggles (2026-08-10)
+
+Backlog item picked up after confirming Phase 1 (Closing Report system +
+roster + export report) was functionally complete. The "peer earnings"
+setting on My Pay's coworker list was one combined FOH/BOH toggle that
+hid or showed tip share AND flat wage together. Oliver confirmed scope
+via two clarifying questions: keep the same FOH/BOH category-level
+granularity (not per-employee — that's a bigger ACL change, not asked
+for), and only split the Tip/Wage toggles that already exist (do NOT add
+Incentive/Total to the coworker view — those aren't shown to coworkers
+today and would need new plumbing beyond a toggle split).
+
+`restaurantSettings` gained `rosterShowPeerWageFOH`/`BOH` (new columns,
+same true/false default split the combined toggle already had, so
+nothing changes for Youk Thai until someone flips Tip and Wage
+independently). The existing `roster_show_peer_earnings_foh`/`boh` SQL
+columns were REPURPOSED as Tip-only — same column, renamed only in
+TypeScript (`rosterShowPeerTipFOH`/`BOH`) — so this half of the split
+needed zero migration risk, just an ADD for the new Wage columns
+(migration `0004_legal_shaman.sql`).
+
+`lib/roster/visibility.ts`'s `getVisibleRosterEntries` now redacts
+`tipShare` and `flatWage` independently instead of as one all-or-nothing
+pair — a category can show tip share while hiding wage, or vice versa.
+Settings page's "Roster — peer earnings visibility" fieldset now shows
+four checkboxes (Tip FOH/BOH, Wage FOH/BOH) instead of two. My Pay's
+"Also worked this shift" coworker rows render tip and wage independently
+now (one, both, or neither, depending on the category's settings)
+instead of assuming both were always shown together.
+
+**Verified:** extended `visibility.test.ts` with tests specifically for
+the independent split (tip shown/wage hidden, the reverse, and the
+viewer's own row always showing both regardless of settings) — 71 unit
+tests total, all passing. `next build` clean (compiled + typechecked;
+this sandbox's outputs mount has a known FUSE quirk that blocks the
+build's final write step, worked around by building a clean rsync'd
+copy in the sandbox home directory instead — same class of limitation
+already documented for `npm install`/git in the ui-design session
+notes). Migration NOT yet applied to the production Turso DB — run
+`npm run db:migrate` to apply, then `git push`.

@@ -29,6 +29,13 @@
       "when": 1786415101497,
       "tag": "0003_graceful_shooting_star",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786419491583,
+      "tag": "0004_legal_shaman",
+      "breakpoints": true
     }
   ]
 }

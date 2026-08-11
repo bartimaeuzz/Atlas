@@ -125,10 +125,15 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
                   <span>
                     {c.employeeName} <span className="text-neutral-400">— {c.positionName}</span>
                   </span>
-                  {typeof c.tipShare === "number" && (
+                  {/* Tip and wage are shown/hidden independently now
+                      (2026-08-10 split) — a coworker's row may show just
+                      one, both, or neither, depending on the restaurant's
+                      Tip/Wage visibility settings for that category. */}
+                  {(typeof c.tipShare === "number" || typeof c.flatWage === "number") && (
                     <span className="tabular-nums text-neutral-500">
-                      ${(c.tipShare as number).toFixed(2)} tip
-                      {typeof c.flatWage === "number" && ` + $${(c.flatWage as number).toFixed(2)} wage`}
+                      {typeof c.tipShare === "number" && `$${(c.tipShare as number).toFixed(2)} tip`}
+                      {typeof c.tipShare === "number" && typeof c.flatWage === "number" && " + "}
+                      {typeof c.flatWage === "number" && `$${(c.flatWage as number).toFixed(2)} wage`}
                     </span>
                   )}
                 </li>

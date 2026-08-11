@@ -94,17 +94,32 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         <legend className="text-lg font-medium mb-3">Roster — peer earnings visibility</legend>
         <p className="text-xs text-neutral-500 mb-3">
           Whether STAFF can see a peer&apos;s tip share / wage on the roster (self always visible; leadership pay
-          always hidden regardless of these).
+          always hidden regardless of these). Tip and wage are independent toggles — you can show one without the
+          other.
         </p>
-        <div className="space-y-2 text-sm">
-          <label className="flex items-center gap-2">
-            <input type="checkbox" name="rosterShowPeerEarningsFOH" defaultChecked={settings.rosterShowPeerEarningsFOH} />
-            Show FOH peer earnings
-          </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" name="rosterShowPeerEarningsBOH" defaultChecked={settings.rosterShowPeerEarningsBOH} />
-            Show BOH peer earnings
-          </label>
+        <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Tip share</div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="rosterShowPeerTipFOH" defaultChecked={settings.rosterShowPeerTipFOH} />
+              Show FOH peer tip share
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="rosterShowPeerTipBOH" defaultChecked={settings.rosterShowPeerTipBOH} />
+              Show BOH peer tip share
+            </label>
+          </div>
+          <div className="space-y-2">
+            <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Wage</div>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="rosterShowPeerWageFOH" defaultChecked={settings.rosterShowPeerWageFOH} />
+              Show FOH peer wage
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" name="rosterShowPeerWageBOH" defaultChecked={settings.rosterShowPeerWageBOH} />
+              Show BOH peer wage
+            </label>
+          </div>
         </div>
       </fieldset>
 

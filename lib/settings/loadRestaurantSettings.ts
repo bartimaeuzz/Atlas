@@ -6,8 +6,14 @@ export type PoolSplitMethod = "POINT_WEIGHTED" | "EQUAL_SPLIT";
 
 export interface RestaurantSettingsData {
   ccTipDeductionRate: number;
-  rosterShowPeerEarningsFOH: boolean;
-  rosterShowPeerEarningsBOH: boolean;
+  /** Split 2026-08-10 from one combined "peer earnings" toggle into
+   * independent Tip and Wage visibility, still at FOH/BOH category
+   * granularity — see db/schema.ts's restaurantSettings comment for the
+   * full rationale. */
+  rosterShowPeerTipFOH: boolean;
+  rosterShowPeerTipBOH: boolean;
+  rosterShowPeerWageFOH: boolean;
+  rosterShowPeerWageBOH: boolean;
   rosterRestrictFOHToOwnCategory: boolean;
   rosterRestrictBOHToOwnCategory: boolean;
   rosterShowCoworkerListFOH: boolean;
@@ -37,8 +43,10 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     // rather than crashing the settings page if it somehow does.
     return {
       ccTipDeductionRate: 0,
-      rosterShowPeerEarningsFOH: true,
-      rosterShowPeerEarningsBOH: false,
+      rosterShowPeerTipFOH: true,
+      rosterShowPeerTipBOH: false,
+      rosterShowPeerWageFOH: true,
+      rosterShowPeerWageBOH: false,
       rosterRestrictFOHToOwnCategory: true,
       rosterRestrictBOHToOwnCategory: true,
       rosterShowCoworkerListFOH: true,
@@ -52,8 +60,10 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
   }
   return {
     ccTipDeductionRate: row.ccTipDeductionRate,
-    rosterShowPeerEarningsFOH: row.rosterShowPeerEarningsFOH,
-    rosterShowPeerEarningsBOH: row.rosterShowPeerEarningsBOH,
+    rosterShowPeerTipFOH: row.rosterShowPeerTipFOH,
+    rosterShowPeerTipBOH: row.rosterShowPeerTipBOH,
+    rosterShowPeerWageFOH: row.rosterShowPeerWageFOH,
+    rosterShowPeerWageBOH: row.rosterShowPeerWageBOH,
     rosterRestrictFOHToOwnCategory: row.rosterRestrictFOHToOwnCategory,
     rosterRestrictBOHToOwnCategory: row.rosterRestrictBOHToOwnCategory,
     rosterShowCoworkerListFOH: row.rosterShowCoworkerListFOH,

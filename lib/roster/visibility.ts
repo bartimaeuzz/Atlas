@@ -29,7 +29,13 @@
  *          setting — FOH defaults visible (pooled/shared tips, less
  *          sensitive), BOH defaults hidden (individually-negotiated wages,
  *          legitimately unequal, showing them risks friction). Both
- *          restaurant-configurable.
+ *          restaurant-configurable. Split 2026-08-10: tip share and flat
+ *          wage are now INDEPENDENT toggles per category (showPeerTipFOH/
+ *          BOH, showPeerWageFOH/BOH) rather than one combined switch — a
+ *          restaurant can show a peer's tip share while still hiding their
+ *          wage, or vice versa. Still category-level, not per-employee
+ *          (confirmed with Oliver — that's a bigger ACL change, not asked
+ *          for here).
  *   - Added 2026-08-10: even earlier than all of the above, a STAFF viewer
  *     can be denied the coworker list ENTIRELY — not just peers' money,
  *     the peer rows themselves (name + position) — via
@@ -62,8 +68,10 @@ export interface Viewer {
 }
 
 export interface RosterVisibilitySettings {
-  showPeerEarningsFOH: boolean;
-  showPeerEarningsBOH: boolean;
+  showPeerTipFOH: boolean;
+  showPeerTipBOH: boolean;
+  showPeerWageFOH: boolean;
+  showPeerWageBOH: boolean;
   restrictFOHToOwnCategory: boolean;
   restrictBOHToOwnCategory: boolean;
   showCoworkerListFOH: boolean;
@@ -101,12 +109,19 @@ export function getVisibleRosterEntries(
       return withoutMoney as RosterEntryView;
     }
 
-    const showEarnings =
-      entry.positionCategory === "FOH" ? settings.showPeerEarningsFOH : settings.showPeerEarningsBOH;
+    const showTip = entry.positionCategory === "FOH" ? settings.showPeerTipFOH : settings.showPeerTipBOH;
+    const showWage = entry.positionCategory === "FOH" ? settings.showPeerWageFOH : settings.showPeerWageBOH;
 
-    if (showEarnings) return entry;
+    if (showTip && showWage) return entry;
 
+    // Independent per-field redaction (2026-08-10 split) — strip both out
+    // then add back whichever one(s) this category is allowed to see,
+    // rather than the old all-or-nothing removal.
     const { tipShare, flatWage, ...withoutMoney } = entry;
-    return withoutMoney as RosterEntryView;
+    return {
+      ...withoutMoney,
+      ...(showTip ? { tipShare } : {}),
+      ...(showWage ? { flatWage } : {}),
+    } as RosterEntryView;
   });
 }

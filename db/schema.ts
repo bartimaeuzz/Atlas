@@ -155,8 +155,25 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // BOH defaults OFF (individually-set wages and bonuses, more sensitive —
   // showing them risks friction since amounts legitimately differ per person).
   // Self always sees their own numbers regardless of these settings.
-  rosterShowPeerEarningsFOH: integer("roster_show_peer_earnings_foh", { mode: "boolean" }).notNull().default(true),
-  rosterShowPeerEarningsBOH: integer("roster_show_peer_earnings_boh", { mode: "boolean" }).notNull().default(false),
+  //
+  // Split 2026-08-10 (Oliver, per-column visibility backlog item — see
+  // PROGRESS.md): this used to be ONE combined toggle per category that
+  // hid/showed tip share AND wage together. Confirmed scope: keep the same
+  // FOH/BOH category-level granularity (not per-employee), just separate
+  // Tip from Wage so a restaurant can show one without the other (e.g. tip
+  // share is pooled/shared and fine to show, but wage is individually
+  // negotiated and more sensitive — or vice versa). rosterShowPeerTipFOH/BOH
+  // REPURPOSES the original "earnings" column below — same SQL column
+  // (`roster_show_peer_earnings_foh`/`boh`), just narrowed in meaning to
+  // "tip" now that wage has its own column, so no migration was needed for
+  // this half of the split. rosterShowPeerWageFOH/BOH are brand-new columns,
+  // defaulted to the SAME true/false split the combined toggle already had —
+  // preserves today's behavior exactly for Youk Thai until someone flips
+  // Tip and Wage independently in Settings.
+  rosterShowPeerTipFOH: integer("roster_show_peer_earnings_foh", { mode: "boolean" }).notNull().default(true),
+  rosterShowPeerTipBOH: integer("roster_show_peer_earnings_boh", { mode: "boolean" }).notNull().default(false),
+  rosterShowPeerWageFOH: integer("roster_show_peer_wage_foh", { mode: "boolean" }).notNull().default(true),
+  rosterShowPeerWageBOH: integer("roster_show_peer_wage_boh", { mode: "boolean" }).notNull().default(false),
   // Confirmed 2026-08-08: whether each tip pool splits by point value or
   // splits equally is a per-restaurant, per-pool choice — not a fixed rule.
   // Reasoning from Oliver: some restaurants want skill/seniority reflected

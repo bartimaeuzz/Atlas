@@ -36,8 +36,12 @@ async function seed() {
   await db.insert(restaurantSettings).values({
     restaurantId: 1,
     ccTipDeductionRate: 0.045,
-    rosterShowPeerEarningsFOH: true,
-    rosterShowPeerEarningsBOH: false,
+    // Split 2026-08-10 into independent Tip/Wage toggles — same values as
+    // before for both, so Youk Thai's seeded behavior is unchanged.
+    rosterShowPeerTipFOH: true,
+    rosterShowPeerTipBOH: false,
+    rosterShowPeerWageFOH: true,
+    rosterShowPeerWageBOH: false,
     pool1SplitMethod: "POINT_WEIGHTED",
     pool2SplitMethod: "POINT_WEIGHTED",
     pool3SplitMethod: "EQUAL_SPLIT",

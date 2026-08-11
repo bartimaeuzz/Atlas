@@ -62,8 +62,10 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
 
   const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
   const visibilitySettings = {
-    showPeerEarningsFOH: settings?.rosterShowPeerEarningsFOH ?? true,
-    showPeerEarningsBOH: settings?.rosterShowPeerEarningsBOH ?? false,
+    showPeerTipFOH: settings?.rosterShowPeerTipFOH ?? true,
+    showPeerTipBOH: settings?.rosterShowPeerTipBOH ?? false,
+    showPeerWageFOH: settings?.rosterShowPeerWageFOH ?? true,
+    showPeerWageBOH: settings?.rosterShowPeerWageBOH ?? false,
     restrictFOHToOwnCategory: settings?.rosterRestrictFOHToOwnCategory ?? true,
     restrictBOHToOwnCategory: settings?.rosterRestrictBOHToOwnCategory ?? true,
     showCoworkerListFOH: settings?.rosterShowCoworkerListFOH ?? true,

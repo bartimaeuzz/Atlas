@@ -1,0 +1,2 @@
+ALTER TABLE `restaurant_settings` ADD `roster_show_peer_wage_foh` integer DEFAULT true NOT NULL;--> statement-breakpoint
+ALTER TABLE `restaurant_settings` ADD `roster_show_peer_wage_boh` integer DEFAULT false NOT NULL;

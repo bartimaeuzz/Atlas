@@ -2,9 +2,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getVisibleRosterEntries, type RosterEntryView, type Viewer } from "../visibility";
 
+// Split 2026-08-10: showPeerEarningsFOH/BOH (one combined toggle) became
+// showPeerTipFOH/BOH + showPeerWageFOH/BOH (independent toggles), still at
+// FOH/BOH category granularity. Existing tests below set Tip and Wage to
+// the SAME value they used to share, preserving their original intent;
+// new tests further down specifically exercise the independent split.
 const settingsDefault = {
-  showPeerEarningsFOH: true,
-  showPeerEarningsBOH: false,
+  showPeerTipFOH: true,
+  showPeerTipBOH: false,
+  showPeerWageFOH: true,
+  showPeerWageBOH: false,
   restrictFOHToOwnCategory: true,
   restrictBOHToOwnCategory: true,
   showCoworkerListFOH: true,
@@ -63,8 +70,10 @@ test("staff always sees their OWN numbers, even when peer earnings are hidden fo
 test("restaurant can flip the settings — e.g. turn ON peer earnings for BOH", () => {
   const viewer: Viewer = { employeeId: 3, systemRole: "STAFF", ownCategory: "BOH" };
   const openSettings = {
-    showPeerEarningsFOH: true,
-    showPeerEarningsBOH: true,
+    showPeerTipFOH: true,
+    showPeerTipBOH: true,
+    showPeerWageFOH: true,
+    showPeerWageBOH: true,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
     showCoworkerListFOH: true,
@@ -78,8 +87,10 @@ test("restaurant can flip the settings — e.g. turn ON peer earnings for BOH", 
 test("restaurant can flip the settings — e.g. turn OFF peer earnings for FOH", () => {
   const viewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
   const closedSettings = {
-    showPeerEarningsFOH: false,
-    showPeerEarningsBOH: false,
+    showPeerTipFOH: false,
+    showPeerTipBOH: false,
+    showPeerWageFOH: false,
+    showPeerWageBOH: false,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
     showCoworkerListFOH: true,
@@ -93,8 +104,10 @@ test("restaurant can flip the settings — e.g. turn OFF peer earnings for FOH",
 test("leadership (Floor Manager) pay is hidden from ALL staff, regardless of category or the FOH/BOH earnings settings", () => {
   const fohViewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
   const fohResult = getVisibleRosterEntries(fohViewer, sampleRoster, {
-    showPeerEarningsFOH: true, // even wide open...
-    showPeerEarningsBOH: true,
+    showPeerTipFOH: true, // even wide open...
+    showPeerTipBOH: true,
+    showPeerWageFOH: true,
+    showPeerWageBOH: true,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
     showCoworkerListFOH: true,
@@ -120,8 +133,10 @@ test("MANAGER/ADMIN still see leadership pay — the hide rule only applies to S
 test("restaurant can turn OFF category restriction for FOH — FOH staff then see BOH entries too", () => {
   const viewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
   const openRoster = {
-    showPeerEarningsFOH: true,
-    showPeerEarningsBOH: false,
+    showPeerTipFOH: true,
+    showPeerTipBOH: false,
+    showPeerWageFOH: true,
+    showPeerWageBOH: false,
     restrictFOHToOwnCategory: false, // flipped off — this restaurant wants one open roster
     restrictBOHToOwnCategory: true,
     showCoworkerListFOH: true,
@@ -132,7 +147,7 @@ test("restaurant can turn OFF category restriction for FOH — FOH staff then se
   assert.deepEqual(ids, [1, 2, 3, 4, 5]); // now sees Line Cook and Chef too, not just FOH + always-visible
 
   // Money visibility is a SEPARATE layer — BOH earnings still follow the
-  // showPeerEarningsBOH setting even though the entries are now visible.
+  // showPeerTipBOH/showPeerWageBOH settings even though the entries are now visible.
   const chefEntry = result.find((e) => e.employeeId === 4)!;
   assert.equal(chefEntry.flatWage, undefined);
 });
@@ -140,8 +155,10 @@ test("restaurant can turn OFF category restriction for FOH — FOH staff then se
 test("restaurant can turn OFF the coworker list for FOH — FOH staff see only their own entry, no one else's name or money", () => {
   const viewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
   const noListSettings = {
-    showPeerEarningsFOH: true, // even with peer earnings wide open...
-    showPeerEarningsBOH: true,
+    showPeerTipFOH: true, // even with peer earnings wide open...
+    showPeerTipBOH: true,
+    showPeerWageFOH: true,
+    showPeerWageBOH: true,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
     showCoworkerListFOH: false, // ...the list gate wins and hides everyone else
@@ -156,8 +173,10 @@ test("restaurant can turn OFF the coworker list for FOH — FOH staff see only t
 test("coworker list setting is independent per category — turning it off for BOH doesn't affect FOH", () => {
   const fohViewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
   const bohHiddenSettings = {
-    showPeerEarningsFOH: true,
-    showPeerEarningsBOH: false,
+    showPeerTipFOH: true,
+    showPeerTipBOH: false,
+    showPeerWageFOH: true,
+    showPeerWageBOH: false,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
     showCoworkerListFOH: true,
@@ -175,8 +194,10 @@ test("coworker list setting is independent per category — turning it off for B
 test("MANAGER/ADMIN ignore the coworker-list setting entirely — they always see everyone", () => {
   const viewer: Viewer = { employeeId: 99, systemRole: "MANAGER", ownCategory: "FOH" };
   const noListSettings = {
-    showPeerEarningsFOH: true,
-    showPeerEarningsBOH: true,
+    showPeerTipFOH: true,
+    showPeerTipBOH: true,
+    showPeerWageFOH: true,
+    showPeerWageBOH: true,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
     showCoworkerListFOH: false,
@@ -189,8 +210,10 @@ test("MANAGER/ADMIN ignore the coworker-list setting entirely — they always se
 test("category restriction settings are independent per category — BOH stays restricted while FOH opens up", () => {
   const bohViewer: Viewer = { employeeId: 3, systemRole: "STAFF", ownCategory: "BOH" };
   const mixedSettings = {
-    showPeerEarningsFOH: true,
-    showPeerEarningsBOH: false,
+    showPeerTipFOH: true,
+    showPeerTipBOH: false,
+    showPeerWageFOH: true,
+    showPeerWageBOH: false,
     restrictFOHToOwnCategory: false,
     restrictBOHToOwnCategory: true, // BOH still locked down
     showCoworkerListFOH: true,
@@ -199,4 +222,65 @@ test("category restriction settings are independent per category — BOH stays r
   const result = getVisibleRosterEntries(bohViewer, sampleRoster, mixedSettings);
   const ids = result.map((e) => e.employeeId).sort();
   assert.deepEqual(ids, [3, 4, 5]); // BOH viewer still restricted to BOH + always-visible, unaffected by FOH's flag
+});
+
+/* ---------------------------------------------------------------------- */
+/* Tip/Wage split (2026-08-10) — the new behavior these settings enable:  */
+/* showing one of tip/wage without the other, per category.                */
+/* ---------------------------------------------------------------------- */
+
+test("split settings: FOH peer tip shown, FOH peer wage hidden — same category, independent fields", () => {
+  const viewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
+  const tipOnlySettings = {
+    showPeerTipFOH: true,
+    showPeerTipBOH: false,
+    showPeerWageFOH: false, // wage off even though tip is on, same category
+    showPeerWageBOH: false,
+    restrictFOHToOwnCategory: true,
+    restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: true,
+  };
+  const result = getVisibleRosterEntries(viewer, sampleRoster, tipOnlySettings);
+  const bartenderEntry = result.find((e) => e.employeeId === 2)!;
+  assert.equal(bartenderEntry.tipShare, 62.1); // tip visible
+  assert.equal(bartenderEntry.flatWage, undefined); // wage hidden
+});
+
+test("split settings: BOH peer wage shown, BOH peer tip hidden — the reverse split", () => {
+  const viewer: Viewer = { employeeId: 3, systemRole: "STAFF", ownCategory: "BOH" };
+  const wageOnlySettings = {
+    showPeerTipFOH: true,
+    showPeerTipBOH: false, // tip off for BOH
+    showPeerWageFOH: true,
+    showPeerWageBOH: true, // wage on for BOH, opposite of tip
+    restrictFOHToOwnCategory: true,
+    restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: true,
+  };
+  const result = getVisibleRosterEntries(viewer, sampleRoster, wageOnlySettings);
+  const chefEntry = result.find((e) => e.employeeId === 4)!;
+  assert.equal(chefEntry.flatWage, 90); // wage visible
+  // Chef's sample data has no tipShare to begin with, so also check a
+  // hypothetical FOH-shaped case isn't accidentally leaking the field:
+  assert.equal("tipShare" in chefEntry, false);
+});
+
+test("split settings: viewer's own row always shows both tip and wage regardless of category settings", () => {
+  const viewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
+  const allOffSettings = {
+    showPeerTipFOH: false,
+    showPeerTipBOH: false,
+    showPeerWageFOH: false,
+    showPeerWageBOH: false,
+    restrictFOHToOwnCategory: true,
+    restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: true,
+  };
+  const result = getVisibleRosterEntries(viewer, sampleRoster, allOffSettings);
+  const self = result.find((e) => e.employeeId === 1)!;
+  assert.equal(self.tipShare, 55.5);
+  assert.equal(self.flatWage, 60);
 });
