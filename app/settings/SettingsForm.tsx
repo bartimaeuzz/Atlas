@@ -68,7 +68,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
             <span className="block text-neutral-500 mb-1">Default sales tax rate</span>
             <input
               type="number"
-              step="0.0001"
+              step="any"
               name="defaultSalesTaxRate"
               defaultValue={settings.defaultSalesTaxRate}
               className="border rounded px-3 py-1.5 text-sm w-32"
