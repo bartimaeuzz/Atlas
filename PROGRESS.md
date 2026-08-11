@@ -1237,4 +1237,91 @@ on.
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet
 - Auth (systemRole field exists on Employee, no actual login system yet)
 - Deploy to Vercel
-- Validation against real Youk Thai numbers (`2026 - R.xlsx` not yet provided)
+- Validation against real Youk Thai numbers — **partially resolved 2026-08-10**, see below (Oliver provided a real monthly sales/tax export, `MARCH 2026.xlsx`, used to design and verify the sales/tax report feature). `2026 - R.xlsx` (the original closing-report DNA file, for tip/wage validation) still not provided.
+
+## Sales tax fields + sales/tax export report (2026-08-10)
+
+Oliver asked for a report export before doing anything else ("ก่อนจะ Export ได้
+เราต้องมาคุยกันก่อนไหมว่าเราต้องการอะไรบ้าง?") — right call, since this
+surfaced a real gap: Atlas never had a sales-tax field at all. Rather than
+design blind, Oliver shared a real file: an email from Aey (the Youk Thai
+manager) with the actual monthly report she sends — `MARCH 2026.xlsx` — a
+Toast section (daily Net Sale/Tax/Total Sale/Cash/CC/CC Tips/Total Credit)
+and one section per online platform (Grubhub/Uber/DoorDash/HungryPanda,
+each with Net/Tax/Tips/Total).
+
+**Real finding from reviewing that file, confirmed with Oliver using the
+actual numbers:** the file's "CC" and "Total Credit" columns are SWAPPED
+relative to their own labels. Proven directly: every single row satisfies
+`labeled-"Total Credit" + "CC Tips" == labeled-"CC"` (checked across 4+
+days, e.g. Mar 1: 23,528.60 + 4,188.24 = 27,716.84). This means the column
+labeled "CC" is actually the total that hit the card terminal (sales +
+tip combined), and the column labeled "Total Credit" is actually the
+card-sales-only portion (no tip) — the opposite of what the labels say.
+Confirmed with Oliver: the export uses CORRECT labels (`CC Sales`,
+`Total Credit`), not a copy of the swapped original.
+
+Also confirmed with Oliver: `shiftSales.totalSales` has ALWAYS meant Net
+Sale (pre-tax) — nothing about its existing meaning changes, tax is
+purely additive as a new field.
+
+**What shipped:**
+- `restaurantSettings.defaultSalesTaxRate` (seeded 0.08875 — NYC's
+  combined rate, confirmed by checking Tax/NetSale ratio in the real
+  file's data, comes out to exactly 0.08875 on every row). Editable on
+  `/settings`.
+- `shiftSales.salesTax` and `onlinePlatformSalesRecords.taxAmount` —
+  both NULLABLE (same `null = not yet touched` convention as
+  `shiftWageAdjustments.wageOverrideAmount`). `loadClosingReportData.ts`
+  auto-suggests `base × defaultSalesTaxRate` when null, flagged via a new
+  `salesTaxIsAuto`/`taxAmountIsAuto` boolean the UI uses to show "auto-
+  calculated, edit if it differs." Once a manager saves the closing
+  report (even unchanged), that number becomes the explicit, permanent
+  figure for that shift — chose nullable specifically so a legitimate $0
+  entry doesn't get silently overwritten by the auto-suggestion on next
+  load.
+- New `lib/reports/loadSalesTaxReport.ts` — rolls up FINALIZED shifts
+  into daily rows grouped by calendar date (summing Lunch+Dinner, since
+  Atlas's `shifts` table is per-meal-period but Toast/accounting report
+  per day), computing `ccSalesOnly = totalSales - cashSales` and
+  `totalCredit = ccSalesOnly + ccTipTotal` with the corrected semantics
+  above. Same auto-fill-if-null fallback as the closing report, so a
+  report over old/never-revisited shifts still shows a sane tax figure
+  instead of $0.
+- New `/reports` page — preset buttons (This week/month/year) + a custom
+  date-range form, on-page Toast daily table + online-platform range
+  totals, and an "Export .xlsx" link.
+- New `app/reports/export/route.ts` (first Route Handler in this app —
+  needed for the `Content-Disposition` header a server action can't set)
+  + `lib/reports/buildSalesTaxWorkbook.ts` (new `exceljs` dependency) —
+  generates a `.xlsx` laid out like the real MARCH 2026.xlsx (Toast
+  section, then one 4-column block per platform side by side, then
+  online sale/tax totals), correct labels, opens directly in Google
+  Sheets via upload — Oliver's stated normal workflow, no Google API
+  integration needed.
+- Deliberate simplification vs. the original file: every platform gets
+  the same 4 columns (Net/Tax/Tips/Total) — the original inconsistently
+  omitted Tips for Uber, but Atlas tracks tips uniformly across every
+  platform already, so there's no reason to omit it here.
+
+**Verified:**
+- Migration `db/migrations/0003_graceful_shooting_star.sql` (3 new
+  columns across `online_platform_sales_records`, `restaurant_settings`,
+  `shift_sales`).
+- `verify_sales_tax.ts` — auto-suggestion formula matches expected
+  (`totalSales × 0.08875`), flagged auto before any save, and an explicit
+  save with a DELIBERATELY different number is preserved exactly and
+  flagged non-auto on reload (never silently overwritten).
+- `verify_sales_tax_report.ts` — real seeded data (14 finalized shifts,
+  7 days) rolls up to exactly 7 daily rows; every day's `netSale + tax =
+  totalSale` and `ccSalesOnly + ccTips = totalCredit`; daily rows sum
+  exactly to the totals row; online platform totals sum correctly;
+  `buildSalesTaxWorkbook` produces a real, correctly-laid-out `.xlsx`
+  (spot-checked by reading it back with openpyxl).
+- 68 unit tests still passing (tax is reporting-only, doesn't touch the
+  calc engine, so nothing existing changed behavior).
+- `next build` succeeds, no TypeScript errors.
+
+**Not yet run:** `npm run db:migrate` against the live Turso database —
+same order-of-operations as every prior schema change, Oliver migrates
+Turso before pushing this code live.

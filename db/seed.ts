@@ -42,6 +42,10 @@ async function seed() {
     pool2SplitMethod: "POINT_WEIGHTED",
     pool3SplitMethod: "EQUAL_SPLIT",
     hostDrinkBonusPerDrinkAmount: 1.0,
+    // 8.875% — NYC's combined state+city sales tax rate, confirmed against
+    // Oliver's real MARCH 2026.xlsx report (Tax / Net Sale comes out to
+    // 0.08875 on every row). 2026-08-10, sales/tax export feature.
+    defaultSalesTaxRate: 0.08875,
   });
 
   await db.insert(onlinePlatforms).values([

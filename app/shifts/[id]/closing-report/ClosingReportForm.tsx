@@ -37,7 +37,15 @@ export function ClosingReportForm({
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium mb-3">Sales</legend>
         <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
-          <Field label="Total sales" name="totalSales" defaultValue={s?.totalSales} />
+          <Field label="Total sales (Net, before tax)" name="totalSales" defaultValue={s?.totalSales} />
+          <div>
+            <Field label="Sales tax" name="salesTax" defaultValue={s?.salesTax} />
+            {s?.salesTaxIsAuto && (
+              <p className="text-xs text-neutral-400 mt-1">
+                Auto-calculated from the tax rate in Settings — edit if Toast&apos;s actual number differs.
+              </p>
+            )}
+          </div>
           <Field label="CC tip total (Toast, all sources)" name="ccTipTotal" defaultValue={s?.ccTipTotal} />
           <Field label="Takeout CC tip (subset of above)" name="takeoutCcTip" defaultValue={s?.takeoutCcTip} />
           <Field label="Delivery Toast tip (subset of above)" name="deliveryToastTip" defaultValue={s?.deliveryToastTip} />
@@ -48,7 +56,8 @@ export function ClosingReportForm({
         </div>
         <p className="text-xs text-neutral-500 mt-2">
           &quot;CC tip total&quot; must be the FULL day&apos;s card tip total — takeout and delivery tip are a
-          subset of it, not extra on top. Fill this in first.
+          subset of it, not extra on top. Fill this in first. &quot;Total sales&quot; is Net Sale (before tax) —
+          same meaning it&apos;s always had, tax is now tracked separately.
         </p>
       </fieldset>
 
@@ -277,8 +286,14 @@ export function ClosingReportForm({
           {data.platformSales.map((p) => (
             <div key={p.platformId} className="border rounded p-3">
               <div className="text-sm font-medium mb-2">{p.platformName}</div>
-              <div className="grid sm:grid-cols-4 gap-3">
-                <Field label="Sales amount" name={`platform_${p.platformId}_salesAmount`} defaultValue={p.salesAmount} />
+              <div className="grid sm:grid-cols-5 gap-3">
+                <Field label="Sales amount (Net)" name={`platform_${p.platformId}_salesAmount`} defaultValue={p.salesAmount} />
+                <div>
+                  <Field label="Sales tax" name={`platform_${p.platformId}_taxAmount`} defaultValue={p.taxAmount} />
+                  {p.taxAmountIsAuto && (
+                    <p className="text-xs text-neutral-400 mt-1">Auto-calculated, edit if it differs.</p>
+                  )}
+                </div>
                 <Field label="Commission fee" name={`platform_${p.platformId}_commissionFee`} defaultValue={p.commissionFee} />
                 <Field label="Tip — platform courier" name={`platform_${p.platformId}_tipCourier`} defaultValue={p.tipAmountPlatformCourier} />
                 <Field label="Tip — restaurant delivery" name={`platform_${p.platformId}_tipRestaurantDelivery`} defaultValue={p.tipAmountRestaurantDelivery} />

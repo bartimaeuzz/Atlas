@@ -62,6 +62,26 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
       </fieldset>
 
       <fieldset>
+        <legend className="text-lg font-medium mb-3">Sales tax</legend>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <label className="text-sm block">
+            <span className="block text-neutral-500 mb-1">Default sales tax rate</span>
+            <input
+              type="number"
+              step="0.0001"
+              name="defaultSalesTaxRate"
+              defaultValue={settings.defaultSalesTaxRate}
+              className="border rounded px-3 py-1.5 text-sm w-32"
+            />
+            <span className="block text-xs text-neutral-400 mt-1">
+              e.g. 0.08875 for NYC&apos;s 8.875% — used to auto-fill the Sales tax field on each
+              Closing Report; a manager can always edit it per shift if Toast&apos;s real number differs
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend className="text-lg font-medium mb-3">Tip pool split method</legend>
         <div className="grid sm:grid-cols-3 gap-4">
           <PoolMethodSelect name="pool1SplitMethod" defaultValue={settings.pool1SplitMethod} label="Pool 1 — Dine-in" />

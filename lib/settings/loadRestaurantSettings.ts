@@ -16,6 +16,11 @@ export interface RestaurantSettingsData {
   pool2SplitMethod: PoolSplitMethod;
   pool3SplitMethod: PoolSplitMethod;
   hostDrinkBonusPerDrinkAmount: number;
+  /** Default sales-tax rate (e.g. 0.08875 for NYC) used to auto-suggest
+   * shiftSales.salesTax / onlinePlatformSalesRecords.taxAmount on the
+   * Closing Report — always editable per shift, this is just the starting
+   * point. 2026-08-10, sales/tax export feature. */
+  defaultSalesTaxRate: number;
 }
 
 /** Single-row settings table (restaurantId=1 reserved for future
@@ -42,6 +47,7 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
       pool2SplitMethod: "POINT_WEIGHTED",
       pool3SplitMethod: "EQUAL_SPLIT",
       hostDrinkBonusPerDrinkAmount: 0,
+      defaultSalesTaxRate: 0,
     };
   }
   return {
@@ -56,5 +62,6 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     pool2SplitMethod: row.pool2SplitMethod as PoolSplitMethod,
     pool3SplitMethod: row.pool3SplitMethod as PoolSplitMethod,
     hostDrinkBonusPerDrinkAmount: row.hostDrinkBonusPerDrinkAmount,
+    defaultSalesTaxRate: row.defaultSalesTaxRate,
   };
 }

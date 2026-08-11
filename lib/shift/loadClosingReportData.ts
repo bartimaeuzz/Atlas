@@ -3,8 +3,13 @@ import { db } from "@/db/client";
 import {
   shifts, shiftSales, onlinePlatforms, onlinePlatformSalesRecords,
   metricDefinitions, positionMetrics, metricValues, shiftWageAdjustments,
+  restaurantSettings,
 } from "@/db/schema";
 import { loadShiftCalcData, type TipPoolGroup } from "@/lib/shift/loadRosterForCalc";
+
+function round2(n: number): number {
+  return Math.round((n + 1e-9) * 100) / 100;
+}
 
 export interface PlatformSalesRow {
   platformId: number;
@@ -13,6 +18,13 @@ export interface PlatformSalesRow {
   commissionFee: number;
   tipAmountPlatformCourier: number;
   tipAmountRestaurantDelivery: number;
+  /** Resolved tax: the explicit saved value if set, else a SUGGESTED value
+   * (salesAmount × defaultSalesTaxRate) — see taxAmountIsAuto to tell them
+   * apart. 2026-08-10, sales-tax export feature. */
+  taxAmount: number;
+  /** True when taxAmount above is a computed suggestion, not something a
+   * manager actually entered/confirmed yet. */
+  taxAmountIsAuto: boolean;
 }
 
 export interface PointValueRow {
@@ -89,6 +101,10 @@ export interface ClosingReportData {
     cashTip: number;
     grossFoodSales: number;
     grossBeverageSales: number;
+    /** Resolved tax: explicit saved value if set, else SUGGESTED
+     * (totalSales × defaultSalesTaxRate) — see salesTaxIsAuto. */
+    salesTax: number;
+    salesTaxIsAuto: boolean;
   } | null;
   platformSales: PlatformSalesRow[];
   /** Tip-pool-eligible roster rows, for the "Tip points" section — this is
@@ -113,6 +129,8 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
   if (!shift) return { shift: null, sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [] };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
+  const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
+  const taxRate = settings?.defaultSalesTaxRate ?? 0;
 
   const platforms = await db.select().from(onlinePlatforms);
   const records = await db
@@ -123,13 +141,17 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
 
   const platformSales: PlatformSalesRow[] = platforms.map((p) => {
     const r = recordByPlatformId.get(p.id);
+    const salesAmount = r?.salesAmount ?? 0;
+    const taxAmountIsAuto = r?.taxAmount == null;
     return {
       platformId: p.id,
       platformName: p.name,
-      salesAmount: r?.salesAmount ?? 0,
+      salesAmount,
       commissionFee: r?.commissionFee ?? 0,
       tipAmountPlatformCourier: r?.tipAmountPlatformCourier ?? 0,
       tipAmountRestaurantDelivery: r?.tipAmountRestaurantDelivery ?? 0,
+      taxAmount: taxAmountIsAuto ? round2(salesAmount * taxRate) : r!.taxAmount!,
+      taxAmountIsAuto,
     };
   });
 
@@ -313,6 +335,8 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
           cashTip: sales.cashTip,
           grossFoodSales: sales.grossFoodSales,
           grossBeverageSales: sales.grossBeverageSales,
+          salesTax: sales.salesTax == null ? round2(sales.totalSales * taxRate) : sales.salesTax,
+          salesTaxIsAuto: sales.salesTax == null,
         }
       : null,
     platformSales,

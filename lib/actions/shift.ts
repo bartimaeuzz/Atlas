@@ -167,6 +167,13 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData) {
     cashTip: num("cashTip"),
     grossFoodSales: num("grossFoodSales"),
     grossBeverageSales: num("grossBeverageSales"),
+    // Sales tax (2026-08-10) — the form field is pre-filled with an
+    // auto-computed suggestion (totalSales × defaultSalesTaxRate) by the
+    // loader, but whatever's actually in the field on submit is what gets
+    // saved, same as every other sales field here — once a manager saves
+    // the report (even unchanged), that number becomes the real, explicit
+    // figure for this shift, no longer just a suggestion.
+    salesTax: num("salesTax"),
   };
 
   const [existing] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
@@ -182,6 +189,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData) {
     const commissionFee = num(`platform_${platform.id}_commissionFee`);
     const tipAmountPlatformCourier = num(`platform_${platform.id}_tipCourier`);
     const tipAmountRestaurantDelivery = num(`platform_${platform.id}_tipRestaurantDelivery`);
+    const taxAmount = num(`platform_${platform.id}_taxAmount`); // 2026-08-10, same pre-filled-suggestion pattern as shiftSales.salesTax
     const netAmount = Math.round((salesAmount - commissionFee) * 100) / 100;
 
     const [existingRecord] = await db
@@ -194,7 +202,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData) {
         )
       );
 
-    const values = { salesAmount, commissionFee, netAmount, tipAmountPlatformCourier, tipAmountRestaurantDelivery };
+    const values = { salesAmount, commissionFee, netAmount, tipAmountPlatformCourier, tipAmountRestaurantDelivery, taxAmount };
     if (existingRecord) {
       await db
         .update(onlinePlatformSalesRecords)

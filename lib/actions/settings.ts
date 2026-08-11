@@ -27,6 +27,11 @@ export async function updateRestaurantSettings(
       throw new Error("Host drink bonus rate must be a non-negative number");
     }
 
+    const defaultSalesTaxRate = Number(formData.get("defaultSalesTaxRate") ?? 0);
+    if (Number.isNaN(defaultSalesTaxRate) || defaultSalesTaxRate < 0 || defaultSalesTaxRate > 1) {
+      throw new Error("Default sales tax rate must be a number between 0 and 1 (e.g. 0.08875 for 8.875%)");
+    }
+
     const poolMethod = (name: string) => {
       const v = String(formData.get(name) ?? "");
       if (!POOL_METHODS.includes(v as (typeof POOL_METHODS)[number])) {
@@ -42,6 +47,7 @@ export async function updateRestaurantSettings(
       .set({
         ccTipDeductionRate,
         hostDrinkBonusPerDrinkAmount,
+        defaultSalesTaxRate,
         pool1SplitMethod: poolMethod("pool1SplitMethod"),
         pool2SplitMethod: poolMethod("pool2SplitMethod"),
         pool3SplitMethod: poolMethod("pool3SplitMethod"),

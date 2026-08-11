@@ -206,6 +206,16 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // money OR names at all, as a privacy safeguard.
   rosterShowCoworkerListFOH: integer("roster_show_coworker_list_foh", { mode: "boolean" }).notNull().default(true),
   rosterShowCoworkerListBOH: integer("roster_show_coworker_list_boh", { mode: "boolean" }).notNull().default(true),
+  // Sales tax export feature (2026-08-10) — reviewed against Oliver's real
+  // "MARCH 2026.xlsx" monthly report (Toast + 4 online platforms, each with
+  // its own Net/Tax/Total). Confirmed with Oliver: shiftSales.totalSales has
+  // ALWAYS meant Net Sale (pre-tax) — this rate is just a starting default,
+  // NOT the source of truth. e.g. 0.08875 for NYC's combined rate. The
+  // manager can always override the auto-filled tax amount per shift if
+  // Toast's actual number doesn't match (same override pattern as wage
+  // adjustments). Default 0 so nothing changes for any restaurant that
+  // hasn't set a rate yet.
+  defaultSalesTaxRate: real("default_sales_tax_rate").notNull().default(0),
 });
 
 export const onlinePlatforms = sqliteTable("online_platforms", {
@@ -334,6 +344,18 @@ export const shiftSales = sqliteTable("shift_sales", {
   cashTip: real("cash_tip").notNull().default(0),
   grossFoodSales: real("gross_food_sales").notNull().default(0),
   grossBeverageSales: real("gross_beverage_sales").notNull().default(0),
+  // Sales tax collected on totalSales (2026-08-10) — reporting-only, never
+  // touches tip/wage math. NULLABLE, same "null = auto-resolve" convention
+  // as shiftWageAdjustments.wageOverrideAmount: null means nobody has
+  // touched this yet, so the loader/export computes a SUGGESTED value from
+  // restaurantSettings.defaultSalesTaxRate × totalSales; a manager typing an
+  // explicit number (including 0) always wins over the suggestion. Chose
+  // nullable over notNull-default-0 specifically so a legitimate $0 entry
+  // doesn't get silently re-overwritten by the auto-suggestion on next
+  // load. Reviewed against Oliver's real "MARCH 2026.xlsx" export — see
+  // PROGRESS.md's dated section for the full Cash/CC/Total Credit
+  // column-swap finding from that same review.
+  salesTax: real("sales_tax"),
 });
 
 export const onlinePlatformSalesRecords = sqliteTable("online_platform_sales_records", {
@@ -349,6 +371,13 @@ export const onlinePlatformSalesRecords = sqliteTable("online_platform_sales_rec
   // depends on WHO delivered the order (confirmed 2026-08-08):
   tipAmountPlatformCourier: real("tip_amount_platform_courier").notNull().default(0), // platform's own courier delivered -> Pool 2
   tipAmountRestaurantDelivery: real("tip_amount_restaurant_delivery").notNull().default(0), // restaurant's own Delivery Guy delivered -> Pool 3
+  // Sales tax for this platform's orders (2026-08-10) — same auto-fill-then-
+  // override pattern as shiftSales.salesTax above, computed off salesAmount.
+  // Each online platform in Oliver's real report has its own Tax column
+  // (Grubhub/Uber/Doordash/Hungry Panda all differ), so this lives per
+  // record, not as one shared shift-level number. NULLABLE — same
+  // null-means-auto-suggest convention as shiftSales.salesTax above.
+  taxAmount: real("tax_amount"),
 });
 
 /* ---------------------------------------------------------------------- */
