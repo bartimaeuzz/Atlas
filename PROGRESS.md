@@ -1509,6 +1509,22 @@ calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
 `0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
 Turso DB — run `npm run db:migrate` to apply, then `git push`.
 
+## Weekly plan: double-booking warning badge (2026-08-11, Oliver-reported)
+
+Oliver spotted it live on the deployed `/schedule/plan` page (himself
+listed as both Bartender and Busser on the same Monday Dinner slot) —
+nothing in the schema stops a manager from assigning the same person
+to two different positions in the same date+period, but a person
+obviously can't work both at once. Not blocking it outright (a manager
+might occasionally mean it, e.g. a genuinely dual-role person), just
+surfacing it: `WeeklyPlanGrid.tsx` now computes, per employee per
+date+period slot, every position they're assigned across the whole
+grid, and renders a small orange "!" badge next to their name pill
+when that's more than one, with a hover tooltip naming the conflicting
+position(s). Pure client-side computed from data already loaded, no
+schema/action changes. No new tests (presentational only); verified
+via build + all 71 existing unit tests passing unchanged.
+
 ## Schedule Planner — Phase 2 shipped: weekly plan grid + publish + auto-seed (2026-08-11)
 
 Second piece, built directly on top of Phase 1's staffing targets and
