@@ -670,3 +670,52 @@ export const employeeScheduleTemplates = sqliteTable(
     ),
   })
 );
+
+// Phase 2 (2026-08-11) — a specific week's actual planned schedule.
+// weekStartDate is always a Monday (see lib/schedule/weekMath.ts), same
+// week-boundary convention already used by Reports and My Pay's
+// week/month grouping. Kept deliberately separate from shifts/
+// shiftRosterEntries (the day-of operational tables the Closing Report
+// uses) — planning ahead and day-of operations are different concerns.
+// Once published, createShift (lib/actions/shift.ts) auto-seeds a real
+// Shift's roster from the matching plannedShiftAssignments rows for that
+// date — see that function's comment for how the hook works.
+export const scheduleWeeks = sqliteTable("schedule_weeks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  weekStartDate: text("week_start_date").notNull().unique(),
+  status: text("status", { enum: ["draft", "published"] }).notNull().default("draft"),
+  publishedAt: text("published_at"),
+});
+
+// One row per (employee, position, date, period) slot in a specific
+// week's plan. Usually generated from employeeScheduleTemplates
+// (sourceType=FROM_TEMPLATE) when the week is first built, but a manager
+// can add/remove rows to handle that week's exceptions — sourceType
+// distinguishes the two so it's clear at a glance which is which.
+// isExtraCoverage is the YELLOW flag from the reference schedule —
+// confirmed standalone with Oliver, NOT tied to a red vacancy: a manager
+// marking a day as needing extra headcount beyond the template (an
+// anticipated busy day, a known advance-booked event), independent of
+// anyone actually leaving.
+export const plannedShiftAssignments = sqliteTable(
+  "planned_shift_assignments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    weekId: integer("week_id").notNull().references(() => scheduleWeeks.id),
+    employeeId: integer("employee_id").notNull().references(() => employees.id),
+    positionId: integer("position_id").notNull().references(() => positions.id),
+    date: text("date").notNull(), // ISO date string, a specific day within that week
+    period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
+    sourceType: text("source_type", { enum: ["FROM_TEMPLATE", "MANUAL_ADD"] }).notNull().default("MANUAL_ADD"),
+    isExtraCoverage: integer("is_extra_coverage", { mode: "boolean" }).notNull().default(false),
+  },
+  (t) => ({
+    uniqWeekEmployeePositionDatePeriod: uniqueIndex("uniq_planned_assignment_week_employee_position_date_period").on(
+      t.weekId,
+      t.employeeId,
+      t.positionId,
+      t.date,
+      t.period
+    ),
+  })
+);

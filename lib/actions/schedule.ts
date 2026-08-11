@@ -3,7 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { employeeScheduleTemplates, positionStaffingTargets, positions } from "@/db/schema";
+import {
+  employeeScheduleTemplates,
+  positionStaffingTargets,
+  positions,
+  scheduleWeeks,
+  plannedShiftAssignments,
+} from "@/db/schema";
+import { dateForDayOfWeek } from "@/lib/schedule/weekMath";
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 const PERIODS = ["Lunch", "Dinner"] as const;
@@ -167,4 +174,135 @@ export async function clearTemplateVacancy(templateId: number) {
     .set({ vacancyReason: null, vacancyStartsOn: null })
     .where(eq(employeeScheduleTemplates.id, templateId));
   revalidatePath("/schedule/templates");
+}
+
+/* ---------------------------------------------------------------------- */
+/* Phase 2 — Weekly Plan                                                   */
+/* ---------------------------------------------------------------------- */
+
+/** Creates a draft scheduleWeeks row (if one doesn't already exist for
+ * this Monday) and pre-fills it from the active template. Deliberately a
+ * no-op if the week already exists — re-running this against an
+ * already-generated week would either violate the unique index (a
+ * template row already seeded) or silently duplicate nothing useful, so
+ * the UI only shows the "Generate" button when loadWeeklyPlan returns
+ * week: null.
+ *
+ * A template row is SKIPPED for a given date if:
+ *   - effectiveFrom is set and later than that date (not yet in effect), or
+ *   - vacancyStartsOn is set and on/before that date (Oliver's RED case —
+ *     the employee isn't expected to fill this slot from that date on,
+ *     so the slot is deliberately left open here rather than auto-filled
+ *     with someone who's leaving; that's what makes the resulting gap
+ *     visible against the staffing target on the grid).
+ */
+export async function generateWeekFromTemplate(weekStartDate: string) {
+  const [existing] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.weekStartDate, weekStartDate));
+  if (existing) return;
+
+  const [week] = await db.insert(scheduleWeeks).values({ weekStartDate, status: "draft" }).returning();
+
+  const templateRows = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.active, true));
+
+  const rows: {
+    weekId: number;
+    employeeId: number;
+    positionId: number;
+    date: string;
+    period: "Lunch" | "Dinner";
+    sourceType: "FROM_TEMPLATE";
+  }[] = [];
+
+  for (const t of templateRows) {
+    const date = dateForDayOfWeek(weekStartDate, t.dayOfWeek);
+    if (t.effectiveFrom && date < t.effectiveFrom) continue;
+    if (t.vacancyStartsOn && date >= t.vacancyStartsOn) continue;
+
+    rows.push({
+      weekId: week.id,
+      employeeId: t.employeeId,
+      positionId: t.positionId,
+      date,
+      period: t.period as "Lunch" | "Dinner",
+      sourceType: "FROM_TEMPLATE",
+    });
+  }
+
+  if (rows.length > 0) {
+    await db.insert(plannedShiftAssignments).values(rows);
+  }
+
+  revalidatePath("/schedule/plan");
+}
+
+export interface PlannedAssignmentActionState {
+  error: string | null;
+}
+
+/** Manager's manual exception to the template — e.g. an extra body for
+ * an anticipated busy day (isExtraCoverage=true, YELLOW), or filling a
+ * gap left by a vacating employee. */
+export async function addPlannedAssignment(
+  _prevState: PlannedAssignmentActionState,
+  formData: FormData
+): Promise<PlannedAssignmentActionState> {
+  try {
+    const weekId = Number(formData.get("weekId"));
+    const employeeId = Number(formData.get("employeeId"));
+    const positionId = Number(formData.get("positionId"));
+    const date = String(formData.get("date") ?? "");
+    const period = String(formData.get("period") ?? "");
+    const isExtraCoverage = formData.get("isExtraCoverage") === "on";
+
+    if (!weekId) throw new Error("Missing week");
+    if (!employeeId) throw new Error("Employee is required");
+    if (!positionId) throw new Error("Position is required");
+    if (!date) throw new Error("Date is required");
+    if (period !== "Lunch" && period !== "Dinner") throw new Error("Period must be Lunch or Dinner");
+
+    const [existing] = await db
+      .select()
+      .from(plannedShiftAssignments)
+      .where(
+        and(
+          eq(plannedShiftAssignments.weekId, weekId),
+          eq(plannedShiftAssignments.employeeId, employeeId),
+          eq(plannedShiftAssignments.positionId, positionId),
+          eq(plannedShiftAssignments.date, date),
+          eq(plannedShiftAssignments.period, period)
+        )
+      );
+    if (existing) throw new Error("This person is already assigned to this slot");
+
+    await db.insert(plannedShiftAssignments).values({
+      weekId,
+      employeeId,
+      positionId,
+      date,
+      period,
+      sourceType: "MANUAL_ADD",
+      isExtraCoverage,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+
+  revalidatePath("/schedule/plan");
+  return { error: null };
+}
+
+export async function removePlannedAssignment(assignmentId: number) {
+  await db.delete(plannedShiftAssignments).where(eq(plannedShiftAssignments.id, assignmentId));
+  revalidatePath("/schedule/plan");
+}
+
+/** Publishing is what makes a week visible on staff's own schedule view
+ * (a later phase) — draft weeks are manager-only. No un-publish for v1;
+ * not asked for. */
+export async function publishWeek(weekId: number) {
+  await db
+    .update(scheduleWeeks)
+    .set({ status: "published", publishedAt: new Date().toISOString() })
+    .where(eq(scheduleWeeks.id, weekId));
+  revalidatePath("/schedule/plan");
 }

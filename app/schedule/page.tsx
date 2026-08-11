@@ -9,11 +9,21 @@ export default function SchedulePage() {
     <main className="max-w-3xl mx-auto p-8 font-sans">
       <h1 className="text-2xl font-semibold mb-1">Schedule Planner</h1>
       <p className="text-neutral-500 text-sm mb-6">
-        Phase 1 of the schedule planner — the foundation the weekly grid, staff-facing schedule
-        view, leave requests, and shift-swap portal will build on top of next.
+        Plan a week&apos;s schedule from your recurring templates, adjust it, and publish it.
+        Staff-facing schedule view, leave requests, and the shift-swap portal are still to come.
       </p>
 
-      <div className="grid sm:grid-cols-2 gap-4">
+      <div className="grid sm:grid-cols-3 gap-4">
+        <Link
+          href="/schedule/plan"
+          className="block border rounded p-4 hover:bg-neutral-50 sm:col-span-3"
+        >
+          <h2 className="font-medium mb-1">Weekly plan</h2>
+          <p className="text-sm text-neutral-500">
+            Build, publish, and adjust a specific week&apos;s schedule — generated from your
+            template assignments, with exceptions handled per week.
+          </p>
+        </Link>
         <Link
           href="/schedule/targets"
           className="block border rounded p-4 hover:bg-neutral-50"

@@ -8,11 +8,50 @@ import {
   shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
   onlinePlatforms, metricValues,
   shiftWageAdjustments,
+  scheduleWeeks, plannedShiftAssignments,
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
+import { weekStartFor } from "@/lib/schedule/weekMath";
+
+/** Auto-seeds a brand-new shift's roster from a PUBLISHED weekly plan
+ * (Schedule Planner Phase 2, 2026-08-11) — confirmed with Oliver: this is
+ * exactly the point of publishing a plan, so nobody has to re-enter the
+ * same names on the day the shift actually happens. Draft (unpublished)
+ * weeks are deliberately ignored — only a published plan is trustworthy
+ * enough to auto-populate real payroll-affecting rows. Silently does
+ * nothing if there's no published plan for this date/period, which is
+ * the common case today (most shifts still get built by hand until the
+ * planner is in regular use) — this is additive, not a requirement. */
+async function seedRosterFromPublishedPlan(shiftId: number, date: string, period: "Lunch" | "Dinner") {
+  const weekStartDate = weekStartFor(date);
+  const [week] = await db
+    .select()
+    .from(scheduleWeeks)
+    .where(and(eq(scheduleWeeks.weekStartDate, weekStartDate), eq(scheduleWeeks.status, "published")));
+  if (!week) return;
+
+  const planned = await db
+    .select()
+    .from(plannedShiftAssignments)
+    .where(
+      and(
+        eq(plannedShiftAssignments.weekId, week.id),
+        eq(plannedShiftAssignments.date, date),
+        eq(plannedShiftAssignments.period, period)
+      )
+    );
+  if (planned.length === 0) return;
+
+  await db.insert(shiftRosterEntries).values(
+    planned.map((p) => ({ shiftId, employeeId: p.employeeId, positionId: p.positionId }))
+  );
+}
 
 /** Creates a new draft shift for a date + meal period, then sends the
- * manager straight into building the roster for it. */
+ * manager straight into building the roster for it. Auto-seeds the
+ * roster from a published weekly plan for a NEWLY created shift only —
+ * the existing "Add someone" flow on the roster page (untouched) still
+ * handles same-day fixes on top of whatever gets seeded here. */
 export async function createShift(formData: FormData) {
   const date = String(formData.get("date") ?? "");
   const period = String(formData.get("period") ?? "");
@@ -25,9 +64,13 @@ export async function createShift(formData: FormData) {
     .from(shifts)
     .where(and(eq(shifts.date, date), eq(shifts.period, period as "Lunch" | "Dinner")));
 
-  const shift =
-    existing ??
-    (await db.insert(shifts).values({ date, period: period as "Lunch" | "Dinner", status: "draft" }).returning())[0];
+  let shift = existing;
+  if (!shift) {
+    shift = (
+      await db.insert(shifts).values({ date, period: period as "Lunch" | "Dinner", status: "draft" }).returning()
+    )[0];
+    await seedRosterFromPublishedPlan(shift.id, date, period as "Lunch" | "Dinner");
+  }
 
   revalidatePath("/shifts");
   redirect(`/shifts/${shift.id}/roster`);

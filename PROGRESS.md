@@ -1508,3 +1508,57 @@ unit tests added — Phase 1 is straightforward CRUD with no new
 calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
 `0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
 Turso DB — run `npm run db:migrate` to apply, then `git push`.
+
+## Schedule Planner — Phase 2 shipped: weekly plan grid + publish + auto-seed (2026-08-11)
+
+Second piece, built directly on top of Phase 1's staffing targets and
+template assignments. Two new tables (migration `0006`, purely
+additive):
+
+- `scheduleWeeks` — one row per Monday-starting week, `status`
+  (`draft`/`published`) + `publishedAt`. A week only exists once
+  someone generates it.
+- `plannedShiftAssignments` — the actual grid cells: employee ×
+  position × date × period, `sourceType` (`FROM_TEMPLATE` vs
+  `MANUAL_ADD`) and `isExtraCoverage` (the YELLOW flag — confirmed
+  standalone from the RED vacancy flag, a manager marking a slot as
+  extra headcount for an anticipated busy day, independent of the
+  template).
+
+**New page `/schedule/plan`:** week-nav (prev/next Monday), a
+"Generate from template" button when that week hasn't been built yet
+(seeds `plannedShiftAssignments` from active `employeeScheduleTemplates`
+rows, skipping anyone not yet effective or already vacated by that
+date), then a Position × Date grid per Lunch/Dinner — same visual
+shape as the Staffing Targets grid on purpose. Cells under their
+staffing target get a red-tinted background + "N/target" badge (an
+at-a-glance short-staffed signal, distinct from the RED
+vacancy-on-template flag — this is a live count-vs-target comparison,
+not a stored flag). Manual add-to-slot form reuses the roster's
+employee-picks-defaults-position UX, with an "Extra coverage" checkbox
+for the YELLOW case. "Publish" button (confirm dialog) flips
+`status` to `published` and stamps `publishedAt`.
+
+**Auto-seed on publish:** once a week is published, creating a brand
+new shift for a date inside that week (via the existing `createShift`
+action) now automatically bulk-inserts `shiftRosterEntries` from the
+matching `plannedShiftAssignments` — the "the plan becomes the actual
+roster" behavior Oliver wants. Deliberately scoped to NEW shifts only;
+reusing an existing draft shift is untouched, so the existing manual
+"Add someone" flow still works for day-of fixes without fighting the
+auto-seed.
+
+**What's explicitly still not built:** staff-facing "My Schedule" view
+on `/me`, leave requests + Manager request log, and the swap-request
+portal (green state). All noted in the schema doc and memory, none
+started.
+
+**Verified:** all 71 existing unit tests still pass unchanged (no
+calc-engine or existing-table changes). `next build` clean — compiled,
+typechecked, and generated all 20 routes including the two new
+`/schedule/plan` pages with zero errors (same rsync'd-copy workaround
+for the outputs-mount FUSE build quirk). No new unit tests — like
+Phase 1, this is CRUD + a straightforward seed/publish flow, no new
+calculation logic. Migration `0006_minor_thunderbolt_ross.sql` NOT yet
+applied to the production Turso DB — run `npm run db:migrate` to apply,
+then `git push`.

@@ -43,6 +43,13 @@
       "when": 1786434677154,
       "tag": "0005_numerous_major_mapleleaf",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786443360727,
+      "tag": "0006_minor_thunderbolt_ross",
+      "breakpoints": true
     }
   ]
 }
