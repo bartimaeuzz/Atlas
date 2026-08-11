@@ -16,7 +16,11 @@ export interface RosterPageEntry {
 export interface RosterPageData {
   shift: { id: number; date: string; period: string; status: string } | null;
   roster: RosterPageEntry[];
-  allEmployees: { id: number; name: string }[];
+  /** primaryPositionId (2026-08-10) — lets the "Add someone" form
+   * default the Position dropdown to this person's usual role the moment
+   * they're picked, instead of making the manager re-select it every
+   * time. Null for an employee with no primary position set. */
+  allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   allPositions: { id: number; name: string; category: "FOH" | "BOH" }[];
   /** employeeId -> assigned positionId[], from Employee admin (2026-08-10)
    * — powers the "Add someone" dropdown's grey-out-but-still-selectable
@@ -44,7 +48,7 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
     .where(eq(shiftRosterEntries.shiftId, shiftId));
 
   const allEmployees = await db
-    .select({ id: employees.id, name: employees.name })
+    .select({ id: employees.id, name: employees.name, primaryPositionId: employees.primaryPositionId })
     .from(employees)
     .where(eq(employees.active, true));
 

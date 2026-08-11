@@ -1325,3 +1325,53 @@ purely additive as a new field.
 **Not yet run:** `npm run db:migrate` against the live Turso database —
 same order-of-operations as every prior schema change, Oliver migrates
 Turso before pushing this code live.
+
+## Post-deploy fixes: broken dark theme, live sales-tax calc, roster position default (2026-08-10)
+
+Oliver tested the sales-tax + Reports round live (after migrating and
+pushing it himself) and came back with three things.
+
+**Dark theme was unusable.** Screenshot showed a half-black page — real
+bug, not a design choice: `app/globals.css` still had create-next-app's
+default `@media (prefers-color-scheme: dark)` block from day one, flipping
+the body background to near-black whenever the browser/OS is in dark
+mode. Every page in this app is built with hardcoded light-mode Tailwind
+classes (`bg-white` cards, `text-neutral-500`, etc.) with zero `dark:`
+variants anywhere, so the result was a broken half-dark page, not a real
+dark theme. **Fix:** removed the dark-mode media query entirely, added
+`color-scheme: light` to `:root` so native form controls (date pickers,
+etc.) stay light too. Forces light mode always until a real dark theme is
+deliberately designed (would touch every page — not attempted here).
+
+**Sales tax didn't visibly auto-calculate.** The auto-suggestion was only
+ever computed once, server-side, at page load (`loadClosingReportData.ts`)
+— typing a new Total sales value did nothing to the Sales tax field until
+a full reload, which looked broken even though the underlying formula was
+correct. **Fix:** `ClosingReportForm.tsx`'s Total sales / Sales tax pair
+(and each online platform's Sales amount / Sales tax pair, via new
+`PlatformSalesRow` sub-component) are now live client state — Sales tax
+recomputes as the sales figure changes, UNLESS the manager has directly
+edited the Sales tax field themselves (tracked per-field, starts "already
+touched" if a real explicit value was saved before, so reopening a
+filled-in report never silently overwrites a prior manual correction).
+`loadClosingReportData.ts`/`ClosingReportData` now also expose
+`defaultSalesTaxRate` at the top level so the client component has the
+rate to compute with.
+
+**Roster "Add someone" — asked for the Position dropdown to default to
+the picked employee's primary position** ("point at the primary position
+so I don't need to select every time"). `loadRosterPageData.ts`'s
+`allEmployees` now also returns `primaryPositionId`. `AddRosterEntryForm.tsx`
+computes a sane default (primary position if active & assigned, else
+first assigned, else first overall) and applies it via
+`key={selectedEmployeeId}` + `defaultValue` on the Position `<select>` —
+remounts fresh with the new default every time the employee changes,
+while staying a normal, freely-editable dropdown afterward.
+
+**Verified:** 68 unit tests still passing (none of this touches the calc
+engine). `next build` clean. Ad hoc script confirmed
+`loadRosterPageData` returns real `primaryPositionId` values against
+seeded data and `loadClosingReportData.defaultSalesTaxRate` matches the
+seeded 0.08875 (not kept as a permanent `verify_*.ts`, since it's a thin
+plumbing check rather than a new business rule). No schema changes this
+round — no migration needed, just commit + push.

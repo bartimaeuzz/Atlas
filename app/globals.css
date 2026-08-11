@@ -3,6 +3,10 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Forces light form controls (date pickers, buttons, etc.) even when the
+   * OS/browser is in dark mode — see the note below on why this app is
+   * light-mode only for now. */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -12,13 +16,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Intentionally NO `@media (prefers-color-scheme: dark)` override (removed
+ * 2026-08-10 — this was create-next-app's default boilerplate, left over
+ * from day one and never actually used). Every page in this app is built
+ * with hardcoded light-mode Tailwind classes (bg-white cards, neutral-500
+ * text, etc.) with zero dark: variants anywhere. Letting the background
+ * flip to near-black via prefers-color-scheme while every component stayed
+ * light-only produced a broken half-dark page (Oliver: "unusable"), not a
+ * real dark theme. Forcing light mode always is the correct fix until a
+ * real dark theme is deliberately designed — see project_atlas_ui_design
+ * memory before ever attempting one, since it'd touch every page. */
 body {
   background: var(--background);
   color: var(--foreground);

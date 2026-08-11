@@ -20,7 +20,17 @@ import type { RosterPageEntry } from "@/lib/shift/loadRosterPageData";
  * positions grouped separately and greyed out. Still fully selectable,
  * not blocked — same flexibility reasoning as the confirm dialog above,
  * a restaurant may genuinely need someone to cover a position they're not
- * formally set up for. */
+ * formally set up for.
+ *
+ * Also (2026-08-10, later round — Oliver's ask: "point at the primary
+ * position so I don't need to select every time"): picking an employee
+ * now defaults the Position dropdown to their `primaryPositionId`
+ * (falling back to the first assigned/first-overall position if they have
+ * no primary position set or it's since been retired). Implemented via
+ * `key={selectedEmployeeId}` forcing the <select> to remount with a fresh
+ * `defaultValue` each time the employee changes — simpler than fighting a
+ * fully-controlled select, and the manager can still freely change it
+ * afterward like any normal dropdown. */
 export function AddRosterEntryForm({
   shiftId,
   roster,
@@ -30,7 +40,7 @@ export function AddRosterEntryForm({
 }: {
   shiftId: number;
   roster: RosterPageEntry[];
-  allEmployees: { id: number; name: string }[];
+  allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   allPositions: { id: number; name: string; category: "FOH" | "BOH" }[];
   employeeAssignedPositionIds: Record<number, number[]>;
 }) {
@@ -47,6 +57,19 @@ export function AddRosterEntryForm({
   // in Employee admin), don't grey out everything — just show the full
   // flat list like before, nothing to compare against yet.
   const hasAnyAssignment = assignedPositions.length > 0;
+
+  // Default Position selection: their primary position if it's active and
+  // in the list, else their first assigned position, else just whatever's
+  // first overall — always SOME sane default, never leaving it on a stale
+  // selection from the previously-picked employee.
+  const selectedEmployee = allEmployees.find((e) => e.id === selectedEmployeeId);
+  const defaultPositionId =
+    (selectedEmployee?.primaryPositionId != null && assignedIds.has(selectedEmployee.primaryPositionId)
+      ? selectedEmployee.primaryPositionId
+      : null) ??
+    assignedPositions[0]?.id ??
+    allPositions[0]?.id ??
+    "";
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     const form = e.currentTarget;
@@ -84,7 +107,13 @@ export function AddRosterEntryForm({
       </label>
       <label className="text-sm">
         <span className="block text-neutral-500 mb-1">Position</span>
-        <select name="positionId" required className="border rounded px-2 py-1 w-full">
+        <select
+          key={selectedEmployeeId}
+          name="positionId"
+          required
+          defaultValue={defaultPositionId}
+          className="border rounded px-2 py-1 w-full"
+        >
           {hasAnyAssignment ? (
             <>
               <optgroup label="Assigned to this person">

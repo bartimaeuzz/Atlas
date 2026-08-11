@@ -1,13 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import {
   saveClosingReportSales, saveClosingReportAndPreview,
   type ClosingReportActionState,
 } from "@/lib/actions/shift";
-import type { ClosingReportData } from "@/lib/shift/loadClosingReportData";
+import type { ClosingReportData, PlatformSalesRow as PlatformSalesRowData } from "@/lib/shift/loadClosingReportData";
 
 const initialState: ClosingReportActionState = { error: null };
+
+function round2(n: number): number {
+  return Math.round((n + 1e-9) * 100) / 100;
+}
 
 export function ClosingReportForm({
   shiftId,
@@ -22,6 +26,21 @@ export function ClosingReportForm({
   const [previewState, previewFormAction, isGoingToPreview] = useActionState(saveClosingReportAndPreview, initialState);
   const s = data.sales;
   const error = saveState.error ?? previewState.error;
+  const taxRate = data.defaultSalesTaxRate;
+
+  // Live sales-tax auto-calc (2026-08-10, Oliver: "after I enter the net
+  // sale, the tax doesn't get auto-calculate") — the loader only computes
+  // a suggestion once at PAGE LOAD, which looked broken since typing a new
+  // Total sales value did nothing to the Sales tax field until a reload.
+  // Fixed by tracking both fields as live state: Sales tax recomputes as
+  // Total sales changes, UNLESS the manager has directly edited Sales tax
+  // themselves (tracked via taxTouched) — starts true if a real, explicit
+  // value was already saved before (salesTaxIsAuto === false), so
+  // reopening an already-filled-in report never silently overwrites a
+  // prior manual correction.
+  const [totalSales, setTotalSales] = useState(s?.totalSales ?? 0);
+  const [salesTax, setSalesTax] = useState(s?.salesTax ?? 0);
+  const [taxTouched, setTaxTouched] = useState(s ? !s.salesTaxIsAuto : false);
 
   return (
     <form className="space-y-8">
@@ -37,12 +56,40 @@ export function ClosingReportForm({
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium mb-3">Sales</legend>
         <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
-          <Field label="Total sales (Net, before tax)" name="totalSales" defaultValue={s?.totalSales} />
+          <label className="text-sm block">
+            <span className="block text-neutral-500 mb-1">Total sales (Net, before tax)</span>
+            <input
+              type="number"
+              step={0.01}
+              name="totalSales"
+              value={totalSales}
+              onChange={(e) => {
+                const val = Number(e.target.value) || 0;
+                setTotalSales(val);
+                if (!taxTouched) setSalesTax(round2(val * taxRate));
+              }}
+              className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+            />
+          </label>
           <div>
-            <Field label="Sales tax" name="salesTax" defaultValue={s?.salesTax} />
-            {s?.salesTaxIsAuto && (
+            <label className="text-sm block">
+              <span className="block text-neutral-500 mb-1">Sales tax</span>
+              <input
+                type="number"
+                step={0.01}
+                name="salesTax"
+                value={salesTax}
+                onChange={(e) => {
+                  setSalesTax(Number(e.target.value) || 0);
+                  setTaxTouched(true);
+                }}
+                className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+              />
+            </label>
+            {!taxTouched && (
               <p className="text-xs text-neutral-400 mt-1">
-                Auto-calculated from the tax rate in Settings — edit if Toast&apos;s actual number differs.
+                Auto-calculated from the tax rate in Settings ({(taxRate * 100).toFixed(3)}%) — edit if
+                Toast&apos;s actual number differs.
               </p>
             )}
           </div>
@@ -284,21 +331,7 @@ export function ClosingReportForm({
         </p>
         <div className="space-y-4">
           {data.platformSales.map((p) => (
-            <div key={p.platformId} className="border rounded p-3">
-              <div className="text-sm font-medium mb-2">{p.platformName}</div>
-              <div className="grid sm:grid-cols-5 gap-3">
-                <Field label="Sales amount (Net)" name={`platform_${p.platformId}_salesAmount`} defaultValue={p.salesAmount} />
-                <div>
-                  <Field label="Sales tax" name={`platform_${p.platformId}_taxAmount`} defaultValue={p.taxAmount} />
-                  {p.taxAmountIsAuto && (
-                    <p className="text-xs text-neutral-400 mt-1">Auto-calculated, edit if it differs.</p>
-                  )}
-                </div>
-                <Field label="Commission fee" name={`platform_${p.platformId}_commissionFee`} defaultValue={p.commissionFee} />
-                <Field label="Tip — platform courier" name={`platform_${p.platformId}_tipCourier`} defaultValue={p.tipAmountPlatformCourier} />
-                <Field label="Tip — restaurant delivery" name={`platform_${p.platformId}_tipRestaurantDelivery`} defaultValue={p.tipAmountRestaurantDelivery} />
-              </div>
-            </div>
+            <PlatformSalesRow key={p.platformId} platform={p} taxRate={taxRate} />
           ))}
         </div>
       </fieldset>
@@ -322,6 +355,60 @@ export function ClosingReportForm({
         </div>
       )}
     </form>
+  );
+}
+
+/** One online platform's Sales amount / Sales tax pair, split out as its
+ * own component (2026-08-10) so each platform gets its own independent
+ * live-recompute state — same pattern as the Toast Total sales/Sales tax
+ * fields above, needed here per-platform since each platform's tax is
+ * computed off ITS OWN sales amount, not a shared one. */
+function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRowData; taxRate: number }) {
+  const [salesAmount, setSalesAmount] = useState(p.salesAmount);
+  const [taxAmount, setTaxAmount] = useState(p.taxAmount);
+  const [taxTouched, setTaxTouched] = useState(!p.taxAmountIsAuto);
+
+  return (
+    <div className="border rounded p-3">
+      <div className="text-sm font-medium mb-2">{p.platformName}</div>
+      <div className="grid sm:grid-cols-5 gap-3">
+        <label className="text-sm block">
+          <span className="block text-neutral-500 mb-1">Sales amount (Net)</span>
+          <input
+            type="number"
+            step={0.01}
+            name={`platform_${p.platformId}_salesAmount`}
+            value={salesAmount}
+            onChange={(e) => {
+              const val = Number(e.target.value) || 0;
+              setSalesAmount(val);
+              if (!taxTouched) setTaxAmount(round2(val * taxRate));
+            }}
+            className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+          />
+        </label>
+        <div>
+          <label className="text-sm block">
+            <span className="block text-neutral-500 mb-1">Sales tax</span>
+            <input
+              type="number"
+              step={0.01}
+              name={`platform_${p.platformId}_taxAmount`}
+              value={taxAmount}
+              onChange={(e) => {
+                setTaxAmount(Number(e.target.value) || 0);
+                setTaxTouched(true);
+              }}
+              className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+            />
+          </label>
+          {!taxTouched && <p className="text-xs text-neutral-400 mt-1">Auto-calculated, edit if it differs.</p>}
+        </div>
+        <Field label="Commission fee" name={`platform_${p.platformId}_commissionFee`} defaultValue={p.commissionFee} />
+        <Field label="Tip — platform courier" name={`platform_${p.platformId}_tipCourier`} defaultValue={p.tipAmountPlatformCourier} />
+        <Field label="Tip — restaurant delivery" name={`platform_${p.platformId}_tipRestaurantDelivery`} defaultValue={p.tipAmountRestaurantDelivery} />
+      </div>
+    </div>
   );
 }
 

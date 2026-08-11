@@ -92,6 +92,11 @@ export interface WageAdjustmentRow {
 
 export interface ClosingReportData {
   shift: { id: number; date: string; period: string; status: string } | null;
+  /** Restaurant's default sales tax rate (2026-08-10), passed down so the
+   * client-side form can LIVE-recompute the suggested Sales tax figure as
+   * the manager types Total sales, instead of only computing it once at
+   * page load — see ClosingReportForm.tsx. */
+  defaultSalesTaxRate: number;
   sales: {
     totalSales: number;
     ccTipTotal: number;
@@ -126,7 +131,7 @@ export interface ClosingReportData {
 
 export async function loadClosingReportData(shiftId: number): Promise<ClosingReportData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [] };
+  if (!shift) return { shift: null, defaultSalesTaxRate: 0, sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [] };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
   const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
@@ -325,6 +330,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
 
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
+    defaultSalesTaxRate: taxRate,
     sales: sales
       ? {
           totalSales: sales.totalSales,
