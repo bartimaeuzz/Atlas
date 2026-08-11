@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { updateStaffingTargets, type ScheduleActionState } from "@/lib/actions/schedule";
 import type { StaffingTargetPosition } from "@/lib/schedule/loadStaffingTargets";
 
@@ -10,12 +10,14 @@ const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 const initialState: ScheduleActionState = { error: null };
 
 /** One editable grid per period (Lunch/Dinner) — Position (rows, FOH then
- * BOH) x Day of week (columns). Plain number inputs, no client-side
- * validation beyond the browser's min=0 — the server action re-validates
- * anyway, same "don't trust the client" convention as every other form
- * in this app. Submits the whole grid at once (every cell, even blanks)
- * so the server can do a full resync — see updateStaffingTargets's
- * comment for why that's the right call for this small table. */
+ * BOH) x Day of week (columns). Each cell is a [-] [count] [+] stepper
+ * (2026-08-11, Oliver: wanted a "game UI" quantity picker instead of a
+ * plain number box) — purely a presentational swap, still just a plain
+ * <input type="number" name="target_..."> under the hood so the same
+ * full-grid submit + server-side validation is unchanged. Submits the
+ * whole grid at once (every cell, even blanks) so the server can do a
+ * full resync — see updateStaffingTargets's comment for why that's the
+ * right call for this small table. */
 export function TargetsForm({
   positions,
   targets,
@@ -63,13 +65,9 @@ export function TargetsForm({
                     </td>
                     {DAYS.map((day) => (
                       <td key={day} className="py-1.5 text-center">
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
+                        <TargetStepper
                           name={`target_${p.id}_${day}_${period}`}
-                          defaultValue={targets[`${p.id}:${day}:${period}`] ?? ""}
-                          className="border rounded w-12 text-center px-1 py-0.5"
+                          initialValue={targets[`${p.id}:${day}:${period}`] ?? 0}
                         />
                       </td>
                     ))}
@@ -89,5 +87,50 @@ export function TargetsForm({
         {isPending ? "Saving…" : "Save targets"}
       </button>
     </form>
+  );
+}
+
+/** [-] [count] [+] quantity stepper for one grid cell. Local state only
+ * — the actual submitted value is the hidden number input's value
+ * attribute, kept in sync on every +/- click or direct typing, so
+ * nothing about the parent form's submit/resync logic needs to change. */
+function TargetStepper({ name, initialValue }: { name: string; initialValue: number }) {
+  const [value, setValue] = useState(initialValue);
+
+  function clamp(n: number) {
+    return Number.isNaN(n) ? 0 : Math.max(0, Math.round(n));
+  }
+
+  return (
+    <div className="inline-flex items-center border rounded overflow-hidden select-none">
+      <button
+        type="button"
+        onClick={() => setValue((v) => clamp(v - 1))}
+        className="w-5 h-6 flex items-center justify-center text-neutral-500 hover:bg-neutral-100 disabled:opacity-30"
+        disabled={value <= 0}
+        tabIndex={-1}
+        aria-label="Decrease"
+      >
+        −
+      </button>
+      <input
+        type="number"
+        min={0}
+        step={1}
+        name={name}
+        value={value}
+        onChange={(e) => setValue(clamp(Number(e.target.value)))}
+        className="w-7 text-center border-x px-0 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      />
+      <button
+        type="button"
+        onClick={() => setValue((v) => clamp(v + 1))}
+        className="w-5 h-6 flex items-center justify-center text-neutral-500 hover:bg-neutral-100"
+        tabIndex={-1}
+        aria-label="Increase"
+      >
+        +
+      </button>
+    </div>
   );
 }

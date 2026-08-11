@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { removePlannedAssignment } from "@/lib/actions/schedule";
+import { addPlannedAssignment, removePlannedAssignment } from "@/lib/actions/schedule";
 import type { WeeklyPlanData, PlannedAssignmentRow } from "@/lib/schedule/loadWeeklyPlan";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -27,8 +27,31 @@ function dayOfWeekFor(dateIso: string): number {
  * Busser for the same Monday Dinner). Rather than block it outright —
  * a manager might occasionally mean it — flag it with a small warning
  * badge (hover for detail) so it's visible at a glance instead of
- * silently wrong. */
-export function WeeklyPlanGrid({ data }: { data: WeeklyPlanData }) {
+ * silently wrong.
+ *
+ * Inline quick-add (2026-08-11, Oliver): every cell also gets a small
+ * dropdown so a manager can add someone directly in the grid instead
+ * of using the separate form below — same addPlannedAssignment action,
+ * called directly (like GenerateWeekButton/PublishWeekButton do)
+ * rather than through useActionState, since this needs to live inside
+ * a table cell, not a <form>. Every cell gets it, not just under-target
+ * ones — Oliver confirmed he wants to be able to add extra people even
+ * to an already-fully-staffed cell. The "extra coverage" (yellow) flag
+ * only appears next to the dropdown once a person is picked, and is a
+ * manual checkbox, never auto-set — Oliver's call: the app shouldn't
+ * guess whether an add is "covering a known gap" vs "anticipating a
+ * busy day," those mean different things to him. */
+export function WeeklyPlanGrid({
+  data,
+  weekId,
+  allEmployees,
+  employeeAssignedPositionIds,
+}: {
+  data: WeeklyPlanData;
+  weekId: number;
+  allEmployees: { id: number; name: string }[];
+  employeeAssignedPositionIds: Record<number, number[]>;
+}) {
   const positionNameById = useMemo(() => {
     const map = new Map<number, string>();
     for (const p of data.positions) map.set(p.id, p.name);
@@ -46,6 +69,21 @@ export function WeeklyPlanGrid({ data }: { data: WeeklyPlanData }) {
     }
     return map;
   }, [data.assignments]);
+
+  // positionId -> employees split into "usually works this role" vs "other"
+  const employeesByPosition = useMemo(() => {
+    const map = new Map<number, { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] }>();
+    for (const p of data.positions) {
+      const eligible: { id: number; name: string }[] = [];
+      const other: { id: number; name: string }[] = [];
+      for (const emp of allEmployees) {
+        const assignedIds = employeeAssignedPositionIds[emp.id] ?? [];
+        (assignedIds.includes(p.id) ? eligible : other).push(emp);
+      }
+      map.set(p.id, { eligible, other });
+    }
+    return map;
+  }, [data.positions, allEmployees, employeeAssignedPositionIds]);
 
   return (
     <div className="space-y-8">
@@ -105,6 +143,14 @@ export function WeeklyPlanGrid({ data }: { data: WeeklyPlanData }) {
                                 {cellAssignments.length}/{target}
                               </div>
                             )}
+                            <QuickAddCell
+                              weekId={weekId}
+                              date={date}
+                              period={period}
+                              positionId={p.id}
+                              employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
+                              alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
+                            />
                           </div>
                         </td>
                       );
@@ -163,6 +209,117 @@ function AssignmentPill({
       >
         ×
       </button>
+    </div>
+  );
+}
+
+/** Inline "add someone to this exact slot" control — a compact
+ * dropdown (grouped: people who usually work this position, then
+ * everyone else) plus an "extra coverage" checkbox that only appears
+ * once a name is picked. Selecting a name does NOT auto-submit — you
+ * need the "+" button, so there's a chance to check the extra-coverage
+ * box first if this add is meant to be the yellow/busy-day case. */
+function QuickAddCell({
+  weekId,
+  date,
+  period,
+  positionId,
+  employees,
+  alreadyAssignedIds,
+}: {
+  weekId: number;
+  date: string;
+  period: "Lunch" | "Dinner";
+  positionId: number;
+  employees: { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] };
+  alreadyAssignedIds: Set<number>;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const [selectedId, setSelectedId] = useState<number | "">("");
+  const [isExtraCoverage, setIsExtraCoverage] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
+  const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
+  if (eligible.length === 0 && other.length === 0) return null;
+
+  function handleAdd() {
+    if (selectedId === "") return;
+    const formData = new FormData();
+    formData.set("weekId", String(weekId));
+    formData.set("employeeId", String(selectedId));
+    formData.set("positionId", String(positionId));
+    formData.set("date", date);
+    formData.set("period", period);
+    if (isExtraCoverage) formData.set("isExtraCoverage", "on");
+    setError(null);
+    startTransition(async () => {
+      const result = await addPlannedAssignment({ error: null }, formData);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      setSelectedId("");
+      setIsExtraCoverage(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <div className="mt-1">
+      <div className="flex items-center gap-1">
+        <select
+          value={selectedId}
+          disabled={isPending}
+          onChange={(e) => {
+            setSelectedId(e.target.value === "" ? "" : Number(e.target.value));
+            setError(null);
+          }}
+          className="text-[10px] border rounded px-0.5 py-0.5 max-w-[76px] text-neutral-500 disabled:opacity-50"
+        >
+          <option value="">+ Add</option>
+          {eligible.length > 0 && (
+            <optgroup label="Usually this role">
+              {eligible.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </optgroup>
+          )}
+          {other.length > 0 && (
+            <optgroup label="Other">
+              {other.map((e) => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+        {selectedId !== "" && (
+          <>
+            <label
+              className="flex items-center gap-0.5 text-[9px] text-neutral-400 cursor-pointer"
+              title="Extra coverage — an anticipated busy day, not filling a known gap"
+            >
+              <input
+                type="checkbox"
+                checked={isExtraCoverage}
+                onChange={(e) => setIsExtraCoverage(e.target.checked)}
+                className="w-2.5 h-2.5"
+              />
+              extra
+            </label>
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={isPending}
+              className="text-[10px] bg-black text-white rounded px-1 leading-tight disabled:opacity-50"
+            >
+              +
+            </button>
+          </>
+        )}
+      </div>
+      {error && <div className="text-[9px] text-red-600 mt-0.5">{error}</div>}
     </div>
   );
 }

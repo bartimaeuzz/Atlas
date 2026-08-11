@@ -96,7 +96,12 @@ export default async function WeeklyPlanPage({
             )}
           </div>
 
-          <WeeklyPlanGrid data={data} />
+          <WeeklyPlanGrid
+            data={data}
+            weekId={data.week.id}
+            allEmployees={activeEmployees}
+            employeeAssignedPositionIds={employeeAssignedPositionIds}
+          />
         </>
       )}
     </main>

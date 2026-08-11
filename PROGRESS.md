@@ -1509,6 +1509,37 @@ calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
 `0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
 Turso DB — run `npm run db:migrate` to apply, then `git push`.
 
+## Weekly plan inline quick-add + staffing target stepper (2026-08-11)
+
+Two related UI improvements Oliver asked for after using the shipped
+Phase 2 grid live:
+
+- **Inline quick-add on `/schedule/plan`:** every grid cell (not just
+  under-target/red ones — confirmed with Oliver, he wants to be able
+  to add extra people to already-full cells too) now has a small
+  dropdown right in the cell, grouped "usually works this role" vs
+  "other," calling the existing `addPlannedAssignment` action directly
+  (same pattern as `GenerateWeekButton`/`PublishWeekButton` — a plain
+  function call inside `startTransition`, not a `<form>`, since this
+  lives inside a table cell). No more needing the separate form below
+  the grid for the common case. The "extra coverage" (yellow)
+  checkbox only appears once a name is picked, and is always a manual
+  toggle — explicitly NOT auto-set based on whether the add pushes the
+  cell over target. Oliver's reasoning: the app can't tell "covering a
+  known gap" from "anticipating a busy day," and those mean different
+  things to him, so he wants to say which one it is rather than have
+  it guessed.
+- **Staffing target stepper on `/schedule/targets`:** replaced the
+  plain number input in each grid cell with a `[-] [count] [+]`
+  control (Oliver's words: wanted it to feel like a "game UI" quantity
+  picker). Purely presentational — still the same underlying
+  `<input type="number" name="target_...">` under the hood, so the
+  existing full-grid submit + server-side resync in
+  `updateStaffingTargets` didn't need to change at all.
+
+Presentational/UI-only, no schema or action changes. All 71 tests
+pass, `next build` clean.
+
 ## Weekly plan: double-booking warning badge (2026-08-11, Oliver-reported)
 
 Oliver spotted it live on the deployed `/schedule/plan` page (himself
