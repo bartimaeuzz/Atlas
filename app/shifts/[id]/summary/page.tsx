@@ -84,6 +84,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               <th className="py-1.5 text-right">Flat wage</th>
               <th className="py-1.5 text-right">Extra pay</th>
               <th className="py-1.5 text-right">Incentive</th>
+              <th className="py-1.5 text-right">Deduction</th>
               <th className="py-1.5 text-right">Total</th>
             </tr>
           </thead>
@@ -107,6 +108,9 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
                 <td className="py-1.5 text-right tabular-nums">
                   {p.incentiveAmount > 0 ? `$${p.incentiveAmount.toFixed(2)}` : "—"}
                 </td>
+                <td className="py-1.5 text-right tabular-nums text-red-600">
+                  {p.deductionAmount > 0 ? `-$${p.deductionAmount.toFixed(2)}` : "—"}
+                </td>
                 <td className="py-1.5 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
               </tr>
             ))}
@@ -114,6 +118,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           <tfoot>
             <tr className="border-t-2 font-medium">
               <td className="py-2">Total</td>
+              <td></td>
               <td></td>
               <td></td>
               <td></td>

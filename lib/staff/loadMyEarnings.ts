@@ -34,6 +34,12 @@ export interface MyShiftEarnings {
     hostUpsellTipShare: number;
     extraPayAmount: number;
     incentiveAmount: number;
+    /** Disciplinary/correction deduction (2026-08-10), 0 if none — already
+     * subtracted in totalCorePayout, shown as its own line in the viewer's
+     * OWN payout only. Deliberately NOT present on MyEarningsCoworkerRow
+     * below (only tipShare/flatWage are) — coworkers should never see this,
+     * confirmed with Oliver: employee + managers only. */
+    deductionAmount: number;
     totalTip: number;
     totalCorePayout: number;
   };
@@ -84,6 +90,7 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
       hostUpsellTipShare: employeePayouts.hostUpsellTipShare,
       extraPayAmount: employeePayouts.extraPayAmount,
       incentiveAmount: employeePayouts.incentiveAmount,
+      deductionAmount: employeePayouts.deductionAmount,
       totalTip: employeePayouts.totalTip,
       totalCorePayout: employeePayouts.totalCorePayout,
     })
@@ -211,6 +218,7 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
         hostUpsellTipShare: row.hostUpsellTipShare ?? 0,
         extraPayAmount: row.extraPayAmount,
         incentiveAmount: row.incentiveAmount,
+        deductionAmount: row.deductionAmount,
         totalTip: row.totalTip,
         totalCorePayout: row.totalCorePayout,
       },

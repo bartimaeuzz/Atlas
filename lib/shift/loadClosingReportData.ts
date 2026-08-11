@@ -70,6 +70,12 @@ export interface WageAdjustmentRow {
   wageOverrideAmount: number | null; // null = use autoResolvedWage
   extraPayAmount: number; // 0 if none, always additive
   reason: string | null;
+  /** Disciplinary/correction deduction (2026-08-10) — 0 if none, always
+   * subtractive. Kept on this same row (not a new table) since it shares
+   * the same "one adjustment per employee per shift" shape and timing as
+   * override/extra pay above. */
+  deductionAmount: number;
+  deductionReason: string | null;
 }
 
 export interface ClosingReportData {
@@ -289,6 +295,8 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       wageOverrideAmount: adjustment?.wageOverrideAmount ?? null,
       extraPayAmount: adjustment?.extraPayAmount ?? 0,
       reason: adjustment?.reason ?? null,
+      deductionAmount: adjustment?.deductionAmount ?? 0,
+      deductionReason: adjustment?.deductionReason ?? null,
     });
   }
   wageAdjustmentRows.sort((a, b) => a.employeeName.localeCompare(b.employeeName));

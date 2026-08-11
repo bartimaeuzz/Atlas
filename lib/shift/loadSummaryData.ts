@@ -30,6 +30,11 @@ export interface SummaryPayoutRow {
    * totalCorePayout, shown separately for transparency, same pattern as
    * extraPayAmount/hostUpsellTipShare. */
   incentiveAmount: number;
+  /** Disciplinary/correction deduction (2026-08-10), 0 if none — already
+   * subtracted in totalCorePayout, shown separately, manager/employee-only
+   * (never on My Pay's coworker list — see shiftWageAdjustments' schema
+   * comment). */
+  deductionAmount: number;
   totalCorePayout: number;
   /** Representative position for this shift (2026-08-10) — an employee
    * can have more than one roster row in a multi-role shift; same
@@ -77,6 +82,7 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
       extraPayAmount: employeePayouts.extraPayAmount,
       totalTip: employeePayouts.totalTip,
       incentiveAmount: employeePayouts.incentiveAmount,
+      deductionAmount: employeePayouts.deductionAmount,
       totalCorePayout: employeePayouts.totalCorePayout,
     })
     .from(employeePayouts)

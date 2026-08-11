@@ -134,7 +134,11 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     .where(eq(shiftWageAdjustments.shiftId, shiftId));
   const wageAdjustments: Record<number, WageAdjustment> = {};
   for (const a of wageAdjustmentRecords) {
-    wageAdjustments[a.employeeId] = { overrideAmount: a.wageOverrideAmount, extraPayAmount: a.extraPayAmount };
+    wageAdjustments[a.employeeId] = {
+      overrideAmount: a.wageOverrideAmount,
+      extraPayAmount: a.extraPayAmount,
+      deductionAmount: a.deductionAmount,
+    };
   }
 
   // Generic Incentive Rules engine (2026-08-10) — first real evaluation,

@@ -281,6 +281,18 @@ export const shiftRosterEntries = sqliteTable("shift_roster_entries", {
 // extraPayAmount: ALWAYS additive on top of whatever wage applies, shown
 // as its own separate line in Preview/Summary — for ad hoc coverage pay
 // that shouldn't be folded silently into "their normal wage."
+// deductionAmount / deductionReason: added 2026-08-10 for disciplinary/
+// correction deductions (late, property damage, etc.) — confirmed with
+// Oliver: fits this same row rather than a new table, since it's the same
+// "Floor Manager enters a dollar adjustment before finalizing" timing and
+// trust level as the override/extra-pay fields above. ALWAYS subtractive
+// from totalCorePayout, its own separate line (never netted silently into
+// flatWageAmount) — see finalizeShift.ts. Visibility (confirmed with
+// Oliver): shown to the employee themselves + managers only (Preview/
+// Summary, which is manager-facing), NEVER to coworkers on My Pay's
+// "Also worked this shift" list — same precedent as extraPayAmount, which
+// already isn't exposed there either. Takes effect immediately on save,
+// same as override/extra pay — no separate approval step (confirmed).
 export const shiftWageAdjustments = sqliteTable(
   "shift_wage_adjustments",
   {
@@ -290,6 +302,8 @@ export const shiftWageAdjustments = sqliteTable(
     wageOverrideAmount: real("wage_override_amount"), // null = auto-resolved
     extraPayAmount: real("extra_pay_amount").notNull().default(0),
     reason: text("reason"), // optional note, e.g. "covered Bartender for Aey (sick)"
+    deductionAmount: real("deduction_amount").notNull().default(0),
+    deductionReason: text("deduction_reason"), // e.g. "late 45 min", "broke a plate rack"
   },
   (t) => ({
     uniqShiftEmployee: uniqueIndex("uniq_shift_wage_adjustment").on(t.shiftId, t.employeeId),
@@ -413,6 +427,11 @@ export const employeePayouts = sqliteTable("employee_payouts", {
   // incentivePayoutRecords for audit purposes; this column is just the
   // per-shift total, shown as its own column like extraPayAmount.
   incentiveAmount: real("incentive_amount").notNull().default(0),
+  // Snapshot of shiftWageAdjustments.deductionAmount at finalize time
+  // (2026-08-10) — same pattern as extraPayAmount above: always subtracted
+  // in totalCorePayout, shown as its own separate line, never silently
+  // folded into flatWageAmount. 0 if no deduction was entered.
+  deductionAmount: real("deduction_amount").notNull().default(0),
   totalCorePayout: real("total_core_payout").notNull().default(0),
 });
 

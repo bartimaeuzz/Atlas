@@ -384,6 +384,105 @@ test("finalize: extra pay alone (no override) is additive on top of the normal a
   assert.equal(erika.totalCorePayout, round2(erika.tipPoolShare + 55 + 20));
 });
 
+test("finalize: disciplinary deduction subtracts from totalCorePayout as its own line, wage untouched", () => {
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 55 }, // late arrival, $10 deducted
+    { employeeId: 11, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 60 }, // unaffected coworker
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 100,
+    takeoutCcTip: 0,
+    cashTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: {
+      10: { overrideAmount: null, extraPayAmount: 0, deductionAmount: 10 },
+    },
+    incentiveAmounts: {},
+  });
+
+  const disciplined = result.employeePayouts.find((p) => p.employeeId === 10)!;
+  const coworker = result.employeePayouts.find((p) => p.employeeId === 11)!;
+
+  assert.equal(disciplined.deductionAmount, 10);
+  assert.equal(disciplined.flatWageAmount, 55); // wage itself is untouched, deduction is a separate line
+  assert.equal(
+    disciplined.totalCorePayout,
+    round2(disciplined.tipPoolShare + 55 - 10),
+    "totalCorePayout should subtract the deduction, not fold it into flatWageAmount"
+  );
+
+  // Coworker with no adjustment is untouched.
+  assert.equal(coworker.deductionAmount, 0);
+  assert.equal(coworker.totalCorePayout, round2(coworker.tipPoolShare + 60));
+});
+
+test("finalize: deduction combines correctly with an override and extra pay on the same employee", () => {
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 10, tipPoolGroups: [], pointValue: 1.0, flatWage: 55 },
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 0,
+    takeoutCcTip: 0,
+    cashTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: {
+      10: { overrideAmount: 70, extraPayAmount: 15, deductionAmount: 5 },
+    },
+    incentiveAmounts: {},
+  });
+
+  const p = result.employeePayouts.find((emp) => emp.employeeId === 10)!;
+  assert.equal(p.flatWageAmount, 70);
+  assert.equal(p.extraPayAmount, 15);
+  assert.equal(p.deductionAmount, 5);
+  assert.equal(p.totalCorePayout, round2(70 + 15 - 5)); // no tip pool involved here
+});
+
+test("finalize: WageAdjustment without deductionAmount defaults to 0 (backward compatible)", () => {
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 10, tipPoolGroups: [], pointValue: 1.0, flatWage: 55 },
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 0,
+    takeoutCcTip: 0,
+    cashTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: { 10: { overrideAmount: null, extraPayAmount: 20 } }, // no deductionAmount key at all
+    incentiveAmounts: {},
+  });
+
+  const p = result.employeePayouts.find((emp) => emp.employeeId === 10)!;
+  assert.equal(p.deductionAmount, 0);
+  assert.equal(p.totalCorePayout, round2(55 + 20));
+});
+
 test("finalize: pool1Share/pool2Share/pool3Share are tracked separately and sum to tipPoolShare; totalTip includes the drink bonus", () => {
   // Host (employee 10) is staffed in both Pool 1 and Pool 2 in one roster
   // row (Host's real-world membership), Server (11) is Pool 1 only.

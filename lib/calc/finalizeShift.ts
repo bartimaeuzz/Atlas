@@ -39,10 +39,16 @@ export interface FinalizeRosterRow {
  * (added 2026-08-10, e.g. Erika works Host but covers Aey's Bartender
  * shift when Aey calls in sick). overrideAmount, if set, REPLACES the
  * auto-resolved flat wage entirely; extraPayAmount is ALWAYS additive on
- * top of whichever wage applies, shown as its own separate payout line. */
+ * top of whichever wage applies, shown as its own separate payout line.
+ * deductionAmount (added 2026-08-10, later same day) is ALWAYS subtractive
+ * from totalCorePayout, for disciplinary/correction deductions — its own
+ * separate line, never netted into flatWageAmount. Optional (defaults to
+ * 0 via `?? 0` at the call site) so every existing caller/test that only
+ * knows about override+extraPay keeps compiling unchanged. */
 export interface WageAdjustment {
   overrideAmount: number | null;
   extraPayAmount: number;
+  deductionAmount?: number;
 }
 
 export interface FinalizeShiftInput {
@@ -103,6 +109,14 @@ export interface FinalizeEmployeePayout {
    * own separate line, same house style as extraPayAmount/hostUpsellTipShare
    * — never silently folded into another figure. */
   incentiveAmount: number;
+  /** Disciplinary/correction deduction for this shift (2026-08-10), e.g.
+   * late arrival or property damage — ALWAYS subtracted in totalCorePayout,
+   * shown as its own separate line, never netted silently into
+   * flatWageAmount. 0 if none. Visibility is enforced by callers, not
+   * here: shown to the employee + managers (Preview/Summary, My Pay's own
+   * payout block), never on My Pay's "Also worked this shift" coworker
+   * list — see shiftWageAdjustments' schema comment for the full reasoning. */
+  deductionAmount: number;
   totalCorePayout: number;
 }
 
@@ -183,6 +197,7 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     // ALWAYS additive on top, regardless of whether an override was used.
     const flatWageAmount = adjustment?.overrideAmount ?? autoResolvedWage;
     const extraPayAmount = adjustment?.extraPayAmount ?? 0;
+    const deductionAmount = adjustment?.deductionAmount ?? 0;
     const pool1Share = pool1ShareByEmployee[employeeId] ?? 0;
     const pool2Share = pool2ShareByEmployee[employeeId] ?? 0;
     const pool3Share = pool3ShareByEmployee[employeeId] ?? 0;
@@ -202,7 +217,10 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
       extraPayAmount,
       totalTip,
       incentiveAmount,
-      totalCorePayout: round2(tipPoolShare + flatWageAmount + hostUpsellTipShare + extraPayAmount + incentiveAmount),
+      deductionAmount,
+      totalCorePayout: round2(
+        tipPoolShare + flatWageAmount + hostUpsellTipShare + extraPayAmount + incentiveAmount - deductionAmount
+      ),
     };
   });
 

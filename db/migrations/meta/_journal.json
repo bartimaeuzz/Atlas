@@ -15,6 +15,13 @@
       "when": 1786406516721,
       "tag": "0001_large_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1786411613490,
+      "tag": "0002_blue_hawkeye",
+      "breakpoints": true
     }
   ]
 }

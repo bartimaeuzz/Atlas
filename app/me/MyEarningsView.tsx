@@ -103,6 +103,9 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
         <Row label="Wage" value={`$${p.flatWageAmount.toFixed(2)}`} />
         {p.extraPayAmount > 0 && <Row label="Extra pay" value={`$${p.extraPayAmount.toFixed(2)}`} />}
         {p.incentiveAmount > 0 && <Row label="Incentive" value={`$${p.incentiveAmount.toFixed(2)}`} />}
+        {p.deductionAmount > 0 && (
+          <Row label="Deduction" value={`-$${p.deductionAmount.toFixed(2)}`} valueClassName="text-red-600" />
+        )}
       </dl>
       {p.pointValueUsed !== null && (
         <p className="text-xs text-neutral-400 -mt-2 mb-3">
@@ -137,11 +140,11 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
   return (
     <div className="contents">
       <dt className="text-neutral-500">{label}</dt>
-      <dd className="text-right tabular-nums">{value}</dd>
+      <dd className={`text-right tabular-nums ${valueClassName ?? ""}`}>{value}</dd>
     </div>
   );
 }

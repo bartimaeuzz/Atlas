@@ -287,20 +287,26 @@ async function upsertMetricValues(shiftId: number, formData: FormData) {
 }
 
 /** Wage adjustments (2026-08-10) — optional per-employee override + extra
- * pay for shift-coverage situations. Trust-the-rendered-form pattern again:
- * scan for whichever employeeIds actually have inputs (loadClosingReportData
- * renders one row per roster employee), no need to re-derive who's on the
- * roster here. Fields:
+ * pay for shift-coverage situations, PLUS disciplinary/correction
+ * deductions (added later same day, same row/timing/trust level — see
+ * shiftWageAdjustments' schema comment). Trust-the-rendered-form pattern
+ * again: scan for whichever employeeIds actually have inputs
+ * (loadClosingReportData renders one row per roster employee), no need to
+ * re-derive who's on the roster here. Fields:
  *   - wageOverride_<employeeId>: blank = null (use auto wage), else replaces it.
  *   - extraPay_<employeeId>: blank/0 = 0 (no extra pay), always additive.
  *   - wageReason_<employeeId>: optional free-text note, blank = null.
- * Skips writing a row at all if both amounts are blank/0 and there's no
- * existing row, so a shift with no coverage situations doesn't accumulate
- * empty rows. */
+ *   - deduction_<employeeId>: blank/0 = 0 (no deduction), always subtractive.
+ *   - deductionReason_<employeeId>: optional free-text note, blank = null.
+ * Skips writing a row at all if every amount is blank/0 and there's no
+ * existing row, so a shift with no adjustments doesn't accumulate empty
+ * rows. A negative deduction amount is treated as invalid input (skipped,
+ * same as NaN) — the field is meant to hold a positive dollar amount to
+ * subtract, not a signed delta. */
 async function upsertWageAdjustments(shiftId: number, formData: FormData) {
   const employeeIds = new Set<number>();
   for (const key of formData.keys()) {
-    const match = /^(?:wageOverride|extraPay|wageReason)_(\d+)$/.exec(key);
+    const match = /^(?:wageOverride|extraPay|wageReason|deduction|deductionReason)_(\d+)$/.exec(key);
     if (match) employeeIds.add(Number(match[1]));
   }
 
@@ -308,27 +314,42 @@ async function upsertWageAdjustments(shiftId: number, formData: FormData) {
     const overrideRaw = String(formData.get(`wageOverride_${employeeId}`) ?? "").trim();
     const extraRaw = String(formData.get(`extraPay_${employeeId}`) ?? "").trim();
     const reasonRaw = String(formData.get(`wageReason_${employeeId}`) ?? "").trim();
+    const deductionRaw = String(formData.get(`deduction_${employeeId}`) ?? "").trim();
+    const deductionReasonRaw = String(formData.get(`deductionReason_${employeeId}`) ?? "").trim();
 
     const wageOverrideAmount = overrideRaw === "" ? null : Number(overrideRaw);
     if (wageOverrideAmount != null && Number.isNaN(wageOverrideAmount)) continue;
     const extraPayAmount = extraRaw === "" ? 0 : Number(extraRaw);
     if (Number.isNaN(extraPayAmount)) continue;
     const reason = reasonRaw === "" ? null : reasonRaw;
+    const deductionAmount = deductionRaw === "" ? 0 : Number(deductionRaw);
+    if (Number.isNaN(deductionAmount) || deductionAmount < 0) continue;
+    const deductionReason = deductionReasonRaw === "" ? null : deductionReasonRaw;
 
     const [existing] = await db
       .select()
       .from(shiftWageAdjustments)
       .where(and(eq(shiftWageAdjustments.shiftId, shiftId), eq(shiftWageAdjustments.employeeId, employeeId)));
 
-    if (!existing && wageOverrideAmount === null && extraPayAmount === 0 && reason === null) continue;
+    if (
+      !existing &&
+      wageOverrideAmount === null &&
+      extraPayAmount === 0 &&
+      reason === null &&
+      deductionAmount === 0 &&
+      deductionReason === null
+    )
+      continue;
 
     if (existing) {
       await db
         .update(shiftWageAdjustments)
-        .set({ wageOverrideAmount, extraPayAmount, reason })
+        .set({ wageOverrideAmount, extraPayAmount, reason, deductionAmount, deductionReason })
         .where(eq(shiftWageAdjustments.id, existing.id));
     } else {
-      await db.insert(shiftWageAdjustments).values({ shiftId, employeeId, wageOverrideAmount, extraPayAmount, reason });
+      await db
+        .insert(shiftWageAdjustments)
+        .values({ shiftId, employeeId, wageOverrideAmount, extraPayAmount, reason, deductionAmount, deductionReason });
     }
   }
 }

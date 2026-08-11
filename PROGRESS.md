@@ -1095,28 +1095,70 @@ one-off manual deploys) and walk him through the Turso account/env-var
 setup.
 
 
-## Backlog (2026-08-10) — disciplinary/correction deductions
+## Shipped (2026-08-10) — disciplinary/correction deductions
 
-Oliver's ask, explicitly deferred ("save it in a backlog as well to do
-it later"): the restaurant needs a way to deduct pay for disciplinary
-issues (late to work, breaking restaurant property, etc.). Since FOH/BOH
-wages are flat-rate per shift (not hourly), a deduction can't come out of
-hours worked — it has to be a direct dollar amount taken off that
-person's payout. Floor Manager should be able to add these manually,
-entered before the shift is finalized (same timing as the existing wage
-override/extra pay fields on the Closing Report). Needs to show up in
-both the employee's own My Pay view and the Preview/Summary "payout by
-employee" table, as its own line — not silently netted into another
-number.
+Oliver's ask (originally backlogged same day, built same day once he
+said "deduction"): the restaurant needs a way to deduct pay for
+disciplinary issues (late to work, breaking restaurant property, etc.).
+Since FOH/BOH wages are flat-rate per shift (not hourly), a deduction
+can't come out of hours worked — it's a direct dollar amount taken off
+that person's payout, its own line item, never netted silently into
+another number. Confirmed via AskUserQuestion before building: (1)
+visible to the disciplined employee + managers only, NEVER other
+coworkers — same precedent as `extraPayAmount` never appearing on the
+"Also worked this shift" list; (2) takes effect immediately when a Floor
+Manager enters it, no separate approval step, same trust level as the
+existing wage override/extra pay fields; (3) a one-off dollar amount per
+shift only, no running/lifetime total for now (a broader "employee
+performance/attendance stats dashboard" idea — lateness frequency, days
+scheduled, shift-swap counts, for evaluation/year-end bonus — was saved
+as backlog instead, see `project_atlas_future_features_backlog` in
+memory).
 
-**Likely fits the existing `shiftWageAdjustments` pattern** (override +
-extra pay + reason, added 2026-08-10 for the Erika/Aey shift-coverage
-case) as a third field — e.g. a `deductionAmount` + `deductionReason` —
-rather than a new table. Not designed yet: whether it should be visible
-to OTHER coworkers (versus just the disciplined employee + managers),
-whether there's a running/lifetime total anywhere, and whether it needs
-any approval step beyond the Floor Manager entering it. Confirm scope
-with Oliver before building.
+**What shipped:**
+- Extended the existing `shiftWageAdjustments` table (not a new table,
+  per the original backlog note) with `deductionAmount` (real, default 0)
+  and `deductionReason` (text, nullable) — same per-shift-per-employee row
+  as the wage override/extra pay fields.
+- `employeePayouts.deductionAmount` — same snapshot-column pattern as
+  `extraPayAmount`/`incentiveAmount`.
+- `lib/calc/finalizeShift.ts` — `deductionAmount` is subtracted in
+  `totalCorePayout` as its own term (wage/override/extra pay/incentive
+  amounts themselves are untouched), defaults to 0 via `?? 0` so every
+  existing caller/test without a `deductionAmount` key keeps compiling
+  and behaving exactly as before.
+- New "Disciplinary deductions" fieldset on the Closing Report form
+  (`deduction_<id>` + `deductionReason_<id>` inputs), wired through
+  `upsertWageAdjustments` in `lib/actions/shift.ts` — negative amounts
+  rejected same as the existing fields.
+- New "Deduction" column (red, `-$X.XX`) on both the Preview page and the
+  Summary Report's payout table, positioned between Incentive and Total.
+- New "Deduction" row (red, only shown when > 0) in My Pay's own-payout
+  block in `MyEarningsView.tsx` — deliberately NOT added to
+  `MyEarningsCoworkerRow`, so it structurally cannot leak onto a
+  coworker's row.
+- Migration `db/migrations/0002_blue_hawkeye.sql` — three
+  `ALTER TABLE ... ADD COLUMN` statements (`employee_payouts` +
+  `shift_wage_adjustments` x2), generated via `drizzle-kit generate`.
+
+**Verified:**
+- 3 new unit tests in `lib/calc/__tests__/finalizeShift.test.ts`
+  (deduction alone, deduction combined with override + extra pay,
+  backward-compat default-to-0 when the field is omitted entirely) — all
+  68 tests pass.
+- `next build` succeeds, no TypeScript errors.
+- Real-DB e2e script (`verify_deduction.ts`) run against the actual
+  seeded data: set an $8.50 deduction on one employee's finalized
+  payout → confirmed it appears correctly in that employee's OWN My Pay
+  view AND in the manager-facing Summary Report row → confirmed a
+  coworker viewing the same shift sees the disciplined employee's roster
+  row (name/position/tip/wage) with NO `deductionAmount` field present at
+  all, not even a zeroed-out one. All checks passed.
+
+**Not yet run:** `npm run db:migrate` against the live Turso database —
+Oliver needs to run this himself before pushing this code live (same
+order-of-operations as every prior schema change: migrate Turso first,
+then deploy code that expects the new columns).
 
 
 ## Backlog (2026-08-10) — per-column, per-viewer earnings visibility on My Pay
