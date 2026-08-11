@@ -186,7 +186,10 @@ export default async function ReportsPage({
 
 function PresetLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link href={href} className="px-3 py-1.5 rounded border text-sm hover:bg-neutral-100">
+    <Link
+      href={href}
+      className="px-3 py-1.5 rounded border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100"
+    >
       {children}
     </Link>
   );
