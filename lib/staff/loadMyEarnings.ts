@@ -60,6 +60,8 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
     showPeerEarningsBOH: settings?.rosterShowPeerEarningsBOH ?? false,
     restrictFOHToOwnCategory: settings?.rosterRestrictFOHToOwnCategory ?? true,
     restrictBOHToOwnCategory: settings?.rosterRestrictBOHToOwnCategory ?? true,
+    showCoworkerListFOH: settings?.rosterShowCoworkerListFOH ?? true,
+    showCoworkerListBOH: settings?.rosterShowCoworkerListBOH ?? true,
   };
 
   // Every finalized shift this employee has a locked payout for — the

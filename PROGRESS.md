@@ -1137,6 +1137,60 @@ columns added to the existing per-category toggle (simpler, consistent
 with the current settings model)? Revisit when this becomes the actual
 next request rather than guessing at the shape now.
 
+**Note (2026-08-10, deployed round):** this per-column granularity is
+still NOT built — see the separate, narrower feature shipped below
+("coworker list visibility") which addresses a related-but-different ask
+(hide the WHOLE coworker list, not fine-grained per-column control).
+
+## Coworker list visibility on My Pay — FOH/BOH toggle (2026-08-10)
+
+Oliver's ask, given after the Turso deployment went live and he was
+poking around My Pay: he wants staff who log in to check their own pay to
+optionally not see the "Also worked this shift" coworker list AT ALL —
+not just have the $ figures hidden (already covered by
+`rosterShowPeerEarningsFOH`/`BOH`), but the whole list of names/positions
+suppressed, as a privacy safeguard for the future. Confirmed via
+AskUserQuestion before building: (1) split FOH/BOH, mirroring the
+existing `rosterRestrictFOHToOwnCategory`/`BOH` pattern rather than one
+global toggle, and (2) a NEW, independent setting rather than repurposing
+the existing peer-earnings checkboxes — so a restaurant could show the
+list with earnings hidden, OR hide the list entirely even with earnings
+on.
+
+**What shipped:**
+- `restaurantSettings.rosterShowCoworkerListFOH`/`BOH` (both default
+  `true` — preserves today's behavior for Youk Thai until someone flips
+  them in Settings).
+- `lib/roster/visibility.ts`: new, EARLIER gate in
+  `getVisibleRosterEntries` — keyed by the VIEWER's own category (same
+  convention as the restrict-to-own-category setting). When off, every
+  entry except the viewer's own is dropped before any of the existing
+  restrict/earnings-redaction logic even runs. MANAGER/ADMIN are exempt,
+  same as every other visibility rule in this file.
+- No UI change needed in `MyEarningsView.tsx` — it already only renders
+  the "Also worked this shift" section when `coworkers.length > 1`, so
+  once the loader returns just the viewer's own row, the section
+  disappears for free.
+- Settings page: new fieldset "Roster — coworker list visibility (My
+  Pay)" with the two checkboxes, right above the existing category
+  visibility fieldset.
+- Migration `db/migrations/0001_large_power_man.sql` — two
+  `ALTER TABLE ... ADD COLUMN` statements, generated via
+  `drizzle-kit generate` (never `push`, per [[feedback-drizzle-hosted-db-caution]]).
+
+**Verified:**
+- 3 new unit tests in `lib/roster/__tests__/visibility.test.ts` (off for
+  FOH only, independence per category, MANAGER/ADMIN unaffected) — all 65
+  tests pass.
+- `db/migrate.ts` applied cleanly against a fresh throwaway local DB,
+  confirmed both columns present via direct `PRAGMA table_info` query.
+- Real-DB e2e script (`verify_coworker_list_setting.ts`) run against the
+  actual seeded data: default state (Erika, FOH, sees 13 coworker rows on
+  a shift) → flip `rosterShowCoworkerListFOH` off → Erika now sees ONLY
+  her own row on every shift, her own totalCorePayout unchanged → Papi
+  (BOH) unaffected, still sees BOH coworkers → Oliver (ADMIN) unaffected
+  → flipped back to `true`, confirmed restored. All checks passed.
+- `next build` succeeds, no TypeScript errors.
 
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet
 - Auth (systemRole field exists on Employee, no actual login system yet)

@@ -7,6 +7,8 @@ const settingsDefault = {
   showPeerEarningsBOH: false,
   restrictFOHToOwnCategory: true,
   restrictBOHToOwnCategory: true,
+  showCoworkerListFOH: true,
+  showCoworkerListBOH: true,
 };
 
 const sampleRoster: RosterEntryView[] = [
@@ -65,6 +67,8 @@ test("restaurant can flip the settings — e.g. turn ON peer earnings for BOH", 
     showPeerEarningsBOH: true,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: true,
   };
   const result = getVisibleRosterEntries(viewer, sampleRoster, openSettings);
   const chefEntry = result.find((e) => e.employeeId === 4)!;
@@ -78,6 +82,8 @@ test("restaurant can flip the settings — e.g. turn OFF peer earnings for FOH",
     showPeerEarningsBOH: false,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: true,
   };
   const result = getVisibleRosterEntries(viewer, sampleRoster, closedSettings);
   const bartenderEntry = result.find((e) => e.employeeId === 2)!;
@@ -91,6 +97,8 @@ test("leadership (Floor Manager) pay is hidden from ALL staff, regardless of cat
     showPeerEarningsBOH: true,
     restrictFOHToOwnCategory: true,
     restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: true,
   });
   const floorManagerForFOH = fohResult.find((e) => e.employeeId === 5)!;
   assert.equal(floorManagerForFOH.flatWage, undefined); // ...still hidden, because it's a leadership position
@@ -116,6 +124,8 @@ test("restaurant can turn OFF category restriction for FOH — FOH staff then se
     showPeerEarningsBOH: false,
     restrictFOHToOwnCategory: false, // flipped off — this restaurant wants one open roster
     restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: true,
   };
   const result = getVisibleRosterEntries(viewer, sampleRoster, openRoster);
   const ids = result.map((e) => e.employeeId).sort();
@@ -127,6 +137,55 @@ test("restaurant can turn OFF category restriction for FOH — FOH staff then se
   assert.equal(chefEntry.flatWage, undefined);
 });
 
+test("restaurant can turn OFF the coworker list for FOH — FOH staff see only their own entry, no one else's name or money", () => {
+  const viewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
+  const noListSettings = {
+    showPeerEarningsFOH: true, // even with peer earnings wide open...
+    showPeerEarningsBOH: true,
+    restrictFOHToOwnCategory: true,
+    restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: false, // ...the list gate wins and hides everyone else
+    showCoworkerListBOH: true,
+  };
+  const result = getVisibleRosterEntries(viewer, sampleRoster, noListSettings);
+  assert.equal(result.length, 1);
+  assert.equal(result[0].employeeId, 1);
+  assert.equal(result[0].tipShare, 55.5); // still sees their own numbers
+});
+
+test("coworker list setting is independent per category — turning it off for BOH doesn't affect FOH", () => {
+  const fohViewer: Viewer = { employeeId: 1, systemRole: "STAFF", ownCategory: "FOH" };
+  const bohHiddenSettings = {
+    showPeerEarningsFOH: true,
+    showPeerEarningsBOH: false,
+    restrictFOHToOwnCategory: true,
+    restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: false,
+  };
+  const fohResult = getVisibleRosterEntries(fohViewer, sampleRoster, bohHiddenSettings);
+  const ids = fohResult.map((e) => e.employeeId).sort();
+  assert.deepEqual(ids, [1, 2, 5]); // FOH viewer unaffected, still sees Bartender + Floor Manager
+
+  const bohViewer: Viewer = { employeeId: 3, systemRole: "STAFF", ownCategory: "BOH" };
+  const bohResult = getVisibleRosterEntries(bohViewer, sampleRoster, bohHiddenSettings);
+  assert.deepEqual(bohResult.map((e) => e.employeeId), [3]); // BOH viewer sees only self
+});
+
+test("MANAGER/ADMIN ignore the coworker-list setting entirely — they always see everyone", () => {
+  const viewer: Viewer = { employeeId: 99, systemRole: "MANAGER", ownCategory: "FOH" };
+  const noListSettings = {
+    showPeerEarningsFOH: true,
+    showPeerEarningsBOH: true,
+    restrictFOHToOwnCategory: true,
+    restrictBOHToOwnCategory: true,
+    showCoworkerListFOH: false,
+    showCoworkerListBOH: false,
+  };
+  const result = getVisibleRosterEntries(viewer, sampleRoster, noListSettings);
+  assert.equal(result.length, 5);
+});
+
 test("category restriction settings are independent per category — BOH stays restricted while FOH opens up", () => {
   const bohViewer: Viewer = { employeeId: 3, systemRole: "STAFF", ownCategory: "BOH" };
   const mixedSettings = {
@@ -134,6 +193,8 @@ test("category restriction settings are independent per category — BOH stays r
     showPeerEarningsBOH: false,
     restrictFOHToOwnCategory: false,
     restrictBOHToOwnCategory: true, // BOH still locked down
+    showCoworkerListFOH: true,
+    showCoworkerListBOH: true,
   };
   const result = getVisibleRosterEntries(bohViewer, sampleRoster, mixedSettings);
   const ids = result.map((e) => e.employeeId).sort();

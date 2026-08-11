@@ -190,6 +190,22 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // today; it's here so the design is correct whenever that view ships.
   rosterRestrictFOHToOwnCategory: integer("roster_restrict_foh_to_own_category", { mode: "boolean" }).notNull().default(true),
   rosterRestrictBOHToOwnCategory: integer("roster_restrict_boh_to_own_category", { mode: "boolean" }).notNull().default(true),
+  // Added 2026-08-10 at Oliver's request: whether a STAFF viewer sees the
+  // "Also worked this shift" coworker list on My Pay AT ALL, keyed by the
+  // VIEWER's own category (same convention as rosterRestrict*ToOwnCategory
+  // above). This is a separate, earlier gate than rosterShowPeerEarnings* —
+  // that pair only controls whether the $ FIGURES on a peer's row are
+  // shown; this pair controls whether the peer's row (name + position)
+  // shows up in the list at all. When off, getVisibleRosterEntries drops
+  // every entry except the viewer's own, so the whole section disappears
+  // from My Pay (MyEarningsView only renders it when coworkers.length > 1).
+  // Defaults true for both — matches the behavior that existed before this
+  // setting did, so nothing changes for Youk Thai unless someone flips it
+  // in Settings. Oliver's own stated reasoning for wanting this control:
+  // staff logging in to check their own pay may not need to see coworkers'
+  // money OR names at all, as a privacy safeguard.
+  rosterShowCoworkerListFOH: integer("roster_show_coworker_list_foh", { mode: "boolean" }).notNull().default(true),
+  rosterShowCoworkerListBOH: integer("roster_show_coworker_list_boh", { mode: "boolean" }).notNull().default(true),
 });
 
 export const onlinePlatforms = sqliteTable("online_platforms", {

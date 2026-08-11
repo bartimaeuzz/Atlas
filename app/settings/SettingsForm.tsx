@@ -89,6 +89,26 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
       </fieldset>
 
       <fieldset>
+        <legend className="text-lg font-medium mb-3">Roster — coworker list visibility (My Pay)</legend>
+        <p className="text-xs text-neutral-500 mb-3">
+          Whether STAFF see the &quot;Also worked this shift&quot; coworker list on My Pay at all — names and
+          positions, not just the $ figures above. When off, staff logging in only see their own pay, nothing
+          about who else worked. Self is always unaffected. Independent from the peer-earnings setting above: you
+          can hide the list entirely even if peer earnings are on, or keep the list visible with earnings redacted.
+        </p>
+        <div className="space-y-2 text-sm">
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="rosterShowCoworkerListFOH" defaultChecked={settings.rosterShowCoworkerListFOH} />
+            Show coworker list to FOH staff
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="rosterShowCoworkerListBOH" defaultChecked={settings.rosterShowCoworkerListBOH} />
+            Show coworker list to BOH staff
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend className="text-lg font-medium mb-3">Roster — category visibility</legend>
         <p className="text-xs text-neutral-500 mb-3">
           Whether STAFF are restricted to seeing only their own category&apos;s roster entries (FOH sees FOH, BOH

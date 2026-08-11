@@ -10,6 +10,8 @@ export interface RestaurantSettingsData {
   rosterShowPeerEarningsBOH: boolean;
   rosterRestrictFOHToOwnCategory: boolean;
   rosterRestrictBOHToOwnCategory: boolean;
+  rosterShowCoworkerListFOH: boolean;
+  rosterShowCoworkerListBOH: boolean;
   pool1SplitMethod: PoolSplitMethod;
   pool2SplitMethod: PoolSplitMethod;
   pool3SplitMethod: PoolSplitMethod;
@@ -34,6 +36,8 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
       rosterShowPeerEarningsBOH: false,
       rosterRestrictFOHToOwnCategory: true,
       rosterRestrictBOHToOwnCategory: true,
+      rosterShowCoworkerListFOH: true,
+      rosterShowCoworkerListBOH: true,
       pool1SplitMethod: "POINT_WEIGHTED",
       pool2SplitMethod: "POINT_WEIGHTED",
       pool3SplitMethod: "EQUAL_SPLIT",
@@ -46,6 +50,8 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     rosterShowPeerEarningsBOH: row.rosterShowPeerEarningsBOH,
     rosterRestrictFOHToOwnCategory: row.rosterRestrictFOHToOwnCategory,
     rosterRestrictBOHToOwnCategory: row.rosterRestrictBOHToOwnCategory,
+    rosterShowCoworkerListFOH: row.rosterShowCoworkerListFOH,
+    rosterShowCoworkerListBOH: row.rosterShowCoworkerListBOH,
     pool1SplitMethod: row.pool1SplitMethod as PoolSplitMethod,
     pool2SplitMethod: row.pool2SplitMethod as PoolSplitMethod,
     pool3SplitMethod: row.pool3SplitMethod as PoolSplitMethod,

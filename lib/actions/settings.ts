@@ -49,6 +49,8 @@ export async function updateRestaurantSettings(
         rosterShowPeerEarningsBOH: flag("rosterShowPeerEarningsBOH"),
         rosterRestrictFOHToOwnCategory: flag("rosterRestrictFOHToOwnCategory"),
         rosterRestrictBOHToOwnCategory: flag("rosterRestrictBOHToOwnCategory"),
+        rosterShowCoworkerListFOH: flag("rosterShowCoworkerListFOH"),
+        rosterShowCoworkerListBOH: flag("rosterShowCoworkerListBOH"),
       })
       .where(eq(restaurantSettings.restaurantId, 1));
   } catch (e) {

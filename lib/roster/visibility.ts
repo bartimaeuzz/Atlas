@@ -30,6 +30,14 @@
  *          sensitive), BOH defaults hidden (individually-negotiated wages,
  *          legitimately unequal, showing them risks friction). Both
  *          restaurant-configurable.
+ *   - Added 2026-08-10: even earlier than all of the above, a STAFF viewer
+ *     can be denied the coworker list ENTIRELY — not just peers' money,
+ *     the peer rows themselves (name + position) — via
+ *     `showCoworkerListFOH`/`showCoworkerListBOH`, keyed by the VIEWER's
+ *     own category (same convention as `restrictFOHToOwnCategory`/
+ *     `restrictBOHToOwnCategory`). When off, only the viewer's own entry
+ *     is returned. This is a coarser, earlier gate than the money-hiding
+ *     rule above — if it's off, nothing else in this function matters.
  */
 
 export type PositionCategory = "FOH" | "BOH";
@@ -58,6 +66,8 @@ export interface RosterVisibilitySettings {
   showPeerEarningsBOH: boolean;
   restrictFOHToOwnCategory: boolean;
   restrictBOHToOwnCategory: boolean;
+  showCoworkerListFOH: boolean;
+  showCoworkerListBOH: boolean;
 }
 
 export function getVisibleRosterEntries(
@@ -67,6 +77,13 @@ export function getVisibleRosterEntries(
 ): RosterEntryView[] {
   if (viewer.systemRole === "MANAGER" || viewer.systemRole === "ADMIN") {
     return allEntries;
+  }
+
+  const viewerCanSeeCoworkerList =
+    viewer.ownCategory === "FOH" ? settings.showCoworkerListFOH : settings.showCoworkerListBOH;
+
+  if (!viewerCanSeeCoworkerList) {
+    return allEntries.filter((e) => e.employeeId === viewer.employeeId);
   }
 
   const viewerIsRestricted =
