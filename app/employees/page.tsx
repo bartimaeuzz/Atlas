@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { loadEmployeesList } from "@/lib/employees/loadEmployeesList";
-import { EmployeeToggleActiveButton } from "./EmployeeToggleActiveButton";
+import { EmployeesTable } from "./EmployeesTable";
 
 export default async function EmployeesListPage() {
   const employeeList = await loadEmployeesList();
@@ -22,41 +22,7 @@ export default async function EmployeesListPage() {
       {employeeList.length === 0 ? (
         <p className="text-neutral-500 text-sm">No employees yet.</p>
       ) : (
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="text-left text-neutral-500 border-b">
-              <th className="py-2">Name</th>
-              <th className="py-2">Primary position</th>
-              <th className="py-2">Positions</th>
-              <th className="py-2">Role</th>
-              <th className="py-2"></th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {employeeList.map((e) => (
-              <tr key={e.id} className={"border-b" + (e.active ? "" : " opacity-50")}>
-                <td className="py-2">
-                  {e.name}
-                  {!e.active && <span className="ml-2 text-xs text-neutral-400">(retired)</span>}
-                </td>
-                <td className="py-2 text-neutral-500">{e.primaryPositionName ?? "—"}</td>
-                <td className="py-2 text-neutral-500">
-                  {e.positions.length === 0 ? "—" : e.positions.map((p) => p.positionName).join(", ")}
-                </td>
-                <td className="py-2 text-neutral-500">{e.systemRole}</td>
-                <td className="py-2 text-right">
-                  <Link href={`/employees/${e.id}/edit`} className="underline text-blue-600">
-                    Edit
-                  </Link>
-                </td>
-                <td className="py-2 text-right">
-                  <EmployeeToggleActiveButton employeeId={e.id} active={e.active} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <EmployeesTable employeeList={employeeList} />
       )}
     </main>
   );
