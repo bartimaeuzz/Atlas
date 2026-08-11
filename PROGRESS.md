@@ -1442,3 +1442,69 @@ copy in the sandbox home directory instead — same class of limitation
 already documented for `npm install`/git in the ui-design session
 notes). Migration NOT yet applied to the production Turso DB — run
 `npm run db:migrate` to apply, then `git push`.
+
+## Schedule Planner — Phase 1 shipped: staffing targets + template assignments (2026-08-11)
+
+First piece of a much larger feature Oliver and I designed across several
+rounds of discussion, grounded in a real reference schedule from another
+NYC Thai restaurant (Soothr LIC, shared as a screenshot). Full design
+doc: `Atlas_Schedule_Planner_Schema_v1.md` (also saved to project
+memory as `project_atlas_schedule_planner`). Building it in phases on
+purpose — Oliver's own words: "คิด Schema ให้แตกก่อนที่จะเริ่มลงมือทำ"
+(think the schema all the way through before starting to build).
+
+**What Phase 1 is:** the foundation everything else sits on. Two new
+tables, both purely additive (migration `0005`, no changes to any
+existing table):
+
+- `positionStaffingTargets` — "how many of this Position do we need,
+  this day-of-week, this period?" Confirmed against the real Soothr
+  sheet: the numbered position rows (Runner 1/2/3/4, Bar 1/2/3, Host
+  1/2/3, etc.) are exactly this — a headcount target, not distinct job
+  titles. New page `/schedule/targets`: an editable grid (Position rows
+  × day-of-week columns, one grid per Lunch/Dinner), full-grid resync on
+  save (same delete-then-reinsert pattern as `syncPositionChildRows` in
+  `lib/actions/positions.ts`).
+- `employeeScheduleTemplates` — "Employee X normally works Position Y,
+  this day-of-week, this period," the recurring baseline a week's plan
+  (a later phase) will be pre-filled from. Confirmed with Oliver: this
+  is a deliberately FIXED baseline — it only changes when someone tells
+  the Manager to (a resignation, a promotion, a sales-driven staffing
+  need), not on an automatic weekly rebuild. New page
+  `/schedule/templates`: add-assignment form (reuses the same
+  employee-picks-defaults-position UX as the roster's "Add someone"
+  form), list of active assignments, retire button (same
+  retire-don't-delete convention as Positions/Employees).
+
+**The RED flag, corrected mid-design:** first guess was that red meant
+an open swap request — wrong. Oliver corrected it: red means a slot is
+KNOWN to be vacating — resignation notice given (two weeks is Thai
+restaurant custom) or a promotion/transfer to a different position.
+Doubles as an internal "open shift, come talk to me" signal for other
+staff and the Manager's own hiring/coverage tracker. Implemented as
+`vacancyReason` (`RESIGNATION`/`PROMOTION`/`OTHER`) +
+`vacancyStartsOn` on the template row — set via a "Mark vacating" inline
+form on `/schedule/templates`, cleared via "Clear vacancy." Deliberately
+does NOT cover approved LEAVE (a temporary absence shouldn't mutate the
+permanent recurring pattern) — that's a separate `leaveRequests` table
+in a later phase, cross-referenced at weekly-plan-build time instead.
+
+**What's explicitly NOT built yet** (see the schema doc's "proposed
+build order"): the actual weekly plan grid + publish + auto-seed into
+`shifts`/`shiftRosterEntries`, the staff-facing "My Schedule" view,
+leave requests + Manager request log, and the swap-request portal
+(yellow/green states). Also backlog, not started: KPI/performance-linked
+shift allocation, an AI ops dashboard, OpenTable/Resy integration, and a
+training/"restaurant bible" archive with AI chat — all noted in memory,
+none scoped.
+
+**Verified:** all 71 existing unit tests still pass unchanged (nothing
+in Phase 1 touches the calc engine or existing tables). `next build`
+clean — compiled, typechecked, and generated all 21 routes including the
+three new `/schedule*` pages with zero errors (again worked around the
+sandbox's outputs-mount FUSE quirk on the build's own finalize step by
+building a clean rsync'd copy in the sandbox home directory). No new
+unit tests added — Phase 1 is straightforward CRUD with no new
+calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
+`0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
+Turso DB — run `npm run db:migrate` to apply, then `git push`.

@@ -584,3 +584,89 @@ export const incentivePayoutRecords = sqliteTable("incentive_payout_records", {
   metricSnapshot: text("metric_snapshot", { mode: "json" }).$type<Record<string, unknown>>(),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
 });
+
+/* ---------------------------------------------------------------------- */
+/* Layer 3 — Schedule Planner (Phase 1, 2026-08-11)                        */
+/* Confirmed against a real reference schedule (Soothr LIC) + several      */
+/* rounds of design discussion with Oliver — see the                       */
+/* Atlas_Schedule_Planner_Schema_v1.md doc and the                         */
+/* project-atlas-schedule-planner memory file for the full reasoning.      */
+/* Phase 1 only: headcount targets + recurring template assignments.       */
+/* The weekly plan, auto-seed-into-Shift, leave requests, and swap         */
+/* requests are later phases, deliberately not built yet.                  */
+/* ---------------------------------------------------------------------- */
+
+// "How many of this Position do we need, on this day-of-week, this
+// period?" Confirmed with Oliver: the numbered rows on real restaurant
+// schedules (Runner 1/2/3/4, Bar 1/2/3, Host 1/2/3, etc.) are exactly
+// this — a headcount number for that position, NOT distinct job titles.
+// This is what lets a manager glance at a day and see an under-target
+// position at a glance once the weekly plan (a later phase) exists.
+// dayOfWeek: 0=Sunday..6=Saturday, matching JS Date.getDay() convention
+// used elsewhere in this app (see app/reports/page.tsx's date helpers).
+export const positionStaffingTargets = sqliteTable(
+  "position_staffing_targets",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    positionId: integer("position_id").notNull().references(() => positions.id),
+    dayOfWeek: integer("day_of_week").notNull(), // 0-6, Sun-Sat
+    period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
+    targetCount: integer("target_count").notNull().default(0),
+  },
+  (t) => ({
+    uniqPositionDayPeriod: uniqueIndex("uniq_staffing_target_position_day_period").on(
+      t.positionId,
+      t.dayOfWeek,
+      t.period
+    ),
+  })
+);
+
+// "Employee X normally works Position Y, this day-of-week, this period."
+// The recurring baseline a weekly plan (later phase) gets pre-filled
+// from. Confirmed with Oliver: the schedule is a deliberately fixed
+// baseline — this table only changes when someone tells the Manager to
+// change it (a resignation, a promotion, a sales-driven staffing need),
+// not on an automatic weekly rebuild.
+//
+// vacancyReason/vacancyStartsOn: what drives the RED highlight on
+// Soothr's reference sheet. Corrected understanding after a first wrong
+// guess (see memory) — NOT about open swap requests. It's set when an
+// employee has given resignation notice (two weeks is the Thai
+// restaurant custom) or been promoted/transferred to a different
+// position, i.e. this slot is KNOWN to be permanently vacating. Doubles
+// as (a) an internal "open shift, come talk to me" signal for other
+// staff and (b) the Manager's own hiring/coverage tracker. Deliberately
+// does NOT cover approved LEAVE — a temporary absence doesn't change the
+// permanent recurring pattern, so that's handled by a separate
+// leaveRequests table in a later phase instead, cross-referenced at
+// weekly-plan-build time rather than mutating this row.
+//
+// active: retire, don't hard-delete — same convention as
+// positions.active/employeePositions.isActive. Once a permanent
+// replacement is settled for a vacated slot, the old template row gets
+// retired (active=false) and a new one created for the replacement,
+// rather than overwriting employeeId in place — keeps a clean history
+// of who has held this slot over time.
+export const employeeScheduleTemplates = sqliteTable(
+  "employee_schedule_templates",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id),
+    positionId: integer("position_id").notNull().references(() => positions.id),
+    dayOfWeek: integer("day_of_week").notNull(), // 0-6, Sun-Sat
+    period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
+    effectiveFrom: text("effective_from"), // ISO date string, same convention as employeeWageRates.effectiveFrom
+    vacancyReason: text("vacancy_reason", { enum: ["RESIGNATION", "PROMOTION", "OTHER"] }),
+    vacancyStartsOn: text("vacancy_starts_on"), // ISO date string, set together with vacancyReason
+    active: integer("active", { mode: "boolean" }).notNull().default(true),
+  },
+  (t) => ({
+    uniqEmployeePositionDayPeriod: uniqueIndex("uniq_template_employee_position_day_period").on(
+      t.employeeId,
+      t.positionId,
+      t.dayOfWeek,
+      t.period
+    ),
+  })
+);
