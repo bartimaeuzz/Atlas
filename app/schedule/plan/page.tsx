@@ -66,6 +66,9 @@ export default async function WeeklyPlanPage({
         <Link href={`/schedule/plan/person?month=${weekStartDate}`} className="text-neutral-500 hover:text-black underline">
           View by person
         </Link>
+        <Link href="/schedule/weeks" className="text-neutral-500 hover:text-black underline">
+          All weeks
+        </Link>
       </div>
 
       {!data.week ? (

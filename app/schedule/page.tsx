@@ -44,6 +44,16 @@ export default function SchedulePage() {
           </p>
         </Link>
         <Link
+          href="/schedule/weeks"
+          className="block border rounded p-4 hover:bg-neutral-50 sm:col-span-3"
+        >
+          <h2 className="font-medium mb-1">Weeks</h2>
+          <p className="text-sm text-neutral-500">
+            Every week at a glance — published, still draft, or not planned yet — for quick
+            navigation without clicking through one at a time.
+          </p>
+        </Link>
+        <Link
           href="/schedule/targets"
           className="block border rounded p-4 hover:bg-neutral-50"
         >

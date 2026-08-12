@@ -9,11 +9,12 @@ const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 const initialState: TemplateActionState = { error: null };
 
 /** Add-assignment form for the recurring schedule template — same
- * employee-picks-defaults-position UX as
- * app/shifts/[id]/roster/AddRosterEntryForm.tsx (assigned positions
- * grouped first, others greyed out but still selectable), reused here
- * rather than reinvented since the underlying question ("which position
- * does this employee actually do?") is identical. */
+ * employee-picks-defaults-position UX as the roster page's quick-add
+ * (app/shifts/[id]/roster/RosterGrid.tsx, originally
+ * AddRosterEntryForm.tsx before the 2026-08-11 grid redesign): assigned
+ * positions grouped first, others greyed out but still selectable,
+ * reused here since the underlying question ("which position does this
+ * employee actually do?") is identical. */
 export function AddTemplateForm({
   allEmployees,
   allPositions,

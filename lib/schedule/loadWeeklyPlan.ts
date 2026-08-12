@@ -1,7 +1,14 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { scheduleWeeks, plannedShiftAssignments, employees, positions, positionStaffingTargets } from "@/db/schema";
-import { datesInWeek } from "@/lib/schedule/weekMath";
+import {
+  scheduleWeeks,
+  plannedShiftAssignments,
+  employees,
+  positions,
+  positionStaffingTargets,
+  employeeScheduleTemplates,
+} from "@/db/schema";
+import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
 import type { StaffingTargetPosition } from "@/lib/schedule/loadStaffingTargets";
 
 export interface PlannedAssignmentRow {
@@ -15,6 +22,13 @@ export interface PlannedAssignmentRow {
   period: "Lunch" | "Dinner";
   sourceType: "FROM_TEMPLATE" | "MANUAL_ADD";
   isExtraCoverage: boolean;
+  /** Set when this employee's recurring slot for this exact
+   * position/day-of-week/period is marked vacating (resignation or
+   * promotion) AND this assignment's date is still before that vacancy
+   * takes effect — i.e. they're in the grace period. null otherwise.
+   * Drawn from employeeScheduleTemplates.vacancyReason/vacancyStartsOn,
+   * not a separate flag on the assignment itself. */
+  vacatingSoon: { reason: "RESIGNATION" | "PROMOTION" | "OTHER"; startsOn: string } | null;
 }
 
 export interface WeeklyPlanData {
@@ -73,12 +87,39 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
     .innerJoin(positions, eq(plannedShiftAssignments.positionId, positions.id))
     .where(eq(plannedShiftAssignments.weekId, weekRow.id));
 
-  const assignments: PlannedAssignmentRow[] = rows.map((r) => ({
-    ...r,
-    positionCategory: r.positionCategory as "FOH" | "BOH",
-    period: r.period as "Lunch" | "Dinner",
-    sourceType: r.sourceType as "FROM_TEMPLATE" | "MANUAL_ADD",
-  }));
+  // employeeId:positionId:dayOfWeek:period -> vacancy info, only for
+  // active template rows that actually have one set.
+  const vacancyTemplateRows = await db
+    .select({
+      employeeId: employeeScheduleTemplates.employeeId,
+      positionId: employeeScheduleTemplates.positionId,
+      dayOfWeek: employeeScheduleTemplates.dayOfWeek,
+      period: employeeScheduleTemplates.period,
+      vacancyReason: employeeScheduleTemplates.vacancyReason,
+      vacancyStartsOn: employeeScheduleTemplates.vacancyStartsOn,
+    })
+    .from(employeeScheduleTemplates)
+    .where(eq(employeeScheduleTemplates.active, true));
+
+  const vacancyByKey = new Map<string, { reason: "RESIGNATION" | "PROMOTION" | "OTHER"; startsOn: string }>();
+  for (const t of vacancyTemplateRows) {
+    if (!t.vacancyReason || !t.vacancyStartsOn) continue;
+    vacancyByKey.set(
+      `${t.employeeId}:${t.positionId}:${t.dayOfWeek}:${t.period}`,
+      { reason: t.vacancyReason, startsOn: t.vacancyStartsOn }
+    );
+  }
+
+  const assignments: PlannedAssignmentRow[] = rows.map((r) => {
+    const vacancy = vacancyByKey.get(`${r.employeeId}:${r.positionId}:${dayOfWeek(r.date)}:${r.period}`);
+    return {
+      ...r,
+      positionCategory: r.positionCategory as "FOH" | "BOH",
+      period: r.period as "Lunch" | "Dinner",
+      sourceType: r.sourceType as "FROM_TEMPLATE" | "MANUAL_ADD",
+      vacatingSoon: vacancy && r.date < vacancy.startsOn ? vacancy : null,
+    };
+  });
 
   return {
     weekStartDate,

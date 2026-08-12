@@ -1509,6 +1509,60 @@ calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
 `0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
 Turso DB — run `npm run db:migrate` to apply, then `git push`.
 
+## Vacancy indicator, roster grid redesign, weeks list (2026-08-11)
+
+Three more Oliver-requested additions on top of the preview/month/
+person views. No schema changes.
+
+- **Red vacancy-soon indicator on weekly plan pills:** when an
+  assignment's employee is in the grace period before their template
+  slot's vacancy date (resignation/promotion, set on
+  `/schedule/templates`), their pill on `/schedule/plan` now gets a
+  red ring + dot + tooltip ("Oliver is resigning as of 2026-08-12 —
+  this slot will need a replacement"). `loadWeeklyPlan` now cross-
+  references `employeeScheduleTemplates`' vacancy fields per
+  assignment (`vacatingSoon`, keyed by employeeId+positionId+
+  dayOfWeek+period, only set if the assignment's date is still before
+  `vacancyStartsOn`). Deliberately shown in BOTH the manager grid and
+  the staff preview view — unlike the other diagnostics (understaffed,
+  double-booked), which stay manager-only — because red was designed
+  from the start to double as an internal "open shift, come talk to
+  me" signal staff should see too.
+- **Roster page redesigned as a position grid:** `/shifts/[id]/roster`
+  used to be a flat employee list plus a separate "Add someone" form
+  below it. Now it's a Position-per-row grid (new `RosterGrid.tsx`),
+  matching the Schedule Planner's visual language: each position shows
+  who's assigned as pills, a "N/target" count against
+  `positionStaffingTargets` for that exact day-of-week+period (red
+  background if short), and an inline "+ Add" dropdown right in the
+  row — the same last-minute, day-of adjustment surface as before, now
+  laid out like the weekly grid it usually gets auto-seeded from.
+  Carries over both guards the old form had: the multi-role confirm
+  dialog (window.confirm before double-adding someone) and the
+  assigned-vs-other position grouping in the picker. `loadRosterPageData`
+  gained a `targets: Record<positionId, number>` field (resolved down
+  to this shift's specific day+period) and sorts positions FOH-then-
+  BOH to match. The old `AddRosterEntryForm.tsx` is superseded — see
+  sandbox note below on why it's not actually gone from the filesystem.
+- **New `/schedule/weeks` list page:** a flat, scannable list of weeks
+  (12 at a time, prev/later navigation) each showing Published/Draft/
+  Not planned, with a direct action link (View / Review & publish /
+  Plan this week). Complements the month calendar rather than
+  replacing it — faster to scan when you just want to know "what's
+  left to publish" without reading day-level detail.
+
+**Sandbox note:** this sandbox's FUSE-mounted outputs directory
+wouldn't allow deleting `AddRosterEntryForm.tsx` even via `mv` out of
+the directory (same class of EPERM issue as the recurring `.next`/git-
+lock problems already documented below) — worked around by renaming it
+to `AddRosterEntryForm.tsx.stale` in place and adding `*.stale` to
+`.gitignore`, and excluding that pattern from the delivery zip's rsync
+so it never actually reaches the real repo. If you ever see a stray
+`.stale` file in a future handoff, it's dead code that safely deletes.
+
+Verified: all 71 existing unit tests pass unchanged, `next build`
+clean — 23 routes including `/schedule/weeks`.
+
 ## Schedule Planner: publish preview + month/person zoom views (2026-08-11)
 
 Three more pieces on top of the shipped weekly plan grid, all requested

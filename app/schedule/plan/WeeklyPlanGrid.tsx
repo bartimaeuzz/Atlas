@@ -42,6 +42,15 @@ function dayOfWeekFor(dateIso: string): number {
  * guess whether an add is "covering a known gap" vs "anticipating a
  * busy day," those mean different things to him.
  *
+ * Vacancy-soon indicator (2026-08-11, Oliver): when an assignment's
+ * employee is in the grace period before their template slot's RED
+ * vacancy date (resignation/promotion — set on /schedule/templates),
+ * their pill gets a red ring + tooltip. Deliberately NOT gated by
+ * hideDiagnostics like the other warnings — Oliver's original design
+ * intent for red was that it doubles as an internal "open shift, come
+ * talk to me" signal staff should be able to see too, not just a
+ * manager-only diagnostic.
+ *
  * Read-only / preview modes (2026-08-11, Oliver): before publishing, he
  * wants to preview both as HE'D see it (all the warnings above, so he
  * can catch problems) and as STAFF will see it once it's live (no
@@ -154,6 +163,7 @@ export function WeeklyPlanGrid({
                                   assignment={a}
                                   conflictPositionNames={conflictPositionNames}
                                   readOnly={readOnly}
+                                  vacatingSoon={a.vacatingSoon}
                                 />
                               );
                             })}
@@ -187,14 +197,22 @@ export function WeeklyPlanGrid({
   );
 }
 
+const VACANCY_REASON_LABEL: Record<"RESIGNATION" | "PROMOTION" | "OTHER", string> = {
+  RESIGNATION: "resigning",
+  PROMOTION: "promoted out of this role",
+  OTHER: "leaving this slot",
+};
+
 function AssignmentPill({
   assignment,
   conflictPositionNames,
   readOnly,
+  vacatingSoon,
 }: {
   assignment: PlannedAssignmentRow;
   conflictPositionNames: string[];
   readOnly: boolean;
+  vacatingSoon: PlannedAssignmentRow["vacatingSoon"];
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -202,13 +220,20 @@ function AssignmentPill({
 
   return (
     <div
+      title={
+        vacatingSoon
+          ? `${assignment.employeeName} is ${VACANCY_REASON_LABEL[vacatingSoon.reason]} as of ${vacatingSoon.startsOn} — this slot will need a replacement`
+          : undefined
+      }
       className={
         "flex items-center justify-between gap-1 rounded px-1.5 py-0.5 text-xs " +
-        (assignment.isExtraCoverage ? "bg-yellow-100 text-yellow-900" : "bg-neutral-100 text-neutral-700")
+        (assignment.isExtraCoverage ? "bg-yellow-100 text-yellow-900" : "bg-neutral-100 text-neutral-700") +
+        (vacatingSoon ? " ring-1 ring-red-400" : "")
       }
     >
       <span className="flex items-center gap-1">
         {assignment.employeeName}
+        {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
         {hasConflict && (
           <span
             title={`Also scheduled as ${conflictPositionNames.join(", ")} in this same slot — double check this is intentional.`}

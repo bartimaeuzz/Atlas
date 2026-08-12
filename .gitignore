@@ -4,3 +4,9 @@ db/*.db
 .env*.local
 .DS_Store
 tsconfig.tsbuildinfo
+
+# Files the sandbox's FUSE mount won't let us actually unlink when we
+# delete something — renamed instead of removed (see PROGRESS.md's
+# sandbox-quirks notes). Excluded from delivery zips too, so these never
+# reach the real repo; this just keeps them out of `git status` here.
+*.stale

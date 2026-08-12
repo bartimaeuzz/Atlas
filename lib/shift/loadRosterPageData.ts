@@ -1,7 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { shifts, shiftRosterEntries, employees, positions } from "@/db/schema";
+import { shifts, shiftRosterEntries, employees, positions, positionStaffingTargets } from "@/db/schema";
 import { loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
+import { dayOfWeek } from "@/lib/schedule/weekMath";
 
 export interface RosterPageEntry {
   rosterEntryId: number;
@@ -26,11 +27,19 @@ export interface RosterPageData {
    * — powers the "Add someone" dropdown's grey-out-but-still-selectable
    * behavior for positions that employee isn't set up for. */
   employeeAssignedPositionIds: Record<number, number[]>;
+  /** positionId -> headcount target for THIS shift's exact day-of-week +
+   * period (2026-08-11) — same positionStaffingTargets table the Schedule
+   * Planner grid reads, resolved down to a single day here since a roster
+   * page is always for one specific date+period. Powers the "N/target"
+   * badge so the roster page reads the same way as the weekly plan grid. */
+  targets: Record<number, number>;
 }
 
 export async function loadRosterPageData(shiftId: number): Promise<RosterPageData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, roster: [], allEmployees: [], allPositions: [], employeeAssignedPositionIds: {} };
+  if (!shift) {
+    return { shift: null, roster: [], allEmployees: [], allPositions: [], employeeAssignedPositionIds: {}, targets: {} };
+  }
 
   const rows = await db
     .select({
@@ -55,18 +64,33 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
   // Retired positions stay valid for shifts that already reference them
   // (this loader's `roster` rows above join freely regardless of active
   // status), but shouldn't be offered when staffing a NEW roster entry.
-  const allPositions = await db
+  // Sorted FOH-then-BOH, same convention as the Schedule Planner grids, so
+  // the roster page's position ordering matches.
+  const allPositionsRaw = await db
     .select({ id: positions.id, name: positions.name, category: positions.category })
     .from(positions)
     .where(eq(positions.active, true));
+  const allPositions = allPositionsRaw
+    .map((p) => ({ ...p, category: p.category as "FOH" | "BOH" }))
+    .sort((a, b) => (a.category === b.category ? a.name.localeCompare(b.name) : a.category === "FOH" ? -1 : 1));
 
   const employeeAssignedPositionIds = await loadEmployeeAssignedPositionIds();
+
+  const targetRows = await db.select().from(positionStaffingTargets).where(
+    eq(positionStaffingTargets.dayOfWeek, dayOfWeek(shift.date))
+  );
+  const targets: Record<number, number> = {};
+  for (const row of targetRows) {
+    if (row.period !== shift.period) continue;
+    targets[row.positionId] = row.targetCount;
+  }
 
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
     roster: rows.map((r) => ({ ...r, positionCategory: r.positionCategory as "FOH" | "BOH" })),
     allEmployees,
-    allPositions: allPositions.map((p) => ({ ...p, category: p.category as "FOH" | "BOH" })),
+    allPositions,
     employeeAssignedPositionIds,
+    targets,
   };
 }

@@ -1,9 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadRosterPageData } from "@/lib/shift/loadRosterPageData";
-import { removeRosterEntry } from "@/lib/actions/shift";
-import { AddRosterEntryForm } from "./AddRosterEntryForm";
+import { RosterGrid } from "./RosterGrid";
 
+/** Redesigned 2026-08-11 (Oliver: wanted this to read like the Schedule
+ * Planner's weekly grid) — a Position-per-row layout with headcount
+ * targets and an inline "+ Add" dropdown per position, instead of a flat
+ * employee list plus a separate form below it. This is deliberately the
+ * LAST-MINUTE, day-of adjustment surface: the weekly plan (if published)
+ * already auto-seeds this roster, this page is for fixing it right before
+ * the closing report — someone called out, a manager added extra coverage,
+ * etc. See RosterGrid.tsx for the grid itself. */
 export default async function RosterPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const shiftId = Number(id);
@@ -31,73 +38,22 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
 
       <section className="mb-8">
         <h2 className="text-lg font-medium mb-3">On the roster ({data.roster.length})</h2>
-        {data.roster.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nobody added yet.</p>
-        ) : (
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-left text-neutral-500 border-b">
-                <th className="py-1.5">Employee</th>
-                <th className="py-1.5">Position</th>
-                <th className="py-1.5">Point override</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.roster.map((r) => {
-                const roleCount = data.roster.filter((x) => x.employeeId === r.employeeId).length;
-                return (
-                  <tr key={r.rosterEntryId} className="border-b">
-                    <td className="py-1.5">
-                      {r.employeeName}
-                      {roleCount > 1 && (
-                        <span
-                          className="ml-2 inline-block bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded"
-                          title="This person has multiple roles on this shift — paid on one combined paycheck."
-                        >
-                          {roleCount} roles
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-1.5 text-neutral-500">
-                      {r.positionName} <span className="text-xs">({r.positionCategory})</span>
-                    </td>
-                    <td className="py-1.5">{r.pointValueOverride ?? "—"}</td>
-                    <td className="py-1.5 text-right">
-                      {!isFinalized && (
-                        <form action={removeRosterEntry}>
-                          <input type="hidden" name="rosterEntryId" value={r.rosterEntryId} />
-                          <input type="hidden" name="shiftId" value={shiftId} />
-                          <button type="submit" className="text-red-600 hover:underline text-xs">
-                            Remove
-                          </button>
-                        </form>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      {!isFinalized && (
-        <section className="mb-8 border rounded p-4">
-          <h2 className="text-lg font-medium mb-3">Add someone</h2>
+        {!isFinalized && (
           <p className="text-xs text-neutral-500 mb-3">
             Point value adjustments happen later, on the Closing Report page right before Save —
             not here. This page is just who&apos;s working today.
           </p>
-          <AddRosterEntryForm
-            shiftId={shiftId}
-            roster={data.roster}
-            allEmployees={data.allEmployees}
-            allPositions={data.allPositions}
-            employeeAssignedPositionIds={data.employeeAssignedPositionIds}
-          />
-        </section>
-      )}
+        )}
+        <RosterGrid
+          shiftId={shiftId}
+          positions={data.allPositions}
+          roster={data.roster}
+          targets={data.targets}
+          allEmployees={data.allEmployees}
+          employeeAssignedPositionIds={data.employeeAssignedPositionIds}
+          readOnly={isFinalized}
+        />
+      </section>
 
       <Link
         href={`/shifts/${shiftId}/closing-report`}
