@@ -155,24 +155,67 @@ export async function retireTemplateAssignment(templateId: number) {
 
 /** Sets the RED vacancy flag — confirmed with Oliver this means
  * resignation notice or a promotion/transfer, NOT an open swap request.
- * See db/schema.ts's comment on vacancyReason for the full reasoning. */
+ * See db/schema.ts's comment on vacancyReason for the full reasoning.
+ *
+ * Scope by reason (2026-08-11, Oliver — clarified after testing on
+ * himself with a real resignation): marking ONE row as vacating
+ * shouldn't mean only that one shift is affected when the real-world
+ * event is bigger than that:
+ *   - RESIGNATION: the person is leaving entirely, so every active
+ *     template row for that employeeId gets flagged, regardless of
+ *     position/day/period.
+ *   - PROMOTION: they're moving out of THIS position specifically
+ *     (might keep other roles), so every active row for that
+ *     employeeId + positionId gets flagged, across all their days.
+ *   - OTHER: stays scoped to just the clicked row — this is the "an
+ *     employee asked to permanently drop this one recurring shift, not
+ *     resigning" case Oliver asked about. A single row is exactly what
+ *     that needs. */
 export async function setTemplateVacancy(
   templateId: number,
   vacancyReason: "RESIGNATION" | "PROMOTION" | "OTHER",
   vacancyStartsOn: string
 ) {
-  await db
-    .update(employeeScheduleTemplates)
-    .set({ vacancyReason, vacancyStartsOn })
-    .where(eq(employeeScheduleTemplates.id, templateId));
+  const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
+  if (!target) return;
+
+  const scopeCondition =
+    vacancyReason === "RESIGNATION"
+      ? and(eq(employeeScheduleTemplates.employeeId, target.employeeId), eq(employeeScheduleTemplates.active, true))
+      : vacancyReason === "PROMOTION"
+        ? and(
+            eq(employeeScheduleTemplates.employeeId, target.employeeId),
+            eq(employeeScheduleTemplates.positionId, target.positionId),
+            eq(employeeScheduleTemplates.active, true)
+          )
+        : eq(employeeScheduleTemplates.id, templateId);
+
+  await db.update(employeeScheduleTemplates).set({ vacancyReason, vacancyStartsOn }).where(scopeCondition);
   revalidatePath("/schedule/templates");
 }
 
+/** Mirrors setTemplateVacancy's scope, read from the row's CURRENT
+ * reason before clearing — so undoing a resignation clears every row
+ * it flagged, not just the one you happened to click "Clear" on. Only
+ * clears rows that still have that same reason, so it can't
+ * accidentally wipe out an unrelated OTHER-reason flag on a different
+ * row for the same employee. */
 export async function clearTemplateVacancy(templateId: number) {
-  await db
-    .update(employeeScheduleTemplates)
-    .set({ vacancyReason: null, vacancyStartsOn: null })
-    .where(eq(employeeScheduleTemplates.id, templateId));
+  const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
+  if (!target) return;
+
+  const scopeCondition =
+    target.vacancyReason === "RESIGNATION"
+      ? and(eq(employeeScheduleTemplates.employeeId, target.employeeId), eq(employeeScheduleTemplates.vacancyReason, "RESIGNATION"))
+      : target.vacancyReason === "PROMOTION"
+        ? and(
+            eq(employeeScheduleTemplates.employeeId, target.employeeId),
+            eq(employeeScheduleTemplates.positionId, target.positionId),
+            eq(employeeScheduleTemplates.vacancyReason, "PROMOTION")
+          )
+        : eq(employeeScheduleTemplates.id, templateId);
+
+  await db.update(employeeScheduleTemplates).set({ vacancyReason: null, vacancyStartsOn: null }).where(scopeCondition);
   revalidatePath("/schedule/templates");
 }
 

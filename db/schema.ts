@@ -648,6 +648,16 @@ export const positionStaffingTargets = sqliteTable(
 // retired (active=false) and a new one created for the replacement,
 // rather than overwriting employeeId in place — keeps a clean history
 // of who has held this slot over time.
+//
+// Vacancy CASCADE SCOPE (2026-08-11, clarified with Oliver): "Mark
+// vacating" on the UI operates on one row you click, but the ACTION
+// (lib/actions/schedule.ts's setTemplateVacancy/clearTemplateVacancy)
+// applies it more broadly depending on the reason, matching what each
+// reason means in real life — a resignation isn't scoped to one shift.
+// RESIGNATION cascades to every active row for that employeeId;
+// PROMOTION cascades to every active row for that employeeId+
+// positionId; OTHER stays scoped to the single row (the "employee
+// asked to permanently drop this one recurring day" case).
 export const employeeScheduleTemplates = sqliteTable(
   "employee_schedule_templates",
   {

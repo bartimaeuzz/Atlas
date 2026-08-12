@@ -1509,6 +1509,44 @@ calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
 `0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
 Turso DB — run `npm run db:migrate` to apply, then `git push`.
 
+## Vacancy marking now scoped by reason (2026-08-11, same day)
+
+Oliver spotted this testing on himself: he marked one of his template
+rows (Monday Dinner Bartender) as resigning, but his other recurring
+rows (Wed/Thu Lunch, Wed Dinner) didn't show the red warning at all.
+Not a bug — the vacancy lookup was working exactly as scoped, just
+scoped too narrowly. Confirmed with Oliver: "resigning" should mean
+the person is leaving entirely, so it should flag every shift they
+have, not just the one row clicked. That also raised a real second
+case he asked about: what if an employee just wants to permanently
+drop ONE recurring day (not resigning, not promoted)? That's exactly
+what the existing `OTHER` reason is for — it just needed the scope
+rule spelled out.
+
+`setTemplateVacancy`/`clearTemplateVacancy` (`lib/actions/schedule.ts`)
+now scope by reason instead of always touching just the clicked row:
+
+- **RESIGNATION** — every active template row for that `employeeId`,
+  any position/day/period.
+- **PROMOTION** — every active row for that `employeeId` +
+  `positionId` (other positions they hold stay untouched).
+- **OTHER** — just the single row clicked. Relabeled in the UI as
+  "Dropping this shift only" so the scope is obvious at the point of
+  choosing, not just in a tooltip. This is the "employee asked to
+  permanently drop this one recurring day" case.
+
+Clearing a vacancy reads the row's CURRENT reason first and clears
+using that same scope, so undoing a resignation clears every row it
+flagged rather than leaving the others stuck red. `TemplatesTable.tsx`
+now shows a one-line scope hint under the reason dropdown
+("Flags every shift this person has..." etc.) so the behavior isn't a
+surprise. No schema changes — this is entirely in the action layer;
+`db/schema.ts`'s comment on `employeeScheduleTemplates` updated to
+document the cascade rule for future reference.
+
+Verified: all 71 tests pass, `next build` clean (23 routes, unchanged
+— no new pages, just changed action/UI behavior).
+
 ## Correction: Preview reverted to fully read-only (2026-08-11, same day)
 
 The "editable Manager view" change in the entry right below this one

@@ -9,13 +9,21 @@ const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const VACANCY_LABELS: Record<string, string> = {
   RESIGNATION: "Resigning",
   PROMOTION: "Promoted/moved",
-  OTHER: "Other",
+  OTHER: "Dropping this shift",
 };
 
 /** List + controls for every active template assignment. Confirmed with
  * Oliver: the RED highlight on a real restaurant schedule means a slot
  * is KNOWN to be vacating (resignation notice or a promotion/transfer),
- * not an open swap request — that's what "Mark vacating" sets here. */
+ * not an open swap request — that's what "Mark vacating" sets here.
+ *
+ * Scope note (2026-08-11): "Mark vacating" on ONE row can flag more
+ * than that one row, depending on the reason — see setTemplateVacancy's
+ * comment in lib/actions/schedule.ts for the full rule. Resigning flags
+ * every shift that employee has; Promoted flags every shift they have
+ * in that specific position; "Dropping this shift" (OTHER) only
+ * affects the one row clicked — that's the case for an employee who
+ * just wants off one recurring day, not leaving or changing roles. */
 export function TemplatesTable({ templates }: { templates: ScheduleTemplateRow[] }) {
   return (
     <table className="w-full text-sm border-collapse">
@@ -115,45 +123,54 @@ function VacancyForm({ templateId, onDone }: { templateId: number; onDone: () =>
   const [reason, setReason] = useState<"RESIGNATION" | "PROMOTION" | "OTHER">("RESIGNATION");
   const [startsOn, setStartsOn] = useState(() => new Date().toISOString().slice(0, 10));
 
+  const scopeHint: Record<typeof reason, string> = {
+    RESIGNATION: "Flags every shift this person has, on any day or position.",
+    PROMOTION: "Flags every shift they have in this specific position (other roles stay as-is).",
+    OTHER: "Flags only this one shift — use this if they're just asking to drop this recurring day.",
+  };
+
   return (
-    <div className="flex items-end gap-3 px-2">
-      <label className="text-xs">
-        <span className="block text-neutral-500 mb-1">Reason</span>
-        <select
-          value={reason}
-          onChange={(e) => setReason(e.target.value as typeof reason)}
-          className="border rounded px-2 py-1"
+    <div className="px-2">
+      <div className="flex items-end gap-3">
+        <label className="text-xs">
+          <span className="block text-neutral-500 mb-1">Reason</span>
+          <select
+            value={reason}
+            onChange={(e) => setReason(e.target.value as typeof reason)}
+            className="border rounded px-2 py-1"
+          >
+            <option value="RESIGNATION">Resigning</option>
+            <option value="PROMOTION">Promoted/moved to another position</option>
+            <option value="OTHER">Dropping this shift only</option>
+          </select>
+        </label>
+        <label className="text-xs">
+          <span className="block text-neutral-500 mb-1">Starts on</span>
+          <input
+            type="date"
+            value={startsOn}
+            onChange={(e) => setStartsOn(e.target.value)}
+            className="border rounded px-2 py-1"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              await setTemplateVacancy(templateId, reason, startsOn);
+              onDone();
+            })
+          }
+          className="bg-red-700 text-white px-3 py-1 rounded text-xs hover:bg-red-800 disabled:opacity-50"
         >
-          <option value="RESIGNATION">Resigning</option>
-          <option value="PROMOTION">Promoted/moved to another position</option>
-          <option value="OTHER">Other</option>
-        </select>
-      </label>
-      <label className="text-xs">
-        <span className="block text-neutral-500 mb-1">Starts on</span>
-        <input
-          type="date"
-          value={startsOn}
-          onChange={(e) => setStartsOn(e.target.value)}
-          className="border rounded px-2 py-1"
-        />
-      </label>
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() =>
-          startTransition(async () => {
-            await setTemplateVacancy(templateId, reason, startsOn);
-            onDone();
-          })
-        }
-        className="bg-red-700 text-white px-3 py-1 rounded text-xs hover:bg-red-800 disabled:opacity-50"
-      >
-        {isPending ? "Saving…" : "Set"}
-      </button>
-      <button type="button" onClick={onDone} className="text-xs text-neutral-500 underline">
-        Cancel
-      </button>
+          {isPending ? "Saving…" : "Set"}
+        </button>
+        <button type="button" onClick={onDone} className="text-xs text-neutral-500 underline">
+          Cancel
+        </button>
+      </div>
+      <p className="text-[11px] text-neutral-400 mt-1.5">{scopeHint[reason]}</p>
     </div>
   );
 }
