@@ -112,12 +112,19 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
 
   const assignments: PlannedAssignmentRow[] = rows.map((r) => {
     const vacancy = vacancyByKey.get(`${r.employeeId}:${r.positionId}:${dayOfWeek(r.date)}:${r.period}`);
+    // <= not < : an assignment that was already generated/added for the
+    // exact vacancyStartsOn date should still show the warning — it's
+    // still a real, currently-scheduled shift, just one the manager
+    // needs to notice and handle before that day arrives. (New WEEKS
+    // generated after the vacancy is set won't include this slot at all
+    // — see generateWeekFromTemplate's `date >= vacancyStartsOn` skip —
+    // this only affects assignments that already existed on the books.)
     return {
       ...r,
       positionCategory: r.positionCategory as "FOH" | "BOH",
       period: r.period as "Lunch" | "Dinner",
       sourceType: r.sourceType as "FROM_TEMPLATE" | "MANUAL_ADD",
-      vacatingSoon: vacancy && r.date < vacancy.startsOn ? vacancy : null,
+      vacatingSoon: vacancy && r.date <= vacancy.startsOn ? vacancy : null,
     };
   });
 

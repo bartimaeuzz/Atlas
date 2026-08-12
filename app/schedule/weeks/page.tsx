@@ -56,11 +56,7 @@ export default async function WeeksListPage({
       <div className="divide-y border rounded">
         {data.weeks.map((w) => {
           const isThisWeek = w.weekStartDate === thisWeek;
-          const href =
-            w.status === "draft"
-              ? `/schedule/plan/preview?week=${w.weekStartDate}`
-              : `/schedule/plan?week=${w.weekStartDate}`;
-          const actionLabel = w.status === "published" ? "View" : w.status === "draft" ? "Review & publish" : "Plan this week";
+          const isPlanned = w.status !== "not_planned";
 
           return (
             <div key={w.weekStartDate} className={"flex items-center justify-between px-4 py-3" + (isThisWeek ? " bg-neutral-50" : "")}>
@@ -73,9 +69,22 @@ export default async function WeeksListPage({
                   {STATUS_LABEL[w.status]}
                 </span>
               </div>
-              <Link href={href} className="text-sm text-neutral-600 hover:text-black underline shrink-0">
-                {actionLabel} &rarr;
-              </Link>
+              <div className="flex items-center gap-3 text-sm shrink-0">
+                {isPlanned ? (
+                  <>
+                    <Link href={`/schedule/plan/preview?week=${w.weekStartDate}`} className="text-neutral-600 hover:text-black underline">
+                      Preview &rarr;
+                    </Link>
+                    <Link href={`/schedule/plan?week=${w.weekStartDate}`} className="text-neutral-600 hover:text-black underline">
+                      Edit &rarr;
+                    </Link>
+                  </>
+                ) : (
+                  <Link href={`/schedule/plan?week=${w.weekStartDate}`} className="text-neutral-600 hover:text-black underline">
+                    Plan this week &rarr;
+                  </Link>
+                )}
+              </div>
             </div>
           );
         })}

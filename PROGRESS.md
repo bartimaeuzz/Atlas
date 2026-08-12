@@ -1509,6 +1509,38 @@ calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
 `0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
 Turso DB — run `npm run db:migrate` to apply, then `git push`.
 
+## Three follow-up fixes from live testing (2026-08-11)
+
+Oliver tested the previous round live and reported three issues, all
+fixed:
+
+- **Vacancy ring wasn't showing.** `loadWeeklyPlan` compared
+  `assignment.date < vacancy.startsOn` (strict less-than) to decide
+  whether an assignment is in the grace period. Oliver had set
+  `vacancyStartsOn` to the exact Monday the already-generated
+  assignment fell on, so `date < startsOn` was false (equal, not
+  less) and the ring never rendered — even though the assignment was
+  still sitting right there on the grid. Changed to `<=`: an
+  already-scheduled assignment now shows the warning through and
+  including the vacancy date itself. (Doesn't affect
+  `generateWeekFromTemplate`'s `date >= vacancyStartsOn` skip rule for
+  *new* weeks — that's intentionally forward-looking and unchanged.)
+- **Couldn't edit from the Preview page.** Manager view was rendered
+  fully read-only, same as Staff view — meaning reviewing the preview
+  and noticing a problem meant a round trip back to `/schedule/plan`
+  to fix it, then back to Preview to re-check. Manager view is now
+  fully editable (same quick-add/remove as the real grid, same
+  warnings); Staff view stays read-only since it's meant to mirror
+  exactly what employees will see, not a second editing surface.
+- **Weeks list only linked to Preview for draft weeks.** Published
+  weeks jumped straight to the editable grid with no preview option at
+  all. Every planned week (draft or published) now shows both
+  "Preview →" and "Edit →"; only "Not planned" weeks show a single
+  "Plan this week →" action, since there's nothing to preview yet.
+
+No schema changes. Verified: all 71 tests pass, `next build` clean (23
+routes, same as before — these were all fixes to existing pages).
+
 ## Vacancy indicator, roster grid redesign, weeks list (2026-08-11)
 
 Three more Oliver-requested additions on top of the preview/month/
