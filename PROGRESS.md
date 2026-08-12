@@ -1509,6 +1509,22 @@ calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
 `0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
 Turso DB — run `npm run db:migrate` to apply, then `git push`.
 
+## Correction: Preview reverted to fully read-only (2026-08-11, same day)
+
+The "editable Manager view" change in the entry right below this one
+was wrong — Oliver corrected it directly after testing: Preview must
+never allow editing in either view, full stop. "Edit" needs to stay a
+clearly separate, deliberate action, not something that happens by
+accident while reviewing. Reverted `/schedule/plan/preview` to render
+`WeeklyPlanGrid` with `readOnly` unconditionally true again (both
+Manager and Staff views). To make the "how do I get back to editing"
+problem this was originally trying to solve actually easy, replaced
+the small top-left "← Back to edit" text link with a proper visible
+button ("Edit this week →") next to the view toggle — same
+destination (`/schedule/plan?week=...`), just impossible to miss this
+time. No schema changes. All 71 tests pass, `next build` clean (23
+routes, unchanged).
+
 ## Three follow-up fixes from live testing (2026-08-11)
 
 Oliver tested the previous round live and reported three issues, all
