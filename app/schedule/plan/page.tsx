@@ -3,7 +3,6 @@ import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
 import { loadEmployeesList, loadAllPositionsForAssignment, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
 import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
 import { GenerateWeekButton } from "./GenerateWeekButton";
-import { PublishWeekButton } from "./PublishWeekButton";
 import { WeeklyPlanGrid } from "./WeeklyPlanGrid";
 import { AddPlannedAssignmentForm } from "./AddPlannedAssignmentForm";
 
@@ -60,6 +59,13 @@ export default async function WeeklyPlanPage({
         <Link href={`/schedule/plan?week=${nextWeek}`} className="text-neutral-500 hover:text-black underline">
           Next week &rarr;
         </Link>
+        <span className="text-neutral-300">|</span>
+        <Link href={`/schedule/plan/month?month=${weekStartDate}`} className="text-neutral-500 hover:text-black underline">
+          Zoom out to month view
+        </Link>
+        <Link href={`/schedule/plan/person?month=${weekStartDate}`} className="text-neutral-500 hover:text-black underline">
+          View by person
+        </Link>
       </div>
 
       {!data.week ? (
@@ -77,7 +83,12 @@ export default async function WeeklyPlanPage({
               <p className="text-sm text-neutral-500">
                 Still a draft — only managers can see this until it&apos;s published.
               </p>
-              <PublishWeekButton weekId={data.week.id} />
+              <Link
+                href={`/schedule/plan/preview?week=${weekStartDate}`}
+                className="bg-black text-white px-4 py-1.5 rounded hover:bg-neutral-800 text-sm"
+              >
+                Preview &amp; Publish
+              </Link>
             </div>
           )}
 

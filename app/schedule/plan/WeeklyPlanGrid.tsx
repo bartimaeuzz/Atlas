@@ -40,17 +40,32 @@ function dayOfWeekFor(dateIso: string): number {
  * only appears next to the dropdown once a person is picked, and is a
  * manual checkbox, never auto-set — Oliver's call: the app shouldn't
  * guess whether an add is "covering a known gap" vs "anticipating a
- * busy day," those mean different things to him. */
+ * busy day," those mean different things to him.
+ *
+ * Read-only / preview modes (2026-08-11, Oliver): before publishing, he
+ * wants to preview both as HE'D see it (all the warnings above, so he
+ * can catch problems) and as STAFF will see it once it's live (no
+ * manager-only diagnostics). Rather than build a second grid component,
+ * this same component takes `readOnly` (hides quick-add + remove
+ * buttons) and `hideDiagnostics` (hides the red under-target
+ * highlight/badge and the orange double-booking badge, but keeps the
+ * yellow extra-coverage highlight — that's relevant context for staff
+ * too, not an internal diagnostic) so both preview modes and the
+ * normal editable grid share one implementation. */
 export function WeeklyPlanGrid({
   data,
   weekId,
   allEmployees,
   employeeAssignedPositionIds,
+  readOnly = false,
+  hideDiagnostics = false,
 }: {
   data: WeeklyPlanData;
-  weekId: number;
-  allEmployees: { id: number; name: string }[];
-  employeeAssignedPositionIds: Record<number, number[]>;
+  weekId?: number;
+  allEmployees?: { id: number; name: string }[];
+  employeeAssignedPositionIds?: Record<number, number[]>;
+  readOnly?: boolean;
+  hideDiagnostics?: boolean;
 }) {
   const positionNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -71,8 +86,11 @@ export function WeeklyPlanGrid({
   }, [data.assignments]);
 
   // positionId -> employees split into "usually works this role" vs "other"
+  // — only needed in editable mode, since that's the only place the
+  // quick-add dropdown renders.
   const employeesByPosition = useMemo(() => {
     const map = new Map<number, { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] }>();
+    if (readOnly || !allEmployees || !employeeAssignedPositionIds) return map;
     for (const p of data.positions) {
       const eligible: { id: number; name: string }[] = [];
       const other: { id: number; name: string }[] = [];
@@ -83,7 +101,7 @@ export function WeeklyPlanGrid({
       map.set(p.id, { eligible, other });
     }
     return map;
-  }, [data.positions, allEmployees, employeeAssignedPositionIds]);
+  }, [data.positions, allEmployees, employeeAssignedPositionIds, readOnly]);
 
   return (
     <div className="space-y-8">
@@ -118,15 +136,15 @@ export function WeeklyPlanGrid({
                       const cellAssignments = data.assignments.filter(
                         (a) => a.positionId === p.id && a.date === date && a.period === period
                       );
-                      const underTarget = target > 0 && cellAssignments.length < target;
+                      const underTarget = !hideDiagnostics && target > 0 && cellAssignments.length < target;
                       return (
                         <td key={date} className={"py-1.5 px-1 align-top" + (underTarget ? " bg-red-50" : "")}>
                           <div className="space-y-0.5">
                             {cellAssignments.map((a) => {
                               const slotKey = `${a.employeeId}:${date}:${period}`;
-                              const otherPositionIds = (slotPositionsByEmployee.get(slotKey) ?? []).filter(
-                                (id) => id !== a.positionId
-                              );
+                              const otherPositionIds = hideDiagnostics
+                                ? []
+                                : (slotPositionsByEmployee.get(slotKey) ?? []).filter((id) => id !== a.positionId);
                               const conflictPositionNames = [...new Set(otherPositionIds)].map(
                                 (id) => positionNameById.get(id) ?? "?"
                               );
@@ -135,22 +153,25 @@ export function WeeklyPlanGrid({
                                   key={a.id}
                                   assignment={a}
                                   conflictPositionNames={conflictPositionNames}
+                                  readOnly={readOnly}
                                 />
                               );
                             })}
-                            {target > 0 && (
+                            {!hideDiagnostics && target > 0 && (
                               <div className={"text-xs" + (underTarget ? " text-red-600 font-medium" : " text-neutral-400")}>
                                 {cellAssignments.length}/{target}
                               </div>
                             )}
-                            <QuickAddCell
-                              weekId={weekId}
-                              date={date}
-                              period={period}
-                              positionId={p.id}
-                              employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
-                              alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
-                            />
+                            {!readOnly && weekId !== undefined && (
+                              <QuickAddCell
+                                weekId={weekId}
+                                date={date}
+                                period={period}
+                                positionId={p.id}
+                                employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
+                                alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
+                              />
+                            )}
                           </div>
                         </td>
                       );
@@ -169,9 +190,11 @@ export function WeeklyPlanGrid({
 function AssignmentPill({
   assignment,
   conflictPositionNames,
+  readOnly,
 }: {
   assignment: PlannedAssignmentRow;
   conflictPositionNames: string[];
+  readOnly: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -195,20 +218,22 @@ function AssignmentPill({
           </span>
         )}
       </span>
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() =>
-          startTransition(async () => {
-            await removePlannedAssignment(assignment.id);
-            router.refresh();
-          })
-        }
-        className="text-neutral-400 hover:text-red-600 disabled:opacity-50"
-        title="Remove"
-      >
-        ×
-      </button>
+      {!readOnly && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              await removePlannedAssignment(assignment.id);
+              router.refresh();
+            })
+          }
+          className="text-neutral-400 hover:text-red-600 disabled:opacity-50"
+          title="Remove"
+        >
+          ×
+        </button>
+      )}
     </div>
   );
 }

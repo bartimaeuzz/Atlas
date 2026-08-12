@@ -1509,6 +1509,55 @@ calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
 `0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
 Turso DB — run `npm run db:migrate` to apply, then `git push`.
 
+## Schedule Planner: publish preview + month/person zoom views (2026-08-11)
+
+Three more pieces on top of the shipped weekly plan grid, all requested
+in one go by Oliver ("I want schedule preview before publishing" +
+"can we see it as monthly as well... zoom out to oversee the future,
+then zoom in to a week, and check each person's shifts"). No schema
+changes for any of these — all three read existing tables in new
+shapes.
+
+- **Publish preview gate (`/schedule/plan/preview`):** the draft
+  banner's Publish button now links here first instead of publishing
+  directly. Two views, toggled by `?view=`: "Manager view" (read-only
+  grid, keeps the red/orange warnings) and "Staff view" (same grid,
+  warnings hidden — what employees will actually see once it's live).
+  Both reuse `WeeklyPlanGrid` itself via new `readOnly`/`hideDiagnostics`
+  props rather than a second component, so the preview can never drift
+  from the real editable grid's data or layout. "Confirm & Publish"
+  sits at the bottom of this page.
+- **Month zoom-out (`/schedule/plan/month`):** a calendar covering the
+  whole month, one cell per day, showing a shortfall count ("3 short" /
+  "Covered") and a status dot (green=published, gray=draft,
+  blue=projected). Key design call, confirmed with Oliver: most future
+  weeks won't have been "Generated" yet, so showing only actual data
+  would leave most of the month blank — not much of an "oversee the
+  future" tool. Instead, weeks that don't exist yet are PROJECTED live
+  from the recurring templates using the same rules
+  `generateWeekFromTemplate` uses (now factored out into
+  `lib/schedule/projectTemplate.ts`'s `projectAssignmentsForWeek`, a
+  pure function shared by both the real generate action and this
+  read-only projection, so they can't drift apart). Click any day to
+  jump into that week's real grid.
+- **Person zoom-in (`/schedule/plan/person`):** pick an employee, see
+  their shifts across a month, calendar-style, same
+  projected/draft/published blending as the month view. Built as
+  reusable infrastructure on purpose — this is the same shape staff
+  will want for their own "My Schedule" page later (a later phase),
+  just pre-selected to the logged-in employee instead of a manager's
+  pick.
+
+All three link to each other and back to the weekly grid ("Zoom out to
+month view" / "Zoom in to weekly view" / "View by person"), plus cards
+on the `/schedule` landing page. Verified: all 71 existing unit tests
+pass unchanged, `next build` clean — 22 routes including the three new
+pages. No new unit tests (presentational + read-only query composition,
+no new calculation logic); no real-DB smoke test possible from this
+sandbox since it has no Turso credentials (only Oliver's machine does)
+— relying on the build/typecheck pass plus careful review of the
+query logic for this round.
+
 ## Weekly plan inline quick-add + staffing target stepper (2026-08-11)
 
 Two related UI improvements Oliver asked for after using the shipped

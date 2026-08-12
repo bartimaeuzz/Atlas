@@ -10,7 +10,7 @@ import {
   scheduleWeeks,
   plannedShiftAssignments,
 } from "@/db/schema";
-import { dateForDayOfWeek } from "@/lib/schedule/weekMath";
+import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 const PERIODS = ["Lunch", "Dinner"] as const;
@@ -204,29 +204,19 @@ export async function generateWeekFromTemplate(weekStartDate: string) {
 
   const templateRows = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.active, true));
 
-  const rows: {
-    weekId: number;
-    employeeId: number;
-    positionId: number;
-    date: string;
-    period: "Lunch" | "Dinner";
-    sourceType: "FROM_TEMPLATE";
-  }[] = [];
-
-  for (const t of templateRows) {
-    const date = dateForDayOfWeek(weekStartDate, t.dayOfWeek);
-    if (t.effectiveFrom && date < t.effectiveFrom) continue;
-    if (t.vacancyStartsOn && date >= t.vacancyStartsOn) continue;
-
-    rows.push({
-      weekId: week.id,
+  const projected = projectAssignmentsForWeek(
+    weekStartDate,
+    templateRows.map((t) => ({
       employeeId: t.employeeId,
       positionId: t.positionId,
-      date,
+      dayOfWeek: t.dayOfWeek,
       period: t.period as "Lunch" | "Dinner",
-      sourceType: "FROM_TEMPLATE",
-    });
-  }
+      effectiveFrom: t.effectiveFrom,
+      vacancyStartsOn: t.vacancyStartsOn,
+    }))
+  );
+
+  const rows = projected.map((p) => ({ ...p, weekId: week.id, sourceType: "FROM_TEMPLATE" as const }));
 
   if (rows.length > 0) {
     await db.insert(plannedShiftAssignments).values(rows);

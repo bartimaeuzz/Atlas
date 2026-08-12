@@ -25,6 +25,25 @@ export default function SchedulePage() {
           </p>
         </Link>
         <Link
+          href="/schedule/plan/month"
+          className="block border rounded p-4 hover:bg-neutral-50 sm:col-span-2"
+        >
+          <h2 className="font-medium mb-1">Month overview</h2>
+          <p className="text-sm text-neutral-500">
+            Zoom out across the whole month — see which days are short-staffed, including weeks
+            you haven&apos;t built yet (projected from your templates).
+          </p>
+        </Link>
+        <Link
+          href="/schedule/plan/person"
+          className="block border rounded p-4 hover:bg-neutral-50"
+        >
+          <h2 className="font-medium mb-1">Person schedule</h2>
+          <p className="text-sm text-neutral-500">
+            Zoom in on one person — see their shifts across a month at a glance.
+          </p>
+        </Link>
+        <Link
           href="/schedule/targets"
           className="block border rounded p-4 hover:bg-neutral-50"
         >

@@ -59,3 +59,36 @@ export function shiftWeek(weekStartDateIso: string, weeks: number): string {
   d.setUTCDate(d.getUTCDate() + weeks * 7);
   return toIso(d);
 }
+
+/** dateIso shifted by N days (negative = earlier) — used by the month
+ * overview to walk the calendar grid and by prev/next month nav. */
+export function addDays(dateIso: string, days: number): string {
+  const d = parseDate(dateIso);
+  d.setUTCDate(d.getUTCDate() + days);
+  return toIso(d);
+}
+
+/** ISO date string for the 1st of the month dateIso falls in. */
+export function monthStart(dateIso: string): string {
+  const d = parseDate(dateIso);
+  return toIso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 12)));
+}
+
+/** dateIso's month shifted by N months (negative = earlier), pinned to
+ * the 1st — for the month overview's prev/next navigation. */
+export function shiftMonth(dateIso: string, months: number): string {
+  const d = parseDate(dateIso);
+  return toIso(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + months, 1, 12)));
+}
+
+/** Human label for the month dateIso falls in, e.g. "August 2026". */
+export function monthLabel(dateIso: string): string {
+  const d = parseDate(dateIso);
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" }).format(d);
+}
+
+/** 0=Sunday..6=Saturday for dateIso, same UTC-noon-pinned convention as
+ * everything else in this file. */
+export function dayOfWeek(dateIso: string): number {
+  return parseDate(dateIso).getUTCDay();
+}
