@@ -1798,3 +1798,61 @@ Phase 1, this is CRUD + a straightforward seed/publish flow, no new
 calculation logic. Migration `0006_minor_thunderbolt_ross.sql` NOT yet
 applied to the production Turso DB — run `npm run db:migrate` to apply,
 then `git push`.
+
+## Template Assignments page redesign: Position -> person -> checkbox grid (2026-08-12)
+
+Oliver asked for this one explicitly ("let's talk before you build") and
+we discussed the design before any code: the old `/schedule/templates`
+page was a flat list of every (employee, position, day, period) row plus
+a one-slot-at-a-time add form. Slow to use — a position like Server
+normally has 3+ people, each with their own multi-day pattern, so adding
+each day/period as a separate form submission took many clicks, and the
+growing flat list was hard to scan ("I really hate the long list").
+
+New shape, confirmed with Oliver point by point before building:
+
+1. **Layout** — Position rows first. Each position card shows who's
+   currently assigned (name + their pattern, e.g. "Chui — Mon L, Wed D"),
+   plus a dropdown of people ELIGIBLE for that position (same "assigned
+   in Employee admin" list AddTemplateForm used to grey-in) to pick who
+   to add or edit. Picking a name opens a Monday-Sunday x Lunch/Dinner
+   checkbox grid for just that person in that position.
+2. **Editing an existing person pre-checks their current pattern**
+   (confirmed — not a blank grid every time). Saving diffs what's
+   checked against what's stored: newly-checked boxes create (or
+   reactivate a previously-retired) row, unchecked boxes retire that row
+   immediately, no vacancy warning. This is also the new home for the
+   "employee wants to drop just one recurring day" case from the
+   previous entry below — no separate reason/UI needed for it anymore,
+   just uncheck the box.
+3. **effectiveFrom stays in the schema, not in this UI.** Oliver: hasn't
+   used it yet with real data, unsure how it should work, doesn't want
+   to design it blind — keep the column and the DB support, just don't
+   expose a field for it right now so it's there to pick back up later.
+   New rows created by the grid save with `effectiveFrom: null` (takes
+   effect immediately), same as most existing rows already had.
+4. **Kebab menu (⋮) per assigned person** replaces the old inline
+   Mark-vacating/Retire buttons — opens a small popup with "Mark
+   vacating…" (reason + start date, same red-flag mechanic as before),
+   "Clear vacancy", and "Retire from this position" (immediate, no
+   warning). Scope note: since the smallest unit this UI edits is now
+   "this person, in this position" (not a single day/period row),
+   PROMOTION and OTHER now share that same cascade scope in
+   `setTemplateVacancy`/`clearTemplateVacancy` (every active row for
+   that employeeId + positionId) — RESIGNATION is unchanged (every row
+   for the employeeId, any position). They stay separate reasons for
+   labeling purposes even though the blast radius is now identical.
+
+New: `lib/schedule/loadTemplatesByPosition.ts` (position -> eligible
+employees + assigned employees w/ pattern + vacancy status),
+`lib/actions/schedule.ts`'s `syncEmployeePositionTemplate` (diff-and-sync
+one employee+position pair's checked cells) and
+`retireEmployeeFromPosition`, `app/schedule/templates/PositionTemplateGrid.tsx`
+(all the new UI). Removed `createTemplateAssignment`/
+`retireTemplateAssignment` (superseded, nothing else referenced them).
+Retired `AddTemplateForm.tsx`, `TemplatesTable.tsx`,
+`loadScheduleTemplates.ts` to `.stale` (sandbox can't hard-delete files —
+see `.gitignore`'s note).
+
+Verified: all 71 tests pass (no test coverage for this page — UI-only
+change, same as before), `next build` clean, 27 routes unchanged.

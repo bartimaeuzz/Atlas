@@ -65,112 +65,28 @@ export async function updateStaffingTargets(
   return { error: null, saved: true };
 }
 
-export interface TemplateActionState {
-  error: string | null;
-}
-
-function readTemplateForm(formData: FormData) {
-  const employeeId = Number(formData.get("employeeId"));
-  const positionId = Number(formData.get("positionId"));
-  const dayOfWeek = Number(formData.get("dayOfWeek"));
-  const period = String(formData.get("period") ?? "");
-
-  if (!employeeId) throw new Error("Employee is required");
-  if (!positionId) throw new Error("Position is required");
-  if (Number.isNaN(dayOfWeek) || dayOfWeek < 0 || dayOfWeek > 6) throw new Error("Invalid day of week");
-  if (period !== "Lunch" && period !== "Dinner") throw new Error("Period must be Lunch or Dinner");
-
-  const effectiveFromRaw = String(formData.get("effectiveFrom") ?? "").trim();
-
-  return {
-    employeeId,
-    positionId,
-    dayOfWeek,
-    period: period as "Lunch" | "Dinner",
-    effectiveFrom: effectiveFromRaw || null,
-  };
-}
-
-/** Note on the unique index (employeeId, positionId, dayOfWeek, period):
- * it does NOT include `active`, so the same employee can't be re-added to
- * the exact slot they were previously retired from without reactivating
- * the old row instead — an accepted edge case for v1 (retiring and
- * re-adding a DIFFERENT employee to a slot works fine, since employeeId
- * differs). See db/schema.ts's comment on employeeScheduleTemplates. */
-export async function createTemplateAssignment(
-  _prevState: TemplateActionState,
-  formData: FormData
-): Promise<TemplateActionState> {
-  try {
-    const parsed = readTemplateForm(formData);
-
-    const [existing] = await db
-      .select()
-      .from(employeeScheduleTemplates)
-      .where(
-        and(
-          eq(employeeScheduleTemplates.employeeId, parsed.employeeId),
-          eq(employeeScheduleTemplates.positionId, parsed.positionId),
-          eq(employeeScheduleTemplates.dayOfWeek, parsed.dayOfWeek),
-          eq(employeeScheduleTemplates.period, parsed.period)
-        )
-      );
-
-    if (existing && existing.active) {
-      throw new Error("This employee already has an active template assignment for this position, day, and period");
-    }
-    if (existing && !existing.active) {
-      // Reactivating the same slot for the same employee — simplest path
-      // given the unique index, and a legitimate case (someone returning
-      // to a slot they'd previously left).
-      await db
-        .update(employeeScheduleTemplates)
-        .set({ active: true, effectiveFrom: parsed.effectiveFrom, vacancyReason: null, vacancyStartsOn: null })
-        .where(eq(employeeScheduleTemplates.id, existing.id));
-    } else {
-      await db.insert(employeeScheduleTemplates).values({
-        employeeId: parsed.employeeId,
-        positionId: parsed.positionId,
-        dayOfWeek: parsed.dayOfWeek,
-        period: parsed.period,
-        effectiveFrom: parsed.effectiveFrom,
-        active: true,
-      });
-    }
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
-  }
-
-  revalidatePath("/schedule/templates");
-  return { error: null };
-}
-
-/** Retire, don't hard-delete — same convention as positions.active. Plain
- * (non-form-state) action, just a button, same pattern as
- * togglePositionActive. */
-export async function retireTemplateAssignment(templateId: number) {
-  await db.update(employeeScheduleTemplates).set({ active: false }).where(eq(employeeScheduleTemplates.id, templateId));
-  revalidatePath("/schedule/templates");
-}
-
 /** Sets the RED vacancy flag — confirmed with Oliver this means
  * resignation notice or a promotion/transfer, NOT an open swap request.
  * See db/schema.ts's comment on vacancyReason for the full reasoning.
  *
  * Scope by reason (2026-08-11, Oliver — clarified after testing on
- * himself with a real resignation): marking ONE row as vacating
- * shouldn't mean only that one shift is affected when the real-world
- * event is bigger than that:
+ * himself with a real resignation):
  *   - RESIGNATION: the person is leaving entirely, so every active
  *     template row for that employeeId gets flagged, regardless of
  *     position/day/period.
- *   - PROMOTION: they're moving out of THIS position specifically
- *     (might keep other roles), so every active row for that
- *     employeeId + positionId gets flagged, across all their days.
- *   - OTHER: stays scoped to just the clicked row — this is the "an
- *     employee asked to permanently drop this one recurring shift, not
- *     resigning" case Oliver asked about. A single row is exactly what
- *     that needs. */
+ *   - PROMOTION and OTHER: scoped to every active row for that
+ *     employeeId + positionId. These share a scope by design (2026-08-12,
+ *     following the Template Assignments redesign): the UI's smallest
+ *     addressable unit is now "this person, in this position" (a kebab
+ *     menu on the position/employee group, not a single day/period row),
+ *     so both "promoted out of this role" and "dropping this position
+ *     entirely" naturally mean the same blast radius — every day/shift
+ *     they work in that one position. They stay separate reasons because
+ *     the LABEL matters (what staff/managers read later), even though the
+ *     scope is identical. The old "drop just one recurring day" case this
+ *     used to cover is now handled directly in the grid: unchecking a
+ *     single day/period box and saving retires just that row immediately,
+ *     no advance-notice red-flag treatment needed for that. */
 export async function setTemplateVacancy(
   templateId: number,
   vacancyReason: "RESIGNATION" | "PROMOTION" | "OTHER",
@@ -182,13 +98,11 @@ export async function setTemplateVacancy(
   const scopeCondition =
     vacancyReason === "RESIGNATION"
       ? and(eq(employeeScheduleTemplates.employeeId, target.employeeId), eq(employeeScheduleTemplates.active, true))
-      : vacancyReason === "PROMOTION"
-        ? and(
-            eq(employeeScheduleTemplates.employeeId, target.employeeId),
-            eq(employeeScheduleTemplates.positionId, target.positionId),
-            eq(employeeScheduleTemplates.active, true)
-          )
-        : eq(employeeScheduleTemplates.id, templateId);
+      : and(
+          eq(employeeScheduleTemplates.employeeId, target.employeeId),
+          eq(employeeScheduleTemplates.positionId, target.positionId),
+          eq(employeeScheduleTemplates.active, true)
+        );
 
   await db.update(employeeScheduleTemplates).set({ vacancyReason, vacancyStartsOn }).where(scopeCondition);
   revalidatePath("/schedule/templates");
@@ -198,24 +112,94 @@ export async function setTemplateVacancy(
  * reason before clearing — so undoing a resignation clears every row
  * it flagged, not just the one you happened to click "Clear" on. Only
  * clears rows that still have that same reason, so it can't
- * accidentally wipe out an unrelated OTHER-reason flag on a different
- * row for the same employee. */
+ * accidentally wipe out an unrelated flag set for a different reason. */
 export async function clearTemplateVacancy(templateId: number) {
   const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
-  if (!target) return;
+  if (!target || !target.vacancyReason) return;
 
   const scopeCondition =
     target.vacancyReason === "RESIGNATION"
       ? and(eq(employeeScheduleTemplates.employeeId, target.employeeId), eq(employeeScheduleTemplates.vacancyReason, "RESIGNATION"))
-      : target.vacancyReason === "PROMOTION"
-        ? and(
-            eq(employeeScheduleTemplates.employeeId, target.employeeId),
-            eq(employeeScheduleTemplates.positionId, target.positionId),
-            eq(employeeScheduleTemplates.vacancyReason, "PROMOTION")
-          )
-        : eq(employeeScheduleTemplates.id, templateId);
+      : and(
+          eq(employeeScheduleTemplates.employeeId, target.employeeId),
+          eq(employeeScheduleTemplates.positionId, target.positionId),
+          eq(employeeScheduleTemplates.vacancyReason, target.vacancyReason)
+        );
 
   await db.update(employeeScheduleTemplates).set({ vacancyReason: null, vacancyStartsOn: null }).where(scopeCondition);
+  revalidatePath("/schedule/templates");
+}
+
+/* ---------------------------------------------------------------------- */
+/* Phase 1 redesign (2026-08-12) — bulk position/employee pattern editor   */
+/* ---------------------------------------------------------------------- */
+
+/** Diff-and-sync one (employeeId, positionId) pair's weekly pattern
+ * against a submitted set of checked day/period cells — the write side of
+ * the new Position -> pick person -> Mon-Sun checkbox grid on
+ * /schedule/templates. Same "diff against what's stored, only touch what
+ * changed" spirit as updateStaffingTargets, but scoped to one
+ * employee+position pair instead of the whole table, since that's the
+ * unit the new UI edits at a time.
+ *
+ * Checked box with no existing row -> create (or reactivate a previously
+ * retired row at that exact slot, since the unique index on
+ * (employeeId, positionId, dayOfWeek, period) doesn't include `active` —
+ * same reasoning as createTemplateAssignment's reactivate path).
+ * Unchecked box that had an active row -> retire it immediately, no
+ * vacancy warning — this is the direct replacement for the old
+ * single-row "drop just this one day" case. */
+export async function syncEmployeePositionTemplate(
+  employeeId: number,
+  positionId: number,
+  cells: { dayOfWeek: number; period: "Lunch" | "Dinner" }[]
+) {
+  const existing = await db
+    .select()
+    .from(employeeScheduleTemplates)
+    .where(and(eq(employeeScheduleTemplates.employeeId, employeeId), eq(employeeScheduleTemplates.positionId, positionId)));
+
+  const activeExisting = existing.filter((r) => r.active);
+  const key = (dayOfWeek: number, period: string) => `${dayOfWeek}-${period}`;
+  const wantedKeys = new Set(cells.map((c) => key(c.dayOfWeek, c.period)));
+
+  const toRetire = activeExisting.filter((r) => !wantedKeys.has(key(r.dayOfWeek, r.period)));
+  for (const r of toRetire) {
+    await db.update(employeeScheduleTemplates).set({ active: false }).where(eq(employeeScheduleTemplates.id, r.id));
+  }
+
+  const activeKeys = new Set(activeExisting.map((r) => key(r.dayOfWeek, r.period)));
+  const toAdd = cells.filter((c) => !activeKeys.has(key(c.dayOfWeek, c.period)));
+  for (const c of toAdd) {
+    const inactiveMatch = existing.find((r) => !r.active && r.dayOfWeek === c.dayOfWeek && r.period === c.period);
+    if (inactiveMatch) {
+      await db
+        .update(employeeScheduleTemplates)
+        .set({ active: true, vacancyReason: null, vacancyStartsOn: null })
+        .where(eq(employeeScheduleTemplates.id, inactiveMatch.id));
+    } else {
+      await db.insert(employeeScheduleTemplates).values({
+        employeeId,
+        positionId,
+        dayOfWeek: c.dayOfWeek,
+        period: c.period,
+        active: true,
+      });
+    }
+  }
+
+  revalidatePath("/schedule/templates");
+}
+
+/** Kebab-menu "Retire from this position" — immediately retires every
+ * active row for this employee+position pair, no advance-notice vacancy
+ * flag. Distinct from "Mark vacating": this is for cleaning up a mistake
+ * or an already-effective change, not flagging a future departure. */
+export async function retireEmployeeFromPosition(employeeId: number, positionId: number) {
+  await db
+    .update(employeeScheduleTemplates)
+    .set({ active: false })
+    .where(and(eq(employeeScheduleTemplates.employeeId, employeeId), eq(employeeScheduleTemplates.positionId, positionId), eq(employeeScheduleTemplates.active, true)));
   revalidatePath("/schedule/templates");
 }
 
