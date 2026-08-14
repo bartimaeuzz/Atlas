@@ -10,10 +10,10 @@ import {
   scheduleWeeks,
   plannedShiftAssignments,
   employees,
+  scheduleChangeLog,
 } from "@/db/schema";
 import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
 import { getCurrentStaffSession } from "@/lib/auth/session";
-import { verifyPin } from "@/lib/auth/pin";
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 const PERIODS = ["Lunch", "Dinner"] as const;
@@ -331,82 +331,180 @@ export interface DangerZoneActionState {
   error: string | null;
 }
 
-/** Re-verifies the CURRENT signed-in manager's own PIN before a
- * destructive schedule reset -- 2026-08-14, Oliver's explicit ask
- * ("need more badge alert what you are going to do, with manager pin
- * require") after being asked whether clearing a day / deleting a
- * whole week should be allowed on an already-PUBLISHED week (staff may
- * already be looking at it on My Schedule). requireManager() at the
- * (protected) layout already gates who can reach this page at all;
- * this is a second, narrower check -- proving it's really the signed-in
- * person confirming THIS specific action right now, not just that a
- * manager session cookie exists. Deliberately re-checks against the
- * CURRENT session's own employee, not an arbitrary PIN -- someone can
- * only confirm their own identity, not someone else's. */
-async function verifyCurrentManagerPin(pin: string): Promise<string | null> {
-  const session = await getCurrentStaffSession();
-  if (!session) return "You've been signed out -- sign in again";
-  const [employee] = await db.select().from(employees).where(eq(employees.id, session.id));
-  if (!employee?.pinHash) return "No PIN on file for your account -- ask another manager to reset it";
-  if (!pin) return "Enter your PIN to confirm";
-  if (!verifyPin(pin, employee.pinHash)) return "Wrong PIN";
-  return null;
+interface RemovedAssignmentSnapshot {
+  employeeId: number;
+  employeeName: string;
+  positionId: number;
+  positionName: string;
+  date: string;
+  period: "Lunch" | "Dinner";
+}
+
+/** Snapshots the given assignment rows into removedAssignments' JSON
+ * shape (with readable names, not just ids) BEFORE they're deleted, and
+ * writes one scheduleChangeLog row -- shared by clearDay and deleteWeek
+ * below. Takes the already-loaded employee/position name maps rather
+ * than re-querying per row. */
+async function logScheduleChange(params: {
+  weekId: number;
+  weekStartDate: string;
+  action: "CLEARED_DAY" | "DELETED_WEEK";
+  date: string | null;
+  wasPublished: boolean;
+  reason: string | null;
+  performedBy: { id: number; name: string };
+  rows: { employeeId: number; positionId: number; date: string; period: "Lunch" | "Dinner" }[];
+}) {
+  if (params.rows.length === 0) return; // nothing was actually removed -- don't log a no-op
+
+  const [employeeRows, positionRows] = await Promise.all([
+    db.select({ id: employees.id, name: employees.name }).from(employees),
+    db.select({ id: positions.id, name: positions.name }).from(positions),
+  ]);
+  const employeeNameById = new Map(employeeRows.map((e) => [e.id, e.name]));
+  const positionNameById = new Map(positionRows.map((p) => [p.id, p.name]));
+
+  const removedAssignments: RemovedAssignmentSnapshot[] = params.rows.map((r) => ({
+    employeeId: r.employeeId,
+    employeeName: employeeNameById.get(r.employeeId) ?? "Unknown",
+    positionId: r.positionId,
+    positionName: positionNameById.get(r.positionId) ?? "Unknown",
+    date: r.date,
+    period: r.period,
+  }));
+
+  await db.insert(scheduleChangeLog).values({
+    weekId: params.weekId,
+    weekStartDate: params.weekStartDate,
+    action: params.action,
+    date: params.date,
+    wasPublished: params.wasPublished,
+    reason: params.reason,
+    performedByEmployeeId: params.performedBy.id,
+    performedByName: params.performedBy.name,
+    removedAssignments: JSON.stringify(removedAssignments),
+  });
 }
 
 /** Clears every assignment (any position, any period) for ONE date
  * within a week -- "delete draft day," 2026-08-14, Oliver. Leaves the
- * week record and every other date in it untouched. Works on a
- * published week too (Oliver: "can do") -- the PIN re-check plus the
- * UI's dynamic warning text (see DangerZone.tsx) are the guardrail
- * instead of a hard block, since he wants the option, just with real
- * friction in front of it. */
+ * week record and every other date in it untouched.
+ *
+ * 2026-08-14 follow-up, same day: dropped the PIN re-check Oliver first
+ * asked for -- his own words, "pin might not be the answer" for a small
+ * restaurant where one manager realistically does everything, a PIN
+ * doesn't prove much. Replaced with two things instead: typing the
+ * literal word CLEAR to confirm (friction against a misclick, not
+ * against an impostor -- Oliver's own framing: "works too as a
+ * friction but not catching cheat," which he was fine with), and a
+ * REQUIRED reason when the day being cleared was already published
+ * (staff may have already seen it -- draft clears don't need one,
+ * nobody outside management has seen a draft yet). Every clear is
+ * logged via logScheduleChange regardless, so "at least they know
+ * what is happening with their shift" per Oliver. */
 export async function clearDay(
   _prevState: DangerZoneActionState,
   formData: FormData
 ): Promise<DangerZoneActionState> {
   const weekId = Number(formData.get("weekId"));
   const date = String(formData.get("date") ?? "");
-  const pin = String(formData.get("pin") ?? "").trim();
+  const confirmWord = String(formData.get("confirmWord") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
 
   if (!weekId) return { error: "Missing week" };
   if (!date) return { error: "Pick a date" };
+  if (confirmWord.toUpperCase() !== "CLEAR") return { error: 'Type CLEAR (all caps) to confirm' };
 
-  const pinError = await verifyCurrentManagerPin(pin);
-  if (pinError) return { error: pinError };
+  const session = await getCurrentStaffSession();
+  if (!session) return { error: "You've been signed out -- sign in again" };
+
+  const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
+  if (!week) return { error: "That week no longer exists" };
+  const wasPublished = week.status === "published";
+  if (wasPublished && !reason) return { error: "This day is already published -- add a short reason before clearing it" };
+
+  const rowsToRemove = await db
+    .select({
+      employeeId: plannedShiftAssignments.employeeId,
+      positionId: plannedShiftAssignments.positionId,
+      date: plannedShiftAssignments.date,
+      period: plannedShiftAssignments.period,
+    })
+    .from(plannedShiftAssignments)
+    .where(and(eq(plannedShiftAssignments.weekId, weekId), eq(plannedShiftAssignments.date, date)));
 
   await db
     .delete(plannedShiftAssignments)
     .where(and(eq(plannedShiftAssignments.weekId, weekId), eq(plannedShiftAssignments.date, date)));
 
+  await logScheduleChange({
+    weekId,
+    weekStartDate: week.weekStartDate,
+    action: "CLEARED_DAY",
+    date,
+    wasPublished,
+    reason: reason || null,
+    performedBy: { id: session.id, name: session.name },
+    rows: rowsToRemove.map((r) => ({ ...r, period: r.period as "Lunch" | "Dinner" })),
+  });
+
   revalidatePath("/schedule/plan");
   revalidatePath("/schedule/weeks");
+  revalidatePath("/me/schedule");
   return { error: null };
 }
 
 /** Full reset of a week -- "delete draft week," 2026-08-14, Oliver:
  * removes every plannedShiftAssignment in it AND the scheduleWeeks row
  * itself, back to "Not planned" as if "Generate from template" was
- * never clicked. Same published-week allowance + PIN re-check as
- * clearDay above. If the week was published, this also means it
- * immediately disappears from any staff member's My Schedule (their
- * loader only shows PUBLISHED weeks -- once the row's gone, so is
- * their view of it). */
+ * never clicked. Same typed-word-instead-of-PIN + required-reason-if-
+ * published + change log as clearDay above -- see its comment for the
+ * reasoning, all decided together in the same conversation. */
 export async function deleteWeek(
   _prevState: DangerZoneActionState,
   formData: FormData
 ): Promise<DangerZoneActionState> {
   const weekId = Number(formData.get("weekId"));
-  const pin = String(formData.get("pin") ?? "").trim();
+  const confirmWord = String(formData.get("confirmWord") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim();
 
   if (!weekId) return { error: "Missing week" };
+  if (confirmWord.toUpperCase() !== "DELETE") return { error: 'Type DELETE (all caps) to confirm' };
 
-  const pinError = await verifyCurrentManagerPin(pin);
-  if (pinError) return { error: pinError };
+  const session = await getCurrentStaffSession();
+  if (!session) return { error: "You've been signed out -- sign in again" };
+
+  const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
+  if (!week) return { error: "That week no longer exists" };
+  const wasPublished = week.status === "published";
+  if (wasPublished && !reason) return { error: "This week is already published -- add a short reason before deleting it" };
+
+  const rowsToRemove = await db
+    .select({
+      employeeId: plannedShiftAssignments.employeeId,
+      positionId: plannedShiftAssignments.positionId,
+      date: plannedShiftAssignments.date,
+      period: plannedShiftAssignments.period,
+    })
+    .from(plannedShiftAssignments)
+    .where(eq(plannedShiftAssignments.weekId, weekId));
 
   await db.delete(plannedShiftAssignments).where(eq(plannedShiftAssignments.weekId, weekId));
   await db.delete(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
 
+  await logScheduleChange({
+    weekId,
+    weekStartDate: week.weekStartDate,
+    action: "DELETED_WEEK",
+    date: null,
+    wasPublished,
+    reason: reason || null,
+    performedBy: { id: session.id, name: session.name },
+    rows: rowsToRemove.map((r) => ({ ...r, period: r.period as "Lunch" | "Dinner" })),
+  });
+
   revalidatePath("/schedule/plan");
   revalidatePath("/schedule/weeks");
+  revalidatePath("/me/schedule");
   return { error: null };
 }

@@ -707,6 +707,40 @@ export const scheduleWeeks = sqliteTable("schedule_weeks", {
 // marking a day as needing extra headcount beyond the template (an
 // anticipated busy day, a known advance-booked event), independent of
 // anyone actually leaving.
+// Append-only record of destructive schedule edits (clear a day / delete
+// a whole week) -- 2026-08-14, Oliver's follow-up after the danger zone
+// itself: dropped the PIN re-check (his words: "pin might not be the
+// answer" for a small restaurant where one manager does everything),
+// replaced with a typed confirmation word instead (see lib/actions/
+// schedule.ts), plus this log so staff "at least know what is happening
+// with their shift" -- and a required reason specifically when the
+// thing being removed was already PUBLISHED (draft removals don't
+// need one, nobody outside management has seen a draft yet).
+//
+// Deliberately NOT a foreign key on weekId -> scheduleWeeks.id: a
+// DELETED_WEEK entry is logged in the same breath as the week row
+// itself being deleted, so a hard FK would either cascade-delete this
+// row too (defeats the point of an audit log) or fail the delete
+// outright. weekStartDate is stored directly instead so the log reads
+// correctly forever, even after the week it refers to is gone.
+export const scheduleChangeLog = sqliteTable("schedule_change_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  weekId: integer("week_id").notNull(),
+  weekStartDate: text("week_start_date").notNull(),
+  action: text("action", { enum: ["CLEARED_DAY", "DELETED_WEEK"] }).notNull(),
+  date: text("date"), // the one date cleared; null for a whole-week delete
+  wasPublished: integer("was_published", { mode: "boolean" }).notNull(),
+  reason: text("reason"), // required by the action itself when wasPublished=true; optional for drafts
+  performedByEmployeeId: integer("performed_by_employee_id").notNull().references(() => employees.id),
+  performedByName: text("performed_by_name").notNull(), // denormalized so the log still reads right if the employee's name later changes
+  // JSON array of { employeeId, employeeName, positionId, positionName, date, period } --
+  // the actual assignments that were removed, so the log (and the
+  // staff-facing view built from it) doesn't need to reconstruct
+  // anything from data that no longer exists.
+  removedAssignments: text("removed_assignments").notNull(),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+});
+
 export const plannedShiftAssignments = sqliteTable(
   "planned_shift_assignments",
   {

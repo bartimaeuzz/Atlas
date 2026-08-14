@@ -50,6 +50,13 @@
       "when": 1786443360727,
       "tag": "0006_minor_thunderbolt_ross",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1786687868313,
+      "tag": "0007_married_marauders",
+      "breakpoints": true
     }
   ]
 }

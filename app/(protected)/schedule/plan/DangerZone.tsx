@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { clearDay, deleteWeek, type DangerZoneActionState } from "@/lib/actions/schedule";
 
 const initialState: DangerZoneActionState = { error: null };
@@ -9,16 +9,19 @@ const initialState: DangerZoneActionState = { error: null };
  * "Delete draft day" / "Delete draft week" (2026-08-14, Oliver) --
  * start-over controls for a week's plan. Kept as a collapsed <details>
  * disclosure rather than always-visible buttons, since this is a
- * destructive, infrequent action that shouldn't visually compete with
- * the normal add/edit flow above it.
+ * destructive, infrequent action.
  *
- * Both actions require re-typing the signed-in manager's own PIN (see
- * verifyCurrentManagerPin in lib/actions/schedule.ts) -- Oliver's own
- * words when asked whether this should work on an already-published
- * week too: "can do but need more badge alert what you are going to
- * do, with manager pin require." So: allowed on published weeks, but
- * with a louder warning (below) and the PIN re-check as the friction,
- * not a hard block.
+ * 2026-08-14 follow-up, same conversation: no PIN here anymore --
+ * Oliver decided a PIN doesn't add much for a small restaurant where
+ * one manager often does everything ("pin might not be the answer").
+ * Replaced with typing the literal confirm word (CLEAR / DELETE) --
+ * friction against a misclick, explicitly NOT meant to catch a bad
+ * actor (his words: "works too as a friction but not catching
+ * cheat," and that trade-off was fine with him). A reason is required
+ * ONLY when the day/week being touched is already published --
+ * drafts don't need one. Every action is logged either way (see
+ * ChangeLogPanel below and the staff-facing view on /me/schedule) so
+ * there's a record even without a PIN gate.
  */
 export function DangerZone({
   weekId,
@@ -33,6 +36,7 @@ export function DangerZone({
 }) {
   const [clearState, clearAction, clearPending] = useActionState(clearDay, initialState);
   const [deleteState, deleteActionFn, deletePending] = useActionState(deleteWeek, initialState);
+  const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
 
   const isPublished = status === "published";
 
@@ -45,7 +49,7 @@ export function DangerZone({
         {isPublished && (
           <p className="text-xs font-medium text-red-800 bg-red-100 border border-red-300 rounded px-2 py-1.5">
             ⚠ This week is PUBLISHED — staff can already see it on their own My Schedule. Anything you
-            clear or delete here disappears from their view immediately.
+            clear or delete here disappears from their view immediately. A reason is required below.
           </p>
         )}
 
@@ -57,7 +61,13 @@ export function DangerZone({
           </p>
           <input type="hidden" name="weekId" value={weekId} />
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            <select name="date" required className="border rounded px-2 py-1">
+            <select
+              name="date"
+              required
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="border rounded px-2 py-1"
+            >
               {dates.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -65,11 +75,11 @@ export function DangerZone({
               ))}
             </select>
             <input
-              type="password"
-              name="pin"
-              placeholder="Your PIN"
+              type="text"
+              name="confirmWord"
+              placeholder='Type CLEAR to confirm'
               required
-              className="border rounded px-2 py-1 w-28"
+              className="border rounded px-2 py-1 w-40"
             />
             <button
               type="submit"
@@ -79,6 +89,15 @@ export function DangerZone({
               {clearPending ? "Clearing…" : "Clear this day"}
             </button>
           </div>
+          {isPublished && (
+            <input
+              type="text"
+              name="reason"
+              placeholder="Reason (required — this day is published)"
+              required
+              className="border rounded px-2 py-1 text-sm w-full"
+            />
+          )}
           {clearState.error && <p className="text-xs text-red-700">{clearState.error}</p>}
         </form>
 
@@ -91,11 +110,11 @@ export function DangerZone({
           <input type="hidden" name="weekId" value={weekId} />
           <div className="flex flex-wrap items-center gap-2 text-sm">
             <input
-              type="password"
-              name="pin"
-              placeholder="Your PIN"
+              type="text"
+              name="confirmWord"
+              placeholder='Type DELETE to confirm'
               required
-              className="border rounded px-2 py-1 w-28"
+              className="border rounded px-2 py-1 w-40"
             />
             <button
               type="submit"
@@ -105,6 +124,15 @@ export function DangerZone({
               {deletePending ? "Deleting…" : "Delete this week"}
             </button>
           </div>
+          {isPublished && (
+            <input
+              type="text"
+              name="reason"
+              placeholder="Reason (required — this week is published)"
+              required
+              className="border rounded px-2 py-1 text-sm w-full"
+            />
+          )}
           {deleteState.error && <p className="text-xs text-red-700">{deleteState.error}</p>}
         </form>
       </div>

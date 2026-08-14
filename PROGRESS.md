@@ -1949,3 +1949,52 @@ change, no new route. 71 tests pass unchanged, build clean. No new
 unit tests -- consistent with this file's other CRUD actions
 (`removePlannedAssignment`, `publishWeek`), which are likewise
 untested; only the calc engine has unit coverage in this project.
+
+## Danger zone v2: drop PIN, typed confirm word, required reason, change log (2026-08-14, same day)
+
+Follow-up to the danger zone shipped earlier today. Oliver, after being
+asked to think through a Floor-Manager-approval design (deferred to
+backlog, see PROGRESS/memory note below): "let's save it to the
+backlog for now... small restaurant might have one manager do a lot
+of things and pin might not be the answer... but changelog is one
+thing we should do... and the idea of long type 'i'm sure to nuke it'
+phase kinda thing works to as a friction but not catching cheat."
+Then, when asked to confirm dropping PIN for a typed word instead:
+"drop the pin but make a log and also ask for a reason for delete
+what is already published."
+
+Shipped exactly that:
+- `clearDay`/`deleteWeek` (`lib/actions/schedule.ts`) no longer check
+  a PIN. Instead require typing the literal word CLEAR / DELETE
+  (case-insensitive) to submit -- friction against a misclick,
+  explicitly not meant to authenticate identity.
+- A `reason` field is now REQUIRED only when the day/week being
+  touched was already published; optional (omitted) for drafts, since
+  nobody outside management has seen a draft yet.
+- New table `schedule_change_log` (migration `0007_married_marauders.sql`,
+  additive only, NOT yet applied to production Turso -- run
+  `npm run db:migrate`) -- append-only record of every clear/delete:
+  who, when, what was removed (JSON snapshot with readable names, not
+  just ids), whether it was published, and the reason if given.
+  Deliberately no FK from weekId to scheduleWeeks.id (a whole-week
+  delete removes that row in the same breath the log entry is
+  written -- a hard FK would cascade-delete the log too, defeating
+  the point).
+- New `lib/schedule/loadRecentScheduleChanges.ts` -- flattens the log
+  down to just the entries affecting one employee, defaults to
+  PUBLISHED-only (a caught-before-shipping bug: this filter originally
+  lived only in the page component, so a future caller could have
+  leaked draft changes to staff by forgetting to filter; moved into
+  the loader itself with an `includeDraftChanges` opt-in instead).
+- `/me/schedule` now has a "Recent changes to your schedule" section
+  showing shifts removed after publish, with who/when/why.
+
+**Verified:** direct-DB script (`verify_schedule_changelog.ts`,
+deleted after use per project convention) against a freshly-migrated
+throwaway SQLite file -- 6 checks: published clear logs + reaches the
+staff view; draft clear logs raw but does NOT leak to staff (this one
+failed on the first pass, caught the loader-vs-page filter bug above,
+fixed, re-ran, passed); whole-week delete removes the week row while
+the change-log row survives (no FK cascade); a whole-week delete
+correctly surfaces every affected shift (not just one) to the staff
+view. All 71 existing unit tests pass unchanged, `next build` clean.

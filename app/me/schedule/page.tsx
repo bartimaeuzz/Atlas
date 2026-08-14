@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadEmployeeSchedule } from "@/lib/schedule/loadEmployeeSchedule";
+import { loadRecentScheduleChanges } from "@/lib/schedule/loadRecentScheduleChanges";
 import { shiftMonth, toIso } from "@/lib/schedule/weekMath";
 import { logout } from "@/lib/actions/auth";
 
@@ -36,7 +37,13 @@ export default async function MyScheduleView({
 
   const params = await searchParams;
   const monthAnchor = params.month || toIso(new Date());
-  const data = await loadEmployeeSchedule(session.id, monthAnchor);
+  const [data, recentChangesAll] = await Promise.all([
+    loadEmployeeSchedule(session.id, monthAnchor),
+    // Defaults to published-only -- see loadRecentScheduleChanges's own
+    // comment for why that filter lives in the loader itself now.
+    loadRecentScheduleChanges(session.id),
+  ]);
+  const recentChanges = recentChangesAll.slice(0, 10);
 
   const prevMonth = shiftMonth(monthAnchor, -1);
   const nextMonth = shiftMonth(monthAnchor, 1);
@@ -136,6 +143,32 @@ export default async function MyScheduleView({
           ))}
         </tbody>
       </table>
+
+      {recentChanges.length > 0 && (
+        <div className="mt-8">
+          <h2 className="text-sm font-medium mb-2">Recent changes to your schedule</h2>
+          <p className="text-xs text-neutral-500 mb-3">
+            A manager removed these shifts after the schedule was already published.
+          </p>
+          <div className="divide-y border rounded text-sm">
+            {recentChanges.map((c) => (
+              <div key={`${c.id}-${c.date}-${c.positionName}-${c.period}`} className="px-3 py-2">
+                <div className="flex items-center justify-between">
+                  <span>
+                    {c.action === "DELETED_WEEK" ? "Whole week removed" : "Shift removed"} —{" "}
+                    {c.date ?? `week of ${c.weekStartDate}`}: {c.positionName} ({c.period === "Lunch" ? "L" : "D"})
+                  </span>
+                  <span className="text-xs text-neutral-400">{c.createdAt.slice(0, 10)}</span>
+                </div>
+                <p className="text-xs text-neutral-500 mt-0.5">
+                  By {c.performedByName}
+                  {c.reason ? ` — "${c.reason}"` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
