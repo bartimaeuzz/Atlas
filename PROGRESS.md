@@ -1998,3 +1998,33 @@ fixed, re-ran, passed); whole-week delete removes the week row while
 the change-log row survives (no FK cascade); a whole-week delete
 correctly surfaces every affected shift (not just one) to the staff
 view. All 71 existing unit tests pass unchanged, `next build` clean.
+
+## Fix: danger zone crashed to a blank error page instead of showing a message (2026-08-14, same day)
+
+Oliver hit "This page couldn't load / A server error occurred" right
+after using "Delete this week" on the live deployed app. Root cause,
+almost certainly: v35 shipped a new `schedule_change_log` table via
+migration `0007`, and the delete action writes to it -- if
+`npm run db:migrate` hadn't been run yet on the production Turso DB
+before testing, that insert fails with "no such table," and neither
+`clearDay` nor `deleteWeek` had a try/catch around their body, so the
+thrown error crashed straight to Next.js's generic error screen
+instead of showing anything useful.
+
+Fixed defensively regardless of the exact cause: both actions are now
+wrapped in try/catch (matching `addPlannedAssignment`'s existing
+pattern elsewhere in this same file), returning `{ error: message }`
+into the form instead of throwing uncaught. Any future failure here
+(missing table, a dropped connection, anything) now shows an inline
+message instead of taking down the whole page.
+
+Also addressed Oliver's explicit UX ask -- "it should direct back to
+weekly view": `deleteWeek` now calls `redirect(`/schedule/plan?week=...`)`
+after a successful delete (same pattern as login/logout in
+lib/actions/auth.ts), rather than relying on the implicit client
+refresh a plain useActionState return triggers. Deliberately placed
+OUTSIDE the try/catch, since `redirect()` throws internally by design
+and must never be swallowed by the new error handling.
+
+**Before testing this again: run `npm run db:migrate` first if you
+haven't.** All 71 tests pass, `next build` clean.

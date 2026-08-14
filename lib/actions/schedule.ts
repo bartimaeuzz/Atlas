@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
@@ -415,38 +416,50 @@ export async function clearDay(
   if (!date) return { error: "Pick a date" };
   if (confirmWord.toUpperCase() !== "CLEAR") return { error: 'Type CLEAR (all caps) to confirm' };
 
-  const session = await getCurrentStaffSession();
-  if (!session) return { error: "You've been signed out -- sign in again" };
+  // 2026-08-14, same day as the rest of the danger zone -- wrapped in
+  // try/catch (matching addPlannedAssignment's existing pattern
+  // elsewhere in this file) after a real production incident: without
+  // this, ANY thrown error here (e.g. the schedule_change_log table
+  // not existing yet because the migration hadn't been applied) surfaced
+  // as Next.js's generic "This page couldn't load" error screen instead
+  // of a message inside the form. Now it always resolves to a readable
+  // inline error instead of crashing the page.
+  try {
+    const session = await getCurrentStaffSession();
+    if (!session) return { error: "You've been signed out -- sign in again" };
 
-  const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
-  if (!week) return { error: "That week no longer exists" };
-  const wasPublished = week.status === "published";
-  if (wasPublished && !reason) return { error: "This day is already published -- add a short reason before clearing it" };
+    const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
+    if (!week) return { error: "That week no longer exists" };
+    const wasPublished = week.status === "published";
+    if (wasPublished && !reason) return { error: "This day is already published -- add a short reason before clearing it" };
 
-  const rowsToRemove = await db
-    .select({
-      employeeId: plannedShiftAssignments.employeeId,
-      positionId: plannedShiftAssignments.positionId,
-      date: plannedShiftAssignments.date,
-      period: plannedShiftAssignments.period,
-    })
-    .from(plannedShiftAssignments)
-    .where(and(eq(plannedShiftAssignments.weekId, weekId), eq(plannedShiftAssignments.date, date)));
+    const rowsToRemove = await db
+      .select({
+        employeeId: plannedShiftAssignments.employeeId,
+        positionId: plannedShiftAssignments.positionId,
+        date: plannedShiftAssignments.date,
+        period: plannedShiftAssignments.period,
+      })
+      .from(plannedShiftAssignments)
+      .where(and(eq(plannedShiftAssignments.weekId, weekId), eq(plannedShiftAssignments.date, date)));
 
-  await db
-    .delete(plannedShiftAssignments)
-    .where(and(eq(plannedShiftAssignments.weekId, weekId), eq(plannedShiftAssignments.date, date)));
+    await db
+      .delete(plannedShiftAssignments)
+      .where(and(eq(plannedShiftAssignments.weekId, weekId), eq(plannedShiftAssignments.date, date)));
 
-  await logScheduleChange({
-    weekId,
-    weekStartDate: week.weekStartDate,
-    action: "CLEARED_DAY",
-    date,
-    wasPublished,
-    reason: reason || null,
-    performedBy: { id: session.id, name: session.name },
-    rows: rowsToRemove.map((r) => ({ ...r, period: r.period as "Lunch" | "Dinner" })),
-  });
+    await logScheduleChange({
+      weekId,
+      weekStartDate: week.weekStartDate,
+      action: "CLEARED_DAY",
+      date,
+      wasPublished,
+      reason: reason || null,
+      performedBy: { id: session.id, name: session.name },
+      rows: rowsToRemove.map((r) => ({ ...r, period: r.period as "Lunch" | "Dinner" })),
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 
   revalidatePath("/schedule/plan");
   revalidatePath("/schedule/weeks");
@@ -471,40 +484,61 @@ export async function deleteWeek(
   if (!weekId) return { error: "Missing week" };
   if (confirmWord.toUpperCase() !== "DELETE") return { error: 'Type DELETE (all caps) to confirm' };
 
-  const session = await getCurrentStaffSession();
-  if (!session) return { error: "You've been signed out -- sign in again" };
+  // Same try/catch reasoning as clearDay above -- a thrown error here
+  // (e.g. a not-yet-applied migration) used to crash straight to
+  // Next.js's generic error page instead of showing a message.
+  let weekStartDateForRedirect: string;
+  try {
+    const session = await getCurrentStaffSession();
+    if (!session) return { error: "You've been signed out -- sign in again" };
 
-  const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
-  if (!week) return { error: "That week no longer exists" };
-  const wasPublished = week.status === "published";
-  if (wasPublished && !reason) return { error: "This week is already published -- add a short reason before deleting it" };
+    const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
+    if (!week) return { error: "That week no longer exists" };
+    const wasPublished = week.status === "published";
+    if (wasPublished && !reason) return { error: "This week is already published -- add a short reason before deleting it" };
 
-  const rowsToRemove = await db
-    .select({
-      employeeId: plannedShiftAssignments.employeeId,
-      positionId: plannedShiftAssignments.positionId,
-      date: plannedShiftAssignments.date,
-      period: plannedShiftAssignments.period,
-    })
-    .from(plannedShiftAssignments)
-    .where(eq(plannedShiftAssignments.weekId, weekId));
+    const rowsToRemove = await db
+      .select({
+        employeeId: plannedShiftAssignments.employeeId,
+        positionId: plannedShiftAssignments.positionId,
+        date: plannedShiftAssignments.date,
+        period: plannedShiftAssignments.period,
+      })
+      .from(plannedShiftAssignments)
+      .where(eq(plannedShiftAssignments.weekId, weekId));
 
-  await db.delete(plannedShiftAssignments).where(eq(plannedShiftAssignments.weekId, weekId));
-  await db.delete(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
+    await db.delete(plannedShiftAssignments).where(eq(plannedShiftAssignments.weekId, weekId));
+    await db.delete(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
 
-  await logScheduleChange({
-    weekId,
-    weekStartDate: week.weekStartDate,
-    action: "DELETED_WEEK",
-    date: null,
-    wasPublished,
-    reason: reason || null,
-    performedBy: { id: session.id, name: session.name },
-    rows: rowsToRemove.map((r) => ({ ...r, period: r.period as "Lunch" | "Dinner" })),
-  });
+    await logScheduleChange({
+      weekId,
+      weekStartDate: week.weekStartDate,
+      action: "DELETED_WEEK",
+      date: null,
+      wasPublished,
+      reason: reason || null,
+      performedBy: { id: session.id, name: session.name },
+      rows: rowsToRemove.map((r) => ({ ...r, period: r.period as "Lunch" | "Dinner" })),
+    });
+
+    weekStartDateForRedirect = week.weekStartDate;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 
   revalidatePath("/schedule/plan");
   revalidatePath("/schedule/weeks");
   revalidatePath("/me/schedule");
-  return { error: null };
+
+  // Oliver, 2026-08-14, after seeing a crash post-delete: "it should
+  // direct back to weekly view." An explicit redirect (same pattern as
+  // login/logout in lib/actions/auth.ts) back to the SAME week's plan
+  // page is more robust than relying on the implicit client refresh a
+  // plain useActionState return triggers -- it forces a full, clean
+  // re-render of /schedule/plan for this week, which now correctly
+  // shows the "not planned, generate from template" empty state since
+  // the week row is gone. redirect() throws internally by design, so
+  // it's deliberately OUTSIDE the try/catch above -- it must never be
+  // caught and turned into an {error} return.
+  redirect(`/schedule/plan?week=${weekStartDateForRedirect}`);
 }
