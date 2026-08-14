@@ -58,6 +58,9 @@ export default async function LedgerPage({
         <Link href="/ledger/categories" className="text-neutral-500 hover:text-black underline">
           Categories
         </Link>
+        <Link href="/ledger/supplier-check" className="text-neutral-500 hover:text-black underline">
+          Supplier Check
+        </Link>
       </div>
 
       {!locked && <AddEntryForm key={data.entries.length} date={date} vendors={data.vendors} categories={data.categories} />}

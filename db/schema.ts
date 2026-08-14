@@ -864,3 +864,45 @@ export const dailyCashReconciliations = sqliteTable("daily_cash_reconciliations"
   finalizedAt: text("finalized_at"),
   finalizedByEmployeeId: integer("finalized_by_employee_id").references(() => employees.id),
 });
+
+// Supplier Check — invoice-based vendor payments (2026-08-14). Confirmed
+// with Oliver: distinct from Petty Cash, which is for cash-on-delivery
+// vendors. Most vendors instead drop an invoice at delivery and get paid
+// by CHECK later, often at their next delivery. Two-stage lifecycle:
+// logged as pending when the invoice arrives, marked paid later. No due
+// date field -- confirmed NOT needed ("supplier check no need due
+// date"). photoUrl reserved, unused, same as pettyCashEntries -- doesn't
+// block a later photo-attachment round with a migration.
+export const supplierInvoices = sqliteTable("supplier_invoices", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  receivedDate: text("received_date").notNull(), // ISO date -- the delivery date
+  vendorId: integer("vendor_id").notNull().references(() => ledgerVendors.id),
+  categoryId: integer("category_id").notNull().references(() => ledgerCategories.id),
+  invoiceNumber: text("invoice_number").notNull(),
+  description: text("description"), // "nature or package" -- what was delivered
+  amount: real("amount").notNull(),
+  photoUrl: text("photo_url"),
+  status: text("status", { enum: ["pending", "paid"] }).notNull().default("pending"),
+  paymentId: integer("payment_id").references(() => supplierCheckPayments.id),
+  createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+});
+
+// One row per check written -- confirmed with Oliver: "printed payment
+// check can reconcile into one check for each supplier," i.e. one check
+// can settle SEVERAL pending invoices from the same vendor at once
+// (matches the real DNA export sheet, where e.g. K.D. Market's two
+// invoice numbers were batched under one check payment). vendorId is
+// denormalized here even though every linked supplierInvoices row
+// already has its own vendorId, because a payment is conceptually
+// scoped to one vendor -- keeps the query for "this vendor's payment
+// history" simple without joining back through invoices first.
+export const supplierCheckPayments = sqliteTable("supplier_check_payments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  vendorId: integer("vendor_id").notNull().references(() => ledgerVendors.id),
+  paidDate: text("paid_date").notNull(),
+  checkNumber: text("check_number"),
+  totalAmount: real("total_amount").notNull(),
+  paidByEmployeeId: integer("paid_by_employee_id").notNull().references(() => employees.id),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+});
