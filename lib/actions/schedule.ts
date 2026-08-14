@@ -403,6 +403,24 @@ async function logScheduleChange(params: {
  * nobody outside management has seen a draft yet). Every clear is
  * logged via logScheduleChange regardless, so "at least they know
  * what is happening with their shift" per Oliver. */
+/** 2026-08-14, added after the first version of this catch just did
+ * e.message and Oliver got an unhelpfully generic "Failed query: ..."
+ * string with no actual reason (a known lossy-error-detail pattern
+ * with @libsql/client over Turso's HTTP protocol -- see this file's
+ * git history / PROGRESS.md for prior Turso-specific gotchas). Pulls
+ * out .code and .cause too, if present, so the NEXT time something
+ * fails here there's an actual chance of diagnosing it from the
+ * on-screen message alone instead of needing a follow-up round trip. */
+function describeScheduleActionError(e: unknown): string {
+  if (!(e instanceof Error)) return String(e);
+  const parts = [e.message];
+  const code = (e as { code?: unknown }).code;
+  if (code) parts.push(`code: ${String(code)}`);
+  const cause = (e as { cause?: unknown }).cause;
+  if (cause) parts.push(`cause: ${cause instanceof Error ? cause.message : JSON.stringify(cause)}`);
+  return parts.join(" | ");
+}
+
 export async function clearDay(
   _prevState: DangerZoneActionState,
   formData: FormData
@@ -458,7 +476,7 @@ export async function clearDay(
       rows: rowsToRemove.map((r) => ({ ...r, period: r.period as "Lunch" | "Dinner" })),
     });
   } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
+    return { error: describeScheduleActionError(e) };
   }
 
   revalidatePath("/schedule/plan");
@@ -523,7 +541,7 @@ export async function deleteWeek(
 
     weekStartDateForRedirect = week.weekStartDate;
   } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
+    return { error: describeScheduleActionError(e) };
   }
 
   revalidatePath("/schedule/plan");
