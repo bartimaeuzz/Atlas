@@ -2080,3 +2080,17 @@ Nancy's My Schedule:
    typed-word-confirmation philosophy rather than adding another PIN gate.
 
 `npx tsc --noEmit` clean, `npm run build` clean, all 71 tests pass.
+
+## Nav: circular initials avatar "me menu" (2026-08-14, same day)
+
+Oliver's ask: "circle shape like with initial of each staff as me menu
+and has my pay and my schedule show as option after click." Replaced
+the plain name text + separate "My Pay" link + "Sign out" button on the
+right of the nav bar with one circular avatar (employee's initials),
+click opens a dropdown: name/role header, My Schedule, My Pay, Sign
+out. Closes on outside click or route change. Also removed the old
+STAFF-only "My Schedule" link from the left nav -- it now lives in this
+same menu instead of being split across two spots. MANAGER/ADMIN's
+left nav (Shifts/Employees/etc) is unchanged; only the right-side
+personal menu changed, for everyone. `npx tsc --noEmit` clean,
+`npm run build` clean, 71/71 tests pass.
