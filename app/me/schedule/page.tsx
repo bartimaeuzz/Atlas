@@ -133,39 +133,56 @@ export default async function MyScheduleView({
                 const shifts = isPublished ? day.shifts : [];
                 const dayNumber = Number(day.date.slice(8));
 
+                const cellInner = (
+                  <>
+                    <span className={"text-xs " + (isPublished ? "text-neutral-600" : "text-neutral-400")}>
+                      {dayNumber}
+                    </span>
+                    {isPublished && (
+                      <div className="space-y-0.5 mt-1">
+                        {shifts.length > 0 ? (
+                          shifts.map((s, si) => (
+                            <div
+                              key={si}
+                              className={
+                                "text-[10px] rounded px-1 py-0.5 " +
+                                (s.isExtraCoverage
+                                  ? "bg-yellow-100 text-yellow-900"
+                                  : "bg-neutral-100 text-neutral-700")
+                              }
+                            >
+                              {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[10px] rounded px-1 py-0.5 border border-neutral-200 text-neutral-400 text-center">
+                            Day off
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+
                 return (
                   <td
                     key={day.date}
                     className={"align-top border p-1.5" + (isPublished ? "" : " bg-neutral-100")}
                   >
-                    <div className={"min-h-24" + (day.inMonth ? "" : " opacity-40")}>
-                      <span className={"text-xs " + (isPublished ? "text-neutral-600" : "text-neutral-400")}>
-                        {dayNumber}
-                      </span>
-                      {isPublished && (
-                        <div className="space-y-0.5 mt-1">
-                          {shifts.length > 0 ? (
-                            shifts.map((s, si) => (
-                              <div
-                                key={si}
-                                className={
-                                  "text-[10px] rounded px-1 py-0.5 " +
-                                  (s.isExtraCoverage
-                                    ? "bg-yellow-100 text-yellow-900"
-                                    : "bg-neutral-100 text-neutral-700")
-                                }
-                              >
-                                {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
-                              </div>
-                            ))
-                          ) : (
-                            <div className="text-[10px] rounded px-1 py-0.5 border border-neutral-200 text-neutral-400 text-center">
-                              Day off
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
+                    {isPublished ? (
+                      // Published days are clickable -- see who's working
+                      // that day (2026-08-14, Oliver's ask). Not-yet-
+                      // published (grey) days aren't, since there's
+                      // nothing staff are allowed to see there yet.
+                      <Link
+                        href={`/me/schedule/day?date=${day.date}`}
+                        className={"block min-h-24 rounded hover:bg-neutral-50" + (day.inMonth ? "" : " opacity-40")}
+                      >
+                        {cellInner}
+                      </Link>
+                    ) : (
+                      <div className={"min-h-24" + (day.inMonth ? "" : " opacity-40")}>{cellInner}</div>
+                    )}
                   </td>
                 );
               })}

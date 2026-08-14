@@ -124,12 +124,14 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
       </fieldset>
 
       <fieldset>
-        <legend className="text-lg font-medium mb-3">Roster — coworker list visibility (My Pay)</legend>
+        <legend className="text-lg font-medium mb-3">Roster &amp; schedule — coworker list visibility</legend>
         <p className="text-xs text-neutral-500 mb-3">
-          Whether STAFF see the &quot;Also worked this shift&quot; coworker list on My Pay at all — names and
-          positions, not just the $ figures above. When off, staff logging in only see their own pay, nothing
-          about who else worked. Self is always unaffected. Independent from the peer-earnings setting above: you
-          can hide the list entirely even if peer earnings are on, or keep the list visible with earnings redacted.
+          Whether STAFF see who else is on the list at all — names and positions, not just the $ figures. Covers
+          both My Pay&apos;s &quot;Also worked this shift&quot; list and the &quot;who&apos;s working this day&quot;
+          preview staff can open from My Schedule&apos;s calendar. When off, staff only see their own pay / their
+          own day, nothing about who else is scheduled. Self is always unaffected. Independent from the
+          peer-earnings setting above: you can hide the list entirely even if peer earnings are on, or keep the
+          list visible with earnings redacted.
         </p>
         <div className="space-y-2 text-sm">
           <label className="flex items-center gap-2">
@@ -144,11 +146,12 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
       </fieldset>
 
       <fieldset>
-        <legend className="text-lg font-medium mb-3">Roster — category visibility</legend>
+        <legend className="text-lg font-medium mb-3">Roster & schedule — category visibility</legend>
         <p className="text-xs text-neutral-500 mb-3">
-          Whether STAFF are restricted to seeing only their own category&apos;s roster entries (FOH sees FOH, BOH
-          sees BOH), plus always-visible positions like Floor Manager. Not yet used by a live staff view — this
-          sets the policy ahead of that page shipping.
+          Whether STAFF are restricted to seeing only their own category&apos;s entries (FOH sees FOH, BOH sees
+          BOH), plus always-visible positions like Floor Manager. Applies to both the day-of roster and the
+          schedule &quot;who&apos;s working this day&quot; preview on My Schedule — one policy, both places.
+          Managers/Admins always see everyone regardless of this setting.
         </p>
         <div className="space-y-2 text-sm">
           <label className="flex items-center gap-2">

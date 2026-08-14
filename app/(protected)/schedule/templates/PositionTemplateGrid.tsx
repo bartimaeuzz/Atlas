@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   syncEmployeePositionTemplate,
   retireEmployeeFromPosition,
@@ -23,22 +23,22 @@ const VACANCY_LABELS: Record<string, string> = {
   OTHER: "Leaving this position",
 };
 
-function formatPattern(cells: TemplateCell[]): string {
-  if (cells.length === 0) return "no days set";
-  return DISPLAY_DAYS.flatMap((d) => PERIODS.map((p) => ({ d, p })))
-    .filter(({ d, p }) => cells.some((c) => c.dayOfWeek === d && c.period === p))
-    .map(({ d, p }) => `${DAY_SHORT[d]} ${p === "Lunch" ? "L" : "D"}`)
-    .join(", ");
+function keyFor(dayOfWeek: number, period: string): string {
+  return `${dayOfWeek}-${period}`;
 }
 
-/** Position -> pick a person -> Monday-Sunday x Lunch/Dinner checkbox
- * grid (2026-08-12 redesign, replacing the old one-row-at-a-time list —
- * see PROGRESS.md's dated entry and project_atlas_schedule_planner
- * memory for the discussion that led here). Oliver's reasoning: a
- * position normally has several people, each with their own weekly
- * pattern, and adding one day+period per form submission was slow —
- * checking boxes for someone's whole week at once is faster, and the old
- * flat list of every row was hard to scan. */
+/** Position -> an always-visible Mon-Sun x Lunch/Dinner checkbox grid,
+ * one row-pair per assigned person (2026-08-14 redesign, Oliver's ask —
+ * see PROGRESS.md and project_atlas_schedule_planner memory). Supersedes
+ * the 2026-08-12 version, which showed each person's pattern as a text
+ * summary ("Mon L, Tue D...") and only revealed an editable checkbox
+ * grid after clicking into a separate per-person editor below the list.
+ * That extra click-to-reveal step is gone: every assigned person's whole
+ * week is checkbox-editable right in the table, and each checkbox
+ * auto-saves on click (no separate Save button) — "work easier" was
+ * Oliver's own framing for this round. The old click-to-edit flow is
+ * still how a NEW (not-yet-assigned) person gets their first checkbox
+ * saved — see PositionCard's `pendingNewIds` below. */
 export function PositionTemplateGrid({ groups }: { groups: PositionTemplateGroup[] }) {
   return (
     <div className="space-y-4">
@@ -50,9 +50,28 @@ export function PositionTemplateGrid({ groups }: { groups: PositionTemplateGroup
 }
 
 function PositionCard({ group }: { group: PositionTemplateGroup }) {
-  const [editingEmployeeId, setEditingEmployeeId] = useState<number | null>(null);
-  const editingAssigned = group.assignedEmployees.find((e) => e.employeeId === editingEmployeeId);
-  const editingEligible = group.eligibleEmployees.find((e) => e.id === editingEmployeeId);
+  // A person picked from "+ Add" shows up here immediately as a blank
+  // row (nothing checked yet) even though nothing's been saved to the DB
+  // yet -- employeeScheduleTemplates only ever stores rows for days that
+  // are actually checked, so there's no "empty" row to load until the
+  // first checkbox is saved. Once that happens, the revalidated `group`
+  // prop will include them for real, and the effect below drops them
+  // from this pending set so they don't render twice.
+  const [pendingNewIds, setPendingNewIds] = useState<{ id: number; name: string }[]>([]);
+
+  useEffect(() => {
+    const assignedIds = new Set(group.assignedEmployees.map((e) => e.employeeId));
+    setPendingNewIds((prev) => prev.filter((p) => !assignedIds.has(p.id)));
+  }, [group.assignedEmployees]);
+
+  const notYetAssigned = group.eligibleEmployees.filter(
+    (e) => !group.assignedEmployees.some((a) => a.employeeId === e.id) && !pendingNewIds.some((p) => p.id === e.id)
+  );
+
+  const rows: AssignedEmployeeGroup[] = [
+    ...group.assignedEmployees,
+    ...pendingNewIds.map((p) => ({ employeeId: p.id, employeeName: p.name, cells: [], vacancyReason: null, vacancyStartsOn: null })),
+  ].sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
   return (
     <div className="border rounded p-4">
@@ -60,66 +79,140 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
         {group.positionName} <span className="text-xs text-neutral-400">({group.positionCategory})</span>
       </h3>
 
-      {group.assignedEmployees.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="text-sm text-neutral-400 mb-3">Nobody assigned yet.</p>
       ) : (
-        <ul className="space-y-1.5 mb-3">
-          {group.assignedEmployees.map((emp) => (
-            <li
-              key={emp.employeeId}
-              className={
-                "flex items-center justify-between text-sm rounded px-2 py-1.5" +
-                (emp.vacancyReason ? " bg-red-50" : " bg-neutral-50")
-              }
-            >
-              <button type="button" onClick={() => setEditingEmployeeId(emp.employeeId)} className="text-left hover:underline">
-                <span className="font-medium">{emp.employeeName}</span>
-                <span className="text-neutral-500"> — {formatPattern(emp.cells)}</span>
-                {emp.vacancyReason && (
-                  <span className="text-red-700 font-medium">
-                    {" "}
-                    · {VACANCY_LABELS[emp.vacancyReason] ?? emp.vacancyReason} {emp.vacancyStartsOn}
-                  </span>
-                )}
-              </button>
-              <EmployeeKebab group={group} employee={emp} />
-            </li>
-          ))}
-        </ul>
+        <table className="text-sm border-collapse mb-3 w-full">
+          <thead>
+            <tr>
+              <th className="text-left text-neutral-500 font-normal pb-1 pr-2">Name</th>
+              <th className="w-6"></th>
+              {DISPLAY_DAYS.map((d) => (
+                <th key={d} className="text-neutral-500 font-normal pb-1 px-1 w-10">
+                  {DAY_SHORT[d]}
+                </th>
+              ))}
+              <th className="w-14"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((emp) => (
+              <EmployeeRowPair key={emp.employeeId} group={group} employee={emp} />
+            ))}
+          </tbody>
+        </table>
       )}
 
-      {editingEmployeeId != null ? (
-        <PersonPatternEditor
-          positionId={group.positionId}
-          employeeId={editingEmployeeId}
-          employeeName={editingAssigned?.employeeName ?? editingEligible?.name ?? ""}
-          initialCells={editingAssigned?.cells ?? []}
-          onDone={() => setEditingEmployeeId(null)}
-        />
-      ) : (
-        <PersonPicker
-          eligibleEmployees={group.eligibleEmployees}
-          assignedIds={new Set(group.assignedEmployees.map((e) => e.employeeId))}
-          onPick={(id) => setEditingEmployeeId(id)}
-        />
-      )}
+      <PersonPicker
+        eligibleEmployees={notYetAssigned}
+        onPick={(emp) => setPendingNewIds((prev) => [...prev, emp])}
+      />
     </div>
+  );
+}
+
+/** Renders one employee's two rows (Lunch, Dinner) for a position's
+ * grid. Name and the Edit action span both rows (rowSpan=2) so they
+ * read as one visual block per person, matching Oliver's spec: "each
+ * day has 2 rows... name on the left... the most right is edit
+ * button." */
+function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; employee: AssignedEmployeeGroup }) {
+  const [checked, setChecked] = useState<Set<string>>(
+    () => new Set(employee.cells.map((c) => keyFor(c.dayOfWeek, c.period)))
+  );
+  const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  // Keep local checkbox state in sync if the underlying data changes for
+  // reasons outside this row's own toggles (e.g. another manager's edit
+  // landing via revalidation, or this same row's very first save turning
+  // a "pending new" employee into a real one with real cells).
+  useEffect(() => {
+    setChecked(new Set(employee.cells.map((c) => keyFor(c.dayOfWeek, c.period))));
+  }, [employee.cells]);
+
+  function toggle(dayOfWeek: number, period: "Lunch" | "Dinner") {
+    const key = keyFor(dayOfWeek, period);
+    const next = new Set(checked);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    setChecked(next);
+
+    const cells = Array.from(next).map((k) => {
+      const [d, p] = k.split("-");
+      return { dayOfWeek: Number(d), period: p as "Lunch" | "Dinner" };
+    });
+    setError(null);
+    startTransition(async () => {
+      try {
+        await syncEmployeePositionTemplate(employee.employeeId, group.positionId, cells);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't save that change.");
+        setChecked(checked); // revert the optimistic toggle
+      }
+    });
+  }
+
+  const isVacant = employee.vacancyReason !== null;
+  const rowBg = isVacant ? "bg-red-50" : "";
+
+  return (
+    <>
+      <tr className={rowBg}>
+        <td rowSpan={2} className="align-top pr-2 py-1 border-t">
+          <div className={"font-medium" + (isPending ? " opacity-50" : "")}>{employee.employeeName}</div>
+          {isVacant && (
+            <div className="text-[10px] text-red-700">
+              {VACANCY_LABELS[employee.vacancyReason ?? ""] ?? employee.vacancyReason} · {employee.vacancyStartsOn}
+            </div>
+          )}
+          {error && <div className="text-[10px] text-red-600 mt-0.5">{error}</div>}
+        </td>
+        <td className="text-[10px] text-neutral-400 border-t">L</td>
+        {DISPLAY_DAYS.map((d) => (
+          <td key={d} className="text-center px-1 py-0.5 border-t">
+            <input
+              type="checkbox"
+              checked={checked.has(keyFor(d, "Lunch"))}
+              onChange={() => toggle(d, "Lunch")}
+              className="w-4 h-4"
+              aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Lunch`}
+            />
+          </td>
+        ))}
+        <td rowSpan={2} className="text-right align-top pl-2 py-1 border-t">
+          <EmployeeEdit group={group} employee={employee} />
+        </td>
+      </tr>
+      <tr className={rowBg}>
+        <td className="text-[10px] text-neutral-400">D</td>
+        {DISPLAY_DAYS.map((d) => (
+          <td key={d} className="text-center px-1 py-0.5">
+            <input
+              type="checkbox"
+              checked={checked.has(keyFor(d, "Dinner"))}
+              onChange={() => toggle(d, "Dinner")}
+              className="w-4 h-4"
+              aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Dinner`}
+            />
+          </td>
+        ))}
+      </tr>
+    </>
   );
 }
 
 function PersonPicker({
   eligibleEmployees,
-  assignedIds,
   onPick,
 }: {
   eligibleEmployees: { id: number; name: string }[];
-  assignedIds: Set<number>;
-  onPick: (id: number) => void;
+  onPick: (employee: { id: number; name: string }) => void;
 }) {
   const [value, setValue] = useState<number | "">("");
 
   if (eligibleEmployees.length === 0) {
-    return <p className="text-xs text-neutral-400">Nobody is assigned to this position in Employee admin yet.</p>;
+    return null;
   }
 
   return (
@@ -129,11 +222,10 @@ function PersonPicker({
         onChange={(e) => setValue(e.target.value === "" ? "" : Number(e.target.value))}
         className="border rounded px-2 py-1 text-sm"
       >
-        <option value="">+ Add or edit a person…</option>
+        <option value="">+ Add a person…</option>
         {eligibleEmployees.map((e) => (
           <option key={e.id} value={e.id}>
             {e.name}
-            {assignedIds.has(e.id) ? " (assigned)" : ""}
           </option>
         ))}
       </select>
@@ -141,105 +233,24 @@ function PersonPicker({
         type="button"
         disabled={value === ""}
         onClick={() => {
-          if (value !== "") onPick(value);
+          const emp = eligibleEmployees.find((e) => e.id === value);
+          if (emp) onPick(emp);
+          setValue("");
         }}
         className="text-sm underline text-neutral-500 hover:text-black disabled:opacity-40 disabled:no-underline"
       >
-        Edit pattern
+        Add
       </button>
     </div>
   );
 }
 
-function PersonPatternEditor({
-  positionId,
-  employeeId,
-  employeeName,
-  initialCells,
-  onDone,
-}: {
-  positionId: number;
-  employeeId: number;
-  employeeName: string;
-  initialCells: TemplateCell[];
-  onDone: () => void;
-}) {
-  const [isPending, startTransition] = useTransition();
-  const initialKeys = useMemo(() => new Set(initialCells.map((c) => `${c.dayOfWeek}-${c.period}`)), [initialCells]);
-  // Pre-checked from the person's current pattern (confirmed with Oliver
-  // 2026-08-12) — editing an existing assignment starts from what they
-  // already work, not a blank grid.
-  const [checked, setChecked] = useState<Set<string>>(() => new Set(initialKeys));
-
-  function toggle(dayOfWeek: number, period: string) {
-    const key = `${dayOfWeek}-${period}`;
-    setChecked((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
-
-  function save() {
-    const cells = Array.from(checked).map((key) => {
-      const [d, p] = key.split("-");
-      return { dayOfWeek: Number(d), period: p as "Lunch" | "Dinner" };
-    });
-    startTransition(async () => {
-      await syncEmployeePositionTemplate(employeeId, positionId, cells);
-      onDone();
-    });
-  }
-
-  return (
-    <div className="border rounded p-3 bg-neutral-50 mt-1">
-      <p className="text-sm font-medium mb-2">{employeeName} — which days/shifts?</p>
-      <table className="text-sm border-collapse mb-3">
-        <thead>
-          <tr>
-            <th className="w-16"></th>
-            {DISPLAY_DAYS.map((d) => (
-              <th key={d} className="px-2 py-1 text-neutral-500 font-normal">
-                {DAY_SHORT[d]}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {PERIODS.map((period) => (
-            <tr key={period}>
-              <td className="text-neutral-500 pr-2">{period}</td>
-              {DISPLAY_DAYS.map((d) => {
-                const key = `${d}-${period}`;
-                return (
-                  <td key={d} className="text-center px-2 py-1">
-                    <input type="checkbox" checked={checked.has(key)} onChange={() => toggle(d, period)} className="w-4 h-4" />
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={save}
-          className="bg-black text-white px-4 py-1.5 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
-        >
-          {isPending ? "Saving…" : "Save"}
-        </button>
-        <button type="button" onClick={onDone} className="text-sm text-neutral-500 underline">
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function EmployeeKebab({ group, employee }: { group: PositionTemplateGroup; employee: AssignedEmployeeGroup }) {
+/** Same Mark vacating / Clear vacancy / Retire actions as before —
+ * previously a small "⋮" icon-only trigger, now a labeled "Edit" button
+ * per Oliver's spec ("the most right is edit button"). Day/period
+ * pattern editing itself no longer lives behind this menu — it's the
+ * inline checkboxes in EmployeeRowPair now. */
+function EmployeeEdit({ group, employee }: { group: PositionTemplateGroup; employee: AssignedEmployeeGroup }) {
   const [open, setOpen] = useState(false);
   const [showVacancyForm, setShowVacancyForm] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -247,12 +258,16 @@ function EmployeeKebab({ group, employee }: { group: PositionTemplateGroup; empl
   const anyTemplateId = employee.cells[0]?.templateId;
 
   return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className="text-neutral-400 hover:text-black px-1.5" aria-label="Actions">
-        &#8942;
+    <div className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-xs text-neutral-500 hover:text-black border rounded px-2 py-1"
+      >
+        Edit
       </button>
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-56 bg-white border rounded shadow-lg p-1 text-sm">
+        <div className="absolute right-0 z-10 mt-1 w-56 bg-white border rounded shadow-lg p-1 text-sm text-left">
           {isVacant ? (
             <button
               type="button"
@@ -270,18 +285,19 @@ function EmployeeKebab({ group, employee }: { group: PositionTemplateGroup; empl
           ) : (
             <button
               type="button"
+              disabled={!anyTemplateId}
               onClick={() => {
                 setShowVacancyForm(true);
                 setOpen(false);
               }}
-              className="block w-full text-left px-2 py-1.5 hover:bg-neutral-50 rounded"
+              className="block w-full text-left px-2 py-1.5 hover:bg-neutral-50 rounded disabled:opacity-50"
             >
               Mark vacating…
             </button>
           )}
           <button
             type="button"
-            disabled={isPending}
+            disabled={isPending || !anyTemplateId}
             onClick={() => {
               if (window.confirm(`Retire ${employee.employeeName} from ${group.positionName} entirely?`)) {
                 startTransition(async () => {
@@ -327,7 +343,7 @@ function VacancyPopoverForm({
   };
 
   return (
-    <div className="absolute right-0 z-20 mt-1 w-72 bg-white border rounded shadow-lg p-3 text-sm">
+    <div className="absolute right-0 z-20 mt-1 w-72 bg-white border rounded shadow-lg p-3 text-sm text-left">
       <label className="block mb-2">
         <span className="block text-neutral-500 mb-1 text-xs">Reason</span>
         <select value={reason} onChange={(e) => setReason(e.target.value as typeof reason)} className="border rounded px-2 py-1 w-full">
