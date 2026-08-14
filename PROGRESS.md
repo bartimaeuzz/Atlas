@@ -2028,3 +2028,55 @@ and must never be swallowed by the new error handling.
 
 **Before testing this again: run `npm run db:migrate` first if you
 haven't.** All 71 tests pass, `next build` clean.
+
+## Better error diagnostics + delete-week redirect target fixed (2026-08-14, same day)
+
+Two follow-ups after the crash fix above. First, Oliver's next attempt
+surfaced a caught-but-unhelpful error (`Failed query: insert into
+"schedule_change_log"...` with no actual reason) -- a known lossy-detail
+pattern with `@libsql/client` over Turso's HTTP protocol, where `.message`
+alone omits the real cause. `describeScheduleActionError()` now also
+pulls `.code` and `.cause`. Also delivered `verify_schedule_change_log_table.ts`
+in the repo root for Oliver to run himself against his own production DB
+(introspects the table via `PRAGMA table_info`, attempts a test insert
+with full error detail, cleans up after itself) -- Claude has no
+production DB access and must not have any.
+
+Second, Oliver asked to change the post-delete redirect target: "let's
+change redirect page after delete from weekly plan to weeks page."
+`deleteWeek` now calls `redirect("/schedule/weeks")` instead of
+redirecting back to the just-deleted week's own (now-empty) plan page.
+
+## Change-log gap closed + published-week edit gate + My Schedule reorder (2026-08-14, same day)
+
+Three fixes from Oliver's live-testing follow-up, after he confirmed via
+screenshot that the change-log feature itself was working correctly on
+Nancy's My Schedule:
+
+1. **My Schedule reorder**: "Recent changes to your schedule" moved above
+   the calendar, with a "No changes to schedule" empty state instead of
+   the section just disappearing when there's nothing to show.
+
+2. **Logging gap**: "why i manually delete schedule of nancy on tuesday
+   but no log sent to nancy" -- diagnosed as the ordinary grid "x" remove
+   button (`removePlannedAssignment`) predating the whole change-log
+   system and never being wired into it, unlike the newer bulk
+   `clearDay`/`deleteWeek` danger-zone actions. Fixed: `removePlannedAssignment`
+   now fetches the assignment before deleting it and, if its week is
+   already published, writes a `REMOVED_ASSIGNMENT` log entry
+   automatically -- no PIN/typed-confirm/reason, since this is a routine
+   single-person edit, not a bulk destructive one. Extended
+   `scheduleChangeLog.action`'s enum (no new migration needed, the column
+   is unconstrained TEXT). Verified against a fresh local DB: published-
+   week removal logs and shows up via `loadRecentScheduleChanges`; draft-
+   week removal does not log at all (4/4 checks).
+
+3. **Published-week edit gate**: new `PublishedEditGate.tsx` hides the
+   ordinary add/remove grid controls behind an explicit "Edit published
+   schedule" button once a week is published -- staff can already see
+   that week on My Schedule, so editing it should be a deliberate act.
+   Draft weeks skip the gate entirely. Client-side toggle, resets on page
+   load -- friction, not a hard security lock, matching the danger zone's
+   typed-word-confirmation philosophy rather than adding another PIN gate.
+
+`npx tsc --noEmit` clean, `npm run build` clean, all 71 tests pass.
