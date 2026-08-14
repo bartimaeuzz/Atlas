@@ -11,6 +11,14 @@ export interface LedgerAdminActionState {
   error: string | null;
 }
 
+/** Today as an ISO date string -- used to block logging/reconciling a day
+ * that hasn't happened yet (2026-08-14: "not be editable before day
+ * comes"). Same UTC convention as everywhere else date math happens in
+ * this app (see lib/schedule/weekMath.ts). */
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 /* ---------------------------------------------------------------------- */
 /* Vendors                                                                 */
 /* ---------------------------------------------------------------------- */
@@ -86,11 +94,15 @@ export interface PettyCashEntryActionState {
   error: string | null;
 }
 
-/** Adding an entry to an already-FINALIZED day is blocked -- once a
- * manager has counted the drawer and signed off, the numbers underneath
- * that count shouldn't move. Reopening (if ever needed) isn't built in
- * v1 -- matches the Closing Report's own "Finalize is a hard lock"
- * precedent rather than inventing a softer rule here. */
+/** Adding an entry to an already-FINALIZED day is blocked for everyone
+ * EXCEPT an ADMIN account (2026-08-14: "let use admin as authorized to
+ * edit passed day or finalized item") -- once a manager has counted the
+ * drawer and signed off, the numbers underneath that count shouldn't
+ * move for ordinary staff/managers, but an admin can still correct a
+ * mistake directly rather than needing a whole reopen/re-finalize flow.
+ * Also blocks logging against a day that hasn't happened yet -- same
+ * date, no exception, since there's nothing real to log against a shift
+ * that hasn't run. */
 export async function addPettyCashEntry(
   _prevState: PettyCashEntryActionState,
   formData: FormData
@@ -103,19 +115,20 @@ export async function addPettyCashEntry(
 
   try {
     if (!date) throw new Error("Missing date");
+    if (date > todayIso()) throw new Error("Can't log petty cash for a day that hasn't happened yet.");
     const categoryId = Number(categoryIdRaw);
     if (!categoryId) throw new Error("Category is required");
     const amount = Number(amountRaw);
     if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be a positive number");
     const vendorId = vendorIdRaw && String(vendorIdRaw).trim() !== "" ? Number(vendorIdRaw) : null;
 
-    const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-    if (existingRecon?.status === "finalized") {
-      throw new Error("This day is already finalized -- can't add more entries to it.");
-    }
-
     const session = await getCurrentStaffSession();
     if (!session) throw new Error("Not signed in");
+
+    const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
+    if (existingRecon?.status === "finalized" && session.systemRole !== "ADMIN") {
+      throw new Error("This day is already finalized -- can't add more entries to it.");
+    }
 
     await db.insert(pettyCashEntries).values({
       date,
@@ -129,16 +142,19 @@ export async function addPettyCashEntry(
     return { error: e instanceof Error ? e.message : String(e) };
   }
 
+  revalidatePath("/ledger/day");
   revalidatePath("/ledger");
   return { error: null };
 }
 
 export async function deletePettyCashEntry(entryId: number, date: string) {
+  const session = await getCurrentStaffSession();
   const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  if (existingRecon?.status === "finalized") {
+  if (existingRecon?.status === "finalized" && session?.systemRole !== "ADMIN") {
     throw new Error("This day is already finalized -- can't remove entries from it.");
   }
   await db.delete(pettyCashEntries).where(eq(pettyCashEntries.id, entryId));
+  revalidatePath("/ledger/day");
   revalidatePath("/ledger");
 }
 
@@ -147,9 +163,14 @@ export async function deletePettyCashEntry(entryId: number, date: string) {
 /* ---------------------------------------------------------------------- */
 
 /** Save-as-you-go for the reconciliation panel (beginning balance, other
- * cash, the manager's physical count, an optional note) -- does NOT lock
- * anything, matches the Weekly Plan's draft-autosave pattern. Upserts
- * since a date's row may not exist yet the first time someone touches it. */
+ * cash, the manager's physical count, an optional note). For a draft day
+ * this doesn't lock anything, matching the Weekly Plan's draft-autosave
+ * pattern. For an already-finalized day, only an ADMIN can still save
+ * changes (same exception as addPettyCashEntry above) -- and doing so
+ * does NOT change `status`, so the day stays finalized; it's a direct
+ * correction, not a reopen. Also blocked against a future date, same as
+ * logging an entry. Upserts since a date's row may not exist yet the
+ * first time someone touches it. */
 export async function saveDailyReconciliationDraft(
   date: string,
   beginningBalance: number,
@@ -157,8 +178,12 @@ export async function saveDailyReconciliationDraft(
   countedAmount: number | null,
   note: string | null
 ) {
+  if (date > todayIso()) {
+    throw new Error("Can't reconcile a day that hasn't happened yet.");
+  }
+  const session = await getCurrentStaffSession();
   const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  if (existing?.status === "finalized") {
+  if (existing?.status === "finalized" && session?.systemRole !== "ADMIN") {
     throw new Error("This day is already finalized.");
   }
   if (existing) {
@@ -169,6 +194,7 @@ export async function saveDailyReconciliationDraft(
   } else {
     await db.insert(dailyCashReconciliations).values({ date, beginningBalance, otherCash, countedAmount, note, status: "draft" });
   }
+  revalidatePath("/ledger/day");
   revalidatePath("/ledger");
 }
 
@@ -178,8 +204,14 @@ export async function saveDailyReconciliationDraft(
  * finalized (or none exist at all, e.g. a closed day), and the manager
  * must have actually entered a physical count before this can lock,
  * since the whole point of finalizing is confirming the count matches
- * what the ledger expects. */
+ * what the ledger expects. Also can't finalize a day that hasn't
+ * happened yet -- in practice this is already impossible since
+ * shiftsReady requires finalized shifts that wouldn't exist yet, but the
+ * explicit check keeps the rule obvious rather than incidental. */
 export async function finalizePettyCashDay(date: string, countedAmount: number, note: string | null) {
+  if (date > todayIso()) {
+    throw new Error("Can't finalize a day that hasn't happened yet.");
+  }
   const dayShifts = await db.select({ status: shifts.status }).from(shifts).where(eq(shifts.date, date));
   const anyUnfinalized = dayShifts.some((s) => s.status !== "finalized");
   if (anyUnfinalized) {
@@ -211,5 +243,6 @@ export async function finalizePettyCashDay(date: string, countedAmount: number, 
       finalizedByEmployeeId: session.id,
     });
   }
+  revalidatePath("/ledger/day");
   revalidatePath("/ledger");
 }

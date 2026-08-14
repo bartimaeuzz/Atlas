@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { loadLedgerVendors, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
 import { loadPendingInvoicesByVendor, loadRecentSupplierPayments } from "@/lib/ledger/loadSupplierCheck";
+import { LedgerTabs } from "../LedgerTabs";
 import { LogInvoiceForm } from "./LogInvoiceForm";
 import { PendingByVendor } from "./PendingByVendor";
 import { PaymentHistory } from "./PaymentHistory";
@@ -21,10 +21,11 @@ export default async function SupplierCheckPage() {
 
   return (
     <main className="max-w-lg mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/ledger" className="text-sm text-neutral-500 hover:text-black">
-        &larr; Ledger
-      </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-1">Supplier Check</h1>
+      <h1 className="text-2xl font-semibold mb-1">Ledger</h1>
+      <p className="text-neutral-500 text-sm mb-4">Invoice-based vendor payments, settled by check.</p>
+
+      <LedgerTabs active="supplier" />
+
       <p className="text-neutral-500 text-sm mb-6">
         For vendors who drop an invoice at delivery and get paid later by check -- not
         cash-on-delivery (that&apos;s Petty Cash). Log each invoice as it arrives, then settle one

@@ -40,7 +40,7 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
           {data.days.map((day) => (
             <tr key={day.date} className="border-b">
               <td className="py-1.5">
-                <Link href={`/ledger?date=${day.date}`} className="hover:underline">
+                <Link href={`/ledger/day?date=${day.date}`} className="hover:underline">
                   {day.date}
                 </Link>
               </td>

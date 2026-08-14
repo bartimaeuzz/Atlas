@@ -11,9 +11,17 @@ import type { PettyCashDayData } from "@/lib/ledger/loadPettyCashDay";
  * Finalizing is blocked until every shift for the day is itself
  * finalized (`data.shiftsReady`) and a physical count has been entered --
  * Oliver's own words: "you supposed not to close daily expenses without
- * knowing what cash we would get from register anyway." */
-export function ReconciliationPanel({ data }: { data: PettyCashDayData }) {
-  const locked = data.status === "finalized";
+ * knowing what cash we would get from register anyway."
+ *
+ * 2026-08-14: added `isAdmin` -- an ADMIN-role account can still edit a
+ * FINALIZED day's fields ("let use admin as authorized to edit passed
+ * day or finalized item"). This does NOT unfinalize the day or bring
+ * back the "Finalize day" button -- it just lets Save persist changes to
+ * the still-finalized record. `lib/actions/ledger.ts` enforces the same
+ * rule server-side; this prop only controls what the UI shows/allows. */
+export function ReconciliationPanel({ data, isAdmin }: { data: PettyCashDayData; isAdmin: boolean }) {
+  const finalized = data.status === "finalized";
+  const locked = finalized && !isAdmin;
   const [beginningBalance, setBeginningBalance] = useState(
     data.reconciliationId ? data.beginningBalance : (data.suggestedBeginningBalance ?? 0)
   );
@@ -62,7 +70,7 @@ export function ReconciliationPanel({ data }: { data: PettyCashDayData }) {
     <div className="border rounded p-4">
       <h2 className="font-medium mb-3">Cash drawer reconciliation</h2>
 
-      {locked && (
+      {finalized && (
         <div className="mb-3 text-xs bg-green-50 text-green-800 border border-green-200 rounded p-2">
           Finalized {data.finalizedAt ? new Date(data.finalizedAt).toLocaleString() : ""}
           {data.finalizedByName ? ` by ${data.finalizedByName}` : ""}
@@ -129,15 +137,17 @@ export function ReconciliationPanel({ data }: { data: PettyCashDayData }) {
           >
             {isPending ? "Saving…" : "Save"}
           </button>
-          <button
-            type="button"
-            disabled={isPending || !data.shiftsReady}
-            onClick={handleFinalize}
-            className="bg-black text-white px-4 py-2 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
-            title={!data.shiftsReady ? "Finish finalizing today's shift(s) first" : undefined}
-          >
-            Finalize day
-          </button>
+          {!finalized && (
+            <button
+              type="button"
+              disabled={isPending || !data.shiftsReady}
+              onClick={handleFinalize}
+              className="bg-black text-white px-4 py-2 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
+              title={!data.shiftsReady ? "Finish finalizing today's shift(s) first" : undefined}
+            >
+              Finalize day
+            </button>
+          )}
         </div>
       )}
     </div>
