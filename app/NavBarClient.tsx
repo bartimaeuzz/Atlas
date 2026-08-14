@@ -10,6 +10,7 @@ const MANAGER_NAV_ITEMS = [
   { href: "/employees", label: "Employees" },
   { href: "/positions", label: "Positions" },
   { href: "/schedule", label: "Schedule" },
+  { href: "/ledger", label: "Ledger" },
   { href: "/reports", label: "Reports" },
   { href: "/settings", label: "Settings" },
 ];

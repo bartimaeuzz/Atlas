@@ -4,6 +4,7 @@ import {
   restaurantSettings, shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
   metricDefinitions, positionMetrics, metricValues, employeeWageRates, onlinePlatforms,
   incentiveRules, incentiveRuleConditions, incentiveRuleTargets,
+  ledgerVendors, ledgerCategories,
 } from "./schema";
 import { sql, eq } from "drizzle-orm";
 import { hashPin } from "../lib/auth/pin";
@@ -25,6 +26,7 @@ async function seed() {
     "shift_roster_entries", "shifts", "employee_wage_rates", "position_shift_rates",
     "employee_positions", "employees", "online_platforms", "position_tip_pools",
     "positions", "sections", "restaurant_settings",
+    "petty_cash_entries", "daily_cash_reconciliations", "ledger_vendors", "ledger_categories",
   ];
   // Sequential + awaited on purpose: order matters (children before parents,
   // FK-safe), and since the libSQL driver migration (2026-08-10) db.run()
@@ -51,6 +53,50 @@ async function seed() {
     // 0.08875 on every row). 2026-08-10, sales/tax export feature.
     defaultSalesTaxRate: 0.08875,
   });
+
+  // Ledger v1 (2026-08-14) -- categories from Soothr's real Dropdown
+  // sheet, vendors from Soothr's real Supplier Check/Card vendor lists.
+  // Seeded "for testing sake" (Oliver's words) -- Youk Thai is expected
+  // to edit/replace these with its own real vendors before going live,
+  // same DNA-is-a-guideline precedent as everywhere else in this app.
+  await db.insert(ledgerCategories).values(
+    ["Bar", "Food", "Mis", "PAYROLL BOH", "PAYROLL FOH", "Fixed expenses", "Car", "SHM"].map((name) => ({ name }))
+  );
+  await db.insert(ledgerVendors).values(
+    [
+      "NY Mutual Trading, Inc.",
+      "Kyodo Beverage Co., Inc.",
+      "The Haisein Company",
+      "Wismettac Asian Foods, Inc.",
+      "K.D. Market",
+      "Asia Market Corporation",
+      "Best Metropolitan Towel & Linen Supply",
+      "J and J",
+      "Jitto Group",
+      "Sappesuk Limited",
+      "East Sunshine Inc",
+      "Auto-Chlor",
+      "Standard Security",
+      "OAK Beverage",
+      "Sappe",
+      "Gabriella Wines",
+      "Gabriella Fine Wines",
+      "Union Beer / Auto Tap",
+      "Empire Merchants",
+      "S.K.I. Beer Corp.",
+      "Soilair (Bacchus Import)",
+      "Southern Wine (SGWS)",
+      "Baldor",
+      "Skyfoods",
+      "Bronx Freight and Fish",
+      "True World Foods",
+      "Amazon",
+    ].map((name) =>
+      name === "NY Mutual Trading, Inc."
+        ? { name, payeeAddressLine1: "77 Metro Way", payeeAddressLine2: "Secaucus, NJ 07094" }
+        : { name }
+    )
+  );
 
   await db.insert(onlinePlatforms).values([
     { restaurantId: 1, name: "Grubhub" },

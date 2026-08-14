@@ -772,3 +772,95 @@ export const plannedShiftAssignments = sqliteTable(
     ),
   })
 );
+
+/* ---------------------------------------------------------------------- */
+/* Ledger — petty cash / vendor expense tracking (2026-08-14)             */
+/* ---------------------------------------------------------------------- */
+// Phase 1 of the Ledger feature, built from studying Soothr's real
+// " 2026 - C.xlsx" (petty cash / supplier check / card) DNA file — see
+// project_atlas_dna_petty_cash_expense memory for the full source study.
+// Scope confirmed with Oliver 2026-08-14: v1 covers the vendor directory
+// and Petty Cash (itemized payouts + daily cash-drawer reconciliation).
+// Supplier Check, Card (a weekly/periodic bank-statement batch reconcile,
+// not a real-time log — different shape, deliberately not attempted yet),
+// receipt photos, and the consolidated PDF/image report are later rounds.
+
+// A restaurant-configurable vendor/supplier directory (2026-08-14) —
+// admin-managed like Positions, retire-not-delete for the same reason
+// (historical petty cash / supplier check rows should keep referencing a
+// real name even after a vendor is no longer used). Address fields exist
+// now for a later check-export feature (the DNA file's "Export" sheet
+// formats a QuickBooks-style Pay/Amount/Memo/PayeeName/PayeeAddress
+// check-print sheet) — not used yet in v1, but cheap to capture at
+// creation time instead of a later migration. Seeded from Soothr's real
+// vendor list at Oliver's request ("for testing sake") — Youk Thai is
+// expected to edit/replace these with its own real vendors before going
+// live, same "DNA is a guideline, not real data" precedent as everywhere
+// else in this project.
+export const ledgerVendors = sqliteTable("ledger_vendors", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  payeeAddressLine1: text("payee_address_line_1"),
+  payeeAddressLine2: text("payee_address_line_2"),
+  payeeAddressLine3: text("payee_address_line_3"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+});
+
+// Expense categories (Bar/Food/Mis/PAYROLL BOH/etc in Soothr's sheet) —
+// deliberately a restaurant-configurable table, not a hardcoded enum,
+// same reasoning as Positions: category NAMES are Soothr-specific, and
+// Youk Thai (or any future restaurant Atlas is sold to) should be able to
+// rename/add/retire categories without a code change.
+export const ledgerCategories = sqliteTable("ledger_categories", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+});
+
+// One row per petty cash payout. vendorId is nullable on purpose — a real
+// chunk of Soothr's actual entries are informal cash handoffs with no
+// vendor ("Pay out to Tommy: Pom, Lemon, Wasabi"), not a real supplier
+// relationship; `note` carries that free-text description either way.
+// Deliberately no `active`/soft-delete here (unlike Positions/Vendors) --
+// see deletePettyCashEntry in lib/actions/ledger.ts for why entries are
+// only removable before that DAY's reconciliation is finalized, and hard-
+// deleted (not retired) up to that point, matching the same "draft vs.
+// published" trust boundary already used by the Schedule Planner.
+export const pettyCashEntries = sqliteTable("petty_cash_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull(), // ISO date string
+  vendorId: integer("vendor_id").references(() => ledgerVendors.id),
+  categoryId: integer("category_id").notNull().references(() => ledgerCategories.id),
+  note: text("note"),
+  amount: real("amount").notNull(),
+  photoUrl: text("photo_url"), // reserved for a later round -- see PROGRESS.md
+  createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+});
+
+// One row per calendar date's cash-drawer reconciliation -- the "opening
+// manager counts the drawer against what the closing manager handed over"
+// ritual Oliver described. Sales cash / Tip cash are DELIBERATELY NOT
+// columns here -- they're computed live from that date's shiftSales rows
+// (see lib/ledger/loadPettyCashDay.ts) rather than re-entered, so the
+// number can never quietly drift from the Closing Report's own figures.
+// Only what genuinely has no other source of truth lives here:
+// beginningBalance (carried from yesterday, editable in case of a real
+// discrepancy), otherCash (misc cash adjustments, matches the DNA sheet's
+// "Other" column), and countedAmount (the manager's actual physical
+// count, compared against the computed expected total). Confirmed with
+// Oliver 2026-08-14: finalizing a day's reconciliation is blocked until
+// every Shift for that date is itself finalized ("you supposed not to
+// close daily expenses without knowing what cash we would get from
+// register anyway") -- see lib/actions/ledger.ts's finalizePettyCashDay.
+export const dailyCashReconciliations = sqliteTable("daily_cash_reconciliations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  date: text("date").notNull().unique(),
+  beginningBalance: real("beginning_balance").notNull().default(0),
+  otherCash: real("other_cash").notNull().default(0),
+  countedAmount: real("counted_amount"), // null until the opening manager enters their physical count
+  note: text("note"), // e.g. explaining a mismatch between counted vs. expected
+  status: text("status", { enum: ["draft", "finalized"] }).notNull().default("draft"),
+  finalizedAt: text("finalized_at"),
+  finalizedByEmployeeId: integer("finalized_by_employee_id").references(() => employees.id),
+});
