@@ -2150,3 +2150,65 @@ session. Mark vacating/Clear vacancy/Retire folded into the same
 button independent of checkbox lock state, now shown as small inline
 links under Edit/Done only while that row is unlocked. `npx tsc
 --noEmit` clean, `npm run build` clean, 71/71 tests pass.
+
+## Ledger v1: vendor directory + Petty Cash with auto-pulled reconciliation (2026-08-14)
+
+First round of the new Ledger feature. Design conversation with Oliver
+(picked over building the shift-swap system next, see project memory)
+confirmed scope: v1 = vendor directory + Petty Cash only (Supplier Check,
+photo attachment, PDF export, and Card's weekly-batch-against-statement
+flow are later rounds). Built from re-studying Soothr's real
+" 2026 - C.xlsx" DNA file (Petty Cash Soothr / Supplier Check / Card /
+Dropdown / Supplier Address / Export sheets) with fresh eyes rather than
+trusting a 2-day-old memory summary.
+
+Schema (migration 0008, additive): `ledgerVendors`, `ledgerCategories`
+(both admin-managed, retire-not-delete, restaurant-configurable --
+Bar/Food/Mis/PAYROLL BOH/PAYROLL FOH/Fixed expenses/Car/SHM seeded as a
+starting point, not hardcoded), `pettyCashEntries` (vendorId nullable --
+Soothr's real data has plenty of vendor-less cash handoffs like "Pay out
+to Tommy: flowers"), `dailyCashReconciliations` (one row per date:
+beginning balance, other cash, the manager's physical count, draft/
+finalized status). Sales cash and Tip cash are deliberately NOT stored
+columns -- `lib/ledger/loadPettyCashDay.ts` computes them live from that
+date's `shiftSales` rows (finalized shifts only), so the number can never
+independently drift from the Closing Report's own figures. Oliver's own
+reasoning for the dependency: "you supposed not to close daily expenses
+without knowing what cash we would get from register anyway" --
+`finalizePettyCashDay` in `lib/actions/ledger.ts` enforces this by
+refusing to finalize while any Shift for that date is still draft.
+
+UI is mobile-first per an explicit Oliver requirement ("this back office
+must be able to use with mobile") -- `/ledger` is a single day's petty
+cash view: quick-add form, card list of entries (not a table), and a
+reconciliation panel with the auto-pulled Sales/Tip cash shown read-only
+next to editable Beginning Balance/Other/Counted Amount, plus a live
+match/mismatch indicator against the computed expected total.
+`/ledger/vendors` and `/ledger/categories` are simple retire-not-delete
+admin lists, same shape as Positions.
+
+Seeded 8 categories + 27 real vendor names from Soothr's actual
+spreadsheet data -- Oliver confirmed seeding from Soothr "for testing
+sake," with the expectation Youk Thai replaces these with its own real
+vendors before going live.
+
+Explicitly deferred, not forgotten: Supplier Check (next natural
+extension of this same vendor/category infra), receipt/invoice photo
+attachment (`photoUrl` column already reserved on `pettyCashEntries` so
+this doesn't need a later migration -- needs Oliver to provision storage
+credentials, e.g. Vercel Blob, before it can be built), a consolidated
+daily PDF/image report for the on-duty manager to send to Aey/Oliver
+(replaces the LINE-group report habit for now, in-app owner notification
+is a further-future step), invoice/receipt generation for no-receipt
+expenses like buying flowers from a local florist (explicitly a "future"
+ask, not v1), and the cam-scanner/OCR auto-read of a receipt photo
+(explicitly skipped for now, but the schema doesn't close the door on it
+-- see [[project-atlas-ledger]] memory for the full reasoning on why
+each of these was sequenced where it was).
+
+Verified: `npx tsc --noEmit` clean, `npm run build` clean, all 71
+existing tests pass unchanged, plus a new 8/8-check direct-DB
+verification against the real seeded shift data (auto-pull sums match a
+direct query over shiftSales, finalize is blocked while a shift is
+unfinalized, a zero-shift day is still finalizable, the expected-balance
+formula matches the loader's own math).
