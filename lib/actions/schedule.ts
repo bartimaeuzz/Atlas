@@ -505,7 +505,6 @@ export async function deleteWeek(
   // Same try/catch reasoning as clearDay above -- a thrown error here
   // (e.g. a not-yet-applied migration) used to crash straight to
   // Next.js's generic error page instead of showing a message.
-  let weekStartDateForRedirect: string;
   try {
     const session = await getCurrentStaffSession();
     if (!session) return { error: "You've been signed out -- sign in again" };
@@ -538,8 +537,6 @@ export async function deleteWeek(
       performedBy: { id: session.id, name: session.name },
       rows: rowsToRemove.map((r) => ({ ...r, period: r.period as "Lunch" | "Dinner" })),
     });
-
-    weekStartDateForRedirect = week.weekStartDate;
   } catch (e) {
     return { error: describeScheduleActionError(e) };
   }
@@ -548,15 +545,14 @@ export async function deleteWeek(
   revalidatePath("/schedule/weeks");
   revalidatePath("/me/schedule");
 
-  // Oliver, 2026-08-14, after seeing a crash post-delete: "it should
-  // direct back to weekly view." An explicit redirect (same pattern as
-  // login/logout in lib/actions/auth.ts) back to the SAME week's plan
-  // page is more robust than relying on the implicit client refresh a
-  // plain useActionState return triggers -- it forces a full, clean
-  // re-render of /schedule/plan for this week, which now correctly
-  // shows the "not planned, generate from template" empty state since
-  // the week row is gone. redirect() throws internally by design, so
-  // it's deliberately OUTSIDE the try/catch above -- it must never be
-  // caught and turned into an {error} return.
-  redirect(`/schedule/plan?week=${weekStartDateForRedirect}`);
+  // Oliver, 2026-08-14: after a delete, land on the Weeks list instead
+  // of the now-empty week's own plan page -- that week no longer
+  // exists, so /schedule/weeks (which shows every week's planned/
+  // draft/published status at a glance) is a more useful place to
+  // land than a page that's just going to say "not planned." Changed
+  // from an earlier version that redirected back to /schedule/plan?
+  // week=<the deleted week>. redirect() throws internally by design,
+  // so it stays outside the try/catch above -- same reasoning as
+  // clearDay/deleteWeek's error handling.
+  redirect("/schedule/weeks");
 }
