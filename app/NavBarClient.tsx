@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/actions/auth";
 
 const MANAGER_NAV_ITEMS = [
@@ -12,6 +13,19 @@ const MANAGER_NAV_ITEMS = [
   { href: "/reports", label: "Reports" },
   { href: "/settings", label: "Settings" },
 ];
+
+/** Initials shown on the avatar circle -- first letter of the first two
+ * words in the name ("Nancy Suksawat" -> "NS", a single-word name like
+ * "Aey" -> "A"). Deliberately simple, no attempt at Thai-name-specific
+ * logic. */
+function initialsFor(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return parts
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join("");
+}
 
 /** Persistent top nav, always visible — added 2026-08-10 after Oliver
  * pointed out several pages (New Shift, New/Edit Position, Settings, the
@@ -29,13 +43,41 @@ const MANAGER_NAV_ITEMS = [
  * Role-aware nav (2026-08-14) — the manager pages (Shifts/Employees/etc,
  * see lib/auth/guard.ts) are now actually gated server-side, so showing
  * those links to a STAFF account was misleading (click through, get
- * bounced to /login). A logged-in STAFF account now sees just "My
- * Schedule" here instead of the manager item list; MANAGER/ADMIN
- * accounts are unaffected. "My Pay" stays a separate always-shown link
- * on the right for any signed-in account, same as before. */
+ * bounced to /login). A logged-in STAFF account sees the manager item
+ * list replaced entirely; MANAGER/ADMIN accounts are unaffected there.
+ *
+ * "Me menu" (2026-08-14, later same day, Oliver's own ask) — the
+ * separate always-visible name text + "My Pay" link + "Sign out" button
+ * on the right are now collapsed into one circular initials avatar.
+ * Clicking it opens a small dropdown with "My Schedule" (any signed-in
+ * account — the route itself has no role check, it just shows whatever
+ * that employee's own published schedule is) and "My Pay", then Sign
+ * out. This also removes the old separate "My Schedule" link from the
+ * STAFF-only left nav, since it now lives in the same menu as My Pay
+ * instead of being split across two different spots. */
 export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" } | null }) {
   const pathname = usePathname();
   const isManager = auth?.systemRole === "MANAGER" || auth?.systemRole === "ADMIN";
+
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
+
+  // Close the menu automatically on navigation, so it doesn't stay open
+  // hovering over the new page.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   return (
     <header className="border-b bg-white sticky top-0 z-10">
@@ -44,44 +86,62 @@ export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAF
           Atlas
         </Link>
         <nav className="flex gap-4 flex-1">
-          {isManager
-            ? MANAGER_NAV_ITEMS.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={isActive ? "font-medium text-black" : "text-neutral-500 hover:text-black"}
-                  >
-                    {item.label}
-                  </Link>
-                );
-              })
-            : auth && (
+          {isManager &&
+            MANAGER_NAV_ITEMS.map((item) => {
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={isActive ? "font-medium text-black" : "text-neutral-500 hover:text-black"}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
+        </nav>
+        {auth ? (
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={`${auth.name} — account menu`}
+              aria-expanded={menuOpen}
+              className="w-8 h-8 rounded-full bg-black text-white text-xs font-medium flex items-center justify-center hover:bg-neutral-700 transition-colors"
+            >
+              {initialsFor(auth.name)}
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-lg py-1 text-sm">
+                <div className="px-3 py-2 border-b">
+                  <p className="font-medium truncate">{auth.name}</p>
+                  <p className="text-xs text-neutral-500">{auth.systemRole === "STAFF" ? "Staff" : "Manager"}</p>
+                </div>
                 <Link
                   href="/me/schedule"
                   className={
-                    pathname.startsWith("/me/schedule") ? "font-medium text-black" : "text-neutral-500 hover:text-black"
+                    "block px-3 py-2 " +
+                    (pathname.startsWith("/me/schedule") ? "font-medium text-black" : "text-neutral-600 hover:bg-neutral-50")
                   }
                 >
                   My Schedule
                 </Link>
-              )}
-        </nav>
-        {auth ? (
-          <div className="flex items-center gap-3">
-            <Link
-              href="/me"
-              className={pathname === "/me" ? "font-medium text-black" : "text-neutral-500 hover:text-black"}
-            >
-              My Pay
-            </Link>
-            <span className="text-neutral-400">{auth.name}</span>
-            <form action={logout}>
-              <button type="submit" className="text-neutral-500 hover:text-black">
-                Sign out
-              </button>
-            </form>
+                <Link
+                  href="/me"
+                  className={
+                    "block px-3 py-2 " +
+                    (pathname === "/me" ? "font-medium text-black" : "text-neutral-600 hover:bg-neutral-50")
+                  }
+                >
+                  My Pay
+                </Link>
+                <form action={logout} className="border-t">
+                  <button type="submit" className="w-full text-left px-3 py-2 text-neutral-600 hover:bg-neutral-50">
+                    Sign out
+                  </button>
+                </form>
+              </div>
+            )}
           </div>
         ) : (
           <Link
