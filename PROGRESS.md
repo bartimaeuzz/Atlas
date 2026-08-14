@@ -2212,3 +2212,23 @@ verification against the real seeded shift data (auto-pull sums match a
 direct query over shiftSales, finalize is blocked while a shift is
 unfinalized, a zero-shift day is still finalizable, the expected-balance
 formula matches the loader's own math).
+
+## Petty Cash week/month report, folded into the existing /reports page (2026-08-14)
+
+Oliver's ask: "i would like to get weekly view and monthly view on
+petty cash page, then we can click on date to see report detail of
+that day. and we already got report page, we should utilize that page
+to show different report." Rather than a second calendar UI under
+`/ledger`, `/reports` now has a report-type tab (Sales & Tax / Petty
+Cash) sharing the page's existing date-range picker (This week/month/
+year presets + custom range) via a `?report=` query param -- both
+report types live on the same page/picker, Sales & Tax's own behavior
+and .xlsx export untouched. New `lib/reports/loadPettyCashReport.ts`
+bulk-fetches entries/reconciliation/finalized-shiftSales for the whole
+range in three queries (not a per-day loop) and computes each day's
+status (no data/draft/finalized) plus, for finalized days, whether the
+counted amount matched the expected total -- same formula
+`loadPettyCashDay.ts` uses for one day, applied across a range. Each
+date links to `/ledger?date=...`. `npx tsc --noEmit` clean, `npm run
+build` clean, 71/71 tests pass, plus a new 9/9-check direct-DB
+verification.
