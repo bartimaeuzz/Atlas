@@ -5,6 +5,7 @@ import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
 import { GenerateWeekButton } from "./GenerateWeekButton";
 import { WeeklyPlanGrid } from "./WeeklyPlanGrid";
 import { AddPlannedAssignmentForm } from "./AddPlannedAssignmentForm";
+import { DangerZone } from "./DangerZone";
 
 export default async function WeeklyPlanPage({
   searchParams,
@@ -115,6 +116,13 @@ export default async function WeeklyPlanPage({
             weekId={data.week.id}
             allEmployees={activeEmployees}
             employeeAssignedPositionIds={employeeAssignedPositionIds}
+          />
+
+          <DangerZone
+            weekId={data.week.id}
+            dates={data.dates}
+            status={data.week.status}
+            totalAssignments={data.assignments.length}
           />
         </>
       )}
