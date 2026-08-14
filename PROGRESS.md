@@ -1908,3 +1908,44 @@ Verified: `loadEmployeeSchedule`'s own query already scopes both
 `employeeId`, confirmed no cross-employee data leak before shipping
 this to a staff-facing page. All 71 tests pass unchanged, `next
 build` clean, `/me/schedule` resolves alongside the existing routes.
+
+## My Schedule: Day off tile vs not-published-yet shading (2026-08-14, same day)
+
+Follow-up from Oliver on the staff My Schedule view shipped earlier
+today: "the day that they no schedule shows day off tile in published
+week. and the week that not publish yet chang calendar a shade of
+grey." Previously both states rendered as an identical blank cell,
+which could read as "you're off" when it actually meant "not
+published yet." Now: published + nothing scheduled -> a bordered
+"Day off" tile; not published yet (draft/projected) -> the whole cell
+shaded grey, no tile, with a legend explaining both states.
+Presentational only, no loader change. All 71 tests pass, build clean.
+
+## Danger zone: clear a draft day / delete a whole week (2026-08-14, same day)
+
+Oliver: "i would like to be able to delete draft day and draft week
+schedule and start over again." Clarified scope with him before
+building (per standing never-assume rule) across three questions:
+what "delete draft day" means (clear every assignment for one date,
+whole week untouched), what "delete draft week" means (full reset --
+delete the week row and all its assignments, back to "Not planned"),
+and whether either should be allowed on an already-PUBLISHED week.
+His answer to the third: "can do but need more badge alert what you
+are going to do. with manager pin require."
+
+Shipped as two new actions in `lib/actions/schedule.ts` --
+`clearDay(weekId, date, pin)` and `deleteWeek(weekId, pin)` -- both
+gated by a second, narrower PIN re-check (`verifyCurrentManagerPin`)
+on top of the page-level `requireManager()` guard, so a manager has to
+actively re-confirm their own identity for this specific destructive
+action, not just have an active session. New `DangerZone.tsx` (a
+collapsed `<details>` disclosure at the bottom of the Weekly Plan
+page) shows a louder red warning banner when the week is published,
+since staff may already be seeing it on My Schedule.
+
+Verified FK delete order (assignments before the week row, matching
+the `weekId -> scheduleWeeks.id` reference). No schema/migration
+change, no new route. 71 tests pass unchanged, build clean. No new
+unit tests -- consistent with this file's other CRUD actions
+(`removePlannedAssignment`, `publishWeek`), which are likewise
+untested; only the calc engine has unit coverage in this project.
