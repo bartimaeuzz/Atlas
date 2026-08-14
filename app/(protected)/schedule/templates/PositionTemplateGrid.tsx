@@ -33,12 +33,15 @@ function keyFor(dayOfWeek: number, period: string): string {
  * the 2026-08-12 version, which showed each person's pattern as a text
  * summary ("Mon L, Tue D...") and only revealed an editable checkbox
  * grid after clicking into a separate per-person editor below the list.
- * That extra click-to-reveal step is gone: every assigned person's whole
- * week is checkbox-editable right in the table, and each checkbox
- * auto-saves on click (no separate Save button) — "work easier" was
- * Oliver's own framing for this round. The old click-to-edit flow is
- * still how a NEW (not-yet-assigned) person gets their first checkbox
- * saved — see PositionCard's `pendingNewIds` below. */
+ *
+ * 2026-08-14, same day, follow-up: checkboxes start DISABLED and only
+ * become checkable after clicking that row's "Edit" button (Oliver's
+ * ask — a look-only default so browsing the grid can't accidentally
+ * change someone's pattern; the click-to-unlock is per person, not
+ * global, and stays unlocked until the page reloads). Mark
+ * vacating/Retire, previously behind a dropdown off the same button,
+ * now show as small inline links right under Edit/Done once a row is
+ * unlocked, rather than a separate popup menu. */
 export function PositionTemplateGrid({ groups }: { groups: PositionTemplateGroup[] }) {
   return (
     <div className="space-y-4">
@@ -92,7 +95,7 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
                   {DAY_SHORT[d]}
                 </th>
               ))}
-              <th className="w-14"></th>
+              <th className="w-20"></th>
             </tr>
           </thead>
           <tbody>
@@ -115,11 +118,13 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
  * grid. Name and the Edit action span both rows (rowSpan=2) so they
  * read as one visual block per person, matching Oliver's spec: "each
  * day has 2 rows... name on the left... the most right is edit
- * button." */
+ * button." Checkboxes are disabled until this row's own Edit button is
+ * clicked (`editing`, below) — a look-only default, unlocked per row. */
 function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; employee: AssignedEmployeeGroup }) {
   const [checked, setChecked] = useState<Set<string>>(
     () => new Set(employee.cells.map((c) => keyFor(c.dayOfWeek, c.period)))
   );
+  const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -132,6 +137,7 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
   }, [employee.cells]);
 
   function toggle(dayOfWeek: number, period: "Lunch" | "Dinner") {
+    if (!editing) return; // belt-and-suspenders -- inputs are also `disabled` when locked
     const key = keyFor(dayOfWeek, period);
     const next = new Set(checked);
     if (next.has(key)) next.delete(key);
@@ -155,6 +161,7 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
 
   const isVacant = employee.vacancyReason !== null;
   const rowBg = isVacant ? "bg-red-50" : "";
+  const checkboxClass = "w-4 h-4" + (editing ? "" : " opacity-40 cursor-not-allowed");
 
   return (
     <>
@@ -175,13 +182,14 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
               type="checkbox"
               checked={checked.has(keyFor(d, "Lunch"))}
               onChange={() => toggle(d, "Lunch")}
-              className="w-4 h-4"
+              disabled={!editing}
+              className={checkboxClass}
               aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Lunch`}
             />
           </td>
         ))}
         <td rowSpan={2} className="text-right align-top pl-2 py-1 border-t">
-          <EmployeeEdit group={group} employee={employee} />
+          <EmployeeEdit group={group} employee={employee} editing={editing} setEditing={setEditing} />
         </td>
       </tr>
       <tr className={rowBg}>
@@ -192,7 +200,8 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
               type="checkbox"
               checked={checked.has(keyFor(d, "Dinner"))}
               onChange={() => toggle(d, "Dinner")}
-              className="w-4 h-4"
+              disabled={!editing}
+              className={checkboxClass}
               aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Dinner`}
             />
           </td>
@@ -245,29 +254,41 @@ function PersonPicker({
   );
 }
 
-/** Same Mark vacating / Clear vacancy / Retire actions as before —
- * previously a small "⋮" icon-only trigger, now a labeled "Edit" button
- * per Oliver's spec ("the most right is edit button"). Day/period
- * pattern editing itself no longer lives behind this menu — it's the
- * inline checkboxes in EmployeeRowPair now. */
-function EmployeeEdit({ group, employee }: { group: PositionTemplateGroup; employee: AssignedEmployeeGroup }) {
-  const [open, setOpen] = useState(false);
+/** Edit/Done toggle for one row — unlocks that row's checkboxes
+ * (`editing`, lifted from EmployeeRowPair) and, only while unlocked,
+ * shows the Mark vacating / Clear vacancy / Retire actions as small
+ * inline links underneath (2026-08-14 follow-up — previously a
+ * dropdown menu behind a small "⋮" icon, independent of checkbox
+ * edit-lock; now folded into the same unlock state so there's one
+ * consistent "this row is in edit mode" signal instead of two separate
+ * controls). */
+function EmployeeEdit({
+  group,
+  employee,
+  editing,
+  setEditing,
+}: {
+  group: PositionTemplateGroup;
+  employee: AssignedEmployeeGroup;
+  editing: boolean;
+  setEditing: (v: boolean) => void;
+}) {
   const [showVacancyForm, setShowVacancyForm] = useState(false);
   const [isPending, startTransition] = useTransition();
   const isVacant = employee.vacancyReason !== null;
   const anyTemplateId = employee.cells[0]?.templateId;
 
   return (
-    <div className="relative inline-block">
+    <div className="relative inline-block text-right">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setEditing(!editing)}
         className="text-xs text-neutral-500 hover:text-black border rounded px-2 py-1"
       >
-        Edit
+        {editing ? "Done" : "Edit"}
       </button>
-      {open && (
-        <div className="absolute right-0 z-10 mt-1 w-56 bg-white border rounded shadow-lg p-1 text-sm text-left">
+      {editing && (
+        <div className="mt-1 flex flex-col items-end gap-1 text-[11px]">
           {isVacant ? (
             <button
               type="button"
@@ -275,10 +296,9 @@ function EmployeeEdit({ group, employee }: { group: PositionTemplateGroup; emplo
               onClick={() =>
                 startTransition(async () => {
                   if (anyTemplateId) await clearTemplateVacancy(anyTemplateId);
-                  setOpen(false);
                 })
               }
-              className="block w-full text-left px-2 py-1.5 hover:bg-neutral-50 rounded disabled:opacity-50"
+              className="text-neutral-500 hover:text-black underline disabled:opacity-40 disabled:no-underline"
             >
               Clear vacancy
             </button>
@@ -286,11 +306,8 @@ function EmployeeEdit({ group, employee }: { group: PositionTemplateGroup; emplo
             <button
               type="button"
               disabled={!anyTemplateId}
-              onClick={() => {
-                setShowVacancyForm(true);
-                setOpen(false);
-              }}
-              className="block w-full text-left px-2 py-1.5 hover:bg-neutral-50 rounded disabled:opacity-50"
+              onClick={() => setShowVacancyForm(true)}
+              className="text-neutral-500 hover:text-black underline disabled:opacity-40 disabled:no-underline"
             >
               Mark vacating…
             </button>
@@ -302,13 +319,12 @@ function EmployeeEdit({ group, employee }: { group: PositionTemplateGroup; emplo
               if (window.confirm(`Retire ${employee.employeeName} from ${group.positionName} entirely?`)) {
                 startTransition(async () => {
                   await retireEmployeeFromPosition(employee.employeeId, group.positionId);
-                  setOpen(false);
                 });
               }
             }}
-            className="block w-full text-left px-2 py-1.5 hover:bg-neutral-50 rounded text-red-700 disabled:opacity-50"
+            className="text-red-700 hover:underline disabled:opacity-40 disabled:no-underline"
           >
-            Retire from this position
+            Retire
           </button>
         </div>
       )}
