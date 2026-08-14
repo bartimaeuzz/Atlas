@@ -2315,3 +2315,50 @@ DNA-sourced vendor address flows through to the report row, finalized
 day shows the correct manager name, draft day shows null). `npx tsc
 --noEmit` clean, `npm run build` clean, 71/71 existing tests pass
 unchanged. No schema change, no new migration.
+
+## Ledger restructure: month-list landing, /ledger/day, admin edit override (2026-08-14)
+
+Oliver's ask: "after enter ledger page shows petty cash and supplier
+tabs. then when click petty cash show list of date in month first. then
+you can click each day to work on." Follow-up clarified the edit rule:
+"no after it finalized only. and let use admin as authorized to edit
+passed day or finalized item."
+
+`/ledger` is now a landing page with two tabs -- Petty Cash and Supplier
+(new `LedgerTabs.tsx`, same "separate routes, not client tab state"
+pattern as `/reports`' own tabs). Petty Cash shows a month calendar of
+days (new `MonthList.tsx`, reusing `loadPettyCashReport` -- the exact
+same loader already powering the `/reports` Petty Cash tab) with
+prev/next month navigation. The day-level work that used to live
+directly on `/ledger` -- add expense, entries list, cash-drawer
+reconciliation -- moved to `/ledger/day?date=...`, reached by clicking a
+date in the month list. Supplier tab is the existing
+`/ledger/supplier-check` route, now sharing the same tab header.
+
+Two rules confirmed and enforced: a day in the future can't be logged or
+reconciled at all (shown but not clickable in the month list; `/ledger/day`
+itself shows a "hasn't happened yet" placeholder if landed on directly) --
+and a FINALIZED day is locked for ordinary MANAGER accounts exactly as
+before, but an ADMIN-role account can still edit its entries and
+reconciliation directly. Admin edits do NOT unfinalize the day -- the
+record stays `status: "finalized"`, this is a direct correction, not a
+reopen-then-refinalize flow, with a blue "Editing as admin" banner in the
+UI. Both rules are enforced in `lib/actions/ledger.ts` (the real guard),
+not just hidden in the UI.
+
+Updated the one cross-link that needed it: `/reports`' Petty Cash table
+now links each day to `/ledger/day?date=...` instead of the old bare
+`/ledger?date=...`. The NavBar's "Ledger" link needed no change --
+already points at bare `/ledger`, which is now the tab landing.
+
+Verified with a new 10-check direct-DB script mirroring the exact
+validation logic in `addPettyCashEntry`/`saveDailyReconciliationDraft`
+(those call `getCurrentStaffSession()`, which needs real request
+context unavailable in a standalone script -- same limitation hit
+earlier for `finalizePettyCashDay`/`deletePendingInvoice`): future-day
+blocked for everyone including admin, MANAGER blocked from editing a
+finalized day, ADMIN can edit a finalized day's entries and
+reconciliation without unfinalizing it, month report data still
+correct. `npx tsc --noEmit` clean, `npm run build` clean (new
+`/ledger/day` route present), 71/71 tests pass. No schema change, no
+new migration.
