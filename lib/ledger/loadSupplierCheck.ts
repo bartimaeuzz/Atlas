@@ -8,7 +8,7 @@
  * recordSupplierPayment).
  */
 
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { supplierInvoices, supplierCheckPayments, ledgerVendors, ledgerCategories, employees } from "@/db/schema";
 
@@ -75,6 +75,15 @@ export async function loadPendingInvoicesByVendor(): Promise<VendorPendingGroup[
   return Array.from(byVendor.values()).sort((a, b) => a.vendorName.localeCompare(b.vendorName));
 }
 
+export interface PaymentInvoiceDetail {
+  id: number;
+  invoiceNumber: string;
+  categoryName: string;
+  description: string | null;
+  amount: number;
+  receivedDate: string;
+}
+
 export interface PaymentHistoryView {
   id: number;
   vendorName: string;
@@ -82,11 +91,16 @@ export interface PaymentHistoryView {
   checkNumber: string | null;
   totalAmount: number;
   paidByName: string;
-  invoiceNumbers: string[];
+  /** Full line-item detail for each invoice this check settled -- powers
+   * the click-to-expand detail view on /ledger/supplier-check (2026-08-14
+   * follow-up ask). Kept as objects rather than just invoice numbers so
+   * the detail view can show category/description/amount per line
+   * without a second round trip. */
+  invoices: PaymentInvoiceDetail[];
 }
 
-/** Most recent payments first, each showing which invoice numbers it
- * settled -- the "did we already pay this" lookup a manager needs. */
+/** Most recent payments first, each with full invoice line-item detail
+ * for the expandable "view detail" row on the Supplier Check page. */
 export async function loadRecentSupplierPayments(limit = 30): Promise<PaymentHistoryView[]> {
   const payments = await db
     .select({
@@ -107,15 +121,33 @@ export async function loadRecentSupplierPayments(limit = 30): Promise<PaymentHis
 
   const paymentIds = payments.map((p) => p.id);
   const invoiceRows = await db
-    .select({ paymentId: supplierInvoices.paymentId, invoiceNumber: supplierInvoices.invoiceNumber })
-    .from(supplierInvoices);
-  const invoicesByPaymentId = new Map<number, string[]>();
+    .select({
+      paymentId: supplierInvoices.paymentId,
+      id: supplierInvoices.id,
+      invoiceNumber: supplierInvoices.invoiceNumber,
+      categoryName: ledgerCategories.name,
+      description: supplierInvoices.description,
+      amount: supplierInvoices.amount,
+      receivedDate: supplierInvoices.receivedDate,
+    })
+    .from(supplierInvoices)
+    .innerJoin(ledgerCategories, eq(supplierInvoices.categoryId, ledgerCategories.id))
+    .where(inArray(supplierInvoices.paymentId, paymentIds));
+
+  const invoicesByPaymentId = new Map<number, PaymentInvoiceDetail[]>();
   for (const r of invoiceRows) {
-    if (r.paymentId == null || !paymentIds.includes(r.paymentId)) continue;
+    if (r.paymentId == null) continue;
     const list = invoicesByPaymentId.get(r.paymentId) ?? [];
-    list.push(r.invoiceNumber);
+    list.push({
+      id: r.id,
+      invoiceNumber: r.invoiceNumber,
+      categoryName: r.categoryName,
+      description: r.description,
+      amount: r.amount,
+      receivedDate: r.receivedDate,
+    });
     invoicesByPaymentId.set(r.paymentId, list);
   }
 
-  return payments.map((p) => ({ ...p, invoiceNumbers: invoicesByPaymentId.get(p.id) ?? [] }));
+  return payments.map((p) => ({ ...p, invoices: invoicesByPaymentId.get(p.id) ?? [] }));
 }

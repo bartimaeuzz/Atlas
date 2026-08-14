@@ -2,7 +2,7 @@
  * Petty Cash report loader (2026-08-14) -- powers the "Petty Cash" tab on
  * the existing /reports page. Oliver's own instruction: "we already got
  * report page, we should utilize that page to show different report,"
- * rather than building a separate week/month calendar UI under /ledger.
+ * rather than building a separate week/month calendar UI under `/ledger`.
  * Reuses that page's existing date-range picker (This week/month/year
  * presets + custom range) -- this loader just needs a from/to range, same
  * shape as loadSalesTaxReport.
@@ -15,11 +15,16 @@
  * loader once per day in a loop, since looping it across a month would be
  * an N+1 query storm. Bulk-fetches everything in the range up front
  * instead.
+ *
+ * 2026-08-14 follow-up: added `finalizedByName` per day (Oliver's ask:
+ * "add column show responsible floor manager") -- pulled from the same
+ * dailyCashReconciliations.finalizedByEmployeeId the day-level ledger
+ * page already records, left-joined since draft/no-data days have none.
  */
 
 import { and, gte, lte, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { pettyCashEntries, dailyCashReconciliations, shifts, shiftSales } from "@/db/schema";
+import { pettyCashEntries, dailyCashReconciliations, shifts, shiftSales, employees } from "@/db/schema";
 import { addDays } from "@/lib/schedule/weekMath";
 
 export interface PettyCashReportDay {
@@ -30,6 +35,8 @@ export interface PettyCashReportDay {
   /** Only meaningful when status is "finalized" -- whether the manager's
    * counted amount matched the expected total balance. */
   matches: boolean | null;
+  /** Who finalized this day's reconciliation -- null until finalized. */
+  finalizedByName: string | null;
 }
 
 export interface PettyCashReportData {
@@ -46,8 +53,16 @@ export async function loadPettyCashReport(from: string, to: string): Promise<Pet
       .from(pettyCashEntries)
       .where(and(gte(pettyCashEntries.date, from), lte(pettyCashEntries.date, to))),
     db
-      .select()
+      .select({
+        date: dailyCashReconciliations.date,
+        beginningBalance: dailyCashReconciliations.beginningBalance,
+        otherCash: dailyCashReconciliations.otherCash,
+        countedAmount: dailyCashReconciliations.countedAmount,
+        status: dailyCashReconciliations.status,
+        finalizedByName: employees.name,
+      })
       .from(dailyCashReconciliations)
+      .leftJoin(employees, eq(dailyCashReconciliations.finalizedByEmployeeId, employees.id))
       .where(and(gte(dailyCashReconciliations.date, from), lte(dailyCashReconciliations.date, to))),
     db
       .select({ date: shifts.date, cashSales: shiftSales.cashSales, cashTip: shiftSales.cashTip })
@@ -101,7 +116,14 @@ export async function loadPettyCashReport(from: string, to: string): Promise<Pet
       status = "draft";
     }
 
-    days.push({ date: d, totalSpent, entryCount: spent?.count ?? 0, status, matches });
+    days.push({
+      date: d,
+      totalSpent,
+      entryCount: spent?.count ?? 0,
+      status,
+      matches,
+      finalizedByName: recon?.status === "finalized" ? (recon.finalizedByName ?? null) : null,
+    });
     d = addDays(d, 1);
   }
 

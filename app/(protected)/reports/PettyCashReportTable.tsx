@@ -11,7 +11,8 @@ const STATUS_LABEL: Record<string, string> = {
  * per day in the report's date range, click a date to open that day's
  * actual entry/reconciliation page at /ledger. Same range the Sales &
  * Tax report already uses (This week/month/year presets + custom), no
- * separate calendar UI needed. */
+ * separate calendar UI needed. Floor Manager column added 2026-08-14
+ * follow-up -- who finalized that day's reconciliation. */
 export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
   return (
     <section>
@@ -32,6 +33,7 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
             <th className="py-1.5 text-right">Entries</th>
             <th className="py-1.5 text-right">Spent</th>
             <th className="py-1.5 text-right">Status</th>
+            <th className="py-1.5">Floor Manager</th>
           </tr>
         </thead>
         <tbody>
@@ -47,6 +49,7 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
               <td className="py-1.5 text-right">
                 <StatusBadge day={day} />
               </td>
+              <td className="py-1.5 text-neutral-600">{day.finalizedByName || "—"}</td>
             </tr>
           ))}
         </tbody>
@@ -55,6 +58,7 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
             <td className="py-2">Total</td>
             <td className="py-2 text-right tabular-nums">{data.days.reduce((s, d) => s + d.entryCount, 0)}</td>
             <td className="py-2 text-right tabular-nums">${data.totalSpent.toFixed(2)}</td>
+            <td className="py-2"></td>
             <td className="py-2"></td>
           </tr>
         </tfoot>

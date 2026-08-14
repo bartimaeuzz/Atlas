@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { loadSalesTaxReport } from "@/lib/reports/loadSalesTaxReport";
 import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
+import { loadSupplierCheckReport } from "@/lib/reports/loadSupplierCheckReport";
 import { PettyCashReportTable } from "./PettyCashReportTable";
+import { SupplierCheckReportTable } from "./SupplierCheckReportTable";
 
 /** Pinned to UTC noon, same fix as MyEarningsView.tsx — avoids the classic
  * "YYYY-MM-DD parses as the previous day" bug in negative-UTC-offset
@@ -38,6 +40,8 @@ function computePresets(today: Date) {
   };
 }
 
+type ReportType = "sales-tax" | "petty-cash" | "supplier-check";
+
 export default async function ReportsPage({
   searchParams,
 }: {
@@ -53,12 +57,18 @@ export default async function ReportsPage({
   // date-range picker/presets below stay shared between report types —
   // Oliver's own instruction: "we already got report page, we should
   // utilize that page to show different report" rather than building a
-  // second calendar UI under /ledger for the Petty Cash week/month view.
-  const report = params.report === "petty-cash" ? "petty-cash" : "sales-tax";
+  // second calendar UI under /ledger for the Petty Cash week/month view
+  // (and, 2026-08-14, the Supplier Check range view).
+  const report: ReportType =
+    params.report === "petty-cash" ? "petty-cash" : params.report === "supplier-check" ? "supplier-check" : "sales-tax";
 
   const data = report === "sales-tax" ? await loadSalesTaxReport(from, to) : null;
   const pettyCashData = report === "petty-cash" ? await loadPettyCashReport(from, to) : null;
-  const exportHref = `/reports/export?from=${from}&to=${to}`;
+  const supplierCheckData = report === "supplier-check" ? await loadSupplierCheckReport(from, to) : null;
+  const exportHref =
+    report === "supplier-check"
+      ? `/reports/export-supplier-check?from=${from}&to=${to}`
+      : `/reports/export?from=${from}&to=${to}`;
 
   return (
     <main className="max-w-5xl mx-auto p-8 font-sans">
@@ -66,7 +76,9 @@ export default async function ReportsPage({
       <p className="text-sm text-neutral-500 mb-4">
         {report === "sales-tax"
           ? "Rolled up from finalized shifts — matches the layout of the monthly report you already send to your accountant. Only counts shifts that have been Confirmed & Finalized."
-          : "Petty Cash by day for the range below — click a date to open that day's actual entries and reconciliation."}
+          : report === "petty-cash"
+            ? "Petty Cash by day for the range below — click a date to open that day's actual entries and reconciliation."
+            : "Checks written to suppliers for the range below — export as .xlsx to print payment checks, columns match the supplier check export you already use."}
       </p>
 
       <div className="flex items-center gap-2 text-sm mb-4">
@@ -75,6 +87,9 @@ export default async function ReportsPage({
         </ReportTabLink>
         <ReportTabLink report="petty-cash" current={report} from={from} to={to}>
           Petty Cash
+        </ReportTabLink>
+        <ReportTabLink report="supplier-check" current={report} from={from} to={to}>
+          Supplier Check
         </ReportTabLink>
       </div>
 
@@ -98,7 +113,7 @@ export default async function ReportsPage({
             View
           </button>
         </form>
-        {report === "sales-tax" && (
+        {(report === "sales-tax" || report === "supplier-check") && (
           <a
             href={exportHref}
             className="ml-auto px-4 py-1.5 rounded bg-green-700 text-white text-sm hover:bg-green-800"
@@ -114,6 +129,8 @@ export default async function ReportsPage({
 
       {report === "petty-cash" && pettyCashData ? (
         <PettyCashReportTable data={pettyCashData} />
+      ) : report === "supplier-check" && supplierCheckData ? (
+        <SupplierCheckReportTable data={supplierCheckData} />
       ) : data ? (
         <>
       <section className="mb-8">
@@ -196,7 +213,7 @@ export default async function ReportsPage({
                 <td className="py-2 text-right tabular-nums">${data.onlineTotals.net.toFixed(2)}</td>
                 <td className="py-2 text-right tabular-nums">${data.onlineTotals.tax.toFixed(2)}</td>
                 <td className="py-2 text-right tabular-nums">${data.onlineTotals.tips.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.onlineTotals.total.toFixed(2)}</td>
+                <td className="py-2 text-right tabular-nums font-medium">${data.onlineTotals.total.toFixed(2)}</td>
               </tr>
             </tfoot>
           </table>

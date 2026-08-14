@@ -91,11 +91,22 @@ async function seed() {
       "Bronx Freight and Fish",
       "True World Foods",
       "Amazon",
-    ].map((name) =>
-      name === "NY Mutual Trading, Inc."
-        ? { name, payeeAddressLine1: "77 Metro Way", payeeAddressLine2: "Secaucus, NJ 07094" }
-        : { name }
-    )
+    ].map((name) => {
+      // Addresses below are real, taken directly from the DNA file's own
+      // "Export" check-writing sheet (2026-08-14, added for the Supplier
+      // Check report/export follow-up) -- confirmed by re-opening
+      // " 2026 - C.xlsx" rather than assuming. Other vendors are left
+      // without an address; edit them in /ledger/vendors when a real one
+      // is known.
+      const addresses: Record<string, { payeeAddressLine1: string; payeeAddressLine2: string }> = {
+        "NY Mutual Trading, Inc.": { payeeAddressLine1: "77 Metro Way", payeeAddressLine2: "Secaucus, NJ 07094" },
+        "Asia Market Corporation": { payeeAddressLine1: "71 1/2 Mulberry Street", payeeAddressLine2: "New York, NY 10013" },
+        "Best Metropolitan Towel & Linen Supply": { payeeAddressLine1: "61 Madison Avenue", payeeAddressLine2: "Hempstead, NY 11550" },
+        "K.D. Market": { payeeAddressLine1: "88 Mulberry Street", payeeAddressLine2: "New York, NY 10013" },
+        "The Haisein Company": { payeeAddressLine1: "59-45 54th Street", payeeAddressLine2: "Maspeth, NY 11378" },
+      };
+      return addresses[name] ? { name, ...addresses[name] } : { name };
+    })
   );
 
   await db.insert(onlinePlatforms).values([
