@@ -1856,3 +1856,55 @@ see `.gitignore`'s note).
 
 Verified: all 71 tests pass (no test coverage for this page — UI-only
 change, same as before), `next build` clean, 27 routes unchanged.
+
+## Manager auth — first cut (2026-08-14)
+
+Zero auth existed on any manager page (`/shifts`, `/employees`,
+`/positions`, `/settings`, `/reports`, `/schedule/**`) until now — a
+real gap given Youk Thai (Aey's restaurant, opening October 2026) is
+Atlas's actual upcoming deployment, not just a sandbox. Built fast
+(inside a ~43-minute session budget), deliberately reusing the
+existing staff PIN session system as-is rather than inventing a new
+mechanism: `app/(protected)/layout.tsx` (a Next.js route group — the
+`(protected)` segment is invisible in the URL, so every route keeps
+its exact same path) calls `lib/auth/guard.ts`'s new `requireManager()`,
+which calls the existing `getCurrentStaffSession()` and requires
+standing `employees.systemRole` MANAGER or ADMIN, redirecting to
+`/login` otherwise.
+
+Known v1 gap, documented not hidden: does not consider the
+shift-scoped `positions.grantsManagerAccess` elevation (someone
+covering a manager shift without a standing MANAGER/ADMIN account),
+only the standing role. Extend `requireManager()` if that case comes
+up for real.
+
+No schema change, no migration. All 71 tests pass unchanged (routing
+change only), `next build` clean, all 27 routes resolve at the same
+URLs as before.
+
+## Staff-facing My Schedule + role-aware nav (2026-08-14, same day)
+
+Oliver: "set non-manager to see only publish schedule in schedule
+menu as 'my schedule' and 'my pay'" — direct follow-up to the manager
+auth cut above, since the nav bar was still showing every STAFF
+account the full manager item list even though clicking through now
+bounces them to `/login`.
+
+New `app/me/schedule/page.tsx` — reuses `loadEmployeeSchedule`
+(already built reusable for exactly this per its own 2026-08-11 doc
+comment: "same loader, just pre-selected to the logged-in employee
+instead of a manager's pick"). Locked to the logged-in employee's own
+id, no employeeId picker. Only renders shifts from PUBLISHED weeks —
+draft/projected days render blank rather than leaking a manager's
+still-editable plan.
+
+`NavBar.tsx`/`NavBarClient.tsx` now role-aware: MANAGER/ADMIN
+accounts see the full nav unchanged; STAFF accounts see just "My
+Schedule" in the nav bar (My Pay was already a separate always-shown
+link on the right, unchanged).
+
+Verified: `loadEmployeeSchedule`'s own query already scopes both
+`plannedShiftAssignments` and `employeeScheduleTemplates` by
+`employeeId`, confirmed no cross-employee data leak before shipping
+this to a staff-facing page. All 71 tests pass unchanged, `next
+build` clean, `/me/schedule` resolves alongside the existing routes.
