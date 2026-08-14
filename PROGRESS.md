@@ -2094,3 +2094,46 @@ same menu instead of being split across two spots. MANAGER/ADMIN's
 left nav (Shifts/Employees/etc) is unchanged; only the right-side
 personal menu changed, for everyone. `npx tsc --noEmit` clean,
 `npm run build` clean, 71/71 tests pass.
+
+## Staff day-preview (click calendar) + Template Assignments inline grid (2026-08-14, same day)
+
+Two features from Oliver's follow-up ask.
+
+**Staff calendar day-preview.** "each staff should be able to click
+calendar to see staff view like in a preview stage who work on that
+day. but option on setting to allow who see who is for admin to
+override permission as usual. foh see foh or see all." Any published
+day on My Schedule's calendar is now clickable -> `/me/schedule/day?date=...`,
+a Lunch/Dinner list of who's scheduled. New loader
+`lib/schedule/loadScheduleDayPreview.ts` reuses the existing
+`getVisibleRosterEntries` (lib/roster/visibility.ts) + the
+`rosterRestrictFOHToOwnCategory`/`BOH` and
+`rosterShowCoworkerListFOH`/`BOH` restaurant settings, rather than a
+second parallel permission system -- those category-restriction
+settings were literally built ahead of time for this ("Not yet used by
+a live staff view" was the old settings-page copy). Reads from
+`plannedShiftAssignments` (the plan), not `shiftRosterEntries` (day-of
+actuals) -- previewing a future day needs the plan, which exists long
+before any real Shift row for that date. Draft weeks return null, same
+rule as My Schedule. No money fields included, ever. Settings page copy
+updated to note both toggles now also gate this preview. Verified
+against a fresh DB: 6/6 checks (draft->null, FOH restriction, MANAGER
+sees all, coworker-list-off leaves only self).
+
+**Template Assignments inline grid.** "in template assignment worth ui
+upgrade to work easier. please display day in a week start with mon -
+sun. each day has 2 rows. first is checkbox for lunch. another row for
+dinner inline with first column which is name on the left. the most
+right is edit button." Redesigned `PositionTemplateGrid.tsx`: Mon-Sun
+columns, two rows per assigned person (Lunch then Dinner), name in a
+rowSpan'd left column, an "Edit" button (replacing the old "⋮" icon,
+same Mark-vacating/Retire menu underneath) in a rowSpan'd right column.
+Checkboxes are live/inline now and auto-save via the existing
+`syncEmployeePositionTemplate` action on each click -- no more click-a-
+name-to-open-a-separate-editor-below step from the 2026-08-12 version.
+Adding a brand-new person still goes through the "+ Add" picker, shown
+immediately as a blank editable row; their first checkbox click is what
+actually persists them (the table only ever stores checked cells, so
+there's no "empty" row to load on refresh until then).
+
+`npx tsc --noEmit` clean, `npm run build` clean, 71/71 tests pass.
