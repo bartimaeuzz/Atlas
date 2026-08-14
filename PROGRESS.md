@@ -2272,3 +2272,46 @@ invoice submitted under the wrong vendor's id, payment-history invoice-
 number attachment, delete blocked on paid/succeeding on pending.
 `npx tsc --noEmit` clean, `npm run build` clean, 71/71 existing tests
 pass unchanged.
+
+## Supplier Check follow-ups + Petty Cash floor manager column (2026-08-14)
+
+Three quick follow-ups from Oliver after the Supplier Check round shipped:
+
+1. **Recent payments are now click-to-expand.** `/ledger/supplier-check`'s
+   payment history was a flat list showing just a joined invoice-number
+   string; `loadRecentSupplierPayments` now returns full per-invoice line
+   items (category, description, amount, received date) and
+   `PaymentHistory.tsx` is a client component -- click a payment row to
+   expand its settled invoices.
+
+2. **New "Supplier Check" report tab + .xlsx export.** Third tab on
+   `/reports` (Sales & Tax / Petty Cash / Supplier Check), sharing the
+   same date-range picker. Before building, re-opened the real DNA
+   source file (`" 2026 - C.xlsx"`'s "Export" sheet) directly rather than
+   trusting the 2-day-old memory summary -- confirmed its exact columns:
+   Pay / Amount / Memo / PayeeName / PayeeAddress (street + city/state/
+   zip on separate lines), with Memo holding the comma-joined invoice
+   numbers one check settled (matches K.D. Market's real
+   "142675, 142676" example). New `lib/reports/loadSupplierCheckReport.ts`
+   (one row per check payment in range) and
+   `lib/reports/buildSupplierCheckWorkbook.ts` (same ExcelJS pattern as
+   the Sales & Tax export, two extra columns prepended -- Paid Date,
+   Check # -- for an audit trail the original pre-check DNA sheet didn't
+   need). Also backfilled real payee addresses for 4 more seeded vendors
+   (Asia Market Corp, Best Metropolitan, K.D. Market, The Haisein
+   Company) straight from that same Export sheet, so the exported
+   check-print columns have real data for the vendors most likely to
+   actually get paid by check.
+
+3. **Petty Cash report: added a Floor Manager column.** Shows who
+   finalized each day's cash reconciliation
+   (`dailyCashReconciliations.finalizedByEmployeeId`, left-joined to
+   `employees`) -- null for draft/no-data days, not a stale leftover
+   name.
+
+Verified with a new 11-check direct-DB script (payment detail line items
+sum to the payment total, report aggregation and date-range filtering,
+DNA-sourced vendor address flows through to the report row, finalized
+day shows the correct manager name, draft day shows null). `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 existing tests pass
+unchanged. No schema change, no new migration.
