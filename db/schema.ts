@@ -707,10 +707,19 @@ export const scheduleWeeks = sqliteTable("schedule_weeks", {
 // marking a day as needing extra headcount beyond the template (an
 // anticipated busy day, a known advance-booked event), independent of
 // anyone actually leaving.
-// Append-only record of destructive schedule edits (clear a day / delete
-// a whole week) -- 2026-08-14, Oliver's follow-up after the danger zone
-// itself: dropped the PIN re-check (his words: "pin might not be the
-// answer" for a small restaurant where one manager does everything),
+// Append-only record of schedule edits that removed something a staff
+// member could have already seen: clear a day / delete a whole week
+// (the bulk "danger zone" actions), plus a single person being pulled
+// off one slot via the ordinary grid remove button when that week is
+// already PUBLISHED (added after Oliver noticed Nancy never got a log
+// entry when he removed her from a published Tuesday -- the ordinary
+// remove button pre-dates this whole logging system and wasn't wired
+// into it until then). Draft-week edits of any kind are never logged
+// here -- nobody outside management has seen a draft.
+//
+// 2026-08-14, Oliver's follow-up after the danger zone itself: dropped
+// the PIN re-check (his words: "pin might not be the answer" for a
+// small restaurant where one manager does everything),
 // replaced with a typed confirmation word instead (see lib/actions/
 // schedule.ts), plus this log so staff "at least know what is happening
 // with their shift" -- and a required reason specifically when the
@@ -727,7 +736,7 @@ export const scheduleChangeLog = sqliteTable("schedule_change_log", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   weekId: integer("week_id").notNull(),
   weekStartDate: text("week_start_date").notNull(),
-  action: text("action", { enum: ["CLEARED_DAY", "DELETED_WEEK"] }).notNull(),
+  action: text("action", { enum: ["CLEARED_DAY", "DELETED_WEEK", "REMOVED_ASSIGNMENT"] }).notNull(),
   date: text("date"), // the one date cleared; null for a whole-week delete
   wasPublished: integer("was_published", { mode: "boolean" }).notNull(),
   reason: text("reason"), // required by the action itself when wasPublished=true; optional for drafts

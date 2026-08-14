@@ -4,7 +4,7 @@ import { scheduleChangeLog } from "@/db/schema";
 
 export interface ScheduleChangeForEmployee {
   id: number;
-  action: "CLEARED_DAY" | "DELETED_WEEK";
+  action: "CLEARED_DAY" | "DELETED_WEEK" | "REMOVED_ASSIGNMENT";
   date: string | null; // the specific date affected, if this employee had a shift that day
   positionName: string;
   period: "Lunch" | "Dinner";
@@ -67,7 +67,7 @@ export async function loadRecentScheduleChanges(
       if (r.employeeId !== employeeId) continue;
       result.push({
         id: row.id,
-        action: row.action as "CLEARED_DAY" | "DELETED_WEEK",
+        action: row.action as "CLEARED_DAY" | "DELETED_WEEK" | "REMOVED_ASSIGNMENT",
         date: r.date,
         positionName: r.positionName,
         period: r.period,

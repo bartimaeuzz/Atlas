@@ -312,9 +312,65 @@ export async function addPlannedAssignment(
   return { error: null };
 }
 
+/**
+ * 2026-08-14, Oliver-reported: he pulled Nancy off a published
+ * Tuesday using this button (the small x next to a name in the
+ * grid -- the ORIGINAL single-assignment remove, predates the whole
+ * danger-zone logging system) and no entry showed up on her "Recent
+ * changes." Root cause: this action never wrote to
+ * scheduleChangeLog at all -- only clearDay/deleteWeek did. Fixed
+ * here: fetches the assignment BEFORE deleting (need its details
+ * for the log), deletes it, then logs automatically -- no typed
+ * confirm, no reason required, unlike the bulk actions -- if the
+ * week it belonged to was PUBLISHED. Draft-week removals stay
+ * silent, same convention as clearDay/deleteWeek. Reasoning for the
+ * lighter touch here: this is a routine, frequent, single-person
+ * edit (used constantly for ordinary schedule fixes), not a "wipe a
+ * day/week" action -- the same friction that's appropriate for a
+ * bulk nuke would make this button annoying for its actual, common
+ * use.
+ */
 export async function removePlannedAssignment(assignmentId: number) {
+  const [assignment] = await db
+    .select({
+      weekId: plannedShiftAssignments.weekId,
+      employeeId: plannedShiftAssignments.employeeId,
+      positionId: plannedShiftAssignments.positionId,
+      date: plannedShiftAssignments.date,
+      period: plannedShiftAssignments.period,
+    })
+    .from(plannedShiftAssignments)
+    .where(eq(plannedShiftAssignments.id, assignmentId));
+
+  if (!assignment) return; // already gone -- nothing to remove or log
+
   await db.delete(plannedShiftAssignments).where(eq(plannedShiftAssignments.id, assignmentId));
+
+  const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, assignment.weekId));
+  const session = await getCurrentStaffSession();
+  if (week?.status === "published" && session) {
+    await logScheduleChange({
+      weekId: assignment.weekId,
+      weekStartDate: week.weekStartDate,
+      action: "REMOVED_ASSIGNMENT",
+      date: assignment.date,
+      wasPublished: true,
+      reason: null,
+      performedBy: { id: session.id, name: session.name },
+      rows: [
+        {
+          employeeId: assignment.employeeId,
+          positionId: assignment.positionId,
+          date: assignment.date,
+          period: assignment.period as "Lunch" | "Dinner",
+        },
+      ],
+    });
+  }
+
   revalidatePath("/schedule/plan");
+  revalidatePath("/schedule/weeks");
+  revalidatePath("/me/schedule");
 }
 
 /** Publishing is what makes a week visible on staff's own schedule view
@@ -349,7 +405,7 @@ interface RemovedAssignmentSnapshot {
 async function logScheduleChange(params: {
   weekId: number;
   weekStartDate: string;
-  action: "CLEARED_DAY" | "DELETED_WEEK";
+  action: "CLEARED_DAY" | "DELETED_WEEK" | "REMOVED_ASSIGNMENT";
   date: string | null;
   wasPublished: boolean;
   reason: string | null;

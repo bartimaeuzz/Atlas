@@ -3,8 +3,7 @@ import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
 import { loadEmployeesList, loadAllPositionsForAssignment, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
 import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
 import { GenerateWeekButton } from "./GenerateWeekButton";
-import { WeeklyPlanGrid } from "./WeeklyPlanGrid";
-import { AddPlannedAssignmentForm } from "./AddPlannedAssignmentForm";
+import { PublishedEditGate } from "./PublishedEditGate";
 import { DangerZone } from "./DangerZone";
 
 export default async function WeeklyPlanPage({
@@ -96,25 +95,12 @@ export default async function WeeklyPlanPage({
             </div>
           )}
 
-          <div className="mb-8 border rounded p-4 bg-neutral-50">
-            <h2 className="font-medium mb-3 text-sm">Add to a slot</h2>
-            {activeEmployees.length === 0 || activePositions.length === 0 ? (
-              <p className="text-sm text-neutral-500">Add active employees and positions first.</p>
-            ) : (
-              <AddPlannedAssignmentForm
-                weekId={data.week.id}
-                dates={data.dates}
-                allEmployees={activeEmployees}
-                allPositions={activePositions}
-                employeeAssignedPositionIds={employeeAssignedPositionIds}
-              />
-            )}
-          </div>
-
-          <WeeklyPlanGrid
+          <PublishedEditGate
+            isPublished={data.week.status === "published"}
             data={data}
             weekId={data.week.id}
             allEmployees={activeEmployees}
+            allPositions={activePositions}
             employeeAssignedPositionIds={employeeAssignedPositionIds}
           />
 

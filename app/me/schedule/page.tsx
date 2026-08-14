@@ -76,6 +76,36 @@ export default async function MyScheduleView({
         </Link>
       </div>
 
+      <div className="mb-6">
+        <h2 className="text-sm font-medium mb-2">Recent changes to your schedule</h2>
+        {recentChanges.length > 0 ? (
+          <>
+            <p className="text-xs text-neutral-500 mb-3">
+              A manager removed these shifts after the schedule was already published.
+            </p>
+            <div className="divide-y border rounded text-sm">
+              {recentChanges.map((c) => (
+                <div key={`${c.id}-${c.date}-${c.positionName}-${c.period}`} className="px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <span>
+                      {c.action === "DELETED_WEEK" ? "Whole week removed" : "Shift removed"} —{" "}
+                      {c.date ?? `week of ${c.weekStartDate}`}: {c.positionName} ({c.period === "Lunch" ? "L" : "D"})
+                    </span>
+                    <span className="text-xs text-neutral-400">{c.createdAt.slice(0, 10)}</span>
+                  </div>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    By {c.performedByName}
+                    {c.reason ? ` — "${c.reason}"` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-neutral-400 border rounded p-3">No changes to schedule</p>
+        )}
+      </div>
+
       <div className="flex items-center gap-4 text-xs text-neutral-500 mb-3">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-sm bg-neutral-100 border border-neutral-300 inline-block" /> Day off
@@ -144,31 +174,6 @@ export default async function MyScheduleView({
         </tbody>
       </table>
 
-      {recentChanges.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-sm font-medium mb-2">Recent changes to your schedule</h2>
-          <p className="text-xs text-neutral-500 mb-3">
-            A manager removed these shifts after the schedule was already published.
-          </p>
-          <div className="divide-y border rounded text-sm">
-            {recentChanges.map((c) => (
-              <div key={`${c.id}-${c.date}-${c.positionName}-${c.period}`} className="px-3 py-2">
-                <div className="flex items-center justify-between">
-                  <span>
-                    {c.action === "DELETED_WEEK" ? "Whole week removed" : "Shift removed"} —{" "}
-                    {c.date ?? `week of ${c.weekStartDate}`}: {c.positionName} ({c.period === "Lunch" ? "L" : "D"})
-                  </span>
-                  <span className="text-xs text-neutral-400">{c.createdAt.slice(0, 10)}</span>
-                </div>
-                <p className="text-xs text-neutral-500 mt-0.5">
-                  By {c.performedByName}
-                  {c.reason ? ` — "${c.reason}"` : ""}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </main>
   );
 }
