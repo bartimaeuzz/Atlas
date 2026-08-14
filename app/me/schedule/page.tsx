@@ -16,8 +16,15 @@ const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  * locked to the logged-in employee's own id (no employeeId param, no
  * picker), and only renders PUBLISHED weeks — Oliver's words: staff
  * should see "only published schedule", not a manager's still-editable
- * draft. Draft/projected days render blank rather than leaking the
- * in-progress plan.
+ * draft.
+ *
+ * Two distinct "nothing here" states (2026-08-14, same day, Oliver's
+ * follow-up) that were previously both just a blank cell -- now made
+ * visually distinct so staff don't confuse "not published yet" with
+ * "you're off":
+ *   - Published week, no shift that day -> a "Day off" tile.
+ *   - Week not published yet (draft/projected) -> the whole cell is
+ *     shaded grey, no tile at all, meaning "not available yet."
  */
 export default async function MyScheduleView({
   searchParams,
@@ -45,8 +52,8 @@ export default async function MyScheduleView({
         </form>
       </div>
       <p className="text-sm text-neutral-500 mb-4">
-        {data.employeeName} — {data.monthLabel}. Only shows weeks that have been published; a blank
-        day just means that week hasn't been published yet, not that you're off.
+        {data.employeeName} — {data.monthLabel}. Grey days mean that week hasn't been published yet
+        — not that you're off.
       </p>
 
       <div className="flex items-center gap-4 mb-4 text-sm">
@@ -60,6 +67,15 @@ export default async function MyScheduleView({
         <Link href={`/me/schedule?month=${nextMonth}`} className="text-neutral-500 hover:text-black underline">
           Next month &rarr;
         </Link>
+      </div>
+
+      <div className="flex items-center gap-4 text-xs text-neutral-500 mb-3">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-sm bg-neutral-100 border border-neutral-300 inline-block" /> Day off
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-sm bg-neutral-300 inline-block" /> Not published yet
+        </span>
       </div>
 
       <table className="w-full border-collapse text-sm">
@@ -76,24 +92,42 @@ export default async function MyScheduleView({
           {data.weeks.map((week, i) => (
             <tr key={i}>
               {week.map((day) => {
-                const publishedShifts = day.weekStatus === "published" ? day.shifts : [];
+                const isPublished = day.weekStatus === "published";
+                const shifts = isPublished ? day.shifts : [];
+                const dayNumber = Number(day.date.slice(8));
+
                 return (
-                  <td key={day.date} className="align-top border p-1.5">
+                  <td
+                    key={day.date}
+                    className={"align-top border p-1.5" + (isPublished ? "" : " bg-neutral-100")}
+                  >
                     <div className={"min-h-24" + (day.inMonth ? "" : " opacity-40")}>
-                      <span className="text-xs text-neutral-600">{Number(day.date.slice(8))}</span>
-                      <div className="space-y-0.5 mt-1">
-                        {publishedShifts.map((s, si) => (
-                          <div
-                            key={si}
-                            className={
-                              "text-[10px] rounded px-1 py-0.5 " +
-                              (s.isExtraCoverage ? "bg-yellow-100 text-yellow-900" : "bg-neutral-100 text-neutral-700")
-                            }
-                          >
-                            {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
-                          </div>
-                        ))}
-                      </div>
+                      <span className={"text-xs " + (isPublished ? "text-neutral-600" : "text-neutral-400")}>
+                        {dayNumber}
+                      </span>
+                      {isPublished && (
+                        <div className="space-y-0.5 mt-1">
+                          {shifts.length > 0 ? (
+                            shifts.map((s, si) => (
+                              <div
+                                key={si}
+                                className={
+                                  "text-[10px] rounded px-1 py-0.5 " +
+                                  (s.isExtraCoverage
+                                    ? "bg-yellow-100 text-yellow-900"
+                                    : "bg-neutral-100 text-neutral-700")
+                                }
+                              >
+                                {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
+                              </div>
+                            ))
+                          ) : (
+                            <div className="text-[10px] rounded px-1 py-0.5 border border-neutral-200 text-neutral-400 text-center">
+                              Day off
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </td>
                 );
