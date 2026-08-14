@@ -2232,3 +2232,43 @@ counted amount matched the expected total -- same formula
 date links to `/ledger?date=...`. `npx tsc --noEmit` clean, `npm run
 build` clean, 71/71 tests pass, plus a new 9/9-check direct-DB
 verification.
+
+## Supplier Check: invoice-based vendor payments (2026-08-14)
+
+Oliver clarified the real workflow mid-conversation: most vendors are
+NOT cash-on-delivery (that stays in Petty Cash, unchanged) -- they drop
+an invoice at delivery and get paid later by check, often at their next
+delivery, when a new invoice arrives just as the previous one gets
+settled. His words: "supplier that need cash on delivery will be in
+petty cash categories. but most of the time supplier/vendor just drop
+invoices and wait for check next time they come." Confirmed no due-date
+field is needed, and that one printed check can reconcile multiple
+pending invoices from the same vendor at once (matches the real DNA
+export sheet's own K.D. Market example, two invoice numbers batched
+under one check).
+
+Two-stage lifecycle: `logSupplierInvoice` logs an invoice as "pending"
+when it arrives (vendor, category, invoice number, description/nature,
+amount, date received). `recordSupplierPayment` lets a manager select
+one or more pending invoices from the SAME vendor and settle them
+together under one check payment (paid date, optional check number) --
+validates every selected invoice still belongs to that vendor and is
+still pending before committing, so a stale form can't double-pay or
+cross-vendor-pay. `deletePendingInvoice` removes an invoice logged in
+error; blocked once paid.
+
+Schema (migration 0009, additive): `supplier_invoices`,
+`supplier_check_payments`. UI at `/ledger/supplier-check`: invoice-
+logging form, pending invoices grouped by vendor with checkbox
+multi-select feeding a per-vendor payment form (shows a running
+selected-total), and recent payment history showing which invoice
+numbers each check settled. Linked from the main `/ledger` page's nav
+row alongside Vendors/Categories.
+
+Verified with a new 14-check direct-DB script: vendor grouping and
+pending totals, batch-paying multiple invoices under one payment with
+the correct summed total, rejecting a re-paid invoice, rejecting an
+invoice submitted under the wrong vendor's id, payment-history invoice-
+number attachment, delete blocked on paid/succeeding on pending.
+`npx tsc --noEmit` clean, `npm run build` clean, 71/71 existing tests
+pass unchanged.
