@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { loadSalesTaxReport } from "@/lib/reports/loadSalesTaxReport";
+import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
+import { PettyCashReportTable } from "./PettyCashReportTable";
 
 /** Pinned to UTC noon, same fix as MyEarningsView.tsx — avoids the classic
  * "YYYY-MM-DD parses as the previous day" bug in negative-UTC-offset
@@ -39,7 +41,7 @@ function computePresets(today: Date) {
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; report?: string }>;
 }) {
   const params = await searchParams;
   const today = parseDate(toIso(new Date()));
@@ -47,25 +49,43 @@ export default async function ReportsPage({
 
   const from = params.from || presets.month.from;
   const to = params.to || presets.month.to;
+  // Kept as a query param (not a separate route) specifically so the
+  // date-range picker/presets below stay shared between report types —
+  // Oliver's own instruction: "we already got report page, we should
+  // utilize that page to show different report" rather than building a
+  // second calendar UI under /ledger for the Petty Cash week/month view.
+  const report = params.report === "petty-cash" ? "petty-cash" : "sales-tax";
 
-  const data = await loadSalesTaxReport(from, to);
+  const data = report === "sales-tax" ? await loadSalesTaxReport(from, to) : null;
+  const pettyCashData = report === "petty-cash" ? await loadPettyCashReport(from, to) : null;
   const exportHref = `/reports/export?from=${from}&to=${to}`;
 
   return (
     <main className="max-w-5xl mx-auto p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-1">Sales &amp; Tax Report</h1>
-      <p className="text-sm text-neutral-500 mb-6">
-        Rolled up from finalized shifts — matches the layout of the monthly report you already send
-        to your accountant. Only counts shifts that have been Confirmed &amp; Finalized.
+      <h1 className="text-2xl font-semibold mb-1">Reports</h1>
+      <p className="text-sm text-neutral-500 mb-4">
+        {report === "sales-tax"
+          ? "Rolled up from finalized shifts — matches the layout of the monthly report you already send to your accountant. Only counts shifts that have been Confirmed & Finalized."
+          : "Petty Cash by day for the range below — click a date to open that day's actual entries and reconciliation."}
       </p>
+
+      <div className="flex items-center gap-2 text-sm mb-4">
+        <ReportTabLink report="sales-tax" current={report} from={from} to={to}>
+          Sales &amp; Tax
+        </ReportTabLink>
+        <ReportTabLink report="petty-cash" current={report} from={from} to={to}>
+          Petty Cash
+        </ReportTabLink>
+      </div>
 
       <div className="flex flex-wrap items-end gap-4 mb-6 border rounded p-4 bg-neutral-50">
         <div className="flex gap-2">
-          <PresetLink href={`/reports?from=${presets.week.from}&to=${presets.week.to}`}>This week</PresetLink>
-          <PresetLink href={`/reports?from=${presets.month.from}&to=${presets.month.to}`}>This month</PresetLink>
-          <PresetLink href={`/reports?from=${presets.year.from}&to=${presets.year.to}`}>This year</PresetLink>
+          <PresetLink href={`/reports?report=${report}&from=${presets.week.from}&to=${presets.week.to}`}>This week</PresetLink>
+          <PresetLink href={`/reports?report=${report}&from=${presets.month.from}&to=${presets.month.to}`}>This month</PresetLink>
+          <PresetLink href={`/reports?report=${report}&from=${presets.year.from}&to=${presets.year.to}`}>This year</PresetLink>
         </div>
         <form className="flex items-end gap-2 text-sm" action="/reports">
+          <input type="hidden" name="report" value={report} />
           <label>
             <span className="block text-neutral-500 mb-1">From</span>
             <input type="date" name="from" defaultValue={from} className="border rounded px-2 py-1" />
@@ -78,18 +98,24 @@ export default async function ReportsPage({
             View
           </button>
         </form>
-        <a
-          href={exportHref}
-          className="ml-auto px-4 py-1.5 rounded bg-green-700 text-white text-sm hover:bg-green-800"
-        >
-          Export .xlsx
-        </a>
+        {report === "sales-tax" && (
+          <a
+            href={exportHref}
+            className="ml-auto px-4 py-1.5 rounded bg-green-700 text-white text-sm hover:bg-green-800"
+          >
+            Export .xlsx
+          </a>
+        )}
       </div>
 
       <p className="text-sm text-neutral-500 mb-2">
         {from} to {to}
       </p>
 
+      {report === "petty-cash" && pettyCashData ? (
+        <PettyCashReportTable data={pettyCashData} />
+      ) : data ? (
+        <>
       <section className="mb-8">
         <h2 className="text-lg font-medium mb-3">Toast — by day</h2>
         {data.toastDays.length === 0 ? (
@@ -180,6 +206,8 @@ export default async function ReportsPage({
           usual monthly report) — this page shows range totals only, to keep it readable at a glance.
         </p>
       </section>
+      </>
+      ) : null}
     </main>
   );
 }
@@ -189,6 +217,33 @@ function PresetLink({ href, children }: { href: string; children: React.ReactNod
     <Link
       href={href}
       className="px-3 py-1.5 rounded border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function ReportTabLink({
+  report,
+  current,
+  from,
+  to,
+  children,
+}: {
+  report: string;
+  current: string;
+  from: string;
+  to: string;
+  children: React.ReactNode;
+}) {
+  const active = report === current;
+  return (
+    <Link
+      href={`/reports?report=${report}&from=${from}&to=${to}`}
+      className={
+        "px-3 py-1.5 rounded border " +
+        (active ? "bg-black text-white border-black" : "text-neutral-600 hover:bg-neutral-50")
+      }
     >
       {children}
     </Link>
