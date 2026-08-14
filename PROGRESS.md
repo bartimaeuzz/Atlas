@@ -2137,3 +2137,16 @@ actually persists them (the table only ever stores checked cells, so
 there's no "empty" row to load on refresh until then).
 
 `npx tsc --noEmit` clean, `npm run build` clean, 71/71 tests pass.
+
+## Template Assignments: checkboxes disabled by default, unlock via Edit (2026-08-14, same day)
+
+Oliver's follow-up on the inline grid shipped earlier today: "i would
+like template assignment checkbox on each day to be disable state
+first. and be able to edit via edit button." Checkboxes now render
+`disabled` by default; clicking a row's Edit button (label flips to
+"Done") unlocks that person's checkboxes for the rest of the page
+session. Mark vacating/Clear vacancy/Retire folded into the same
+`editing` state -- previously a dropdown behind an always-clickable
+button independent of checkbox lock state, now shown as small inline
+links under Edit/Done only while that row is unlocked. `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 tests pass.
