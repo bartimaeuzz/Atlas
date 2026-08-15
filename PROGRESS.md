@@ -2420,3 +2420,43 @@ invoices, marking paid cascades to invoices and is a safe no-op on a
 second call, and both loaders return correct status/detail. `npx tsc
 --noEmit` clean, `npm run build` clean (both new routes present), 71/71
 tests pass.
+
+## Supplier Check: reprint, flexible multi-vendor Print Checks popup (2026-08-14)
+
+Two follow-ups from Oliver right after the Printed/Paid restructure:
+
+1. "even i hit print check now or not it does not mean i actually print
+   it. so the button should be remained. or should change to 'reprint'."
+   Every check row in the holistic table (Printed OR Paid) now has a
+   Reprint link that re-downloads that exact check's .xlsx via the
+   existing `/ledger/supplier-check/export` route -- no mutation, safe
+   to click any number of times, so a failed physical print or a lost
+   file is never a dead end.
+
+2. "when i wanna print, should show popup and allow me to choose which
+   vendor i need to print as well because i want a flexibility to print
+   some but not all or print all." Replaced the separate per-vendor
+   "Print check now" buttons and the all-or-nothing "Export week's
+   checks" button with one "Print Checks" button (`PrintChecksButton.tsx`)
+   that opens a popup listing every vendor with pending invoices as
+   checkboxes (plus an optional check # per selected vendor), with
+   Select all/Clear shortcuts. Confirming prints a check for exactly the
+   selected vendors -- each still auto-combines all of that vendor's
+   pending invoices -- and downloads one combined .xlsx of what was just
+   printed. Checking exactly one vendor covers the urgent/instant case
+   (a maintenance vendor needing a check right after service); checking
+   all of them covers the weekly batch. Same popup, same action either
+   way -- `lib/actions/supplierCheck.ts`'s `printAllPendingChecks` was
+   replaced by `printChecksForVendors(selections)`, an explicit
+   vendor+checkNumber list instead of unconditionally sweeping every
+   pending vendor. `PendingByVendor.tsx` is now read-only (view + delete
+   a mis-logged invoice) since printing is centralized in the popup.
+
+Verified with a new 9-check direct-DB script: empty selection rejected,
+a partial selection (2 of 3 vendors) leaves the unselected vendor's
+invoices untouched and still pending, each selected vendor keeps its own
+independent check number, selecting the last remaining pending vendor
+clears the rest, and reprinting (re-loading the same payment ids twice)
+is confirmed idempotent -- identical totals, status unchanged. `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 tests pass. No schema
+change, no new migration.
