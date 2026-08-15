@@ -2534,3 +2534,39 @@ percent-to-fraction conversion is exact both directions, an out-of-range
 percent (>100) is rejected, round-trips cleanly through the loader.
 `eslint` clean on all 4 touched files, `next build` clean, 71/71 tests
 pass. No schema change, no migration.
+
+## Staffing Targets rework: combined Lunch/Dinner grid + master row stepper (2026-08-15)
+
+Oliver's ask: "each position has 2 rows one is lunch another is dinner"
+plus "a -/+ button that change the whole row like a master button so you
+dont have to manaually change each and every single one. more like game
+ui." Confirmed via AskUserQuestion before building: the master button
+bumps every day in a row by 1 relative to whatever's already there
+(not a reset-all-to-the-same-number), so any day-to-day variation
+already set (e.g. Friday dinner staffed higher than Monday) survives a
+click.
+
+- `TargetsForm.tsx` rebuilt from two entirely separate Lunch/Dinner
+  tables into ONE table -- every position now gets exactly two rows
+  (Lunch, Dinner) next to each other, with the position name/category
+  spanning both via `rowSpan`. Category breaks (FOH/BOH divider) still
+  apply the same border treatment as before.
+- New "All days" column: a chunky rounded +/- pair (`MasterStepper`) per
+  row that bumps every one of that row's 7 day values by 1, clamped at
+  0. The existing per-day steppers are unchanged and still work for
+  fine-tuning a single cell -- the master control is purely additive.
+- `TargetStepper` changed from owning its own local state to being
+  controlled by the parent (`PositionTargetRows`), which now holds each
+  position's Lunch/Dinner 7-value arrays -- necessary so the master
+  button can update every cell in a row in one state change.
+- Field names (`target_<positionId>_<day>_<period>`) and the whole-grid
+  resubmit-and-resync server action (`updateStaffingTargets`) are
+  completely unchanged -- this was a client-side layout/state rework
+  only, zero backend changes.
+- Table wrapped in `overflow-x-auto` (matches the WeeklyPlanGrid/v50
+  pattern) since it's now wider (added Period + All-days columns).
+
+Verified with a 9-check static-render script (`renderToStaticMarkup`)
+confirming both rows render per position, master stepper count and
+per-day input count are correct, and seeded values land in the right
+cells. `eslint` clean, `next build` clean, 71/71 tests pass.

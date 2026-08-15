@@ -13,9 +13,10 @@ export default async function StaffingTargetsPage() {
       <h1 className="text-2xl font-semibold mt-2 mb-1">Staffing targets</h1>
       <p className="text-neutral-500 text-sm mb-6">
         How many people you need in each position, by day of week and period. This is the
-        baseline the weekly schedule grid (coming next) will use to flag under-staffed days at a
-        glance. Leave a cell blank or 0 if you don&apos;t normally staff that position that
-        day/period.
+        baseline the weekly schedule grid uses to flag under-staffed days at a glance. Leave a
+        cell blank or 0 if you don&apos;t normally staff that position that day/period. Each
+        position gets a Lunch row and a Dinner row — use the &quot;All days&quot; +/- to bump
+        every day in a row at once, or the per-day +/- to fine-tune a single cell.
       </p>
 
       {data.positions.length === 0 ? (
