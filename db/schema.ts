@@ -227,11 +227,15 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // "MARCH 2026.xlsx" monthly report (Toast + 4 online platforms, each with
   // its own Net/Tax/Total). Confirmed with Oliver: shiftSales.totalSales has
   // ALWAYS meant Net Sale (pre-tax) — this rate is just a starting default,
-  // NOT the source of truth. e.g. 0.08875 for NYC's combined rate. The
-  // manager can always override the auto-filled tax amount per shift if
-  // Toast's actual number doesn't match (same override pattern as wage
-  // adjustments). Default 0 so nothing changes for any restaurant that
-  // hasn't set a rate yet.
+  // NOT the source of truth. Stored as a fraction (0.08875 for NYC's
+  // combined 8.875%) — the Settings UI takes/shows a percent and converts
+  // (see lib/actions/settings.ts). Column default stays 0 deliberately
+  // (2026-08-15) — every real restaurant row is seeded with the actual
+  // 0.08875 NYC rate already (db/seed.ts), and this column default only
+  // matters for the "row somehow doesn't exist" fallback in
+  // loadRestaurantSettings.ts, which now returns 0.08875 there instead.
+  // Kept this way to avoid a schema migration for a column default that
+  // isn't hit in practice.
   defaultSalesTaxRate: real("default_sales_tax_rate").notNull().default(0),
 });
 

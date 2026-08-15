@@ -2460,3 +2460,77 @@ clears the rest, and reprinting (re-loading the same payment ids twice)
 is confirmed idempotent -- identical totals, status unchanged. `npx tsc
 --noEmit` clean, `npm run build` clean, 71/71 tests pass. No schema
 change, no new migration.
+
+## Accessibility fix: hamburger nav + scrollable weekly plan grid (2026-08-15)
+
+Fixed the two "easy" gaps flagged by X's UI/UX accessibility audit that
+don't require the full Monday design pass (flags #2 and #5 of 6 in
+`project_atlas_target_users_accessibility` memory):
+
+1. **`NavBarClient.tsx`** -- the manager nav (`MANAGER_NAV_ITEMS`, 7 text
+   links: Shifts/Employees/Positions/Schedule/Ledger/Reports/Settings)
+   was a flat unwrapped `flex gap-4` row with no wrap or scroll
+   fallback -- would overflow off-screen unreachably on a phone. Below
+   the `sm` breakpoint the inline row is now hidden and replaced with a
+   hamburger button (left of the "Atlas" logo) that toggles a stacked,
+   full-width link list below the header bar. `sm:` and above is
+   unchanged -- same inline row as before. Both the account menu and the
+   new mobile nav close automatically on navigation.
+
+2. **`WeeklyPlanGrid.tsx`** -- each period's Position x 7-day-x-2-slot
+   table had no `overflow-x-auto` wrapper and would squeeze unreadably
+   on a narrow screen. Wrapped each `<table>` in a horizontally
+   scrollable container with a `min-w-[640px]` floor, so the table
+   scrolls instead of squishing -- matches the existing pattern used
+   elsewhere for wide tabular content rather than inventing a new one.
+
+Neither fix touches the two remaining audit flags that need the full
+design pass (#1 decimal-rate inputs, #3 Schedule landing hierarchy,
+#4 dup Sign-out buttons -- flag #2 renumbered here, see memory for exact
+numbering -- and #6 no shared design system).
+
+Verified: `next build` clean, 71/71 unit tests pass. `tsc --noEmit` and
+`eslint` both show one pre-existing unrelated finding each
+(`app/layout.tsx` LayoutProps type-gen artifact, and a pre-existing
+`react-hooks/set-state-in-effect` lint warning on `NavBarClient.tsx`'s
+close-on-navigate effect) -- confirmed via `git stash` that both exist
+identically on the pre-change file, so neither was introduced by this
+round. No schema change, no migration, no new dependencies.
+
+## Settings: sales tax rate now takes/shows a percent, not a raw fraction (2026-08-15)
+
+Fixed flag #1 from X's UI/UX accessibility audit (the highest-stakes item
+on the list -- it silently affects every computed dollar figure). Oliver's
+own ask: "i want it to be input as 8.875% by default but can be changed
+later as nyc tax right now."
+
+- `SettingsForm.tsx`'s "Default sales tax rate" field now shows a `%`
+  suffix and takes/displays the value as a percent (`8.875`) instead of a
+  raw fraction (`0.08875`) -- typing "8.5" instead of "0.085" was a
+  completely natural mistake with nothing to catch it before.
+- `lib/actions/settings.ts` converts the percent input to a fraction
+  (`/100`) before storing, validated 0-100 on the way in. Every downstream
+  consumer (Closing Report auto-fill, Sales Tax report) still reads/writes
+  the fraction exactly as before -- the conversion is contained entirely
+  to the Settings form/action, nothing else changed.
+- The seeded restaurant row already has the real NYC rate (`0.08875` --
+  `db/seed.ts`), so the field now shows `8.875` out of the box, matching
+  Oliver's ask, with no schema change needed for that. `loadRestaurantSettings
+  .ts`'s "row somehow doesn't exist" fallback (should never happen
+  post-seed) was also bumped from `0` to `0.08875` for the same reason.
+  Deliberately did NOT change the `restaurant_settings.default_sales_tax_rate`
+  DB column default -- `drizzle-kit generate` wanted to emit a libSQL
+  `ALTER COLUMN` plus an unrelated drop/recreate of 16 indexes across other
+  tables to do it, which is exactly the kind of hosted-DB migration risk
+  worth avoiding for a default that's never actually hit in practice (a
+  restaurant_settings row always exists post-seed).
+
+The CC tip deduction rate field has the identical underlying issue (also
+flagged in the audit) but wasn't touched this round -- Oliver's ask was
+specifically about the tax rate.
+
+Verified with a 7-check direct-DB script: seeded rate surfaces correctly,
+percent-to-fraction conversion is exact both directions, an out-of-range
+percent (>100) is rejected, round-trips cleanly through the loader.
+`eslint` clean on all 4 touched files, `next build` clean, 71/71 tests
+pass. No schema change, no migration.

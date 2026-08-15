@@ -66,15 +66,20 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="text-sm block">
             <span className="block text-neutral-500 mb-1">Default sales tax rate</span>
-            <input
-              type="number"
-              step="any"
-              name="defaultSalesTaxRate"
-              defaultValue={settings.defaultSalesTaxRate}
-              className="border rounded px-3 py-1.5 text-sm w-32"
-            />
+            <div className="relative w-32">
+              <input
+                type="number"
+                step="0.001"
+                min="0"
+                max="100"
+                name="defaultSalesTaxRatePercent"
+                defaultValue={settings.defaultSalesTaxRate * 100}
+                className="border rounded pl-3 pr-6 py-1.5 text-sm w-full"
+              />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">%</span>
+            </div>
             <span className="block text-xs text-neutral-400 mt-1">
-              e.g. 0.08875 for NYC&apos;s 8.875% — used to auto-fill the Sales tax field on each
+              NYC&apos;s combined rate is 8.875% — used to auto-fill the Sales tax field on each
               Closing Report; a manager can always edit it per shift if Toast&apos;s real number differs
             </span>
           </label>

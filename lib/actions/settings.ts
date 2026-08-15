@@ -27,10 +27,18 @@ export async function updateRestaurantSettings(
       throw new Error("Host drink bonus rate must be a non-negative number");
     }
 
-    const defaultSalesTaxRate = Number(formData.get("defaultSalesTaxRate") ?? 0);
-    if (Number.isNaN(defaultSalesTaxRate) || defaultSalesTaxRate < 0 || defaultSalesTaxRate > 1) {
-      throw new Error("Default sales tax rate must be a number between 0 and 1 (e.g. 0.08875 for 8.875%)");
+    // Entered as a percent (e.g. 8.875 for NYC) since that's how a manager
+    // naturally thinks about a tax rate — typing the raw fraction (0.08875)
+    // was flagged as a real error risk (2026-08-15 accessibility audit,
+    // flag #1: easy to type "8.875" by mistake and silently 8x every
+    // computed tax figure). Converted to a fraction here for storage so
+    // every downstream consumer (Closing Report auto-fill, reports) is
+    // unaffected.
+    const defaultSalesTaxRatePercent = Number(formData.get("defaultSalesTaxRatePercent") ?? 0);
+    if (Number.isNaN(defaultSalesTaxRatePercent) || defaultSalesTaxRatePercent < 0 || defaultSalesTaxRatePercent > 100) {
+      throw new Error("Default sales tax rate must be a percent between 0 and 100 (e.g. 8.875 for NYC's 8.875%)");
     }
+    const defaultSalesTaxRate = defaultSalesTaxRatePercent / 100;
 
     const poolMethod = (name: string) => {
       const v = String(formData.get(name) ?? "");

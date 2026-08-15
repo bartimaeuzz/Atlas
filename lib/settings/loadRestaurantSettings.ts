@@ -22,10 +22,12 @@ export interface RestaurantSettingsData {
   pool2SplitMethod: PoolSplitMethod;
   pool3SplitMethod: PoolSplitMethod;
   hostDrinkBonusPerDrinkAmount: number;
-  /** Default sales-tax rate (e.g. 0.08875 for NYC) used to auto-suggest
-   * shiftSales.salesTax / onlinePlatformSalesRecords.taxAmount on the
-   * Closing Report — always editable per shift, this is just the starting
-   * point. 2026-08-10, sales/tax export feature. */
+  /** Default sales-tax rate, stored as a fraction (e.g. 0.08875 for NYC)
+   * — used to auto-suggest shiftSales.salesTax / onlinePlatformSalesRecords
+   * .taxAmount on the Closing Report; always editable per shift, this is
+   * just the starting point. 2026-08-10, sales/tax export feature. The
+   * Settings UI itself takes/shows this as a percent (8.875), not a raw
+   * fraction — see lib/actions/settings.ts. */
   defaultSalesTaxRate: number;
 }
 
@@ -55,7 +57,7 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
       pool2SplitMethod: "POINT_WEIGHTED",
       pool3SplitMethod: "EQUAL_SPLIT",
       hostDrinkBonusPerDrinkAmount: 0,
-      defaultSalesTaxRate: 0,
+      defaultSalesTaxRate: 0.08875, // NYC default, matches the schema column default — see db/schema.ts
     };
   }
   return {
