@@ -705,7 +705,11 @@ export const scheduleWeeks = sqliteTable("schedule_weeks", {
 // week's plan. Usually generated from employeeScheduleTemplates
 // (sourceType=FROM_TEMPLATE) when the week is first built, but a manager
 // can add/remove rows to handle that week's exceptions — sourceType
-// distinguishes the two so it's clear at a glance which is which.
+// distinguishes FROM_TEMPLATE / MANUAL_ADD / AUTO_FILL (2026-08-15, the
+// Weekly Plan "Auto-fill" button — lib/actions/schedule.ts's
+// autoFillWeek) so it's clear at a glance which mechanism placed a given
+// assignment. A plain TEXT column, no CHECK constraint, so widening the
+// enum needed no migration (same as supplier_invoices.status earlier).
 // isExtraCoverage is the YELLOW flag from the reference schedule —
 // confirmed standalone with Oliver, NOT tied to a red vacancy: a manager
 // marking a day as needing extra headcount beyond the template (an
@@ -763,7 +767,7 @@ export const plannedShiftAssignments = sqliteTable(
     positionId: integer("position_id").notNull().references(() => positions.id),
     date: text("date").notNull(), // ISO date string, a specific day within that week
     period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
-    sourceType: text("source_type", { enum: ["FROM_TEMPLATE", "MANUAL_ADD"] }).notNull().default("MANUAL_ADD"),
+    sourceType: text("source_type", { enum: ["FROM_TEMPLATE", "MANUAL_ADD", "AUTO_FILL"] }).notNull().default("MANUAL_ADD"),
     isExtraCoverage: integer("is_extra_coverage", { mode: "boolean" }).notNull().default(false),
   },
   (t) => ({

@@ -2570,3 +2570,50 @@ Verified with a 9-check static-render script (`renderToStaticMarkup`)
 confirming both rows render per position, master stepper count and
 per-day input count are correct, and seeded values land in the right
 cells. `eslint` clean, `next build` clean, 71/71 tests pass.
+
+## Weekly Plan: "Auto-fill understaffed slots" button (2026-08-15)
+
+Oliver's ask: "auto fill button on to fill up understaff positions on
+weekly plan. now no criteria or rules but i will add it up later after
+i sure how to do it we will disscuss about that later. only one rule
+right now is it cannot be same person in a day." Confirmed 4 design
+decisions via AskUserQuestion before building (eligible pool, scope,
+tie-break order, how to report unfillable slots) -- all recommended
+options accepted.
+
+- New server action `autoFillWeek(weekId)` in `lib/actions/schedule.ts`.
+  For every position/date/period slot in the week below its staffing
+  target, picks people to fill the shortfall:
+  - **Eligible pool first** (employees linked to that position via
+    Employee admin / primaryPositionId -- same group the manual
+    quick-add dropdown treats as "usually works this role"), **falls
+    back to any other active employee** not already used that day if
+    eligible is exhausted, rather than leaving a slot empty.
+  - **Never the same person twice in one calendar day** -- across BOTH
+    periods and every position, counting existing assignments AND
+    whatever auto-fill has already placed earlier in the same run.
+  - Among multiple free/eligible candidates, **picks whoever has the
+    fewest shifts so far this week** (ties broken alphabetically) so
+    hours spread out reasonably with zero real rules yet.
+  - Never touches an existing assignment, only adds new rows for the
+    shortfall. A slot that still can't be fully filled is left under
+    target and reported back rather than silently dropped.
+  - New rows tagged `sourceType: "AUTO_FILL"` (schema enum widened from
+    2 to 3 values -- plain TEXT column, no CHECK constraint, confirmed
+    via `drizzle-kit generate` -> "No schema changes, nothing to
+    migrate" -- no migration needed).
+- New `AutoFillWeekButton.tsx`, one button + result banner ("Filled 11
+  slots. 3 slots still need someone" + a per-slot breakdown when
+  something couldn't be filled). Lives inside `PublishedEditGate`'s
+  unlocked view, next to "Add to a slot" -- it's another way of adding
+  assignments, so it sits behind the same "you're editing a published
+  schedule" awareness rather than bypassing it.
+
+Verified with a 12-check direct-DB script against fresh seeded data:
+confirms no employee is ever double-booked the same date, eligible pool
+is preferred over fallback, the fewest-shifts tie-break actually skips
+someone with a head-start, an intentionally impossible target is
+reported in the skip summary instead of silently dropped, re-running
+auto-fill on an already-filled week adds nothing extra (idempotent), and
+every new row is tagged AUTO_FILL. `eslint` clean, `next build` clean,
+71/71 tests pass. No migration.

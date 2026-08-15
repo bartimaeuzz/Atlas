@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AddPlannedAssignmentForm } from "./AddPlannedAssignmentForm";
+import { AutoFillWeekButton } from "./AutoFillWeekButton";
 import { WeeklyPlanGrid } from "./WeeklyPlanGrid";
 import type { WeeklyPlanData } from "@/lib/schedule/loadWeeklyPlan";
 
@@ -67,6 +68,8 @@ export function PublishedEditGate({
           Editing a published week — changes are visible to staff immediately.
         </p>
       )}
+
+      <AutoFillWeekButton weekId={weekId} />
 
       <div className="mb-8 border rounded p-4 bg-neutral-50">
         <h2 className="font-medium mb-3 text-sm">Add to a slot</h2>

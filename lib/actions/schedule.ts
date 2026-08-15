@@ -11,10 +11,12 @@ import {
   scheduleWeeks,
   plannedShiftAssignments,
   employees,
+  employeePositions,
   scheduleChangeLog,
 } from "@/db/schema";
 import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 const PERIODS = ["Lunch", "Dinner"] as const;
@@ -310,6 +312,187 @@ export async function addPlannedAssignment(
 
   revalidatePath("/schedule/plan");
   return { error: null };
+}
+
+export interface AutoFillSkippedSlot {
+  positionName: string;
+  date: string;
+  period: "Lunch" | "Dinner";
+  missing: number;
+}
+
+export interface AutoFillActionState {
+  error: string | null;
+  summary?: { filled: number; totalSkipped: number; skipped: AutoFillSkippedSlot[] };
+}
+
+/** "Auto-fill" button on the Weekly Plan (2026-08-15, Oliver's ask) --
+ * fills every currently under-target position/date/period slot for the
+ * whole week in one click. Deliberately dumb for now, no smart criteria
+ * -- Oliver's own words: "no criteria or rules but i will add it up
+ * later ... only one rule right now is it cannot be same person in a
+ * day." Confirmed via AskUserQuestion before building:
+ *
+ *   - Eligible pool: prefer employees already linked to that position
+ *     (employeePositions / primaryPositionId -- same "usually works
+ *     this role" group the manual quick-add dropdown groups first).
+ *     Falls back to ANY other active employee not already used that day
+ *     rather than leaving a slot empty, if no eligible person is free.
+ *   - "Cannot be same person in a day": a person can be placed into at
+ *     most one slot per calendar date by this action -- across BOTH
+ *     periods and every position, not just within one period. Counts
+ *     their existing assignments that date (from before this run) AND
+ *     whatever auto-fill itself has already placed earlier in the same
+ *     run, so it never double-books someone against itself either.
+ *   - Tie-break among multiple free/eligible candidates: whoever has
+ *     the fewest shifts so far this week gets picked, so hours spread
+ *     out reasonably even with zero real rules yet. Ties within that
+ *     broken alphabetically by name, for a deterministic result.
+ *   - Never touches an existing assignment -- only adds new rows for
+ *     the shortfall (target - current headcount) in each slot. If a
+ *     slot still can't be fully filled (nobody eligible or fallback is
+ *     free that day), it's left under target and reported back in the
+ *     summary rather than silently ignored -- same "tell the manager
+ *     exactly what still needs attention" pattern as the rest of this
+ *     app's error-prevention design.
+ *
+ * New rows are tagged sourceType "AUTO_FILL" (vs. FROM_TEMPLATE /
+ * MANUAL_ADD) purely for future traceability -- they behave exactly
+ * like a manual add otherwise (same remove button, same double-booking
+ * badge logic elsewhere in the grid, etc). */
+export async function autoFillWeek(weekId: number): Promise<AutoFillActionState> {
+  try {
+    const session = await getCurrentStaffSession();
+    if (!session) return { error: "You've been signed out -- sign in again" };
+
+    const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
+    if (!week) return { error: "That week no longer exists" };
+
+    const dates = datesInWeek(week.weekStartDate);
+
+    const activePositions = await db.select().from(positions).where(eq(positions.active, true));
+    if (activePositions.length === 0) {
+      return { error: null, summary: { filled: 0, totalSkipped: 0, skipped: [] } };
+    }
+
+    const targetRows = await db.select().from(positionStaffingTargets);
+    const targetByKey = new Map<string, number>();
+    for (const t of targetRows) targetByKey.set(`${t.positionId}:${t.dayOfWeek}:${t.period}`, t.targetCount);
+
+    const activeEmployees = await db.select().from(employees).where(eq(employees.active, true));
+    if (activeEmployees.length === 0) {
+      return { error: null, summary: { filled: 0, totalSkipped: 0, skipped: [] } };
+    }
+
+    const employeePositionRows = await db.select().from(employeePositions);
+    const eligibleByPosition = new Map<number, Set<number>>();
+    for (const row of employeePositionRows) {
+      if (!eligibleByPosition.has(row.positionId)) eligibleByPosition.set(row.positionId, new Set());
+      eligibleByPosition.get(row.positionId)!.add(row.employeeId);
+    }
+    for (const e of activeEmployees) {
+      if (e.primaryPositionId === null) continue;
+      if (!eligibleByPosition.has(e.primaryPositionId)) eligibleByPosition.set(e.primaryPositionId, new Set());
+      eligibleByPosition.get(e.primaryPositionId)!.add(e.id);
+    }
+
+    const existingAssignments = await db
+      .select()
+      .from(plannedShiftAssignments)
+      .where(eq(plannedShiftAssignments.weekId, weekId));
+
+    // date -> Set<employeeId> already used that date (both periods, every position)
+    const usedToday = new Map<string, Set<number>>();
+    for (const d of dates) usedToday.set(d, new Set());
+    for (const a of existingAssignments) usedToday.get(a.date)?.add(a.employeeId);
+
+    // employeeId -> assignments so far this week (existing + newly placed in this run)
+    const countThisWeek = new Map<number, number>();
+    for (const e of activeEmployees) countThisWeek.set(e.id, 0);
+    for (const a of existingAssignments) {
+      countThisWeek.set(a.employeeId, (countThisWeek.get(a.employeeId) ?? 0) + 1);
+    }
+
+    // `${positionId}:${date}:${period}` -> current headcount already assigned
+    const currentCount = new Map<string, number>();
+    for (const a of existingAssignments) {
+      const key = `${a.positionId}:${a.date}:${a.period}`;
+      currentCount.set(key, (currentCount.get(key) ?? 0) + 1);
+    }
+
+    const newRows: {
+      weekId: number;
+      employeeId: number;
+      positionId: number;
+      date: string;
+      period: "Lunch" | "Dinner";
+      sourceType: "AUTO_FILL";
+      isExtraCoverage: boolean;
+    }[] = [];
+    const skipped: AutoFillSkippedSlot[] = [];
+    let filled = 0;
+
+    for (const date of dates) {
+      const dow = dayOfWeek(date);
+      for (const period of PERIODS) {
+        for (const position of activePositions) {
+          const target = targetByKey.get(`${position.id}:${dow}:${period}`) ?? 0;
+          if (target <= 0) continue;
+
+          const key = `${position.id}:${date}:${period}`;
+          let need = target - (currentCount.get(key) ?? 0);
+          if (need <= 0) continue;
+
+          const usedSet = usedToday.get(date)!;
+          const eligibleSet = eligibleByPosition.get(position.id) ?? new Set<number>();
+
+          while (need > 0) {
+            let candidates = activeEmployees.filter((e) => eligibleSet.has(e.id) && !usedSet.has(e.id));
+            if (candidates.length === 0) {
+              candidates = activeEmployees.filter((e) => !usedSet.has(e.id));
+            }
+            if (candidates.length === 0) {
+              skipped.push({ positionName: position.name, date, period, missing: need });
+              break;
+            }
+
+            candidates.sort((a, b) => {
+              const ca = countThisWeek.get(a.id) ?? 0;
+              const cb = countThisWeek.get(b.id) ?? 0;
+              if (ca !== cb) return ca - cb;
+              return a.name.localeCompare(b.name);
+            });
+            const chosen = candidates[0];
+
+            newRows.push({
+              weekId,
+              employeeId: chosen.id,
+              positionId: position.id,
+              date,
+              period,
+              sourceType: "AUTO_FILL",
+              isExtraCoverage: false,
+            });
+            usedSet.add(chosen.id);
+            countThisWeek.set(chosen.id, (countThisWeek.get(chosen.id) ?? 0) + 1);
+            currentCount.set(key, (currentCount.get(key) ?? 0) + 1);
+            filled++;
+            need--;
+          }
+        }
+      }
+    }
+
+    if (newRows.length > 0) {
+      await db.insert(plannedShiftAssignments).values(newRows);
+    }
+
+    revalidatePath("/schedule/plan");
+    const totalSkipped = skipped.reduce((sum, s) => sum + s.missing, 0);
+    return { error: null, summary: { filled, totalSkipped, skipped } };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 /**
