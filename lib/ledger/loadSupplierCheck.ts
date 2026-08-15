@@ -1,16 +1,19 @@
 /**
- * Loaders for Supplier Check (2026-08-14) -- invoice-based vendor
- * payments, distinct from Petty Cash's cash-on-delivery entries. See
- * project_atlas_ledger memory for the full design conversation: an
- * invoice is logged PENDING when a delivery arrives, then a manager
- * marks one or more pending invoices from the SAME vendor as paid
- * together under one check (lib/actions/supplierCheck.ts's
- * recordSupplierPayment).
+ * Loaders for Supplier Check (2026-08-14, extended 2026-08-14 after
+ * Oliver's real-workflow conversation with Aey) -- invoice-based vendor
+ * payments, distinct from Petty Cash's cash-on-delivery entries. Three-
+ * stage lifecycle: an invoice is logged PENDING when a delivery arrives,
+ * a check is PRINTED for a vendor (always combining every pending
+ * invoice for that vendor -- see lib/actions/supplierCheck.ts's
+ * printSupplierCheck), then marked PAID once actually delivered.
  */
 
 import { eq, desc, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db/client";
 import { supplierInvoices, supplierCheckPayments, ledgerVendors, ledgerCategories, employees } from "@/db/schema";
+
+const deliveredByEmployee = alias(employees, "delivered_by_employee");
 
 export interface PendingInvoiceView {
   id: number;
@@ -29,10 +32,9 @@ export interface VendorPendingGroup {
   totalPending: number;
 }
 
-/** Every unpaid invoice, grouped by vendor -- the shape the "mark paid"
- * page needs, since a payment can only settle invoices from ONE vendor
- * at a time (confirmed with Oliver: "printed payment check can
- * reconcile into one check for each supplier"). */
+/** Every unpaid invoice, grouped by vendor -- feeds the "Not yet
+ * checked" section on /ledger/supplier-check, where a manager can print
+ * a check for that vendor's whole group at once. */
 export async function loadPendingInvoicesByVendor(): Promise<VendorPendingGroup[]> {
   const rows = await db
     .select({
@@ -84,37 +86,44 @@ export interface PaymentInvoiceDetail {
   receivedDate: string;
 }
 
-export interface PaymentHistoryView {
+export interface SupplierCheckView {
   id: number;
+  vendorId: number;
   vendorName: string;
-  paidDate: string;
+  checkDate: string;
   checkNumber: string | null;
   totalAmount: number;
-  paidByName: string;
-  /** Full line-item detail for each invoice this check settled -- powers
-   * the click-to-expand detail view on /ledger/supplier-check (2026-08-14
-   * follow-up ask). Kept as objects rather than just invoice numbers so
-   * the detail view can show category/description/amount per line
-   * without a second round trip. */
+  printedByName: string;
+  status: "printed" | "paid";
+  deliveredAt: string | null;
+  deliveredByName: string | null;
   invoices: PaymentInvoiceDetail[];
 }
 
-/** Most recent payments first, each with full invoice line-item detail
- * for the expandable "view detail" row on the Supplier Check page. */
-export async function loadRecentSupplierPayments(limit = 30): Promise<PaymentHistoryView[]> {
+/** Every check ever printed, most recent first -- the holistic table on
+ * /ledger/supplier-check (2026-08-14 restructure). Each row shows its
+ * status (Printed/Paid) and expands to show which invoices it combined.
+ * Replaces v46's loadRecentSupplierPayments, which only covered PAID
+ * payments and had no status concept. */
+export async function loadSupplierChecks(limit = 200): Promise<SupplierCheckView[]> {
   const payments = await db
     .select({
       id: supplierCheckPayments.id,
+      vendorId: supplierCheckPayments.vendorId,
       vendorName: ledgerVendors.name,
-      paidDate: supplierCheckPayments.paidDate,
+      checkDate: supplierCheckPayments.paidDate,
       checkNumber: supplierCheckPayments.checkNumber,
       totalAmount: supplierCheckPayments.totalAmount,
-      paidByName: employees.name,
+      printedByName: employees.name,
+      status: supplierCheckPayments.status,
+      deliveredAt: supplierCheckPayments.deliveredAt,
+      deliveredByName: deliveredByEmployee.name,
     })
     .from(supplierCheckPayments)
     .innerJoin(ledgerVendors, eq(supplierCheckPayments.vendorId, ledgerVendors.id))
     .innerJoin(employees, eq(supplierCheckPayments.paidByEmployeeId, employees.id))
-    .orderBy(desc(supplierCheckPayments.paidDate))
+    .leftJoin(deliveredByEmployee, eq(supplierCheckPayments.deliveredByEmployeeId, deliveredByEmployee.id))
+    .orderBy(desc(supplierCheckPayments.paidDate), desc(supplierCheckPayments.id))
     .limit(limit);
 
   if (payments.length === 0) return [];
@@ -149,5 +158,9 @@ export async function loadRecentSupplierPayments(limit = 30): Promise<PaymentHis
     invoicesByPaymentId.set(r.paymentId, list);
   }
 
-  return payments.map((p) => ({ ...p, invoices: invoicesByPaymentId.get(p.id) ?? [] }));
+  return payments.map((p) => ({
+    ...p,
+    status: p.status as "printed" | "paid",
+    invoices: invoicesByPaymentId.get(p.id) ?? [],
+  }));
 }

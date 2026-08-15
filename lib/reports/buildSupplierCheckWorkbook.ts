@@ -1,16 +1,15 @@
 /**
- * Builds the exportable .xlsx for the Supplier Check report (2026-08-14),
- * columns matching the real "Export" sheet in Soothr's " 2026 - C.xlsx"
- * DNA file (Pay / Amount / Memo / PayeeName / PayeeAddress lines) --
- * confirmed by re-opening that sheet directly rather than assuming from
- * memory. Two columns are added ahead of the DNA layout (Paid Date,
- * Check #) since Atlas's version logs the payment after the fact rather
- * than generating a pre-check batch sheet -- those weren't in the
- * original DNA export (which was assembled right before printing checks,
- * with no historical date/check-number columns needed yet), but are
- * useful here for an audit trail across a date range. Printable directly
- * or importable into check-writing/accounting software the same way the
- * Sales & Tax export is.
+ * Builds the exportable .xlsx for Supplier Check checks -- columns
+ * matching the real "Export" sheet in Soothr's " 2026 - C.xlsx" DNA
+ * file (Pay / Amount / Memo / PayeeName / PayeeAddress lines), confirmed
+ * by re-opening that sheet directly rather than assuming from memory.
+ * Two columns are added ahead of the DNA layout (Paid Date, Check #)
+ * for an audit trail the original pre-check DNA sheet didn't need, and
+ * a Status column (2026-08-14, Printed/Paid) reflecting the check
+ * lifecycle added after Oliver's conversation with Aey. Used both by
+ * the date-range /reports export and the instant/weekly-batch export
+ * triggered right from /ledger/supplier-check (see
+ * loadSupplierCheckReportByIds) -- same workbook shape either way.
  */
 import ExcelJS from "exceljs";
 import type { SupplierCheckReportData } from "./loadSupplierCheckReport";
@@ -34,11 +33,12 @@ export async function buildSupplierCheckWorkbook(
   wb.created = new Date();
 
   const sheet = wb.addWorksheet("Supplier Check");
-  const widths = [12, 10, 26, 12, 22, 26, 22, 22, 18];
+  const widths = [12, 10, 26, 12, 22, 26, 22, 22, 18, 10];
   widths.forEach((w, i) => (sheet.getColumn(i + 1).width = w));
 
   let r = 1;
-  sheet.getCell(r, 1).value = `Supplier Check — ${from} to ${to}`;
+  const title = from === to ? `Supplier Check — ${from}` : `Supplier Check — ${from} to ${to}`;
+  sheet.getCell(r, 1).value = title;
   sheet.getCell(r, 1).font = { bold: true, size: 14 };
   r += 2;
 
@@ -52,6 +52,7 @@ export async function buildSupplierCheckWorkbook(
     "PayeeAddressLine1",
     "PayeeAddressLine2",
     "PayeeAddressLine3",
+    "Status",
   ];
   const headerRow = sheet.getRow(r);
   headers.forEach((h, i) => {
@@ -73,6 +74,7 @@ export async function buildSupplierCheckWorkbook(
     excelRow.getCell(7).value = row.payeeAddressLine1 ?? "";
     excelRow.getCell(8).value = row.payeeAddressLine2 ?? "";
     excelRow.getCell(9).value = row.payeeAddressLine3 ?? "";
+    excelRow.getCell(10).value = row.status === "paid" ? "Paid" : "Printed";
     r++;
   }
 

@@ -1,37 +1,35 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
-import { recordSupplierPayment, deletePendingInvoice, type RecordPaymentActionState } from "@/lib/actions/supplierCheck";
-import { toIso } from "@/lib/schedule/weekMath";
+import { useState, useTransition } from "react";
+import { deletePendingInvoice, printSupplierCheck } from "@/lib/actions/supplierCheck";
 import type { VendorPendingGroup } from "@/lib/ledger/loadSupplierCheck";
 
-const initialState: RecordPaymentActionState = { error: null };
-
-/** One vendor's pending invoices, with checkboxes feeding a single
- * "record payment" form below the list -- confirmed with Oliver that
- * one check can settle several invoices from the same vendor at once
- * ("printed payment check can reconcile into one check for each
- * supplier"). The checkboxes live in the invoice list but submit via
- * this vendor's form using the HTML `form` attribute, so the list and
- * the payment form can be laid out independently. */
+/** One vendor's not-yet-checked invoices (2026-08-14 restructure) --
+ * "Print check now" always combines EVERY pending invoice shown here
+ * for this vendor into one check, confirmed with Oliver after talking
+ * to Aey: "same vendor always get combined check." Replaces v45's
+ * checkbox multi-select (recordSupplierPayment) -- no manual selection
+ * needed anymore, the combining is automatic. Also this is the "export
+ * this invoice to print check instantly" path for an urgent vendor
+ * (e.g. maintenance) -- printing redirects straight to the .xlsx
+ * download for just this new check. */
 export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
-  const [state, formAction, isPending] = useActionState(recordSupplierPayment, initialState);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [checkNumber, setCheckNumber] = useState("");
+  const [isPrinting, startPrint] = useTransition();
   const [isDeleting, startDelete] = useTransition();
-  const formId = `pay-vendor-${group.vendorId}`;
+  const [error, setError] = useState<string | null>(null);
 
-  function toggle(id: number) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  function handlePrint() {
+    setError(null);
+    startPrint(async () => {
+      try {
+        const { paymentId } = await printSupplierCheck(group.vendorId, checkNumber.trim() || null);
+        window.location.href = `/ledger/supplier-check/export?paymentIds=${paymentId}`;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Couldn't print check.");
+      }
     });
   }
-
-  const selectedTotal = group.invoices
-    .filter((inv) => selected.has(inv.id))
-    .reduce((sum, inv) => sum + inv.amount, 0);
 
   return (
     <div className="border rounded p-3">
@@ -42,18 +40,8 @@ export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
 
       <ul className="divide-y text-sm mb-3">
         {group.invoices.map((inv) => (
-          <li key={inv.id} className="py-2 flex items-start gap-2">
-            <input
-              type="checkbox"
-              form={formId}
-              name="invoiceIds"
-              value={inv.id}
-              checked={selected.has(inv.id)}
-              onChange={() => toggle(inv.id)}
-              className="mt-1"
-              aria-label={`Select invoice ${inv.invoiceNumber}`}
-            />
-            <div className="flex-1">
+          <li key={inv.id} className="py-2 flex items-start justify-between gap-2">
+            <div>
               <div className="font-medium">
                 #{inv.invoiceNumber} <span className="text-neutral-500 font-normal">· {inv.categoryName}</span>
               </div>
@@ -78,37 +66,25 @@ export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
         ))}
       </ul>
 
-      <form id={formId} action={formAction} className="space-y-2 bg-neutral-50 rounded p-2">
-        <input type="hidden" name="vendorId" value={group.vendorId} />
-        {state.error && <p className="text-xs text-red-600">{state.error}</p>}
-        <div className="grid grid-cols-2 gap-2">
-          <label className="block text-xs">
-            <span className="block text-neutral-500 mb-1">Paid date</span>
-            <input
-              type="date"
-              name="paidDate"
-              required
-              defaultValue={toIso(new Date())}
-              className="border rounded px-2 py-1.5 text-sm w-full"
-            />
-          </label>
-          <label className="block text-xs">
-            <span className="block text-neutral-500 mb-1">Check # (optional)</span>
-            <input type="text" name="checkNumber" className="border rounded px-2 py-1.5 text-sm w-full" />
-          </label>
-        </div>
+      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={checkNumber}
+          onChange={(e) => setCheckNumber(e.target.value)}
+          placeholder="Check # (optional)"
+          className="border rounded px-2 py-1.5 text-sm flex-1"
+        />
         <button
-          type="submit"
-          disabled={isPending || selected.size === 0}
-          className="w-full bg-black text-white px-4 py-2 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
+          type="button"
+          disabled={isPrinting}
+          onClick={handlePrint}
+          className="bg-black text-white px-3 py-1.5 rounded text-sm hover:bg-neutral-800 disabled:opacity-50 whitespace-nowrap"
         >
-          {isPending
-            ? "Recording…"
-            : selected.size === 0
-              ? "Select invoices to pay"
-              : `Mark ${selected.size} paid — $${selectedTotal.toFixed(2)}`}
+          {isPrinting ? "Printing…" : "Print check now"}
         </button>
-      </form>
+      </div>
     </div>
   );
 }

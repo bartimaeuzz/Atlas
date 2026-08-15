@@ -865,11 +865,16 @@ export const dailyCashReconciliations = sqliteTable("daily_cash_reconciliations"
   finalizedByEmployeeId: integer("finalized_by_employee_id").references(() => employees.id),
 });
 
-// Supplier Check — invoice-based vendor payments (2026-08-14). Confirmed
-// with Oliver: distinct from Petty Cash, which is for cash-on-delivery
-// vendors. Most vendors instead drop an invoice at delivery and get paid
-// by CHECK later, often at their next delivery. Two-stage lifecycle:
-// logged as pending when the invoice arrives, marked paid later. No due
+// Supplier Check — invoice-based vendor payments (2026-08-14, extended
+// 2026-08-14 after Oliver talked to Aey about the real workflow). Three-
+// stage lifecycle, not two: an invoice is logged PENDING when it
+// arrives; a check is PRINTED for a vendor, which always combines EVERY
+// currently-pending invoice for that vendor into one check ("same
+// vendor always get combined check") -- either instantly (e.g. a
+// maintenance vendor that needs a check right after service) or as part
+// of the weekly batch export (Aey's words: "all invoices always get
+// export to check format at the end of the week"); the check is then
+// marked PAID once it's actually been handed to the supplier. No due
 // date field -- confirmed NOT needed ("supplier check no need due
 // date"). photoUrl reserved, unused, same as pettyCashEntries -- doesn't
 // block a later photo-attachment round with a migration.
@@ -882,7 +887,7 @@ export const supplierInvoices = sqliteTable("supplier_invoices", {
   description: text("description"), // "nature or package" -- what was delivered
   amount: real("amount").notNull(),
   photoUrl: text("photo_url"),
-  status: text("status", { enum: ["pending", "paid"] }).notNull().default("pending"),
+  status: text("status", { enum: ["pending", "printed", "paid"] }).notNull().default("pending"),
   paymentId: integer("payment_id").references(() => supplierCheckPayments.id),
   createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
@@ -897,12 +902,23 @@ export const supplierInvoices = sqliteTable("supplier_invoices", {
 // already has its own vendorId, because a payment is conceptually
 // scoped to one vendor -- keeps the query for "this vendor's payment
 // history" simple without joining back through invoices first.
+//
+// `status`/`deliveredAt`/`deliveredByEmployeeId` added 2026-08-14 for
+// the Printed -> Paid stage. `paidDate`/`paidByEmployeeId` keep their
+// v45 names for a purely-additive migration, but their real meaning
+// shifted: `paidDate` is the date the check was PRINTED/generated (not
+// necessarily when it was handed over), and `paidByEmployeeId` is who
+// printed it -- `deliveredAt`/`deliveredByEmployeeId` are the actual
+// "handed to the supplier" moment.
 export const supplierCheckPayments = sqliteTable("supplier_check_payments", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   vendorId: integer("vendor_id").notNull().references(() => ledgerVendors.id),
-  paidDate: text("paid_date").notNull(),
+  paidDate: text("paid_date").notNull(), // the check's print/generation date -- see comment above
   checkNumber: text("check_number"),
   totalAmount: real("total_amount").notNull(),
-  paidByEmployeeId: integer("paid_by_employee_id").notNull().references(() => employees.id),
+  paidByEmployeeId: integer("paid_by_employee_id").notNull().references(() => employees.id), // who printed the check -- see comment above
+  status: text("status", { enum: ["printed", "paid"] }).notNull().default("printed"),
+  deliveredAt: text("delivered_at"), // set when a manager marks the check as delivered/paid to the supplier
+  deliveredByEmployeeId: integer("delivered_by_employee_id").references(() => employees.id),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
 });

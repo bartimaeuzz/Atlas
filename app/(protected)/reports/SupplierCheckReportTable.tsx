@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { SupplierCheckReportData } from "@/lib/reports/loadSupplierCheckReport";
 
-/** Range view of checks written to suppliers (2026-08-14) -- one row per
- * check payment, Memo column shows which invoice numbers it settled,
- * matching the DNA "Export" sheet's own layout. The full column set
- * (with payee address, for printing) is in the .xlsx export only --
- * this on-page table stays readable at a glance, same split as Sales &
- * Tax's page-vs-export. */
+/** Range view of checks written to suppliers -- one row per check
+ * payment, Memo column shows which invoice numbers it settled, matching
+ * the DNA "Export" sheet's own layout. Status column (2026-08-14) shows
+ * Printed vs Paid, the two-stage lifecycle added after Oliver's
+ * conversation with Aey. The full column set (with payee address, for
+ * printing) is in the .xlsx export only -- this on-page table stays
+ * readable at a glance, same split as Sales & Tax's page-vs-export. */
 export function SupplierCheckReportTable({ data }: { data: SupplierCheckReportData }) {
   return (
     <section>
@@ -26,6 +27,7 @@ export function SupplierCheckReportTable({ data }: { data: SupplierCheckReportDa
               <th className="py-1.5">Pay</th>
               <th className="py-1.5">Memo (invoices)</th>
               <th className="py-1.5 text-right">Amount</th>
+              <th className="py-1.5 text-right">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -40,6 +42,13 @@ export function SupplierCheckReportTable({ data }: { data: SupplierCheckReportDa
                 <td className="py-1.5">{row.vendorName}</td>
                 <td className="py-1.5 text-neutral-500">{row.invoiceNumbers.join(", ")}</td>
                 <td className="py-1.5 text-right tabular-nums">${row.totalAmount.toFixed(2)}</td>
+                <td className="py-1.5 text-right">
+                  {row.status === "paid" ? (
+                    <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800">Paid</span>
+                  ) : (
+                    <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-800">Printed</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -49,6 +58,7 @@ export function SupplierCheckReportTable({ data }: { data: SupplierCheckReportDa
                 Total
               </td>
               <td className="py-2 text-right tabular-nums">${data.totalAmount.toFixed(2)}</td>
+              <td className="py-2"></td>
             </tr>
           </tfoot>
         </table>

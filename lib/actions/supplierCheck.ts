@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { eq, inArray, and } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { supplierInvoices, supplierCheckPayments } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
@@ -13,7 +14,11 @@ export interface SupplierInvoiceActionState {
 /** Logging an invoice is deliberately its own form, not a reuse of
  * addPettyCashEntry -- Oliver's own words: "the input form on petty
  * cash now won't work on delivery invoice based supplier." No amount
- * paid, no due date (confirmed not needed) -- just what arrived. */
+ * paid, no due date (confirmed not needed) -- just what arrived. Now
+ * lives at its own /ledger/supplier-check/new page (2026-08-14 UI
+ * restructure -- "Add item" button, matching the Vendor/Position
+ * dedicated-page pattern), so a successful submit redirects back to the
+ * main Supplier Check page instead of staying put. */
 export async function logSupplierInvoice(
   _prevState: SupplierInvoiceActionState,
   formData: FormData
@@ -53,74 +58,115 @@ export async function logSupplierInvoice(
   }
 
   revalidatePath("/ledger/supplier-check");
-  return { error: null };
+  redirect("/ledger/supplier-check");
 }
 
 export async function deletePendingInvoice(invoiceId: number) {
   const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
   if (!invoice) return;
   if (invoice.status !== "pending") {
-    throw new Error("This invoice is already paid -- can't remove it.");
+    throw new Error("This invoice is no longer pending -- can't remove it.");
   }
   await db.delete(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
   revalidatePath("/ledger/supplier-check");
 }
 
-export interface RecordPaymentActionState {
-  error: string | null;
-}
+/** Prints a check for ONE vendor, always combining EVERY currently-
+ * pending invoice for that vendor -- confirmed with Oliver after talking
+ * to Aey: "same vendor always get combined check." No manual invoice
+ * selection anymore (that's how v45 worked; replaced here). Used both
+ * by the per-vendor "Print check now" button (the instant/urgent path --
+ * e.g. a maintenance vendor that needs a check right after service) and
+ * by the weekly batch export (printAllPendingChecks below), which calls
+ * this once per vendor that has anything pending.
+ *
+ * Captures the exact invoice ids being combined (not just a re-run of
+ * the "status = pending" filter) before updating them, so a brand-new
+ * invoice logged in the split second between the select and the update
+ * can't sneak into this check without its amount being in the total. */
+export async function printSupplierCheck(vendorId: number, checkNumber: string | null): Promise<{ paymentId: number }> {
+  const session = await getCurrentStaffSession();
+  if (!session) throw new Error("Not signed in");
 
-/** One check can settle several pending invoices from the SAME vendor
- * at once (confirmed with Oliver, matches the real DNA export sheet
- * batching multiple invoice numbers under one check). Validates every
- * selected invoice actually belongs to the given vendor and is still
- * pending -- protects against a stale form submitting an invoice that
- * was already paid (or reassigned) by someone else in the meantime. */
-export async function recordSupplierPayment(
-  _prevState: RecordPaymentActionState,
-  formData: FormData
-): Promise<RecordPaymentActionState> {
-  const vendorId = Number(formData.get("vendorId"));
-  const paidDate = String(formData.get("paidDate") ?? "");
-  const checkNumber = String(formData.get("checkNumber") ?? "").trim() || null;
-  const invoiceIds = formData
-    .getAll("invoiceIds")
-    .map((v) => Number(v))
-    .filter((n) => Number.isFinite(n) && n > 0);
+  const pending = await db
+    .select()
+    .from(supplierInvoices)
+    .where(and(eq(supplierInvoices.vendorId, vendorId), eq(supplierInvoices.status, "pending")));
 
-  try {
-    if (!vendorId) throw new Error("Missing vendor");
-    if (!paidDate) throw new Error("Missing paid date");
-    if (invoiceIds.length === 0) throw new Error("Select at least one invoice to mark paid");
-
-    const invoices = await db
-      .select()
-      .from(supplierInvoices)
-      .where(and(inArray(supplierInvoices.id, invoiceIds), eq(supplierInvoices.vendorId, vendorId)));
-
-    const notPending = invoices.filter((inv) => inv.status !== "pending");
-    if (notPending.length > 0 || invoices.length !== invoiceIds.length) {
-      throw new Error("One or more selected invoices are no longer pending -- refresh and try again.");
-    }
-
-    const totalAmount = invoices.reduce((sum, inv) => sum + inv.amount, 0);
-
-    const session = await getCurrentStaffSession();
-    if (!session) throw new Error("Not signed in");
-
-    const [payment] = await db
-      .insert(supplierCheckPayments)
-      .values({ vendorId, paidDate, checkNumber, totalAmount, paidByEmployeeId: session.id })
-      .returning();
-
-    await db
-      .update(supplierInvoices)
-      .set({ status: "paid", paymentId: payment.id })
-      .where(inArray(supplierInvoices.id, invoiceIds));
-  } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) };
+  if (pending.length === 0) {
+    throw new Error("This vendor has no pending invoices to print a check for.");
   }
 
+  const pendingIds = pending.map((inv) => inv.id);
+  const totalAmount = pending.reduce((sum, inv) => sum + inv.amount, 0);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const [payment] = await db
+    .insert(supplierCheckPayments)
+    .values({
+      vendorId,
+      paidDate: today,
+      checkNumber: checkNumber?.trim() || null,
+      totalAmount,
+      paidByEmployeeId: session.id,
+      status: "printed",
+    })
+    .returning();
+
+  await db
+    .update(supplierInvoices)
+    .set({ status: "printed", paymentId: payment.id })
+    .where(inArray(supplierInvoices.id, pendingIds));
+
   revalidatePath("/ledger/supplier-check");
-  return { error: null };
+  return { paymentId: payment.id };
+}
+
+/** The weekly batch export -- Oliver's confirmed real workflow (via
+ * Aey): "all invoices always get export to check format at the end of
+ * the week." Finds every vendor with at least one pending invoice and
+ * prints a check for each one (reusing printSupplierCheck's combine-by-
+ * vendor logic), all in one action. Returns the new payment ids so the
+ * caller can immediately trigger a combined .xlsx download of everything
+ * just printed (see /ledger/supplier-check/export/route.ts). */
+export async function printAllPendingChecks(): Promise<{ paymentIds: number[] }> {
+  const session = await getCurrentStaffSession();
+  if (!session) throw new Error("Not signed in");
+
+  const pendingVendorRows = await db
+    .selectDistinct({ vendorId: supplierInvoices.vendorId })
+    .from(supplierInvoices)
+    .where(eq(supplierInvoices.status, "pending"));
+
+  const paymentIds: number[] = [];
+  for (const { vendorId } of pendingVendorRows) {
+    const { paymentId } = await printSupplierCheck(vendorId, null);
+    paymentIds.push(paymentId);
+  }
+
+  return { paymentIds };
+}
+
+/** Marks a PRINTED check as delivered/paid to the supplier -- the final
+ * lifecycle stage added 2026-08-14 after talking to Aey: checks get
+ * printed/exported first (see printSupplierCheck), then marked paid once
+ * actually handed over. Also flips the check's invoices to "paid" so the
+ * holistic table's per-invoice detail reflects the final state without
+ * needing to join back through the payment's own status every time. */
+export async function markSupplierCheckPaid(paymentId: number) {
+  const session = await getCurrentStaffSession();
+  if (!session) throw new Error("Not signed in");
+
+  const [payment] = await db.select().from(supplierCheckPayments).where(eq(supplierCheckPayments.id, paymentId));
+  if (!payment) throw new Error("Check not found.");
+  if (payment.status === "paid") return;
+
+  await db
+    .update(supplierCheckPayments)
+    .set({ status: "paid", deliveredAt: new Date().toISOString(), deliveredByEmployeeId: session.id })
+    .where(eq(supplierCheckPayments.id, paymentId));
+
+  await db.update(supplierInvoices).set({ status: "paid" }).where(eq(supplierInvoices.paymentId, paymentId));
+
+  revalidatePath("/ledger/supplier-check");
 }
