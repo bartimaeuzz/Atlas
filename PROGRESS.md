@@ -2362,3 +2362,61 @@ reconciliation without unfinalizing it, month report data still
 correct. `npx tsc --noEmit` clean, `npm run build` clean (new
 `/ledger/day` route present), 71/71 tests pass. No schema change, no
 new migration.
+
+## Supplier Check: Printed/Paid check lifecycle, always-combine-by-vendor, holistic table (2026-08-14)
+
+Oliver talked to Aey about the real workflow and came back with two
+concrete facts that changed the design: "all invoices always get export
+to check format at the end of the week. but we also got supplier like
+maintenance that instantly need a check after service. so i think we
+should be able to group and combine check for the same supplier who
+always come as routine. and also be able to 'export this invoice to
+print check' instantly." Confirmed: combining is now automatic (not a
+manual checkbox choice), and a check has its own lifecycle separate from
+the invoices it settles -- Printed (the check has been generated) then
+Paid (it's actually been handed to the supplier).
+
+Schema (migration 0010, additive): `supplier_check_payments` gained
+`status` (printed/paid, default printed), `delivered_at`,
+`delivered_by_employee_id`. `supplier_invoices.status` widened to
+pending -> printed -> paid (a plain TEXT column with no CHECK
+constraint, confirmed by inspecting migration 0009's SQL -- no migration
+needed for the widening itself).
+
+`lib/actions/supplierCheck.ts` replaced the old checkbox-driven
+`recordSupplierPayment` with three actions: `printSupplierCheck(vendorId,
+checkNumber)` always combines every currently-pending invoice for that
+vendor into one check (captures the exact invoice ids before the update,
+so a brand-new invoice logged in the split second between the select and
+the update can't sneak into the total); `printAllPendingChecks()` is the
+weekly batch -- finds every vendor with something pending and prints one
+check each; `markSupplierCheckPaid(paymentId)` moves Printed -> Paid and
+cascades the check's invoices to `status: "paid"` too. `logSupplierInvoice`
+now redirects to `/ledger/supplier-check` on success, matching its own
+new dedicated `/ledger/supplier-check/new` page (same pattern as
+Vendors/Positions).
+
+UI restructure: "+ Add item" link replaces the old always-open logging
+form; an "Export week's checks" button runs the weekly batch and
+auto-downloads the combined .xlsx; a "Not yet checked" section groups
+pending invoices by vendor with a "Print check now" button per vendor
+(the instant/urgent path -- e.g. a maintenance vendor -- downloads that
+one check immediately); and a holistic `ChecksTable` (replaces
+"Recent payments") lists every check ever printed with a status badge,
+expandable invoice detail, and a "Mark as paid / delivered" action for
+Printed checks. New `lib/reports/loadSupplierCheckReportByIds` (shares
+an invoice-attach helper with the existing date-range loader) powers a
+new `/ledger/supplier-check/export?paymentIds=...` route for the
+instant/batch download, reusing `buildSupplierCheckWorkbook` (now with a
+Status column). The `/reports` Supplier Check tab also gained a Status
+column.
+
+Verified with a new 18-check direct-DB script: same-vendor invoices
+combine into one check with the correct summed total, printing a check
+for a vendor with nothing pending is rejected, a new invoice logged
+right after printing does NOT get swept into the already-created check,
+the weekly batch prints exactly one check per vendor with pending
+invoices, marking paid cascades to invoices and is a safe no-op on a
+second call, and both loaders return correct status/detail. `npx tsc
+--noEmit` clean, `npm run build` clean (both new routes present), 71/71
+tests pass.
