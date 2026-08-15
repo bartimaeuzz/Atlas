@@ -74,11 +74,12 @@ export async function deletePendingInvoice(invoiceId: number) {
 /** Prints a check for ONE vendor, always combining EVERY currently-
  * pending invoice for that vendor -- confirmed with Oliver after talking
  * to Aey: "same vendor always get combined check." No manual invoice
- * selection anymore (that's how v45 worked; replaced here). Used both
- * by the per-vendor "Print check now" button (the instant/urgent path --
- * e.g. a maintenance vendor that needs a check right after service) and
- * by the weekly batch export (printAllPendingChecks below), which calls
- * this once per vendor that has anything pending.
+ * selection anymore (that's how v45 worked; replaced here). Called once
+ * per selected vendor by printChecksForVendors below, whether that's one
+ * vendor (an urgent, instant check) or every vendor with something
+ * pending (the weekly batch) -- both now go through the same "Print
+ * Checks" popup on the UI side, the caller just decides how many vendor
+ * ids to pass in.
  *
  * Captures the exact invoice ids being combined (not just a re-run of
  * the "status = pending" filter) before updating them, so a brand-new
@@ -122,25 +123,32 @@ export async function printSupplierCheck(vendorId: number, checkNumber: string |
   return { paymentId: payment.id };
 }
 
-/** The weekly batch export -- Oliver's confirmed real workflow (via
- * Aey): "all invoices always get export to check format at the end of
- * the week." Finds every vendor with at least one pending invoice and
- * prints a check for each one (reusing printSupplierCheck's combine-by-
- * vendor logic), all in one action. Returns the new payment ids so the
- * caller can immediately trigger a combined .xlsx download of everything
- * just printed (see /ledger/supplier-check/export/route.ts). */
-export async function printAllPendingChecks(): Promise<{ paymentIds: number[] }> {
+/** Prints checks for a manager-chosen SET of vendors in one go --
+ * 2026-08-14 follow-up: "when i wanna print, should show popup and
+ * allow me to choose which vendor i need to print as well because i
+ * want a flexibility to print some but not all or print all." Replaces
+ * the old all-or-nothing printAllPendingChecks: the UI's "Print Checks"
+ * popup lists every vendor with pending invoices and lets a manager
+ * check off exactly which ones to print right now -- one (the urgent/
+ * instant case, e.g. a maintenance vendor), some, or all (the weekly
+ * batch, Aey's routine: "all invoices always get export to check format
+ * at the end of the week"). Each selection can carry its own optional
+ * check number. Returns the new payment ids so the caller can
+ * immediately trigger a combined .xlsx download of everything just
+ * printed (see /ledger/supplier-check/export/route.ts). */
+export async function printChecksForVendors(
+  selections: { vendorId: number; checkNumber: string | null }[]
+): Promise<{ paymentIds: number[] }> {
   const session = await getCurrentStaffSession();
   if (!session) throw new Error("Not signed in");
 
-  const pendingVendorRows = await db
-    .selectDistinct({ vendorId: supplierInvoices.vendorId })
-    .from(supplierInvoices)
-    .where(eq(supplierInvoices.status, "pending"));
+  if (selections.length === 0) {
+    throw new Error("Select at least one vendor to print a check for.");
+  }
 
   const paymentIds: number[] = [];
-  for (const { vendorId } of pendingVendorRows) {
-    const { paymentId } = await printSupplierCheck(vendorId, null);
+  for (const { vendorId, checkNumber } of selections) {
+    const { paymentId } = await printSupplierCheck(vendorId, checkNumber);
     paymentIds.push(paymentId);
   }
 

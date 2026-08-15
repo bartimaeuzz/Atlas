@@ -8,7 +8,13 @@ import type { SupplierCheckView } from "@/lib/ledger/loadSupplierCheck";
  * "Recent payments" list) -- every check ever printed, most recent
  * first, click a row to expand which invoices it combined. Printed
  * checks get a "Mark as paid / delivered" action; paid checks show who
- * marked them and when. */
+ * marked them and when. Every check (Printed OR Paid) also gets a
+ * "Reprint" link (2026-08-14 follow-up) -- clicking "Print check" in the
+ * app generates the check record and the .xlsx, but that's not the same
+ * as it actually coming out of a physical printer; Oliver's own words:
+ * "even i hit print check now or not it does not mean i actually print
+ * it." Reprint just re-downloads the same already-generated check via
+ * the export route -- no mutation, safe to click any number of times. */
 export function ChecksTable({ checks }: { checks: SupplierCheckView[] }) {
   const [openId, setOpenId] = useState<number | null>(null);
 
@@ -77,14 +83,20 @@ function CheckRow({ check, open, onToggle }: { check: SupplierCheckView; open: b
               </li>
             ))}
           </ul>
-          {check.status === "paid" ? (
-            <p className="text-xs text-green-700">
-              Delivered {check.deliveredAt ? new Date(check.deliveredAt).toLocaleString() : ""}
-              {check.deliveredByName ? ` · marked by ${check.deliveredByName}` : ""}
-            </p>
-          ) : (
-            <>
-              {error && <p className="text-xs text-red-600 mb-1">{error}</p>}
+          {error && <p className="text-xs text-red-600 mb-1">{error}</p>}
+          <div className="flex items-center gap-3 flex-wrap">
+            <a
+              href={`/ledger/supplier-check/export?paymentIds=${check.id}`}
+              className="text-xs underline text-neutral-600 hover:text-black"
+            >
+              Reprint
+            </a>
+            {check.status === "paid" ? (
+              <p className="text-xs text-green-700">
+                Delivered {check.deliveredAt ? new Date(check.deliveredAt).toLocaleString() : ""}
+                {check.deliveredByName ? ` · marked by ${check.deliveredByName}` : ""}
+              </p>
+            ) : (
               <button
                 type="button"
                 disabled={isPending}
@@ -93,8 +105,8 @@ function CheckRow({ check, open, onToggle }: { check: SupplierCheckView; open: b
               >
                 {isPending ? "Marking…" : "Mark as paid / delivered"}
               </button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       )}
     </li>

@@ -1,35 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { deletePendingInvoice, printSupplierCheck } from "@/lib/actions/supplierCheck";
+import { useTransition } from "react";
+import { deletePendingInvoice } from "@/lib/actions/supplierCheck";
 import type { VendorPendingGroup } from "@/lib/ledger/loadSupplierCheck";
 
-/** One vendor's not-yet-checked invoices (2026-08-14 restructure) --
- * "Print check now" always combines EVERY pending invoice shown here
- * for this vendor into one check, confirmed with Oliver after talking
- * to Aey: "same vendor always get combined check." Replaces v45's
- * checkbox multi-select (recordSupplierPayment) -- no manual selection
- * needed anymore, the combining is automatic. Also this is the "export
- * this invoice to print check instantly" path for an urgent vendor
- * (e.g. maintenance) -- printing redirects straight to the .xlsx
- * download for just this new check. */
+/** One vendor's not-yet-checked invoices -- read-only reference plus the
+ * ability to delete a mis-logged invoice before it's checked. Printing
+ * is now centralized in the "Print Checks" popup (PrintChecksButton.tsx,
+ * 2026-08-14 follow-up) rather than a per-vendor button here, so a
+ * manager can flexibly choose one/some/all vendors in one place instead
+ * of this card's own print action. */
 export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
-  const [checkNumber, setCheckNumber] = useState("");
-  const [isPrinting, startPrint] = useTransition();
   const [isDeleting, startDelete] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  function handlePrint() {
-    setError(null);
-    startPrint(async () => {
-      try {
-        const { paymentId } = await printSupplierCheck(group.vendorId, checkNumber.trim() || null);
-        window.location.href = `/ledger/supplier-check/export?paymentIds=${paymentId}`;
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't print check.");
-      }
-    });
-  }
 
   return (
     <div className="border rounded p-3">
@@ -38,7 +20,7 @@ export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
         <span className="text-xs text-neutral-500">${group.totalPending.toFixed(2)} pending</span>
       </div>
 
-      <ul className="divide-y text-sm mb-3">
+      <ul className="divide-y text-sm">
         {group.invoices.map((inv) => (
           <li key={inv.id} className="py-2 flex items-start justify-between gap-2">
             <div>
@@ -65,26 +47,6 @@ export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
           </li>
         ))}
       </ul>
-
-      {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
-
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          value={checkNumber}
-          onChange={(e) => setCheckNumber(e.target.value)}
-          placeholder="Check # (optional)"
-          className="border rounded px-2 py-1.5 text-sm flex-1"
-        />
-        <button
-          type="button"
-          disabled={isPrinting}
-          onClick={handlePrint}
-          className="bg-black text-white px-3 py-1.5 rounded text-sm hover:bg-neutral-800 disabled:opacity-50 whitespace-nowrap"
-        >
-          {isPrinting ? "Printing…" : "Print check now"}
-        </button>
-      </div>
     </div>
   );
 }

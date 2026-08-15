@@ -3,23 +3,28 @@ import { loadPendingInvoicesByVendor, loadSupplierChecks } from "@/lib/ledger/lo
 import { LedgerTabs } from "../LedgerTabs";
 import { PendingByVendor } from "./PendingByVendor";
 import { ChecksTable } from "./ChecksTable";
-import { ExportWeekButton } from "./ExportWeekButton";
+import { PrintChecksButton } from "./PrintChecksButton";
 
-/** Supplier Check (2026-08-14, restructured same day after Oliver talked
- * to Aey about the real workflow) -- invoice-based vendor payments, for
- * suppliers who drop an invoice at delivery and get paid later by
- * check, as opposed to Petty Cash's cash-on-delivery entries. See
- * project_atlas_ledger memory for the full design conversation.
+/** Supplier Check (2026-08-14, restructured twice same day after Oliver
+ * talked to Aey about the real workflow, then flagged two more follow-
+ * ups) -- invoice-based vendor payments, for suppliers who drop an
+ * invoice at delivery and get paid later by check, as opposed to Petty
+ * Cash's cash-on-delivery entries. See project_atlas_ledger memory for
+ * the full design conversation.
  *
  * Real workflow, confirmed: "all invoices always get export to check
- * format at the end of the week" (the routine path -- Export Week's
- * Checks button below) but some vendors (e.g. maintenance) need a check
- * right after service, so a vendor can also be checked out instantly
- * from the "Not yet checked" section. Either path always combines EVERY
- * pending invoice for that vendor into one check ("same vendor always
- * get combined check"). Checks then move Printed -> Paid once actually
- * delivered to the supplier -- the holistic table below is every check
- * ever printed, not just paid ones. */
+ * format at the end of the week" (the routine path) but some vendors
+ * (e.g. maintenance) need a check right after service (the instant
+ * path) -- both now go through ONE "Print Checks" popup where a manager
+ * checks off exactly which vendors to print for right now, one/some/all
+ * ("i want a flexibility to print some but not all or print all").
+ * Printing always combines EVERY pending invoice for the chosen
+ * vendor(s) into one check each ("same vendor always get combined
+ * check"). Checks then move Printed -> Paid once actually delivered to
+ * the supplier -- the holistic table below is every check ever printed,
+ * not just paid ones, and every row (Printed or Paid) can be Reprinted
+ * at any time, since clicking Print in the app isn't the same as it
+ * actually coming out of a physical printer. */
 export default async function SupplierCheckPage() {
   const [pendingGroups, checks] = await Promise.all([loadPendingInvoicesByVendor(), loadSupplierChecks()]);
 
@@ -37,7 +42,7 @@ export default async function SupplierCheckPage() {
         >
           + Add item
         </Link>
-        <ExportWeekButton disabled={pendingGroups.length === 0} />
+        <PrintChecksButton groups={pendingGroups} />
       </div>
 
       {pendingGroups.length > 0 && (
