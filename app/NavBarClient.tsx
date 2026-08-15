@@ -55,13 +55,22 @@ function initialsFor(name: string): string {
  * that employee's own published schedule is) and "My Pay", then Sign
  * out. This also removes the old separate "My Schedule" link from the
  * STAFF-only left nav, since it now lives in the same menu as My Pay
- * instead of being split across two different spots. */
+ * instead of being split across two different spots.
+ *
+ * Hamburger menu on phone width (2026-08-15, accessibility audit fix) —
+ * the 7-link manager row (MANAGER_NAV_ITEMS) doesn't fit a phone screen
+ * and previously had no wrap/scroll fallback, so links would overflow
+ * off-screen with no way to reach them. Below the `sm` breakpoint the
+ * inline row is hidden and replaced with a hamburger button that opens
+ * a stacked full-width link list instead; at `sm` and above the original
+ * inline row is unchanged. */
 export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" } | null }) {
   const pathname = usePathname();
   const isManager = auth?.systemRole === "MANAGER" || auth?.systemRole === "ADMIN";
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -74,19 +83,33 @@ export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAF
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
 
-  // Close the menu automatically on navigation, so it doesn't stay open
+  // Close both menus automatically on navigation, so they don't stay open
   // hovering over the new page.
   useEffect(() => {
     setMenuOpen(false);
+    setMobileNavOpen(false);
   }, [pathname]);
 
   return (
     <header className="border-b bg-white sticky top-0 z-10">
-      <div className="max-w-4xl mx-auto px-8 py-3 flex items-center gap-6 text-sm">
+      <div className="max-w-4xl mx-auto px-4 sm:px-8 py-3 flex items-center gap-4 sm:gap-6 text-sm">
+        {isManager && (
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen((v) => !v)}
+            aria-label="Menu"
+            aria-expanded={mobileNavOpen}
+            className="sm:hidden w-8 h-8 flex items-center justify-center rounded hover:bg-neutral-100 -ml-1"
+          >
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
         <Link href="/" className="font-semibold hover:text-neutral-600">
           Atlas
         </Link>
-        <nav className="flex gap-4 flex-1">
+        <nav className="hidden sm:flex gap-4 flex-1">
           {isManager &&
             MANAGER_NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -101,6 +124,7 @@ export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAF
               );
             })}
         </nav>
+        <div className="flex-1 sm:hidden" />
         {auth ? (
           <div className="relative" ref={menuRef}>
             <button
@@ -153,6 +177,25 @@ export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAF
           </Link>
         )}
       </div>
+      {isManager && mobileNavOpen && (
+        <nav className="sm:hidden border-t bg-white px-4 py-2 flex flex-col">
+          {MANAGER_NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={
+                  "px-1 py-2.5 text-base " +
+                  (isActive ? "font-medium text-black" : "text-neutral-500 hover:text-black")
+                }
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
     </header>
   );
 }

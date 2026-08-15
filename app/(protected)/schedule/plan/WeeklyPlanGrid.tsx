@@ -117,7 +117,8 @@ export function WeeklyPlanGrid({
       {(["Lunch", "Dinner"] as const).map((period) => (
         <section key={period}>
           <h2 className="text-lg font-medium mb-3">{period}</h2>
-          <table className="w-full text-sm border-collapse">
+          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
               <tr className="text-left text-neutral-500 border-b">
                 <th className="py-1.5 pr-2">Position</th>
@@ -191,6 +192,7 @@ export function WeeklyPlanGrid({
               })}
             </tbody>
           </table>
+          </div>
         </section>
       ))}
     </div>
