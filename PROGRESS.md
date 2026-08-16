@@ -2969,3 +2969,91 @@ and Person schedule (the other two schedule views) don't show the
 leave flag yet -- scoped out of this round to keep it shippable; only
 the Weekly Plan grid (the view a manager actually builds/adjusts a
 week from) got it.
+
+## Red-pill notification badge — leave requests inbox (2026-08-16)
+
+Oliver: "i want a red pill show as notification. we might need to
+create inbox feature. for leave request, shift swapping, etc. please
+review and tell me." Reviewed first (per the standing "never assume"
+rule) rather than building straight away -- confirmed neither
+`/schedule/leave` (manager leave inbox) nor `/me/schedule`'s "Recent
+changes" log had any read/unread tracking anywhere in the schema, and
+the shift-swap portal doesn't exist yet (still deferred to its own
+design conversation). Presented the gap plus four design questions via
+AskUserQuestion; Oliver picked the Recommended option on all four:
+manager-only scope for now, real read-tracking (not a time-window
+heuristic), badge on the existing "Schedule" nav item (no new nav
+entry), build the leave-only pill now rather than waiting on the swap
+design.
+
+**Schema:** new `notificationSeen` table -- `employeeId` + `section`
+(string key, e.g. `"leave_requests"`) + `lastSeenAt`, unique on
+(employeeId, section). Deliberately generic/keyed by a string section
+rather than leave-specific columns, so the shift-swap inbox can reuse
+this same table later with a new section key and no further migration.
+No row for an employee+section means "never visited" -- the loader
+treats that as everything in that section being unseen, not zero.
+
+**Read side:** `loadUnseenLeaveRequestCount(managerEmployeeId, todayIso)`
+in `lib/schedule/loadLeaveRequests.ts` -- mirrors
+`loadUpcomingLeaveRequests`'s own `endDate >= today` filter so the
+badge count always matches what's actually visible on the page, then
+compares each request's `loggedAt` against the manager's `lastSeenAt`
+for the `"leave_requests"` section.
+
+**Write side:** `markNotificationSeen(section)` in the new
+`lib/actions/notifications.ts` -- upserts `lastSeenAt` for the
+signed-in manager. Fired from a new client component,
+`MarkSeenOnMount.tsx`, on mount when `/schedule/leave` renders, then
+calls `router.refresh()` so the server-resolved nav badge (computed in
+`NavBar.tsx`, passed down to `NavBarClient.tsx` as `unseenLeaveCount`)
+updates without a full reload. Deliberately not done as a side effect
+of the page's own server render -- a GET shouldn't mutate, and the
+page component may be reused/cached.
+
+**Nav:** `NavBarClient.tsx` renders a small red `UnseenBadge` (bare dot
+with a number, "9+" past that) next to the "Schedule" label in both the
+desktop nav row and the phone-width hamburger list. Staff sessions
+never see it (`unseenLeaveCount` is only computed for MANAGER/ADMIN in
+`NavBar.tsx`).
+
+**Bug caught during verification, fixed before shipping:** first pass
+wrote `lastSeenAt` with JS `new Date().toISOString()`
+("2026-08-16T12:00:00.000Z"), but `leaveRequests.loggedAt` is written
+by SQLite's own `current_timestamp` default ("2026-08-16 12:00:00") --
+two different string shapes that don't compare correctly against each
+other with a plain `>`, because `' '` sorts below `'T'` character-by-
+character regardless of actual chronological order. This silently made
+every leave request look "already seen." A 7-check direct-DB verify
+script caught it (the "unseen=1 after a new request logged post-visit"
+case failed); fixed by writing `lastSeenAt` via `sql\`(current_timestamp)\``
+in the action instead of a JS-side date, so both columns share the
+same clock/format. Worth remembering for any future column that gets
+string-compared against an existing `current_timestamp`-default column
+elsewhere in this codebase (a few other actions already write
+`new Date().toISOString()` into their own timestamp columns, but none
+of those are compared against a `current_timestamp`-default column
+today, so this is the first time the mismatch actually mattered).
+
+Verified: `eslint`/`tsc --noEmit` clean on every touched file (the
+1 pre-existing `NavBarClient.tsx` finding -- `set-state-in-effect` on
+the unrelated menu-close effect -- confirmed via `git stash` to predate
+this change), `next build` clean, 71/71 tests pass, plus a 7-check
+direct-DB verify script (deleted after use) covering: zero unseen with
+nothing logged, unseen=1 on first request before any visit, unseen=0
+right after a visit, a new request logged after a visit correctly
+bumps back to 1 (not 2 -- the earlier one stays seen), the upsert never
+creates a second row for the same employee+section, re-visiting
+re-clears the count, and an already-expired request is excluded from
+the count (matching what the inbox page itself shows). Also manually
+smoke-tested against a real `next start` server: a MANAGER session
+cookie with one upcoming leave request shows "1" on the Schedule nav
+item on `/`, and a STAFF session cookie shows no badge at all.
+
+**Not built / open for later:** shift-swap's own section
+(`"swap_requests"` or similar) on the same `notificationSeen` table --
+straightforward to add once the swap portal itself is designed, no
+schema change needed. The staff-facing "Recent changes to your
+schedule" log still has no badge (explicitly out of scope per Oliver's
+"manager only" answer) -- would need its own decision if he wants to
+revisit that later.
