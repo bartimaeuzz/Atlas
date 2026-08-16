@@ -1,25 +1,23 @@
 import Link from "next/link";
+import { LinkButton } from "@/components/ui/Button";
 
 export default function Home() {
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-2">Atlas — Track 2</h1>
-      <p className="text-neutral-500 mb-6">
-        Standalone build. Roster → Closing Report → Save &amp; Finalize → Summary Report is the
-        real, persisted daily flow. The playground calculator below is a separate manual-entry
-        tool for testing the tip-pool math, not connected to saved data.
+    <main className="max-w-2xl mx-auto px-4 sm:px-8 py-8">
+      <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-2">Atlas</h1>
+      <p className="text-[var(--ink-500)] mb-6">
+        Roster → Closing Report → Save &amp; Finalize → Summary Report is the real, persisted daily flow. The playground
+        calculator below is a separate manual-entry tool for testing the tip-pool math, not connected to saved data.
       </p>
-      <div className="flex gap-4 flex-wrap">
-        <Link href="/shifts" className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800">
-          Shifts →
-        </Link>
-        <Link href="/positions" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50">
+      <div className="flex gap-3 flex-wrap items-center">
+        <LinkButton href="/shifts">Shifts →</LinkButton>
+        <LinkButton href="/positions" variant="secondary">
           Positions →
-        </Link>
-        <Link href="/settings" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50">
+        </LinkButton>
+        <LinkButton href="/settings" variant="secondary">
           Settings →
-        </Link>
-        <Link href="/shifts/1" className="underline text-blue-600 self-center">
+        </LinkButton>
+        <Link href="/shifts/1" className="text-sm text-[var(--primary)] hover:underline">
           Playground calculator (seeded shift, manual entry)
         </Link>
       </div>

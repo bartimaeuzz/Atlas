@@ -2658,3 +2658,27 @@ otherwise-idle secondary match, once primary options run out;
 same-day exclusion and skip-reporting from v53 both still hold.
 `eslint` clean, `next build` clean, 71/71 tests pass. No schema change,
 no migration.
+
+---
+
+## UI/UX design system, v2 — full rebuild against current `main` (2026-08-16, branch `design-system-v2`)
+
+Supersedes the 2026-08-09 `ui-design` branch design pass (`atlas-ui-design-v1.zip`), which drifted ~40 commits behind `main` and was never merged — see `project_atlas_ui_design` memory for the full corrective history. This round was built directly against current `main` (`00a5c29`) after a dedicated planning phase: an evidence-based palette/type/spacing system, a 5-gap verification pass against the live code (not just internal review), and an explicit go-ahead from Oliver before any code was touched.
+
+**Design tokens (`app/globals.css`):** slate-gray neutral scale, functional primary blue (`#1D4ED8`), brand mor hom indigo (`#2E3B7A`, chosen by Aey after a 4-option comparison — logo + the single most consequential action per flow only, e.g. Confirm & Finalize), green/amber/red semantic status colors, full type scale (32/24/19/16/14/13px), 8pt spacing, radius scale, 3-level elevation. Dark mode values defined and WCAG-AA verified for every token (including a lightened `--brand: #7C8FE0` dark-mode-only variant — the light-mode brand hex fails contrast on a dark card, same fix already applied to primary) but not activated anywhere yet — `.dark` class exists, isn't applied on any page, by design (this app was burned once by a half-dark page in 2026-08-10).
+
+**Fonts:** self-hosted via `@fontsource/noto-sans` + `@fontsource/noto-sans-thai` (all 4 weights each), imported directly in `app/layout.tsx` — avoids the known `next/font/google` sandbox network block from day one of this project.
+
+**Component library (`components/ui/`):** Button (6 variants incl. brand + two destructive weights, 6 interactive states), Field (TextInput/Select, shared shell, blur-validation-ready), Card/Section/PageHeader/EmptyState, Badge/StatusBadge, Banner (success/danger/warning/info, stays on-screen rather than auto-dismissing), Avatar, Tabs (primary-blue active state, not brand), Modal (shared shell — backdrop, Esc/click-to-close, 3 elevation), ConfirmDialog (lightweight, primary-blue), DangerConfirmDialog (typed-word, red), DangerZoneSection, and an outline icon set (1.75px stroke, 24px, always paired with text).
+
+**Screens covered (Phase 1 — login/nav + the Roster→Preview→Summary flow):** `/`, `/login`, `/shifts`, `/shifts/new`, `/shifts/[id]/roster`, `/shifts/[id]/preview`, `/shifts/[id]/summary`, the persistent NavBar. **Deliberately not touched:** Closing Report (off-limits this round per Oliver), Schedule Planner, Ledger, Employees/Positions/Settings admin — later phases.
+
+**Real bugs fixed along the way, not just restyled:**
+- `RosterGrid.tsx`'s raw `window.confirm()` (multi-role guard) replaced with the styled `ConfirmDialog` — was an unstyled OS popup breaking out of the app UI entirely.
+- The 2 leftover redundant "Sign out" buttons on `/me` and `/me/schedule` removed (the nav avatar menu already covers this since 2026-08-14; this was flag 2 from the 2026-08-15 UX audit).
+- Nav avatar circle and Ledger's tab active-state (`bg-black` hardcoded) reconciled to tokens — not touched in Ledger itself this round (out of Phase 1 scope), but `Tabs.tsx` component is now correct for whenever Ledger gets its pass.
+- Dense-data screens (Shifts list, Preview/Summary payout tables) now render as stacked cards on phone, a real table on desktop — the standard decided in the 2026-08-16 planning session, not the ad hoc horizontal-scroll-table fix from 2026-08-15.
+
+**Verification:** `tsc --noEmit` clean, `next build` clean (34 routes), all 71 existing tests still pass unchanged, `eslint` clean on every file this round touched (7 pre-existing errors confirmed via `git stash` diff to already exist on `main` untouched — in Schedule Planner/Closing Report/NavBarClient's pre-existing effect pattern, not introduced here). Spot-checked all 7 touched routes against a live dev server using a real session token (both unauthenticated-redirect and authenticated-as-manager cases), confirmed rendered CSS actually contains the brand hex, primary hex, and both font families' `@font-face` rules.
+
+**Delivery:** committed locally on branch `design-system-v2` off `main` `00a5c29` (no push credentials in this sandbox, same as always) — zipped with full `.git` history for Oliver to unzip and push from his own machine.

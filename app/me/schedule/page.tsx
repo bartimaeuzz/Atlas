@@ -4,7 +4,6 @@ import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadEmployeeSchedule } from "@/lib/schedule/loadEmployeeSchedule";
 import { loadRecentScheduleChanges } from "@/lib/schedule/loadRecentScheduleChanges";
 import { shiftMonth, toIso } from "@/lib/schedule/weekMath";
-import { logout } from "@/lib/actions/auth";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -50,14 +49,7 @@ export default async function MyScheduleView({
 
   return (
     <main className="max-w-3xl mx-auto p-8 font-sans">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-semibold">My Schedule</h1>
-        <form action={logout}>
-          <button type="submit" className="text-sm text-neutral-500 hover:underline">
-            Sign out
-          </button>
-        </form>
-      </div>
+      <h1 className="text-2xl font-semibold mb-1">My Schedule</h1>
       <p className="text-sm text-neutral-500 mb-4">
         {data.employeeName} — {data.monthLabel}. Grey days mean that week hasn't been published yet
         — not that you're off.

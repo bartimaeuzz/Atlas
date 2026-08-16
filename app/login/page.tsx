@@ -17,11 +17,12 @@ export default async function LoginPage() {
   activeEmployees.sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <main className="max-w-sm mx-auto p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-1">Staff sign in</h1>
-      <p className="text-sm text-neutral-500 mb-6">
-        Pick your name and enter your PIN to see your own shift earnings.
-      </p>
+    <main className="max-w-sm mx-auto px-4 py-16 sm:py-24">
+      <div className="text-center mb-8">
+        <div className="text-2xl font-bold text-[var(--brand)] mb-4">Atlas</div>
+        <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1.5">Staff sign in</h1>
+        <p className="text-sm text-[var(--ink-500)]">Pick your name and enter your PIN to see your own shift earnings.</p>
+      </div>
       <LoginForm employees={activeEmployees} />
     </main>
   );

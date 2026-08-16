@@ -4,6 +4,11 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addRosterEntry, removeRosterEntry } from "@/lib/actions/shift";
 import type { RosterPageEntry } from "@/lib/shift/loadRosterPageData";
+import { Select } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { XIcon } from "@/components/ui/icons";
 
 /** Position-grid redesign of the roster page (2026-08-11, Oliver: wanted
  * it to read like the Schedule Planner's weekly grid — headcount target
@@ -13,11 +18,15 @@ import type { RosterPageEntry } from "@/lib/shift/loadRosterPageData";
  * axis like the weekly grid has); each row shows who's assigned, the
  * target count, and a quick-add control.
  *
- * Carries over the two guards the old flat-list "Add someone" form had:
- * the multi-role confirm dialog (added 2026-08-10 after Oliver
- * accidentally double-added someone) and the assigned-vs-other position
- * grouping in the employee/position pickers — same reasoning, still
- * deliberately not blocking either, just confirming/labeling. */
+ * Restyled 2026-08-16 as stacked position cards rather than a table at any
+ * width — this content (a position name + a wrapped list of pills) reads
+ * better as sections than as a cramped two-column table, and it means
+ * there's no separate mobile/desktop layout to keep in sync.
+ *
+ * The multi-role guard now uses the shared <ConfirmDialog> instead of a
+ * raw window.confirm() — that was one of the 5 real gaps caught in the
+ * 2026-08-16 verification pass (an unstyled OS popup breaking out of the
+ * app's UI entirely). Same wording, same guard, just styled. */
 export function RosterGrid({
   shiftId,
   positions,
@@ -35,15 +44,12 @@ export function RosterGrid({
   employeeAssignedPositionIds: Record<number, number[]>;
   readOnly: boolean;
 }) {
-  // employeeId -> total roster rows for them on this shift, across all
-  // positions — powers the "N roles" badge, same as the old table.
   const roleCountByEmployee = useMemo(() => {
     const map = new Map<number, number>();
     for (const r of roster) map.set(r.employeeId, (map.get(r.employeeId) ?? 0) + 1);
     return map;
   }, [roster]);
 
-  // positionId -> employees split into "usually works this role" vs "other"
   const employeesByPosition = useMemo(() => {
     const map = new Map<number, { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] }>();
     for (const p of positions) {
@@ -59,68 +65,59 @@ export function RosterGrid({
   }, [positions, allEmployees, employeeAssignedPositionIds]);
 
   return (
-    <table className="w-full text-sm border-collapse">
-      <thead>
-        <tr className="text-left text-neutral-500 border-b">
-          <th className="py-1.5 pr-2 w-40">Position</th>
-          <th className="py-1.5">On the roster</th>
-        </tr>
-      </thead>
-      <tbody>
-        {positions.map((p, i) => {
-          const prevCategory = i > 0 ? positions[i - 1].category : null;
-          const showCategoryBreak = p.category !== prevCategory;
-          const cellEntries = roster.filter((r) => r.positionId === p.id);
-          const target = targets[p.id] ?? 0;
-          const underTarget = target > 0 && cellEntries.length < target;
+    <div className="space-y-2">
+      {positions.map((p, i) => {
+        const prevCategory = i > 0 ? positions[i - 1].category : null;
+        const showCategoryBreak = p.category !== prevCategory;
+        const cellEntries = roster.filter((r) => r.positionId === p.id);
+        const target = targets[p.id] ?? 0;
+        const underTarget = target > 0 && cellEntries.length < target;
 
-          return (
-            <tr key={p.id} className={"border-b align-top" + (showCategoryBreak && i > 0 ? " border-t-2" : "")}>
-              <td className="py-2 pr-2 whitespace-nowrap">
-                {p.name}
-                <span className="text-xs text-neutral-400 ml-1">({p.category})</span>
-              </td>
-              <td className={"py-2 px-1" + (underTarget ? " bg-red-50" : "")}>
-                <div className="space-y-1">
-                  {cellEntries.length === 0 && target === 0 && (
-                    <span className="text-xs text-neutral-400">Nobody added yet.</span>
-                  )}
-                  <div className="flex flex-wrap gap-1">
-                    {cellEntries.map((r) => {
-                      const roleCount = roleCountByEmployee.get(r.employeeId) ?? 1;
-                      return (
-                        <RosterPill
-                          key={r.rosterEntryId}
-                          entry={r}
-                          roleCount={roleCount}
-                          shiftId={shiftId}
-                          readOnly={readOnly}
-                        />
-                      );
-                    })}
-                  </div>
-                  {target > 0 && (
-                    <div className={"text-xs" + (underTarget ? " text-red-600 font-medium" : " text-neutral-400")}>
-                      {cellEntries.length}/{target}
-                    </div>
-                  )}
-                  {!readOnly && (
-                    <RosterQuickAdd
-                      shiftId={shiftId}
-                      positionId={p.id}
-                      employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
-                      alreadyAssignedIds={new Set(cellEntries.map((r) => r.employeeId))}
-                      roster={roster}
-                      allEmployees={allEmployees}
-                    />
-                  )}
+        return (
+          <div key={p.id} className={showCategoryBreak && i > 0 ? "pt-3 mt-1 border-t border-[var(--border)]" : ""}>
+            <div
+              className={
+                "border rounded-[var(--radius-lg)] p-3.5 " +
+                (underTarget ? "border-[var(--danger-border)] bg-[var(--danger-tint)]" : "border-[var(--border)] bg-[var(--card)]")
+              }
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm font-semibold text-[var(--ink-900)]">
+                  {p.name} <span className="text-xs font-normal text-[var(--ink-400)]">({p.category})</span>
                 </div>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+                {target > 0 && (
+                  <span className={"text-xs font-medium " + (underTarget ? "text-[var(--danger-700)]" : "text-[var(--ink-500)]")}>
+                    {cellEntries.length}/{target}
+                  </span>
+                )}
+              </div>
+
+              {cellEntries.length === 0 && target === 0 && (
+                <p className="text-xs text-[var(--ink-500)] mb-2">Nobody added yet.</p>
+              )}
+
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {cellEntries.map((r) => {
+                  const roleCount = roleCountByEmployee.get(r.employeeId) ?? 1;
+                  return <RosterPill key={r.rosterEntryId} entry={r} roleCount={roleCount} shiftId={shiftId} readOnly={readOnly} />;
+                })}
+              </div>
+
+              {!readOnly && (
+                <RosterQuickAdd
+                  shiftId={shiftId}
+                  positionId={p.id}
+                  employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
+                  alreadyAssignedIds={new Set(cellEntries.map((r) => r.employeeId))}
+                  roster={roster}
+                  allEmployees={allEmployees}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -139,15 +136,10 @@ function RosterPill({
   const router = useRouter();
 
   return (
-    <div className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs bg-neutral-100 text-neutral-700">
+    <div className="flex items-center gap-1.5 rounded-[var(--radius-full)] pl-2.5 pr-1.5 py-1 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)]">
       <span>{entry.employeeName}</span>
       {roleCount > 1 && (
-        <span
-          className="bg-blue-100 text-blue-700 text-[10px] px-1 rounded"
-          title="This person has multiple roles on this shift — paid on one combined paycheck."
-        >
-          {roleCount} roles
-        </span>
+        <Badge tone="primary">{roleCount} roles</Badge>
       )}
       {!readOnly && (
         <button
@@ -162,10 +154,10 @@ function RosterPill({
               router.refresh();
             })
           }
-          className="text-neutral-400 hover:text-red-600 disabled:opacity-50"
+          className="text-[var(--ink-400)] hover:text-[var(--danger)] disabled:opacity-50 w-5 h-5 flex items-center justify-center"
           title="Remove"
         >
-          ×
+          <XIcon width={12} height={12} />
         </button>
       )}
     </div>
@@ -191,24 +183,14 @@ function RosterQuickAdd({
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
+  const [pendingConfirm, setPendingConfirm] = useState<{ employeeName: string; existingPositions: string[] } | null>(null);
 
   const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
   const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
   if (eligible.length === 0 && other.length === 0) return null;
 
-  function handleAdd() {
+  function performAdd() {
     if (selectedId === "") return;
-
-    const existingPositions = roster.filter((r) => r.employeeId === selectedId).map((r) => r.positionName);
-    if (existingPositions.length > 0) {
-      const employeeName = allEmployees.find((e) => e.id === selectedId)?.name ?? "This person";
-      const confirmed = window.confirm(
-        `${employeeName} is already rostered as ${existingPositions.join(", ")} this shift.\n\n` +
-          `Add another role too? They'll be paid for all roles combined into one paycheck.`
-      );
-      if (!confirmed) return;
-    }
-
     const formData = new FormData();
     formData.set("shiftId", String(shiftId));
     formData.set("employeeId", String(selectedId));
@@ -225,8 +207,19 @@ function RosterQuickAdd({
     });
   }
 
+  function handleAddClick() {
+    if (selectedId === "") return;
+    const existingPositions = roster.filter((r) => r.employeeId === selectedId).map((r) => r.positionName);
+    if (existingPositions.length > 0) {
+      const employeeName = allEmployees.find((e) => e.id === selectedId)?.name ?? "This person";
+      setPendingConfirm({ employeeName, existingPositions });
+      return;
+    }
+    performAdd();
+  }
+
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-1.5">
       <select
         value={selectedId}
         disabled={isPending}
@@ -234,35 +227,50 @@ function RosterQuickAdd({
           setSelectedId(e.target.value === "" ? "" : Number(e.target.value));
           setError(null);
         }}
-        className="text-xs border rounded px-1 py-0.5 max-w-[140px] text-neutral-500 disabled:opacity-50"
+        className="text-xs border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 max-w-[160px] text-[var(--ink-700)] disabled:opacity-50 bg-[var(--card)]"
       >
         <option value="">+ Add</option>
         {eligible.length > 0 && (
           <optgroup label="Usually this role">
             {eligible.map((e) => (
-              <option key={e.id} value={e.id}>{e.name}</option>
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
             ))}
           </optgroup>
         )}
         {other.length > 0 && (
           <optgroup label="Other">
             {other.map((e) => (
-              <option key={e.id} value={e.id}>{e.name}</option>
+              <option key={e.id} value={e.id}>
+                {e.name}
+              </option>
             ))}
           </optgroup>
         )}
       </select>
       {selectedId !== "" && (
-        <button
-          type="button"
-          onClick={handleAdd}
-          disabled={isPending}
-          className="text-xs bg-black text-white rounded px-2 py-0.5 disabled:opacity-50"
-        >
+        <Button type="button" size="sm" onClick={handleAddClick} loading={isPending}>
           {isPending ? "Adding…" : "Add"}
-        </button>
+        </Button>
       )}
-      {error && <span className="text-[10px] text-red-600">{error}</span>}
+      {error && <span className="text-[11px] text-[var(--danger)]">{error}</span>}
+
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        onClose={() => setPendingConfirm(null)}
+        onConfirm={() => {
+          setPendingConfirm(null);
+          performAdd();
+        }}
+        title="Add a second role?"
+        description={
+          pendingConfirm
+            ? `${pendingConfirm.employeeName} is already rostered as ${pendingConfirm.existingPositions.join(", ")} this shift. Add another role too? They'll be paid for all roles combined into one paycheck.`
+            : undefined
+        }
+        confirmLabel="Add role"
+      />
     </div>
   );
 }
