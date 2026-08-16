@@ -40,7 +40,8 @@ export default async function MonthOverviewPage({
       </div>
       <p className="text-neutral-500 text-sm mb-4">
         {data.monthLabel}. Weeks you haven&apos;t generated yet are projected from your recurring
-        templates — click any day to jump into that week and build or adjust it.
+        templates — click any day to jump into that week: a read-only Preview for weeks that
+        already exist, or straight to Generate for ones that don&apos;t.
       </p>
 
       <div className="flex items-center gap-3 mb-4 text-sm">
@@ -80,7 +81,21 @@ export default async function MonthOverviewPage({
               {week.map((day) => (
                 <td key={day.date} className="align-top border p-0">
                   <Link
-                    href={`/schedule/plan?week=${weekStartFor(day.date)}`}
+                    href={
+                      // A generated week (draft/published) has something
+                      // real to look at, so clicking goes to the
+                      // read-only Preview first (2026-08-16, Oliver) --
+                      // same "edit must be a deliberate separate action"
+                      // rule already used for the weekly grid's own
+                      // Preview page. A still-"projected" day has nothing
+                      // to preview yet (it's only ever been estimated
+                      // from the template, never generated), so it keeps
+                      // going straight to Weekly Plan, which shows the
+                      // "Generate this week" button.
+                      day.weekStatus === "projected"
+                        ? `/schedule/plan?week=${weekStartFor(day.date)}`
+                        : `/schedule/plan/preview?week=${weekStartFor(day.date)}&view=manager`
+                    }
                     className={"block h-20 p-1.5 hover:bg-neutral-50" + (day.inMonth ? "" : " opacity-40")}
                   >
                     <div className="flex items-center justify-between">
