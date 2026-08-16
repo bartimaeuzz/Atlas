@@ -2617,3 +2617,44 @@ reported in the skip summary instead of silently dropped, re-running
 auto-fill on an already-filled week adds nothing extra (idempotent), and
 every new row is tagged AUTO_FILL. `eslint` clean, `next build` clean,
 71/71 tests pass. No migration.
+
+## Auto-fill fix: primary position first, then multi-position, never an unsuitable person (2026-08-15)
+
+Oliver caught a real bug from live testing: "i saw gunner as a head
+chef which it is not possible. gunner can do a packer not chef." His
+rule for the fix: "fill only primary position first and then fill with
+people who can do multi position. never add a person auto fill person
+who is not suitable to positions."
+
+Root cause: v53's `autoFillWeek` had a single merged "eligible" pool
+(primary + cross-trained) and, when even that was exhausted, fell back
+to ANY active employee not already used that day -- which is exactly
+how Gunner (primary Bag Handler, zero link to Head Chef at all) ended
+up filled into a Head Chef slot once Bomb (the only real Head Chef)
+was already used elsewhere that date.
+
+Fixed in `lib/actions/schedule.ts`: replaced the single eligible set
+with two ordered, non-overlapping tiers, tried in order per slot --
+  1. Primary -- employees whose `primaryPositionId` is this position.
+  2. Multi-position -- employees cross-trained for it via Employee
+     admin (`employeePositions`) but it isn't their primary.
+There is no third tier anymore. If neither has anyone free that date,
+the slot is left unfilled and reported in the skip summary -- it will
+never place someone with zero link to that position, no matter how
+short-staffed the day is. The fewest-shifts-this-week tie-break still
+applies WITHIN a tier, but tier order now always wins over it (a
+primary match with more hours already still gets picked before a
+0-hour secondary match, matching Oliver's "primary first" wording
+literally).
+
+`AutoFillWeekButton.tsx`'s on-screen description updated to match.
+
+Verified with a 10-check direct-DB script: an unfillable Head Chef slot
+(sole primary person already used, no secondary at all) is left empty
+and reported, never handed to an unrelated person like Gunner; Bag
+Handler correctly prefers Gunner (primary) the moment he's free; a
+primary match with a pre-existing shift still gets used before an
+otherwise-idle secondary match, once primary options run out;
+same-day exclusion and skip-reporting from v53 both still hold.
+`eslint` clean, `next build` clean, 71/71 tests pass. No schema change,
+no migration.

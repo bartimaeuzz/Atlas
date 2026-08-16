@@ -329,37 +329,40 @@ export interface AutoFillActionState {
 /** "Auto-fill" button on the Weekly Plan (2026-08-15, Oliver's ask) --
  * fills every currently under-target position/date/period slot for the
  * whole week in one click. Deliberately dumb for now, no smart criteria
- * -- Oliver's own words: "no criteria or rules but i will add it up
- * later ... only one rule right now is it cannot be same person in a
- * day." Confirmed via AskUserQuestion before building:
+ * beyond the two hard rules Oliver's given so far -- more can be added
+ * later once he's decided what he wants ("no criteria or rules but i
+ * will add it up later ... we will disscuss about that later").
  *
- *   - Eligible pool: prefer employees already linked to that position
- *     (employeePositions / primaryPositionId -- same "usually works
- *     this role" group the manual quick-add dropdown groups first).
- *     Falls back to ANY other active employee not already used that day
- *     rather than leaving a slot empty, if no eligible person is free.
- *   - "Cannot be same person in a day": a person can be placed into at
- *     most one slot per calendar date by this action -- across BOTH
- *     periods and every position, not just within one period. Counts
- *     their existing assignments that date (from before this run) AND
- *     whatever auto-fill itself has already placed earlier in the same
- *     run, so it never double-books someone against itself either.
- *   - Tie-break among multiple free/eligible candidates: whoever has
- *     the fewest shifts so far this week gets picked, so hours spread
- *     out reasonably even with zero real rules yet. Ties within that
- *     broken alphabetically by name, for a deterministic result.
- *   - Never touches an existing assignment -- only adds new rows for
- *     the shortfall (target - current headcount) in each slot. If a
- *     slot still can't be fully filled (nobody eligible or fallback is
- *     free that day), it's left under target and reported back in the
- *     summary rather than silently ignored -- same "tell the manager
- *     exactly what still needs attention" pattern as the rest of this
- *     app's error-prevention design.
+ *   1. Primary position first, then multi-position, NEVER unsuitable
+ *      (2026-08-15 fix -- Oliver caught Gunner, whose primary role is
+ *      Bag Handler and has zero cooking training, auto-filled into Head
+ *      Chef by the original version's "fallback to any active
+ *      employee" tier). Two ordered tiers, no third: tier 1 is
+ *      employees whose PRIMARY position (employees.primaryPositionId)
+ *      is this one; tier 2 is employees cross-trained for it via
+ *      Employee admin (employeePositions) but it isn't their primary.
+ *      If neither tier has anyone free that day, the slot is left
+ *      unfilled and reported in the skip summary -- it will NEVER place
+ *      someone who isn't linked to that position at all, no matter how
+ *      short-staffed the day is.
+ *   2. Never the same person twice in one calendar day -- a person can
+ *      be placed into at most one slot per date by this action, across
+ *      BOTH periods and every position, not just within one period.
+ *      Counts their existing assignments that date (from before this
+ *      run) AND whatever auto-fill itself has already placed earlier in
+ *      the same run, so it never double-books someone against itself.
  *
- * New rows are tagged sourceType "AUTO_FILL" (vs. FROM_TEMPLATE /
- * MANUAL_ADD) purely for future traceability -- they behave exactly
- * like a manual add otherwise (same remove button, same double-booking
- * badge logic elsewhere in the grid, etc). */
+ * Tie-break among multiple candidates within the same tier: whoever has
+ * the fewest shifts so far this week gets picked, so hours spread out
+ * reasonably even with no other rules yet. Ties within that broken
+ * alphabetically by name, for a deterministic result.
+ *
+ * Never touches an existing assignment -- only adds new rows for the
+ * shortfall (target - current headcount) in each slot. New rows are
+ * tagged sourceType "AUTO_FILL" (vs. FROM_TEMPLATE / MANUAL_ADD) purely
+ * for future traceability -- they behave exactly like a manual add
+ * otherwise (same remove button, same double-booking badge logic
+ * elsewhere in the grid, etc). */
 export async function autoFillWeek(weekId: number): Promise<AutoFillActionState> {
   try {
     const session = await getCurrentStaffSession();
@@ -384,16 +387,29 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
       return { error: null, summary: { filled: 0, totalSkipped: 0, skipped: [] } };
     }
 
+    // Two separate tiers, never merged -- 2026-08-15 fix after Oliver
+    // caught Gunner (primary Bag Handler, not remotely a cook) getting
+    // auto-filled into Head Chef by the old "fallback to any active
+    // employee" tier. His rule: "fill only primary position first and
+    // then fill with people who can do multi position. never add a
+    // person auto fill person who is not suitable to positions." So:
+    //   tier 1 -- employees whose PRIMARY position is this one.
+    //   tier 2 -- employees cross-trained for this position via Employee
+    //     admin (employeePositions) but it isn't their primary role.
+    // There is deliberately no tier 3 anymore -- if neither tier has
+    // anyone free that day, the slot is left unfilled and reported in
+    // the skip summary instead of grabbing an unrelated person.
     const employeePositionRows = await db.select().from(employeePositions);
-    const eligibleByPosition = new Map<number, Set<number>>();
-    for (const row of employeePositionRows) {
-      if (!eligibleByPosition.has(row.positionId)) eligibleByPosition.set(row.positionId, new Set());
-      eligibleByPosition.get(row.positionId)!.add(row.employeeId);
-    }
+    const primaryByPosition = new Map<number, Set<number>>();
     for (const e of activeEmployees) {
       if (e.primaryPositionId === null) continue;
-      if (!eligibleByPosition.has(e.primaryPositionId)) eligibleByPosition.set(e.primaryPositionId, new Set());
-      eligibleByPosition.get(e.primaryPositionId)!.add(e.id);
+      if (!primaryByPosition.has(e.primaryPositionId)) primaryByPosition.set(e.primaryPositionId, new Set());
+      primaryByPosition.get(e.primaryPositionId)!.add(e.id);
+    }
+    const secondaryByPosition = new Map<number, Set<number>>();
+    for (const row of employeePositionRows) {
+      if (!secondaryByPosition.has(row.positionId)) secondaryByPosition.set(row.positionId, new Set());
+      secondaryByPosition.get(row.positionId)!.add(row.employeeId);
     }
 
     const existingAssignments = await db
@@ -444,12 +460,13 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
           if (need <= 0) continue;
 
           const usedSet = usedToday.get(date)!;
-          const eligibleSet = eligibleByPosition.get(position.id) ?? new Set<number>();
+          const primarySet = primaryByPosition.get(position.id) ?? new Set<number>();
+          const secondarySet = secondaryByPosition.get(position.id) ?? new Set<number>();
 
           while (need > 0) {
-            let candidates = activeEmployees.filter((e) => eligibleSet.has(e.id) && !usedSet.has(e.id));
+            let candidates = activeEmployees.filter((e) => primarySet.has(e.id) && !usedSet.has(e.id));
             if (candidates.length === 0) {
-              candidates = activeEmployees.filter((e) => !usedSet.has(e.id));
+              candidates = activeEmployees.filter((e) => secondarySet.has(e.id) && !primarySet.has(e.id) && !usedSet.has(e.id));
             }
             if (candidates.length === 0) {
               skipped.push({ positionName: position.name, date, period, missing: need });

@@ -6,12 +6,13 @@ import { autoFillWeek, type AutoFillActionState } from "@/lib/actions/schedule";
 
 /** "Auto-fill understaffed slots" (2026-08-15, Oliver's ask) -- one
  * click fills every position/date/period slot in this week that's below
- * its staffing target. No smart rules yet ("i will add it up later
- * after i sure how to do it we will disscuss about that later") --
- * right now it only guarantees the one rule Oliver gave: never the same
- * person twice in one day. See autoFillWeek's own comment in
- * lib/actions/schedule.ts for the full eligible-pool / tie-break logic
- * confirmed with him beforehand.
+ * its staffing target. No smart rules yet beyond two hard ones Oliver's
+ * given so far: never place someone who isn't linked to that position
+ * (primary position tried first, then anyone cross-trained for it via
+ * Employee admin -- added after he caught Gunner, a Bag Handler,
+ * getting auto-filled into Head Chef), and never the same person twice
+ * in one day. See autoFillWeek's own comment in lib/actions/schedule.ts
+ * for the full tier / tie-break logic.
  *
  * Lives inside PublishedEditGate's unlocked view, same as "Add to a
  * slot" -- it's another way of adding assignments, so it should be
@@ -28,8 +29,9 @@ export function AutoFillWeekButton({ weekId }: { weekId: number }) {
         <div>
           <h2 className="font-medium text-sm">Auto-fill understaffed slots</h2>
           <p className="text-xs text-neutral-500 mt-0.5">
-            Fills every slot below its staffing target for the whole week. Only rule right now: never
-            the same person twice in one day.
+            Fills every slot below its staffing target for the whole week, using each person&apos;s
+            primary role first, then anyone cross-trained for it. Never the same person twice in one
+            day, and never someone not linked to that position at all.
           </p>
         </div>
         <button
