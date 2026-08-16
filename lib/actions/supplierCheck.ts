@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { supplierInvoices, supplierCheckPayments, employees } from "@/db/schema";
+import { supplierInvoices, supplierCheckPayments, employees, supplierCheckAuditLog } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { verifyPin } from "@/lib/auth/pin";
 
@@ -112,6 +112,7 @@ export async function editSupplierInvoice(input: {
   invoiceNumber: string;
   description: string;
   amount: number;
+  reason: string;
   auditorCode?: string;
 }): Promise<EditSupplierInvoiceActionState> {
   try {
@@ -127,6 +128,8 @@ export async function editSupplierInvoice(input: {
       return { error: "Amount must be a positive number." };
     }
     const description = input.description.trim() || null;
+    const reason = input.reason.trim();
+    if (!reason) return { error: "A reason for this change is required -- it's logged with the edit." };
 
     if (invoice.status !== "pending") {
       const isAdmin = session.systemRole === "ADMIN";
@@ -159,6 +162,24 @@ export async function editSupplierInvoice(input: {
       const newTotal = linked.reduce((sum, inv) => sum + (inv.id === invoice.id ? input.amount : inv.amount), 0);
       await db.update(supplierCheckPayments).set({ totalAmount: newTotal }).where(eq(supplierCheckPayments.id, invoice.paymentId));
     }
+
+    await db.insert(supplierCheckAuditLog).values({
+      invoiceId: invoice.id,
+      paymentId: invoice.paymentId,
+      vendorId: invoice.vendorId,
+      action: "EDITED_INVOICE",
+      performedByEmployeeId: session.id,
+      performedByName: session.name,
+      reason,
+      details: JSON.stringify({
+        invoiceNumberBefore: invoice.invoiceNumber,
+        invoiceNumberAfter: invoiceNumber,
+        descriptionBefore: invoice.description,
+        descriptionAfter: description,
+        amountBefore: invoice.amount,
+        amountAfter: input.amount,
+      }),
+    });
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -214,6 +235,17 @@ export async function printSupplierCheck(vendorId: number, checkNumber: string |
     .update(supplierInvoices)
     .set({ status: "printed", paymentId: payment.id })
     .where(inArray(supplierInvoices.id, pendingIds));
+
+  await db.insert(supplierCheckAuditLog).values({
+    invoiceId: null,
+    paymentId: payment.id,
+    vendorId,
+    action: "PRINTED_CHECK",
+    performedByEmployeeId: session.id,
+    performedByName: session.name,
+    reason: null,
+    details: JSON.stringify({ checkNumber: payment.checkNumber, totalAmount, invoiceIds: pendingIds }),
+  });
 
   revalidatePath("/ledger/supplier-check");
   return { paymentId: payment.id };

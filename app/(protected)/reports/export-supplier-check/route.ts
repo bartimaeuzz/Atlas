@@ -6,7 +6,13 @@ import { buildSupplierCheckWorkbook } from "@/lib/reports/buildSupplierCheckWork
  * Route Handler pattern as /reports/export (a server action can't set
  * Content-Disposition to trigger a download). Reuses the exact loader
  * the on-page preview uses. Columns match the DNA "Export" sheet's own
- * check-printing layout (Pay/Amount/Memo/PayeeName/PayeeAddress). */
+ * layout (Pay/Amount/Memo/PayeeName/PayeeAddress), plus Check #/Status
+ * for bookkeeping -- this is the "audit" workbook variant (2026-08-15),
+ * distinct from the trimmed "print" variant used by
+ * /ledger/supplier-check/export, which feeds check-printing software
+ * directly and doesn't need PayeeAddress/Status/Check # cluttering that
+ * import. See buildSupplierCheckWorkbook's own comment for the full
+ * reasoning. */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from");
@@ -17,7 +23,7 @@ export async function GET(request: NextRequest) {
   }
 
   const data = await loadSupplierCheckReport(from, to);
-  const buffer = await buildSupplierCheckWorkbook(data, from, to);
+  const buffer = await buildSupplierCheckWorkbook(data, from, to, "audit");
 
   return new NextResponse(buffer, {
     headers: {

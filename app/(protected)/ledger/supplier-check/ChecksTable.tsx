@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { markSupplierCheckPaid } from "@/lib/actions/supplierCheck";
-import type { SupplierCheckView } from "@/lib/ledger/loadSupplierCheck";
+import type { SupplierCheckView, CheckAuditLogEntry } from "@/lib/ledger/loadSupplierCheck";
 import { EditInvoiceForm } from "./EditInvoiceForm";
 
 /** The holistic checks table (2026-08-14 restructure, replaces v46's
@@ -125,6 +125,18 @@ function CheckRow({
               )
             )}
           </ul>
+          {check.auditLog.length > 0 && (
+            <details className="mb-2">
+              <summary className="text-[11px] text-neutral-500 cursor-pointer hover:text-black">
+                History ({check.auditLog.length})
+              </summary>
+              <ul className="mt-1.5 space-y-1.5">
+                {check.auditLog.map((entry) => (
+                  <HistoryEntry key={entry.id} entry={entry} />
+                ))}
+              </ul>
+            </details>
+          )}
           {error && <p className="text-xs text-red-600 mb-1">{error}</p>}
           <div className="flex items-center gap-3 flex-wrap">
             <a
@@ -151,6 +163,47 @@ function CheckRow({
           </div>
         </div>
       )}
+    </li>
+  );
+}
+
+/** One line of a check's audit trail (2026-08-15) -- see
+ * supplierCheckAuditLog's schema comment for what `details` holds per
+ * action. Only shows fields that actually changed, so a reprint-free
+ * "fixed the description" edit doesn't clutter the line with an
+ * unchanged amount. */
+function HistoryEntry({ entry }: { entry: CheckAuditLogEntry }) {
+  const when = new Date(entry.createdAt).toLocaleString();
+
+  if (entry.action === "PRINTED_CHECK") {
+    const d = entry.details as { checkNumber: string | null; totalAmount: number; invoiceIds: number[] };
+    return (
+      <li className="text-[11px] text-neutral-500 border-t pt-1.5 first:border-t-0 first:pt-0">
+        <span className="font-medium text-neutral-700">Printed</span> by {entry.performedByName} · {when}
+        {d.checkNumber && ` · check #${d.checkNumber}`} · ${d.totalAmount.toFixed(2)} · {d.invoiceIds.length} invoice
+        {d.invoiceIds.length === 1 ? "" : "s"}
+      </li>
+    );
+  }
+
+  const d = entry.details as {
+    invoiceNumberBefore: string;
+    invoiceNumberAfter: string;
+    descriptionBefore: string | null;
+    descriptionAfter: string | null;
+    amountBefore: number;
+    amountAfter: number;
+  };
+  const changes: string[] = [];
+  if (d.amountBefore !== d.amountAfter) changes.push(`amount $${d.amountBefore.toFixed(2)} → $${d.amountAfter.toFixed(2)}`);
+  if (d.invoiceNumberBefore !== d.invoiceNumberAfter) changes.push(`invoice # ${d.invoiceNumberBefore} → ${d.invoiceNumberAfter}`);
+  if (d.descriptionBefore !== d.descriptionAfter) changes.push("description changed");
+
+  return (
+    <li className="text-[11px] text-neutral-500 border-t pt-1.5 first:border-t-0 first:pt-0">
+      <span className="font-medium text-neutral-700">Edited</span> by {entry.performedByName} · {when}
+      {changes.length > 0 && ` · ${changes.join(", ")}`}
+      {entry.reason && <div className="text-neutral-400 italic">&ldquo;{entry.reason}&rdquo;</div>}
     </li>
   );
 }

@@ -2709,3 +2709,38 @@ the WRONG code, is rejected and nothing changes; an Admin WITH Aey's
 correct code succeeds; the parent check's total recomputes correctly;
 Aey herself (flagged auditor, not Admin) can also confirm with her own
 code. `eslint`/`next build` clean, 71/71 tests pass.
+
+## Supplier Check: audit log (who/what/when/why) + print-vs-audit export split (2026-08-15)
+
+Two follow-ups from Oliver:
+
+1. "as it concern money it should have a log who do what when with the
+   check and why edit print check." New append-only
+   `supplier_check_audit_log` table (additive migration), logging two
+   actions so far -- **EDITED_INVOICE** (always requires a reason now,
+   enforced in `editSupplierInvoice`; records before/after invoice #,
+   description, amount) and **PRINTED_CHECK** (who printed, when, check
+   #, total, which invoices -- no reason needed, it's a routine
+   workflow step not a correction). `ChecksTable.tsx`'s expanded detail
+   gained a collapsed "History" section listing every logged event for
+   that check, most recent first, showing only the fields that actually
+   changed on an edit plus the typed reason.
+2. "check export file .xlsx dont need any payee address status check
+   number because this file will be export to check printing software
+   ... in another way it should be different report that still show
+   check number and status for auditorial purposes." `buildSupplier
+   CheckWorkbook.ts` now takes a `variant: "print" | "audit"` param
+   instead of one fixed column set: **print** (used by
+   `/ledger/supplier-check/export`, the file fed straight into
+   check-printing software) is trimmed to Paid Date / Pay / Amount /
+   Memo / PayeeName only; **audit** (used by `/reports/export-supplier-
+   check`) keeps the full original layout plus Check #/Status for
+   bookkeeping. Deliberately reused the app's EXISTING two separate
+   export routes/buttons rather than building a column-picker UI --
+   simpler and more foolproof than a configurable control nobody but
+   Oliver would touch.
+
+Verified with a 15-check script: audit rows created correctly for both
+edit and print (who/reason/before-after captured), print variant has
+exactly 5 columns with no PayeeAddress/Status/Check#, audit variant has
+all 10 columns intact. `eslint`/`next build` clean, 71/71 tests pass.

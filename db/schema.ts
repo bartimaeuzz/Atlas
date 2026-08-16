@@ -942,3 +942,31 @@ export const supplierCheckPayments = sqliteTable("supplier_check_payments", {
   deliveredByEmployeeId: integer("delivered_by_employee_id").references(() => employees.id),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
 });
+
+// Append-only audit trail for Supplier Check (2026-08-15, Oliver:
+// "as it concern money it should have a log who do what when with the
+// check and why edit print check"). Two actions logged so far --
+// EDITED_INVOICE (see editSupplierInvoice in lib/actions/
+// supplierCheck.ts, always requires a reason) and PRINTED_CHECK (see
+// printSupplierCheck, no reason -- it's a routine workflow step, not a
+// correction). `details` is a JSON blob whose shape depends on
+// `action`: for EDITED_INVOICE, {invoiceNumberBefore/After,
+// descriptionBefore/After, amountBefore/After}; for PRINTED_CHECK,
+// {checkNumber, totalAmount, invoiceIds}. Same denormalized
+// performedByName pattern as scheduleChangeLog, for the same reason --
+// the log should still read right even if that employee's name later
+// changes. invoiceId/paymentId are both nullable since a PRINTED_CHECK
+// event isn't about one specific invoice, and an EDITED_INVOICE on a
+// still-Pending invoice has no paymentId yet.
+export const supplierCheckAuditLog = sqliteTable("supplier_check_audit_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  invoiceId: integer("invoice_id").references(() => supplierInvoices.id),
+  paymentId: integer("payment_id").references(() => supplierCheckPayments.id),
+  vendorId: integer("vendor_id").notNull().references(() => ledgerVendors.id),
+  action: text("action", { enum: ["EDITED_INVOICE", "PRINTED_CHECK"] }).notNull(),
+  performedByEmployeeId: integer("performed_by_employee_id").notNull().references(() => employees.id),
+  performedByName: text("performed_by_name").notNull(),
+  reason: text("reason"), // required (enforced in the action) for EDITED_INVOICE, always null for PRINTED_CHECK
+  details: text("details").notNull(),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+});

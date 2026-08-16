@@ -35,6 +35,7 @@ export function EditInvoiceForm({
     invoiceNumber,
     description: description ?? "",
     amount: String(amount),
+    reason: "",
     auditorCode: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +50,10 @@ export function EditInvoiceForm({
       setError("Amount must be a positive number.");
       return;
     }
+    if (!form.reason.trim()) {
+      setError("A reason for this change is required -- it's logged with the edit.");
+      return;
+    }
     setError(null);
     startTransition(async () => {
       const result = await editSupplierInvoice({
@@ -56,6 +61,7 @@ export function EditInvoiceForm({
         invoiceNumber: form.invoiceNumber,
         description: form.description,
         amount: parsedAmount,
+        reason: form.reason,
         auditorCode: requireAuditorCode ? form.auditorCode : undefined,
       });
       if (result.error) {
@@ -97,6 +103,16 @@ export function EditInvoiceForm({
           type="text"
           value={form.description}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+          className="border rounded px-2 py-1 w-full"
+        />
+      </label>
+      <label className="block">
+        <span className="block text-neutral-500 mb-0.5">Reason for this change — logged with the edit</span>
+        <input
+          type="text"
+          value={form.reason}
+          onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+          placeholder="e.g. amount was a typo, should be $45 not $54"
           className="border rounded px-2 py-1 w-full"
         />
       </label>

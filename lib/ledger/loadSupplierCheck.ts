@@ -11,7 +11,14 @@
 import { eq, desc, inArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db/client";
-import { supplierInvoices, supplierCheckPayments, ledgerVendors, ledgerCategories, employees } from "@/db/schema";
+import {
+  supplierInvoices,
+  supplierCheckPayments,
+  ledgerVendors,
+  ledgerCategories,
+  employees,
+  supplierCheckAuditLog,
+} from "@/db/schema";
 
 const deliveredByEmployee = alias(employees, "delivered_by_employee");
 
@@ -86,6 +93,19 @@ export interface PaymentInvoiceDetail {
   receivedDate: string;
 }
 
+/** One entry in a check's audit trail (2026-08-15, Oliver: "as it
+ * concern money it should have a log who do what when with the check
+ * and why edit print check"). `details` shape depends on `action` --
+ * see supplierCheckAuditLog's schema comment for both shapes. */
+export interface CheckAuditLogEntry {
+  id: number;
+  action: "EDITED_INVOICE" | "PRINTED_CHECK";
+  performedByName: string;
+  reason: string | null;
+  details: Record<string, unknown>;
+  createdAt: string;
+}
+
 export interface SupplierCheckView {
   id: number;
   vendorId: number;
@@ -98,6 +118,11 @@ export interface SupplierCheckView {
   deliveredAt: string | null;
   deliveredByName: string | null;
   invoices: PaymentInvoiceDetail[];
+  /** Print event + any post-print edits, most recent first. Pre-print
+   * edits to a still-Pending invoice are logged too (see
+   * editSupplierInvoice) but not surfaced here yet -- scoped to
+   * "history of this committed check" for now. */
+  auditLog: CheckAuditLogEntry[];
 }
 
 /** Every check ever printed, most recent first -- the holistic table on
@@ -158,9 +183,31 @@ export async function loadSupplierChecks(limit = 200): Promise<SupplierCheckView
     invoicesByPaymentId.set(r.paymentId, list);
   }
 
+  const auditRows = await db
+    .select()
+    .from(supplierCheckAuditLog)
+    .where(inArray(supplierCheckAuditLog.paymentId, paymentIds))
+    .orderBy(desc(supplierCheckAuditLog.createdAt));
+
+  const auditByPaymentId = new Map<number, CheckAuditLogEntry[]>();
+  for (const r of auditRows) {
+    if (r.paymentId == null) continue;
+    const list = auditByPaymentId.get(r.paymentId) ?? [];
+    list.push({
+      id: r.id,
+      action: r.action as "EDITED_INVOICE" | "PRINTED_CHECK",
+      performedByName: r.performedByName,
+      reason: r.reason,
+      details: JSON.parse(r.details),
+      createdAt: r.createdAt,
+    });
+    auditByPaymentId.set(r.paymentId, list);
+  }
+
   return payments.map((p) => ({
     ...p,
     status: p.status as "printed" | "paid",
     invoices: invoicesByPaymentId.get(p.id) ?? [],
+    auditLog: auditByPaymentId.get(p.id) ?? [],
   }));
 }

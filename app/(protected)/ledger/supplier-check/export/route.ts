@@ -8,7 +8,13 @@ import { buildSupplierCheckWorkbook } from "@/lib/reports/buildSupplierCheckWork
  * manager can immediately print the physical checks. Distinct from
  * /reports/export-supplier-check, which is a date-range accounting
  * export; this one is scoped to exact payment ids since "today" could
- * have other, unrelated checks on it too. */
+ * have other, unrelated checks on it too.
+ *
+ * Uses the "print" workbook variant (2026-08-15, Oliver: this file
+ * "will be export to check printing software" so it shouldn't carry
+ * PayeeAddress/Status/Check # -- see buildSupplierCheckWorkbook's own
+ * comment for the full reasoning and the "audit" variant used by the
+ * /reports export instead). */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const idsParam = searchParams.get("paymentIds");
@@ -25,7 +31,7 @@ export async function GET(request: NextRequest) {
 
   const data = await loadSupplierCheckReportByIds(paymentIds);
   const today = new Date().toISOString().slice(0, 10);
-  const buffer = await buildSupplierCheckWorkbook(data, today, today);
+  const buffer = await buildSupplierCheckWorkbook(data, today, today, "print");
 
   return new NextResponse(buffer, {
     headers: {
