@@ -2820,3 +2820,82 @@ hitting `/` with that cookie against a `next start` server: MANAGER
 (Aey) renders all 7 tiles, STAFF (Alesso) renders the 2 staff tiles,
 and a request with no cookie 307s to `/login`. No schema change, no
 migration.
+
+## Card — third Ledger channel (2026-08-16)
+
+Oliver: "let's start with card channel next." Card had been explicitly
+deferred since Ledger v1 (project_atlas_ledger memory: "Card explicitly
+NOT attempted yet -- Aey pulls Card transactions from the bank/credit-
+card statement in a batch, weekly or more often once charges settle,
+not in real time. That's a fundamentally different UI shape (reconcile
+a statement period, not log-as-you-go) -- don't just copy the Petty
+Cash pattern for it.") Re-opened the actual DNA file's "Card" sheet
+directly before designing anything: a template-only sheet (Date/Card/
+Pay/Memo/Amount columns) with zero real transaction rows -- no real
+data to validate against, same situation Supplier Check was in before
+its first build.
+
+Confirmed four scope questions with Oliver via AskUserQuestion before
+writing any code (all recommended options chosen): (1) manual entry,
+one line at a time -- no CSV/bank import in v1; (2) a target-total
+match IS required before a period can be marked reconciled, same
+discipline as Petty Cash's drawer count, not the looser just-a-log
+shape Supplier Check uses; (3) multiple named cards, admin-managed
+list, retire-not-delete; (4) Card reuses the existing shared
+ledgerCategories taxonomy, no separate category list.
+
+**Model:** a statement period belongs to exactly ONE card (mirrors how
+a real bank/card statement works) and carries its own `statementTotal`
+as the reconciliation target -- transactions don't need their own card
+field, it's implied by which period they're logged under. This is
+simpler than putting a `Card` column on every transaction row the way
+the DNA sheet's own layout suggested.
+
+Schema (migration 0013, purely additive): `ledger_cards` (retire-not-
+delete, same as ledger_vendors/ledger_categories), `card_statement_
+periods` (cardId, periodStart/End, statementTotal, status draft/
+reconciled, reconciledAt/reconciledByEmployeeId), `card_transactions`
+(statementPeriodId, date, categoryId, memo, signed amount -- negative
+for a credit/refund, unlike Petty Cash's always-positive payouts).
+`lib/actions/card.ts`: card CRUD, `createStatementPeriod`,
+`editStatementPeriod` (blocked once reconciled except for ADMIN, same
+exception pattern as Petty Cash's finalized-day override),
+`addCardTransaction`/`deleteCardTransaction` (same lock/admin-override
+rule), `reconcileStatementPeriod` (blocked unless logged transactions
+sum to the statement total within a cent, mirroring the Petty Cash
+epsilon-match check).
+
+UI: `/ledger/card` (flat list of every statement period across every
+card, most recent first, same "holistic table" shape as Supplier
+Check's Checks list rather than per-card sub-navigation -- most
+restaurants only have a handful of cards/periods), `/ledger/card/new`
+(pick card + statement dates + target total), `/ledger/card/period?id=`
+(the actual work: add/remove transactions, edit the period's own header
+fields, reconcile panel showing logged-vs-target with a live match/
+mismatch banner and a disabled-until-matching "Mark reconciled"
+button), `/ledger/cards` (card admin, mirrors the Categories page
+exactly -- inline add form + retire toggle). `LedgerTabs.tsx` gained a
+third "Card" tab alongside Petty Cash/Supplier, and a "Cards" link next
+to Vendors/Categories. `seedLedgerOnly.ts` extended to also seed one
+placeholder card ("House card (edit me)") so the flow is immediately
+testable -- flagged in its own log line to rename/replace before going
+live, same "DNA/seed data is a guideline" precedent as vendors.
+
+Verified: `eslint` clean, `npx tsc --noEmit` clean, `next build` clean
+(4 new routes: `/ledger/card`, `/ledger/card/new`, `/ledger/card/
+period`, `/ledger/cards`), 71/71 existing tests pass unchanged, plus a
+new 11-check direct-DB script (card creation, period creation as draft,
+partial-total correctly fails the match check, signed amounts including
+a refund landing exactly on the target, reconcile only succeeds once
+matched, a second mismatched period correctly stays blocked, retiring a
+card doesn't disturb its already-reconciled periods' history) --
+deleted after use per this project's sandbox convention. Also manually
+smoke-tested all four new routes against a running `next start` server
+with a real MANAGER session cookie (200 OK, real data rendered, no
+error content). No changes to Petty Cash or Supplier Check.
+
+**Not built, deliberately deferred, same as everywhere else in Ledger:**
+CSV/bank statement import (v1 is manual entry only, confirmed with
+Oliver), photo attachment of statement pages, an audit log for Card
+edits (Supplier Check's audit log came in a later round after being
+asked for, not on first build -- same pattern here).

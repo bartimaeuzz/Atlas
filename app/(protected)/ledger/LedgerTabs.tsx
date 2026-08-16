@@ -6,8 +6,13 @@ import Link from "next/link";
  * Supplier lives at /ledger/supplier-check -- these are separate routes,
  * not client-side tab state, same pattern as /reports' ReportTabLink.
  * Vendors/Categories admin links ride along on the right since both tabs
- * depend on that same vendor/category data. */
-export function LedgerTabs({ active }: { active: "petty-cash" | "supplier" }) {
+ * depend on that same vendor/category data.
+ *
+ * Card tab added 2026-08-16 -- a third channel, reconcile-a-statement-
+ * period shape rather than log-as-you-go (see db/schema.ts's
+ * cardStatementPeriods comment). "Cards" joins Vendors/Categories on the
+ * right since it's the same kind of admin-managed reference data. */
+export function LedgerTabs({ active }: { active: "petty-cash" | "supplier" | "card" }) {
   return (
     <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
       <div className="flex items-center gap-2 text-sm">
@@ -17,6 +22,9 @@ export function LedgerTabs({ active }: { active: "petty-cash" | "supplier" }) {
         <TabLink href="/ledger/supplier-check" isActive={active === "supplier"}>
           Supplier
         </TabLink>
+        <TabLink href="/ledger/card" isActive={active === "card"}>
+          Card
+        </TabLink>
       </div>
       <div className="flex items-center gap-3 text-xs">
         <Link href="/ledger/vendors" className="text-neutral-500 hover:text-black underline">
@@ -24,6 +32,9 @@ export function LedgerTabs({ active }: { active: "petty-cash" | "supplier" }) {
         </Link>
         <Link href="/ledger/categories" className="text-neutral-500 hover:text-black underline">
           Categories
+        </Link>
+        <Link href="/ledger/cards" className="text-neutral-500 hover:text-black underline">
+          Cards
         </Link>
       </div>
     </div>

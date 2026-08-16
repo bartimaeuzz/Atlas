@@ -1,12 +1,13 @@
 /**
- * Standalone, idempotent seed for JUST the new ledger_categories /
- * ledger_vendors tables (2026-08-14, Ledger v1). Deliberately separate
- * from db/seed.ts, which wipes and reseeds EVERYTHING (shifts, schedule
- * weeks, template assignments, all of it) -- running the full seed
- * against production would destroy every bit of test data Oliver has
- * built up. This script only touches the two new ledger tables, and
- * only inserts if they're currently empty, so it's safe to run more
- * than once (e.g. after re-running this same zip's migration).
+ * Standalone, idempotent seed for the ledger_categories / ledger_vendors
+ * / ledger_cards reference tables (2026-08-14, extended 2026-08-16 for
+ * Card). Deliberately separate from db/seed.ts, which wipes and reseeds
+ * EVERYTHING (shifts, schedule weeks, template assignments, all of it)
+ * -- running the full seed against production would destroy every bit
+ * of test data Oliver has built up. This script only touches these
+ * three reference tables, and only inserts if they're currently empty,
+ * so it's safe to run more than once (e.g. after re-running this same
+ * zip's migration).
  *
  * Run with: npx tsx db/seedLedgerOnly.ts
  * (uses the same DATABASE_URL/DATABASE_AUTH_TOKEN already in your shell
@@ -14,7 +15,7 @@
  */
 
 import { db } from "./client";
-import { ledgerCategories, ledgerVendors } from "./schema";
+import { ledgerCategories, ledgerVendors, ledgerCards } from "./schema";
 
 async function main() {
   const existingCategories = await db.select().from(ledgerCategories);
@@ -69,7 +70,15 @@ async function main() {
     console.log(`Skipped vendors -- ${existingVendors.length} already exist.`);
   }
 
-  console.log("Done. Edit/retire any of these freely from /ledger/vendors and /ledger/categories in the app.");
+  const existingCards = await db.select().from(ledgerCards);
+  if (existingCards.length === 0) {
+    await db.insert(ledgerCards).values([{ name: "House card (edit me)" }]);
+    console.log("Inserted 1 placeholder ledger card -- rename/replace it with Youk Thai's real card(s) before going live.");
+  } else {
+    console.log(`Skipped cards -- ${existingCards.length} already exist.`);
+  }
+
+  console.log("Done. Edit/retire any of these freely from /ledger/vendors, /ledger/categories, and /ledger/cards in the app.");
 }
 
 main();

@@ -970,3 +970,66 @@ export const supplierCheckAuditLog = sqliteTable("supplier_check_audit_log", {
   details: text("details").notNull(),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
 });
+
+// Card — the third Ledger channel (2026-08-16), deliberately NOT the
+// log-as-you-go shape Petty Cash/Supplier Check use. Confirmed with
+// Oliver before building (see project_atlas_home_page-adjacent design
+// conversation, and project_atlas_dna_petty_cash_expense's note that the
+// DNA file's own "Card" sheet was an empty template -- Aey pulls Card
+// transactions from the bank/credit-card statement in a batch, weekly or
+// more often once charges settle, not in real time): the real unit of
+// work is "reconcile one card's statement period against its total,"
+// not "log a purchase the moment it happens."
+//
+// ledgerCards is retire-not-delete, same pattern as ledgerVendors/
+// ledgerCategories -- Youk Thai may have more than one card (the DNA
+// sheet's own "Card" column implied this), each with its own separate
+// monthly/weekly statement.
+export const ledgerCards = sqliteTable("ledger_cards", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(), // e.g. "Amex ...1234"
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+});
+
+// One row per statement period for one card (e.g. "Amex ...1234, Aug
+// 2026"). statementTotal is the manager's typed-in total from the real
+// paper/PDF statement -- the reconciliation TARGET, same role
+// dailyCashReconciliations' physical count plays for Petty Cash, just at
+// the period level instead of daily. A period stays "draft" while
+// transactions are being logged against it and can only become
+// "reconciled" once the logged transactions sum to statementTotal (see
+// reconcileCardStatementPeriod in lib/actions/card.ts) -- deliberately
+// as strict as Petty Cash's drawer-count discipline, not the looser
+// just-a-log shape Supplier Check uses, since Oliver confirmed a forced
+// match is what he wants here.
+export const cardStatementPeriods = sqliteTable("card_statement_periods", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  cardId: integer("card_id").notNull().references(() => ledgerCards.id),
+  periodStart: text("period_start").notNull(), // ISO date
+  periodEnd: text("period_end").notNull(), // ISO date
+  statementTotal: real("statement_total").notNull(),
+  status: text("status", { enum: ["draft", "reconciled"] }).notNull().default("draft"),
+  reconciledAt: text("reconciled_at"),
+  reconciledByEmployeeId: integer("reconciled_by_employee_id").references(() => employees.id),
+  createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+});
+
+// One row per line on the statement, entered manually while going down
+// the statement (confirmed with Oliver: manual entry, not a CSV/bank
+// import, for v1). No vendor/payee field -- unlike Petty Cash/Supplier
+// Check, a card charge's "who" is usually already obvious from `memo`
+// (a subscription name, an online order, etc.) and there's no vendor
+// directory relationship to preserve here. amount is signed (a card
+// statement legitimately includes refunds/credits alongside charges),
+// unlike Petty Cash's amount which is always a positive payout.
+export const cardTransactions = sqliteTable("card_transactions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  statementPeriodId: integer("statement_period_id").notNull().references(() => cardStatementPeriods.id),
+  date: text("date").notNull(), // ISO date -- the charge date from the statement
+  categoryId: integer("category_id").notNull().references(() => ledgerCategories.id),
+  memo: text("memo"),
+  amount: real("amount").notNull(),
+  createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+});

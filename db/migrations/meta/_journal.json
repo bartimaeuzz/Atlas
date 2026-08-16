@@ -92,6 +92,13 @@
       "when": 1786866421420,
       "tag": "0012_brief_roxanne_simpson",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1786876182786,
+      "tag": "0013_secret_strong_guy",
+      "breakpoints": true
     }
   ]
 }
