@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadUpcomingLeaveRequests } from "@/lib/schedule/loadLeaveRequests";
 import { toIso } from "@/lib/schedule/weekMath";
 import { CancelLeaveButton } from "./CancelLeaveButton";
+import { MarkSeenOnMount } from "./MarkSeenOnMount";
 
 /** Manager-facing leave inbox/log (2026-08-16, Schedule Planner Phase D)
  * -- Oliver's ask: "a Notification / Log Box that tells the Manager a
@@ -16,6 +17,7 @@ export default async function LeavePage() {
 
   return (
     <main className="max-w-2xl mx-auto p-8 font-sans">
+      <MarkSeenOnMount section="leave_requests" />
       <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
         &larr; Schedule
       </Link>

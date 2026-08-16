@@ -28,6 +28,22 @@ function initialsFor(name: string): string {
     .join("");
 }
 
+/** Red-pill badge — a bare dot when the count fits inline next to a
+ * short label, with the number itself only shown once it's ambiguous
+ * (>9). Kept tiny and absolutely positioned so it doesn't push the nav
+ * item's own text/layout around. */
+function UnseenBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      className="ml-1 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium leading-none align-middle"
+      aria-label={`${count} unseen leave ${count === 1 ? "request" : "requests"}`}
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
 /** Persistent top nav, always visible — added 2026-08-10 after Oliver
  * pointed out several pages (New Shift, New/Edit Position, Settings, the
  * playground calculator) had no way back except editing the URL bar by
@@ -63,8 +79,21 @@ function initialsFor(name: string): string {
  * off-screen with no way to reach them. Below the `sm` breakpoint the
  * inline row is hidden and replaced with a hamburger button that opens
  * a stacked full-width link list instead; at `sm` and above the original
- * inline row is unchanged. */
-export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" } | null }) {
+ * inline row is unchanged.
+ *
+ * Red-pill unseen badge (2026-08-16) — `unseenLeaveCount` is resolved
+ * server-side in NavBar.tsx (needs a DB read) and passed down here just
+ * as a number. Rendered on the "Schedule" nav item only, in both the
+ * desktop row and the hamburger list, since that's where the leave
+ * requests inbox (/schedule/leave) lives. Purely presentational — this
+ * component doesn't know or care what's behind the count. */
+export function NavBarClient({
+  auth,
+  unseenLeaveCount = 0,
+}: {
+  auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" } | null;
+  unseenLeaveCount?: number;
+}) {
   const pathname = usePathname();
   const isManager = auth?.systemRole === "MANAGER" || auth?.systemRole === "ADMIN";
 
@@ -120,6 +149,7 @@ export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAF
                   className={isActive ? "font-medium text-black" : "text-neutral-500 hover:text-black"}
                 >
                   {item.label}
+                  {item.href === "/schedule" && <UnseenBadge count={unseenLeaveCount} />}
                 </Link>
               );
             })}
@@ -191,6 +221,7 @@ export function NavBarClient({ auth }: { auth: { name: string; systemRole: "STAF
                 }
               >
                 {item.label}
+                {item.href === "/schedule" && <UnseenBadge count={unseenLeaveCount} />}
               </Link>
             );
           })}

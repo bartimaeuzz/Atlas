@@ -1,6 +1,6 @@
 import { eq, desc, gte, and } from "drizzle-orm";
 import { db } from "@/db/client";
-import { leaveRequests, employees } from "@/db/schema";
+import { leaveRequests, employees, notificationSeen } from "@/db/schema";
 
 export interface LeaveRequestView {
   id: number;
@@ -54,6 +54,29 @@ export async function loadUpcomingLeaveRequests(todayIso: string): Promise<Leave
     .where(and(gte(leaveRequests.endDate, todayIso)))
     .orderBy(leaveRequests.startDate);
   return rows;
+}
+
+/** Count of upcoming/active leave requests a given manager hasn't seen
+ * yet -- powers the red-pill badge on the nav's Schedule item
+ * (2026-08-16). "Unseen" = loggedAt is after this employee's
+ * notificationSeen row for the "leave_requests" section, OR they have no
+ * row at all (never visited -- everything currently in the inbox counts
+ * as unseen, not zero). Mirrors loadUpcomingLeaveRequests's own
+ * endDate >= today filter so the count always matches what's actually
+ * visible on /schedule/leave. */
+export async function loadUnseenLeaveRequestCount(managerEmployeeId: number, todayIso: string): Promise<number> {
+  const [seenRow] = await db
+    .select({ lastSeenAt: notificationSeen.lastSeenAt })
+    .from(notificationSeen)
+    .where(and(eq(notificationSeen.employeeId, managerEmployeeId), eq(notificationSeen.section, "leave_requests")));
+
+  const upcoming = await db
+    .select({ loggedAt: leaveRequests.loggedAt })
+    .from(leaveRequests)
+    .where(gte(leaveRequests.endDate, todayIso));
+
+  if (!seenRow) return upcoming.length;
+  return upcoming.filter((r) => r.loggedAt > seenRow.lastSeenAt).length;
 }
 
 /** employeeId -> every leave request that overlaps the given week's

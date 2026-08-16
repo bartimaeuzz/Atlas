@@ -1060,3 +1060,32 @@ export const leaveRequests = sqliteTable("leave_requests", {
   note: text("note"),
   loggedAt: text("logged_at").notNull().default(sql`(current_timestamp)`),
 });
+
+// Notification read-tracking (2026-08-16) -- Oliver asked for a "red
+// pill" unseen-count badge in the nav, starting with the manager-facing
+// leave requests inbox. Deliberately generic (one row per employee +
+// section, not a leave-specific column) so the same table extends to
+// the shift-swap inbox later without a schema change -- just a new
+// `section` string key (e.g. "swap_requests") and a matching loader.
+//
+// No row for a given employee+section means "never visited" -- treated
+// by the loader as everything in that section being unseen, not zero.
+// A visit upserts lastSeenAt to now (see lib/actions/notifications.ts),
+// which is deliberately simpler than trying to track a per-item read
+// flag: "you looked at the inbox" is enough granularity for a log-not-
+// queue feature like leave requests.
+export const notificationSeen = sqliteTable(
+  "notification_seen",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id),
+    section: text("section").notNull(),
+    lastSeenAt: text("last_seen_at").notNull(),
+  },
+  (table) => ({
+    employeeSectionUnique: uniqueIndex("notification_seen_employee_section_idx").on(
+      table.employeeId,
+      table.section
+    ),
+  })
+);
