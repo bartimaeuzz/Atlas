@@ -87,6 +87,16 @@ export default async function MyScheduleView({
         <Link href={`/me/schedule?month=${nextMonth}`} className="text-neutral-500 hover:text-black underline">
           Next month &rarr;
         </Link>
+        <span className="text-neutral-300">|</span>
+        {/* Full-week view (2026-08-16, Oliver): a Position x Day grid
+            like the manager sees, read-only, so staff can spot ring-
+            color swap/leave status across the whole week at once
+            instead of clicking one day at a time. Always lands on the
+            week containing today; the page itself has its own
+            prev/next week nav from there. */}
+        <Link href="/me/schedule/week" className="text-neutral-500 hover:text-black underline">
+          View full week &rarr;
+        </Link>
       </div>
 
       <LeaveRequestsPanel requests={leaveRequests} />

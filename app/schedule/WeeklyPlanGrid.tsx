@@ -60,7 +60,17 @@ function dayOfWeekFor(dateIso: string): number {
  * highlight/badge and the orange double-booking badge, but keeps the
  * yellow extra-coverage highlight — that's relevant context for staff
  * too, not an internal diagnostic) so both preview modes and the
- * normal editable grid share one implementation. */
+ * normal editable grid share one implementation.
+ *
+ * Moved up to app/schedule/ (2026-08-16, Oliver: "staff should see all
+ * day in a week schedule view as well like manager diagnose view. but
+ * no edit and no understaff sign... but can see ring color status")
+ * from its original home under app/(protected)/schedule/plan/ so the
+ * new staff-facing /me/schedule/week page can import the exact same
+ * component (readOnly + hideDiagnostics, same as Preview's staff view)
+ * instead of drifting into a second copy. This file has no page.tsx of
+ * its own, so it doesn't add a route — same pattern already used for
+ * MarkSeenOnMount.tsx living directly under app/(protected)/schedule/. */
 export function WeeklyPlanGrid({
   data,
   weekId,

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
-import { WeeklyPlanGrid } from "../WeeklyPlanGrid";
+import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import { PublishWeekButton } from "../PublishWeekButton";
 
 /** Safety-check step between the editable draft grid and actually

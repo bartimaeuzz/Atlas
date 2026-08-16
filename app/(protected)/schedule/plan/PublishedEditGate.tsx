@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AddPlannedAssignmentForm } from "./AddPlannedAssignmentForm";
 import { AutoFillWeekButton } from "./AutoFillWeekButton";
-import { WeeklyPlanGrid } from "./WeeklyPlanGrid";
+import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import type { WeeklyPlanData } from "@/lib/schedule/loadWeeklyPlan";
 
 /**
