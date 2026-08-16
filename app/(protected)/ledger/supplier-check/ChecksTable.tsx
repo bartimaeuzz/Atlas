@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { markSupplierCheckPaid } from "@/lib/actions/supplierCheck";
 import type { SupplierCheckView } from "@/lib/ledger/loadSupplierCheck";
+import { EditInvoiceForm } from "./EditInvoiceForm";
 
 /** The holistic checks table (2026-08-14 restructure, replaces v46's
  * "Recent payments" list) -- every check ever printed, most recent
@@ -15,7 +16,7 @@ import type { SupplierCheckView } from "@/lib/ledger/loadSupplierCheck";
  * "even i hit print check now or not it does not mean i actually print
  * it." Reprint just re-downloads the same already-generated check via
  * the export route -- no mutation, safe to click any number of times. */
-export function ChecksTable({ checks }: { checks: SupplierCheckView[] }) {
+export function ChecksTable({ checks, canEditLockedInvoices }: { checks: SupplierCheckView[]; canEditLockedInvoices: boolean }) {
   const [openId, setOpenId] = useState<number | null>(null);
 
   if (checks.length === 0) {
@@ -25,15 +26,32 @@ export function ChecksTable({ checks }: { checks: SupplierCheckView[] }) {
   return (
     <ul className="divide-y border rounded text-sm">
       {checks.map((c) => (
-        <CheckRow key={c.id} check={c} open={openId === c.id} onToggle={() => setOpenId(openId === c.id ? null : c.id)} />
+        <CheckRow
+          key={c.id}
+          check={c}
+          open={openId === c.id}
+          onToggle={() => setOpenId(openId === c.id ? null : c.id)}
+          canEditLockedInvoices={canEditLockedInvoices}
+        />
       ))}
     </ul>
   );
 }
 
-function CheckRow({ check, open, onToggle }: { check: SupplierCheckView; open: boolean; onToggle: () => void }) {
+function CheckRow({
+  check,
+  open,
+  onToggle,
+  canEditLockedInvoices,
+}: {
+  check: SupplierCheckView;
+  open: boolean;
+  onToggle: () => void;
+  canEditLockedInvoices: boolean;
+}) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<number | null>(null);
 
   function handleMarkPaid() {
     setError(null);
@@ -67,21 +85,45 @@ function CheckRow({ check, open, onToggle }: { check: SupplierCheckView; open: b
       {open && (
         <div className="px-3 pb-3 bg-neutral-50">
           <ul className="space-y-1.5 mb-2">
-            {check.invoices.map((inv) => (
-              <li
-                key={inv.id}
-                className="flex items-start justify-between text-xs border-t pt-1.5 first:border-t-0 first:pt-1.5"
-              >
-                <div>
-                  <div className="font-medium">
-                    #{inv.invoiceNumber} <span className="text-neutral-500 font-normal">· {inv.categoryName}</span>
+            {check.invoices.map((inv) =>
+              editingInvoiceId === inv.id ? (
+                <li key={inv.id} className="border-t pt-1.5 first:border-t-0 first:pt-1.5">
+                  <EditInvoiceForm
+                    invoiceId={inv.id}
+                    invoiceNumber={inv.invoiceNumber}
+                    description={inv.description}
+                    amount={inv.amount}
+                    requireAuditorCode
+                    onDone={() => setEditingInvoiceId(null)}
+                  />
+                </li>
+              ) : (
+                <li
+                  key={inv.id}
+                  className="flex items-start justify-between text-xs border-t pt-1.5 first:border-t-0 first:pt-1.5"
+                >
+                  <div>
+                    <div className="font-medium">
+                      #{inv.invoiceNumber} <span className="text-neutral-500 font-normal">· {inv.categoryName}</span>
+                    </div>
+                    {inv.description && <div className="text-neutral-500">{inv.description}</div>}
+                    <div className="text-neutral-400">received {inv.receivedDate}</div>
                   </div>
-                  {inv.description && <div className="text-neutral-500">{inv.description}</div>}
-                  <div className="text-neutral-400">received {inv.receivedDate}</div>
-                </div>
-                <span className="font-medium shrink-0">${inv.amount.toFixed(2)}</span>
-              </li>
-            ))}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="font-medium">${inv.amount.toFixed(2)}</span>
+                    {canEditLockedInvoices && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingInvoiceId(inv.id)}
+                        className="text-neutral-400 hover:text-black underline"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </div>
+                </li>
+              )
+            )}
           </ul>
           {error && <p className="text-xs text-red-600 mb-1">{error}</p>}
           <div className="flex items-center gap-3 flex-wrap">

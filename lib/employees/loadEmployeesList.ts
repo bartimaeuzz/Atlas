@@ -31,6 +31,10 @@ export interface EmployeeListRow {
    * page can show "Set PIN" vs "Reset PIN" without the hash ever leaving
    * the server. */
   hasPinSet: boolean;
+  /** See employees.isFinancialAuditor's schema comment -- who's allowed
+   * to edit an already Printed/Paid Supplier Check invoice, and whose
+   * PIN doubles as the confirmation code required on those edits. */
+  isFinancialAuditor: boolean;
 }
 
 /** Powers the /employees list + edit form — same shape as
@@ -100,6 +104,7 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
       primaryPositionName: e.primaryPositionId ? positionById.get(e.primaryPositionId)?.name ?? null : null,
       systemRole: e.systemRole as "STAFF" | "MANAGER" | "ADMIN",
       hasPinSet: e.pinHash !== null,
+      isFinancialAuditor: e.isFinancialAuditor,
       positions: ensurePrimaryPositionIncluded(
         positionRows
           .filter((r) => r.employeeId === e.id)
@@ -146,6 +151,7 @@ export async function loadEmployeeForEdit(employeeId: number): Promise<EmployeeL
     primaryPositionName: employee.primaryPositionId ? positionById.get(employee.primaryPositionId)?.name ?? null : null,
     systemRole: employee.systemRole as "STAFF" | "MANAGER" | "ADMIN",
     hasPinSet: employee.pinHash !== null,
+    isFinancialAuditor: employee.isFinancialAuditor,
     positions: ensurePrimaryPositionIncluded(
       positionRows.map((r) => {
         const p = positionById.get(r.positionId);

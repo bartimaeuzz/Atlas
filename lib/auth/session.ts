@@ -25,6 +25,10 @@ export interface StaffSessionEmployee {
   name: string;
   systemRole: "STAFF" | "MANAGER" | "ADMIN";
   primaryPositionId: number | null;
+  /** 2026-08-15 -- see employees.isFinancialAuditor's schema comment.
+   * Lets a page decide whether to even show "Edit" on an already
+   * Printed/Paid supplier check invoice without a separate query. */
+  isFinancialAuditor: boolean;
 }
 
 export async function createSession(employeeId: number): Promise<string> {
@@ -51,6 +55,7 @@ export async function resolveSessionToken(token: string): Promise<StaffSessionEm
       name: employees.name,
       systemRole: employees.systemRole,
       primaryPositionId: employees.primaryPositionId,
+      isFinancialAuditor: employees.isFinancialAuditor,
     })
     .from(staffSessions)
     .innerJoin(employees, eq(staffSessions.employeeId, employees.id))

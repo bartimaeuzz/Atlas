@@ -2658,3 +2658,54 @@ otherwise-idle secondary match, once primary options run out;
 same-day exclusion and skip-reporting from v53 both still hold.
 `eslint` clean, `next build` clean, 71/71 tests pass. No schema change,
 no migration.
+
+## Supplier Check invoice editing + Financial auditor code (2026-08-15)
+
+Oliver: "i want to be able to edit the check in case of typo of put
+wrong amount." Real-world security model, confirmed: "in real senario
+it is admin and Aey. after hit edit might need a prompt to enter aey
+secret code for security. like manager code in bank. as Aey will be a
+financial audit for Youk."
+
+Previously there was no way to fix a typo or wrong amount once an
+invoice existed -- a Pending one could only be deleted and re-entered
+from scratch, and a Printed/Paid one couldn't be touched at all.
+
+- New `employees.isFinancialAuditor` boolean (schema + additive
+  migration, no data loss) -- who's allowed to edit an already Printed/
+  Paid invoice, and whose existing staff-login PIN doubles as the
+  confirmation code required on every such edit. Independent of
+  systemRole on purpose: Aey is seeded as MANAGER, not ADMIN, but still
+  needs this specific power. Toggle lives on the Employee admin form
+  ("Financial auditor" checkbox) -- **Oliver still needs to check this
+  box on his REAL Aey employee record via /employees**, since seed data
+  only sets it locally for testing, never touches production.
+- `StaffSessionEmployee` (lib/auth/session.ts) extended with this flag
+  so pages can gate UI visibility without an extra query.
+- New `editSupplierInvoice` action (lib/actions/supplierCheck.ts):
+  invoice number / description / amount are editable (vendor/category
+  are not -- out of scope for "typo or wrong amount"). Two gates by
+  status:
+    - PENDING: open to any manager who reached the page, no code --
+      nothing's locked in yet.
+    - PRINTED or PAID: only an ADMIN account or the flagged auditor may
+      even attempt it, AND -- regardless of who's editing, even Aey
+      herself -- the flagged auditor's own PIN must be re-entered and
+      verified. This is deliberately "the auditor approved this
+      specific change," not just "prove you're an admin," matching "a
+      prompt to enter aey secret code ... like manager code in bank."
+  Editing an invoice on an already-printed check also recomputes the
+  parent check's denormalized `totalAmount` immediately. No new export
+  logic needed -- the existing Reprint link already regenerates the
+  .xlsx from current data on demand, so it naturally reflects the fix.
+- New shared `EditInvoiceForm.tsx`, used by both `PendingByVendor.tsx`
+  (no code field) and `ChecksTable.tsx` (code field, Edit only shown to
+  Admin/auditor sessions).
+
+Verified with a 13-check direct-DB script: pending edits open to any
+manager; a plain manager is blocked outright on a printed invoice
+(never even reaches the code prompt); an Admin without a code, or with
+the WRONG code, is rejected and nothing changes; an Admin WITH Aey's
+correct code succeeds; the parent check's total recomputes correctly;
+Aey herself (flagged auditor, not Admin) can also confirm with her own
+code. `eslint`/`next build` clean, 71/71 tests pass.

@@ -103,6 +103,23 @@ export function EmployeeForm({
         Active — unchecking retires them (never deleted; past shifts stay intact)
       </label>
 
+      <label className="flex items-start gap-2 text-sm border rounded p-3 bg-neutral-50">
+        <input
+          type="checkbox"
+          name="isFinancialAuditor"
+          defaultChecked={existing?.isFinancialAuditor ?? false}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="block font-medium">Financial auditor</span>
+          <span className="block text-xs text-neutral-500 mt-0.5">
+            Can edit a Supplier Check invoice that&apos;s already Printed or Paid. Their own PIN below
+            doubles as the confirmation code required on every such edit — anyone doing that edit,
+            even an Admin, has to enter THIS person&apos;s code to confirm it, not their own.
+          </span>
+        </span>
+      </label>
+
       <fieldset>
         <legend className="text-lg font-medium mb-2">Positions</legend>
         <p className="text-xs text-neutral-500 mb-3">

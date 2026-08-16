@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD `is_financial_auditor` integer DEFAULT false NOT NULL;

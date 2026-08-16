@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadPendingInvoicesByVendor, loadSupplierChecks } from "@/lib/ledger/loadSupplierCheck";
+import { getCurrentStaffSession } from "@/lib/auth/session";
 import { LedgerTabs } from "../LedgerTabs";
 import { PendingByVendor } from "./PendingByVendor";
 import { ChecksTable } from "./ChecksTable";
@@ -26,7 +27,16 @@ import { PrintChecksButton } from "./PrintChecksButton";
  * at any time, since clicking Print in the app isn't the same as it
  * actually coming out of a physical printer. */
 export default async function SupplierCheckPage() {
-  const [pendingGroups, checks] = await Promise.all([loadPendingInvoicesByVendor(), loadSupplierChecks()]);
+  const [pendingGroups, checks, session] = await Promise.all([
+    loadPendingInvoicesByVendor(),
+    loadSupplierChecks(),
+    getCurrentStaffSession(),
+  ]);
+  // Who can even attempt to edit an already Printed/Paid invoice --
+  // 2026-08-15, see editSupplierInvoice's comment in
+  // lib/actions/supplierCheck.ts for the full rule (this is just the
+  // UI-visibility half; the server action re-checks independently).
+  const canEditLockedInvoices = session ? session.systemRole === "ADMIN" || session.isFinancialAuditor : false;
 
   return (
     <main className="max-w-lg mx-auto p-4 sm:p-8 font-sans">
@@ -57,7 +67,7 @@ export default async function SupplierCheckPage() {
       )}
 
       <h2 className="text-sm font-semibold text-neutral-600 mb-2">Checks</h2>
-      <ChecksTable checks={checks} />
+      <ChecksTable checks={checks} canEditLockedInvoices={canEditLockedInvoices} />
     </main>
   );
 }

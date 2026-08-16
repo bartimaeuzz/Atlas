@@ -41,6 +41,8 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[]) {
   }
   const systemRole = systemRoleRaw as (typeof SYSTEM_ROLES)[number];
 
+  const isFinancialAuditor = formData.get("isFinancialAuditor") === "on";
+
   const assignedPositionIds: number[] = [];
   const tipPointByPosition = new Map<number, number>();
   const wageRatesToInsert: { positionId: number; period: "Lunch" | "Dinner"; rate: number }[] = [];
@@ -79,6 +81,7 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[]) {
     hireDate,
     primaryPositionId,
     systemRole,
+    isFinancialAuditor,
     assignedPositionIds,
     tipPointByPosition,
     wageRatesToInsert,
@@ -124,6 +127,7 @@ export async function createEmployee(_prevState: EmployeeActionState, formData: 
         hireDate: parsed.hireDate,
         primaryPositionId: parsed.primaryPositionId,
         systemRole: parsed.systemRole,
+        isFinancialAuditor: parsed.isFinancialAuditor,
       })
       .returning();
     employeeId = created.id;
@@ -153,6 +157,7 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
         hireDate: parsed.hireDate,
         primaryPositionId: parsed.primaryPositionId,
         systemRole: parsed.systemRole,
+        isFinancialAuditor: parsed.isFinancialAuditor,
       })
       .where(eq(employees.id, employeeId));
 

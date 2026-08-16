@@ -100,6 +100,18 @@ export const employees = sqliteTable("employees", {
   // log in (see setEmployeePin in lib/actions/employees.ts for how an
   // admin assigns/resets one from the Employee admin page).
   pinHash: text("pin_hash"),
+  // Financial auditor flag (2026-08-15) — Oliver, after catching a
+  // Supplier Check editing gap: "in real senario it is admin and Aey ...
+  // as Aey will be a financial audit for Youk." Marks who's allowed to
+  // edit a supplier check invoice that's already Printed/Paid (see
+  // editSupplierInvoice in lib/actions/supplierCheck.ts) — their
+  // EXISTING staff-login PIN (pinHash above) doubles as the confirmation
+  // code required on every such edit, "like manager code in bank": even
+  // an Admin editing has to enter the flagged auditor's code, not just
+  // their own, so it works as a real sign-off rather than a role check
+  // alone. Independent of systemRole on purpose — Aey is seeded as
+  // MANAGER, not ADMIN, but still needs this specific power.
+  isFinancialAuditor: integer("is_financial_auditor", { mode: "boolean" }).notNull().default(false),
 });
 
 // FOH only — many-to-many: one person can hold several positions, each at

@@ -220,7 +220,17 @@ async function seed() {
   // one shift should still see everything for that shift, same
   // shift-coverage precedent as elsewhere in this app. Aey just doesn't
   // need to rely on it, since her standing role already covers her.
-  const [aey] = await db.insert(employees).values({ name: "Aey", primaryPositionId: bartender.id, systemRole: "MANAGER" }).returning();
+  // isFinancialAuditor (2026-08-15): Aey is the real-world financial
+  // auditor for Youk Thai per Oliver -- her PIN doubles as the
+  // confirmation code required to edit an already Printed/Paid Supplier
+  // Check invoice (see editSupplierInvoice in lib/actions/supplierCheck.ts).
+  // Seeded here for local testing only -- Oliver still needs to check
+  // the "Financial auditor" box on his REAL Aey employee record via
+  // /employees, since seed.ts never touches his production database.
+  const [aey] = await db
+    .insert(employees)
+    .values({ name: "Aey", primaryPositionId: bartender.id, systemRole: "MANAGER", isFinancialAuditor: true })
+    .returning();
   const [alesso] = await db.insert(employees).values({ name: "Alesso", primaryPositionId: busser.id }).returning();
   const [bomb] = await db.insert(employees).values({ name: "Bomb", primaryPositionId: headChef.id }).returning();
   const [carlos] = await db.insert(employees).values({ name: "Carlos", primaryPositionId: deliveryGuy.id }).returning();
