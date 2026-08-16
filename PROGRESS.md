@@ -3237,3 +3237,73 @@ the rendered HTML links generated weeks to
 `/schedule/plan/preview?week=...&view=manager` and projected weeks to
 `/schedule/plan?week=...`, and that the Preview page itself renders
 correctly when reached that way.
+
+## Staff full-week schedule view (2026-08-16, same session)
+
+Oliver: "staff should see all day in a week schedule view as well like
+manager diagnose view. but no edit and no understaff sign and other but
+can see ring color status so they know someone swap in to their week
+and such." Confirmed scope via two quick `AskUserQuestion` checks:
+reachable from a new "View full week" link on My Schedule (additive,
+alongside the existing single-day click-through, not replacing it), and
+following the same roster-visibility restriction already used by the
+single-day preview (not a looser rule just because no money is ever
+shown on a schedule grid).
+
+New route `/me/schedule/week?week=YYYY-MM-DD` (defaults to the week
+containing today, own prev/next-week nav). Renders the exact same
+`WeeklyPlanGrid` component the manager's Weekly Plan and Preview pages
+use, in `readOnly hideDiagnostics` mode -- the same mode Preview's own
+"Staff view" toggle already uses. That mode hides the quick-add/remove
+controls and the red under-target background + orange double-booking
+badge, but the vacancy (red ring), leave (purple ring), and swap
+(blue/green ring) indicators still render, since those were already
+designed to be visible to staff, not manager-only diagnostics.
+
+`WeeklyPlanGrid.tsx` moved from `app/(protected)/schedule/plan/` up to
+`app/schedule/` (a plain folder, no `page.tsx`, so it adds no route) so
+both the manager routes and this new staff route can import the same
+component -- same "move it up when a second consumer needs it" pattern
+already used for `MarkSeenOnMount.tsx` during the swap-portal work.
+
+New loader `lib/schedule/loadStaffWeeklyPlan.ts` wraps `loadWeeklyPlan`
+and filters its `assignments` through `getVisibleRosterEntries`
+(`lib/roster/visibility.ts`) -- the same machinery the single-day
+preview and My Pay's coworker list already use -- applied ONE DAY AT A
+TIME so the existing shift-scoped `grantsManagerAccess` elevation rule
+(a staff member covering Floor Manager gets elevated visibility only
+for the day(s) they're actually working that position) still holds
+correctly across a whole week instead of being computed once. A
+standing MANAGER/ADMIN viewing their own `/me/schedule/week` sees
+everything unfiltered, same as `getVisibleRosterEntries` itself. Only
+published weeks are viewable -- same rule as every other staff-facing
+schedule surface.
+
+Position ROWS use a simpler rule than the strict per-day entry filter,
+documented as a deliberate simplification in the loader's own comment:
+a position stays visible as a grid row all week if it's the viewer's
+own primary category, is flagged `alwaysVisibleInRoster`, or has at
+least one assignment that survived the per-day filter on any day. No
+individual entry is ever shown unless it passed the real per-day check.
+
+Verified: eslint/tsc clean (only the two pre-existing unescaped-
+apostrophe findings in `app/me/schedule/page.tsx`, confirmed via `git
+stash`), `next build` clean (new route `/me/schedule/week`), 71/71
+tests pass, a 19-check direct-DB verify script (deleted after use,
+confirmed idempotent by running it twice) covering: null for a
+nonexistent/draft week, default-settings category restriction (FOH
+staff can't see a BOH-only Monday assignment), the swap ring surviving
+the visibility filter on the viewer's own row, the per-day
+`grantsManagerAccess` elevation (FOH staff covering Floor Manager on
+Tuesday sees BOH that day but still not Monday), a standing MANAGER
+seeing everything unfiltered, `showCoworkerListFOH` off restricting
+Monday to the viewer's own row while Tuesday's elevation still
+overrides it, and `restrictFOHToOwnCategory` off opening the whole
+week up. Also a real `next start` smoke test (staff session) confirming
+the rendered page has no quick-add/remove controls, no under-target
+ratio badges, the ring-color legend, and that the "View full week" link
+renders correctly on My Schedule. Commit `30a7496`.
+
+**Not built:** no attempt to surface this same week grid inside the
+existing single-day preview page or vice versa -- they stay two
+separate, purpose-built views per Oliver's confirmed answer.
