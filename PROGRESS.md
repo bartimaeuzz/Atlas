@@ -3199,3 +3199,41 @@ smoke-tests. Photo/attachment support, a swap history report, and any
 kind of "who swaps the most" stat (mentioned as a future idea in
 [[project-atlas-future-features-backlog]] item 6) are all out of scope
 for this round.
+
+## Month Overview: click-a-date now goes to Preview, not straight into Edit (2026-08-16, same session)
+
+Oliver's ask was terse -- "calendar in monthly overview card after click
+date redirect to preview" -- so before touching anything I traced it to
+the Schedule Planner's manager-facing "zoom out" calendar
+(`/schedule/plan/month`, built 2026-08-11) and confirmed the read with
+two quick `AskUserQuestion` checks rather than guessing at the edge
+cases:
+
+- A day whose week has already been generated (draft or published) now
+  links to the existing read-only Preview page
+  (`/schedule/plan/preview?week=...&view=manager`) instead of straight
+  into the editable Weekly Plan grid. This matches a rule Oliver already
+  set for the weekly grid's own Preview page on 2026-08-11: editing has
+  to stay a clearly separate, deliberate action, never something that
+  happens by accident while just looking around.
+- A day that's still only "projected" (blue dot -- estimated live from
+  the recurring template, nobody has clicked Generate on that week yet)
+  keeps going straight to Weekly Plan, which shows the "Generate this
+  week" button. Confirmed with Oliver: Preview has nothing real to show
+  for a week that doesn't exist yet, so routing there first would just
+  be a dead-end extra click back to the same place.
+- Preview opens to Manager view by default when reached from the
+  calendar (confirmed with Oliver) -- Month Overview is manager-only, so
+  the diagnostics (understaffed/double-booked/vacancy warnings) are the
+  useful default rather than the staff-facing view.
+
+One file changed: `app/(protected)/schedule/plan/month/page.tsx` --
+the day cell's `href` now branches on `day.weekStatus` instead of
+always pointing at `/schedule/plan`.
+
+Verified: `eslint`/`tsc --noEmit` clean, 71/71 tests pass, `next build`
+clean, and a real `next start` smoke test (manager session) confirming
+the rendered HTML links generated weeks to
+`/schedule/plan/preview?week=...&view=manager` and projected weeks to
+`/schedule/plan?week=...`, and that the Preview page itself renders
+correctly when reached that way.
