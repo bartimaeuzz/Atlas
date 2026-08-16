@@ -92,3 +92,13 @@ export function monthLabel(dateIso: string): string {
 export function dayOfWeek(dateIso: string): number {
   return parseDate(dateIso).getUTCDay();
 }
+
+/** Whole days from fromIso to toIso (positive if toIso is later) --
+ * added 2026-08-16 for the shift-swap approval-window rule ("<=3 days
+ * before shift occur" needs manager approval, further out doesn't).
+ * Same UTC-noon-pinned parseDate as everything else here, so this is
+ * safe across DST/timezone edge cases. */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const ms = parseDate(toIso).getTime() - parseDate(fromIso).getTime();
+  return Math.round(ms / (24 * 60 * 60 * 1000));
+}

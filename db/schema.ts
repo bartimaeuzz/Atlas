@@ -1089,3 +1089,65 @@ export const notificationSeen = sqliteTable(
     ),
   })
 );
+
+// Shift swap requests (2026-08-16, Schedule Planner Phase E) -- design
+// confirmed with Oliver across two AskUserQuestion rounds before any
+// code, same discipline as every other feature here. Modeled on his own
+// framing: "Employee A requests a swap -> Employee B accepts or
+// declines -> manager notified" (flight-crew style), replacing the
+// current paper-schedule cross-out-a-name process.
+//
+// Tied to one specific plannedShiftAssignments row (a single shift
+// instance, not the recurring template) -- same "temporary, not
+// permanent" scope as leaveRequests. Only PUBLISHED-week assignments can
+// be offered (confirmed: draft weeks aren't real commitments yet).
+//
+// status state machine:
+//   open -> (someone eligible accepts) -> either:
+//     - completed                          (shift is >3 days out: no
+//       approval needed, reassigns immediately, manager just notified)
+//     - pending_manager_approval            (shift is <=3 days out: needs
+//       a manager decision before the reassignment actually happens)
+//   pending_manager_approval -> completed   (manager approves)
+//   pending_manager_approval -> declined    (manager declines -- shift
+//     REVERTS to the original requester, confirmed with Oliver; nothing
+//     else happens automatically, they'd have to post a new request)
+//   open -> cancelled                       (requester withdraws before
+//     anyone's accepted -- confirmed allowed, self-service like leave)
+//
+// requestingEmployeeId is stored explicitly (not just read off the
+// assignment) because completing a swap changes
+// plannedShiftAssignments.employeeId to the new person -- this column
+// is the only record of who originally held the shift, for history and
+// for the "reverts to the original requester" decline behavior.
+//
+// Eligibility to accept (enforced in lib/actions/swap.ts, not at the DB
+// layer): must actively hold the assignment's position
+// (employeePositions), must not be the requester, must not already be
+// assigned to a different position at that exact date+period, and must
+// not be on logged leave that day. Completing a swap (whether immediate
+// or after manager approval) also syncs the matching shiftRosterEntries
+// row if a real `shifts` row already exists for that date/period
+// (createShift's auto-seed only copies the plan into the real roster
+// ONCE, at shift-creation time -- see seedRosterFromPublishedPlan's own
+// comment -- so a swap after that point needs to update both rows to
+// keep payroll/tips correct). Refuses to complete at all if that real
+// shift has already been finalized (payroll-locked), matching the
+// finalize-locks-everything pattern used elsewhere (Card statement
+// periods, Closing Report).
+export const swapRequests = sqliteTable("swap_requests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  assignmentId: integer("assignment_id").notNull().references(() => plannedShiftAssignments.id),
+  requestingEmployeeId: integer("requesting_employee_id").notNull().references(() => employees.id),
+  acceptingEmployeeId: integer("accepting_employee_id").references(() => employees.id),
+  status: text("status", {
+    enum: ["open", "pending_manager_approval", "completed", "declined", "cancelled"],
+  })
+    .notNull()
+    .default("open"),
+  note: text("note"),
+  createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+  respondedAt: text("responded_at"), // set when someone accepts, whichever path follows
+  decidedAt: text("decided_at"), // set only when a manager approves/declines
+  decidedByEmployeeId: integer("decided_by_employee_id").references(() => employees.id),
+});

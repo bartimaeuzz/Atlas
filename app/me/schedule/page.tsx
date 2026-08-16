@@ -4,9 +4,15 @@ import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadEmployeeSchedule } from "@/lib/schedule/loadEmployeeSchedule";
 import { loadRecentScheduleChanges } from "@/lib/schedule/loadRecentScheduleChanges";
 import { loadMyLeaveRequests } from "@/lib/schedule/loadLeaveRequests";
+import {
+  loadMySwappableAssignments,
+  loadAcceptableSwapRequests,
+  loadMySwapRequests,
+} from "@/lib/schedule/loadSwapRequests";
 import { shiftMonth, toIso } from "@/lib/schedule/weekMath";
 import { logout } from "@/lib/actions/auth";
 import { LeaveRequestsPanel } from "./LeaveRequestsPanel";
+import { SwapBoardPanel } from "./SwapBoardPanel";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -39,12 +45,16 @@ export default async function MyScheduleView({
 
   const params = await searchParams;
   const monthAnchor = params.month || toIso(new Date());
-  const [data, recentChangesAll, leaveRequests] = await Promise.all([
+  const today = toIso(new Date());
+  const [data, recentChangesAll, leaveRequests, swappable, acceptableSwaps, mySwaps] = await Promise.all([
     loadEmployeeSchedule(session.id, monthAnchor),
     // Defaults to published-only -- see loadRecentScheduleChanges's own
     // comment for why that filter lives in the loader itself now.
     loadRecentScheduleChanges(session.id),
     loadMyLeaveRequests(session.id),
+    loadMySwappableAssignments(session.id, today),
+    loadAcceptableSwapRequests(session.id, today),
+    loadMySwapRequests(session.id),
   ]);
   const recentChanges = recentChangesAll.slice(0, 10);
 
@@ -80,6 +90,8 @@ export default async function MyScheduleView({
       </div>
 
       <LeaveRequestsPanel requests={leaveRequests} />
+
+      <SwapBoardPanel swappable={swappable} acceptable={acceptableSwaps} mine={mySwaps} />
 
       <div className="mb-6">
         <h2 className="text-sm font-medium mb-2">Recent changes to your schedule</h2>

@@ -37,7 +37,7 @@ function UnseenBadge({ count }: { count: number }) {
   return (
     <span
       className="ml-1 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium leading-none align-middle"
-      aria-label={`${count} unseen leave ${count === 1 ? "request" : "requests"}`}
+      aria-label={`${count} unseen ${count === 1 ? "schedule item" : "schedule items"}`}
     >
       {count > 9 ? "9+" : count}
     </span>
@@ -81,18 +81,20 @@ function UnseenBadge({ count }: { count: number }) {
  * a stacked full-width link list instead; at `sm` and above the original
  * inline row is unchanged.
  *
- * Red-pill unseen badge (2026-08-16) — `unseenLeaveCount` is resolved
- * server-side in NavBar.tsx (needs a DB read) and passed down here just
- * as a number. Rendered on the "Schedule" nav item only, in both the
- * desktop row and the hamburger list, since that's where the leave
- * requests inbox (/schedule/leave) lives. Purely presentational — this
+ * Red-pill unseen badge (2026-08-16, extended later same day to also
+ * cover swap requests) — `unseenScheduleCount` is resolved server-side
+ * in NavBar.tsx (needs DB reads, summed across leave + swap requests)
+ * and passed down here just as a number. Rendered on the "Schedule" nav
+ * item only, in both the desktop row and the hamburger list, since
+ * that's the entry point for both the leave inbox (/schedule/leave) and
+ * the swap inbox (/schedule/swaps). Purely presentational — this
  * component doesn't know or care what's behind the count. */
 export function NavBarClient({
   auth,
-  unseenLeaveCount = 0,
+  unseenScheduleCount = 0,
 }: {
   auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" } | null;
-  unseenLeaveCount?: number;
+  unseenScheduleCount?: number;
 }) {
   const pathname = usePathname();
   const isManager = auth?.systemRole === "MANAGER" || auth?.systemRole === "ADMIN";
@@ -149,7 +151,7 @@ export function NavBarClient({
                   className={isActive ? "font-medium text-black" : "text-neutral-500 hover:text-black"}
                 >
                   {item.label}
-                  {item.href === "/schedule" && <UnseenBadge count={unseenLeaveCount} />}
+                  {item.href === "/schedule" && <UnseenBadge count={unseenScheduleCount} />}
                 </Link>
               );
             })}
@@ -221,7 +223,7 @@ export function NavBarClient({
                 }
               >
                 {item.label}
-                {item.href === "/schedule" && <UnseenBadge count={unseenLeaveCount} />}
+                {item.href === "/schedule" && <UnseenBadge count={unseenScheduleCount} />}
               </Link>
             );
           })}

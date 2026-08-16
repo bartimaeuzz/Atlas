@@ -11,6 +11,7 @@ import {
 import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
 import type { StaffingTargetPosition } from "@/lib/schedule/loadStaffingTargets";
 import { loadLeaveByEmployeeForRange } from "@/lib/schedule/loadLeaveRequests";
+import { loadSwapStatusByAssignmentForWeek } from "@/lib/schedule/loadSwapRequests";
 
 export interface PlannedAssignmentRow {
   id: number;
@@ -37,6 +38,14 @@ export interface PlannedAssignmentRow {
    * vacatingSoon: a leave is temporary (the employee is expected back on
    * their normal template once it ends), a vacancy is permanent. */
   onLeave: { note: string | null } | null;
+  /** Set when this assignment currently reflects a shift swap (Schedule
+   * Planner Phase E, 2026-08-16) — "completed" once reassigned,
+   * "pending_manager_approval" if it's within the <=3-day approval
+   * window and a manager still needs to decide. DERIVED at read time
+   * from swapRequests, same convention as onLeave/vacatingSoon above.
+   * requestingEmployeeName is who originally held this slot before the
+   * swap (the current employeeName on this row is whoever has it now). */
+  swap: { status: "pending_manager_approval" | "completed"; requestingEmployeeName: string } | null;
 }
 
 export interface WeeklyPlanData {
@@ -119,11 +128,13 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
   }
 
   const leaveByEmployee = await loadLeaveByEmployeeForRange(dates[0], dates[dates.length - 1]);
+  const swapByAssignment = await loadSwapStatusByAssignmentForWeek(weekRow.id);
 
   const assignments: PlannedAssignmentRow[] = rows.map((r) => {
     const vacancy = vacancyByKey.get(`${r.employeeId}:${r.positionId}:${dayOfWeek(r.date)}:${r.period}`);
     const leaves = leaveByEmployee.get(r.employeeId);
     const activeLeave = leaves?.find((l) => r.date >= l.startDate && r.date <= l.endDate) ?? null;
+    const swap = swapByAssignment.get(r.id) ?? null;
     // <= not < : an assignment that was already generated/added for the
     // exact vacancyStartsOn date should still show the warning — it's
     // still a real, currently-scheduled shift, just one the manager
@@ -138,6 +149,7 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
       sourceType: r.sourceType as "FROM_TEMPLATE" | "MANUAL_ADD",
       vacatingSoon: vacancy && r.date <= vacancy.startsOn ? vacancy : null,
       onLeave: activeLeave ? { note: activeLeave.note } : null,
+      swap,
     };
   });
 

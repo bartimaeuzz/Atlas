@@ -166,6 +166,7 @@ export function WeeklyPlanGrid({
                                   readOnly={readOnly}
                                   vacatingSoon={a.vacatingSoon}
                                   onLeave={a.onLeave}
+                                  swap={a.swap}
                                 />
                               );
                             })}
@@ -212,12 +213,14 @@ function AssignmentPill({
   readOnly,
   vacatingSoon,
   onLeave,
+  swap,
 }: {
   assignment: PlannedAssignmentRow;
   conflictPositionNames: string[];
   readOnly: boolean;
   vacatingSoon: PlannedAssignmentRow["vacatingSoon"];
   onLeave: PlannedAssignmentRow["onLeave"];
+  swap: PlannedAssignmentRow["swap"];
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -229,21 +232,31 @@ function AssignmentPill({
   const vacancyTitle = vacatingSoon
     ? `${assignment.employeeName} is ${VACANCY_REASON_LABEL[vacatingSoon.reason]} as of ${vacatingSoon.startsOn} — this slot will need a replacement`
     : undefined;
+  const swapTitle =
+    swap?.status === "completed"
+      ? `Covering for ${swap.requestingEmployeeName} via a completed shift swap`
+      : swap?.status === "pending_manager_approval"
+        ? `${assignment.employeeName} accepted a swap from ${swap.requestingEmployeeName}, awaiting manager approval (shift is within 3 days)`
+        : undefined;
 
   return (
     <div
-      title={[leaveTitle, vacancyTitle].filter(Boolean).join(" · ") || undefined}
+      title={[leaveTitle, vacancyTitle, swapTitle].filter(Boolean).join(" · ") || undefined}
       className={
         "flex items-center justify-between gap-1 rounded px-1.5 py-0.5 text-xs " +
         (assignment.isExtraCoverage ? "bg-yellow-100 text-yellow-900" : "bg-neutral-100 text-neutral-700") +
         (vacatingSoon ? " ring-1 ring-red-400" : "") +
-        (onLeave ? " ring-1 ring-purple-400" : "")
+        (onLeave ? " ring-1 ring-purple-400" : "") +
+        (swap?.status === "completed" ? " ring-1 ring-green-500" : "") +
+        (swap?.status === "pending_manager_approval" ? " ring-1 ring-blue-400" : "")
       }
     >
       <span className="flex items-center gap-1">
         {assignment.employeeName}
         {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
         {onLeave && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />}
+        {swap?.status === "completed" && <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />}
+        {swap?.status === "pending_manager_approval" && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />}
         {hasConflict && (
           <span
             title={`Also scheduled as ${conflictPositionNames.join(", ")} in this same slot — double check this is intentional.`}
