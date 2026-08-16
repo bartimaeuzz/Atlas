@@ -1,10 +1,39 @@
 import Link from "next/link";
 import { loadPendingInvoicesByVendor, loadSupplierChecks } from "@/lib/ledger/loadSupplierCheck";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { toIso, weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
 import { LedgerTabs } from "../LedgerTabs";
 import { PendingByVendor } from "./PendingByVendor";
 import { ChecksTable } from "./ChecksTable";
 import { PrintChecksButton } from "./PrintChecksButton";
+
+/** Month helpers, same shape as /ledger/page.tsx's (kept local rather
+ * than shared -- matches that file's own precedent of each page owning
+ * its small date-math rather than a shared util). */
+function monthBounds(monthStr: string): { start: string; end: string } {
+  const [y, m] = monthStr.split("-").map(Number);
+  const start = new Date(Date.UTC(y, m - 1, 1, 12));
+  const end = new Date(Date.UTC(y, m, 0, 12));
+  return { start: toIso(start), end: toIso(end) };
+}
+function shiftMonth(monthStr: string, delta: number): string {
+  const [y, m] = monthStr.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1, 12));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+function monthLabel(monthStr: string): string {
+  const [y, m] = monthStr.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1, 1, 12));
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+function weekLabel(weekStart: string): string {
+  const days = datesInWeek(weekStart);
+  const start = new Date(`${days[0]}T12:00:00Z`);
+  const end = new Date(`${days[6]}T12:00:00Z`);
+  const startStr = start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const endStr = end.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return `${startStr} - ${endStr}`;
+}
 
 /** Supplier Check (2026-08-14, restructured twice same day after Oliver
  * talked to Aey about the real workflow, then flagged two more follow-
@@ -26,12 +55,37 @@ import { PrintChecksButton } from "./PrintChecksButton";
  * not just paid ones, and every row (Printed or Paid) can be Reprinted
  * at any time, since clicking Print in the app isn't the same as it
  * actually coming out of a physical printer. */
-export default async function SupplierCheckPage() {
+export default async function SupplierCheckPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; week?: string; month?: string }>;
+}) {
+  const params = await searchParams;
+  const todayIso = toIso(new Date());
+  // Week/month picker (2026-08-16) -- Oliver: "supplier tab on ledger
+  // should be able to show by week or month." Defaults to week since
+  // that's the routine cadence ("all invoices always get export to
+  // check format at the end of the week" -- see this file's header
+  // comment); month is the zoom-out option, same two-view idea as
+  // Schedule Planner's week/month views.
+  const view: "week" | "month" = params.month && !params.week ? "month" : params.view === "month" ? "month" : "week";
+  const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(params.week ?? "") ? weekStartFor(params.week!) : weekStartFor(todayIso);
+  const month = /^\d{4}-\d{2}$/.test(params.month ?? "") ? params.month! : todayIso.slice(0, 7);
+
+  const range =
+    view === "week"
+      ? { from: weekStart, to: datesInWeek(weekStart)[6] }
+      : (() => {
+          const b = monthBounds(month);
+          return { from: b.start, to: b.end };
+        })();
+
   const [pendingGroups, checks, session] = await Promise.all([
     loadPendingInvoicesByVendor(),
-    loadSupplierChecks(),
+    loadSupplierChecks(range),
     getCurrentStaffSession(),
   ]);
+  const periodTotal = checks.reduce((sum, c) => sum + c.totalAmount, 0);
   // Who can even attempt to edit an already Printed/Paid invoice --
   // 2026-08-15, see editSupplierInvoice's comment in
   // lib/actions/supplierCheck.ts for the full rule (this is just the
@@ -66,7 +120,52 @@ export default async function SupplierCheckPage() {
         </>
       )}
 
-      <h2 className="text-sm font-semibold text-neutral-600 mb-2">Checks</h2>
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <h2 className="text-sm font-semibold text-neutral-600">Checks</h2>
+        <div className="flex items-center gap-1 text-sm">
+          <Link
+            href={`/ledger/supplier-check?view=week&week=${weekStart}`}
+            className={`px-3 py-1.5 rounded ${view === "week" ? "bg-black text-white" : "text-neutral-500 hover:bg-neutral-100"}`}
+          >
+            Week
+          </Link>
+          <Link
+            href={`/ledger/supplier-check?view=month&month=${month}`}
+            className={`px-3 py-1.5 rounded ${view === "month" ? "bg-black text-white" : "text-neutral-500 hover:bg-neutral-100"}`}
+          >
+            Month
+          </Link>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mb-3">
+        <Link
+          href={
+            view === "week"
+              ? `/ledger/supplier-check?view=week&week=${shiftWeek(weekStart, -1)}`
+              : `/ledger/supplier-check?view=month&month=${shiftMonth(month, -1)}`
+          }
+          className="text-sm text-neutral-500 hover:text-black"
+        >
+          &larr; Prev
+        </Link>
+        <span className="font-medium text-sm">{view === "week" ? weekLabel(weekStart) : monthLabel(month)}</span>
+        <Link
+          href={
+            view === "week"
+              ? `/ledger/supplier-check?view=week&week=${shiftWeek(weekStart, 1)}`
+              : `/ledger/supplier-check?view=month&month=${shiftMonth(month, 1)}`
+          }
+          className="text-sm text-neutral-500 hover:text-black"
+        >
+          Next &rarr;
+        </Link>
+      </div>
+
+      <p className="text-sm text-neutral-500 mb-3">
+        {checks.length === 0 ? "No checks in this period." : `${checks.length} check${checks.length === 1 ? "" : "s"} -- $${periodTotal.toFixed(2)} total`}
+      </p>
+
       <ChecksTable checks={checks} canEditLockedInvoices={canEditLockedInvoices} />
     </main>
   );

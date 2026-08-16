@@ -8,7 +8,7 @@
  * printSupplierCheck), then marked PAID once actually delivered.
  */
 
-import { eq, desc, inArray } from "drizzle-orm";
+import { eq, desc, inArray, and, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db/client";
 import {
@@ -125,12 +125,16 @@ export interface SupplierCheckView {
   auditLog: CheckAuditLogEntry[];
 }
 
-/** Every check ever printed, most recent first -- the holistic table on
- * /ledger/supplier-check (2026-08-14 restructure). Each row shows its
- * status (Printed/Paid) and expands to show which invoices it combined.
- * Replaces v46's loadRecentSupplierPayments, which only covered PAID
- * payments and had no status concept. */
-export async function loadSupplierChecks(limit = 200): Promise<SupplierCheckView[]> {
+/** Every check printed in a given date range (by paidDate), most recent
+ * first -- feeds the holistic table on /ledger/supplier-check, which
+ * (2026-08-16) got a Week/Month picker so Oliver can browse checks the
+ * same way the Petty Cash tab lets him browse days: "supplier tab on
+ * ledger should be able to show by week or month." Replaces the old
+ * flat "most recent 200, no scoping" behavior -- range is now required
+ * so a period is always well-defined and the "Checks" total is
+ * meaningful. Pass a wide range (e.g. this vendor's whole history) if
+ * an unscoped list is ever needed again. */
+export async function loadSupplierChecks({ from, to }: { from: string; to: string }): Promise<SupplierCheckView[]> {
   const payments = await db
     .select({
       id: supplierCheckPayments.id,
@@ -148,8 +152,8 @@ export async function loadSupplierChecks(limit = 200): Promise<SupplierCheckView
     .innerJoin(ledgerVendors, eq(supplierCheckPayments.vendorId, ledgerVendors.id))
     .innerJoin(employees, eq(supplierCheckPayments.paidByEmployeeId, employees.id))
     .leftJoin(deliveredByEmployee, eq(supplierCheckPayments.deliveredByEmployeeId, deliveredByEmployee.id))
-    .orderBy(desc(supplierCheckPayments.paidDate), desc(supplierCheckPayments.id))
-    .limit(limit);
+    .where(and(gte(supplierCheckPayments.paidDate, from), lte(supplierCheckPayments.paidDate, to)))
+    .orderBy(desc(supplierCheckPayments.paidDate), desc(supplierCheckPayments.id));
 
   if (payments.length === 0) return [];
 

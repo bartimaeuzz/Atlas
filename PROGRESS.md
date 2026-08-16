@@ -2744,3 +2744,39 @@ Verified with a 15-check script: audit rows created correctly for both
 edit and print (who/reason/before-after captured), print variant has
 exactly 5 columns with no PayeeAddress/Status/Check#, audit variant has
 all 10 columns intact. `eslint`/`next build` clean, 71/71 tests pass.
+
+## Supplier Check: Week/Month picker on the Ledger tab (2026-08-16)
+
+Oliver: "supplier tab on ledger should be able to show by week or
+month." `/ledger/supplier-check`'s "Checks" list used to be a flat
+"most recent 200, ever" table with no way to scope it -- fine for a
+brand-new restaurant, not for browsing history once Youk Thai has
+months of checks. Added a Week/Month toggle with Prev/Next navigation,
+same interaction pattern as the Petty Cash tab's existing month-of-days
+picker on `/ledger` (Monday-start weeks, matching the rest of the app's
+week convention from Schedule/Reports). Defaults to Week, since that's
+the routine cadence Aey described ("all invoices always get export to
+check format at the end of the week"); Month is the zoom-out option.
+The list now also shows a period total ("N checks -- $X total").
+
+`loadSupplierChecks(limit)` changed to `loadSupplierChecks({ from, to
+})`, filtering by `paidDate` range instead of an arbitrary recent-N
+cap -- a period is now always well-defined. Reused `lib/schedule/
+weekMath.ts`'s existing week helpers (`weekStartFor`, `datesInWeek`,
+`shiftWeek`) rather than reinventing week math a third time; month
+helpers mirror `/ledger/page.tsx`'s own local ones (that file's
+established pattern of each page owning its small date math).
+
+This is scoped to the operational Ledger view specifically -- it's a
+different concern from the Reports page's existing week/month/year
+range picker for `supplier-check`, which is an accounting/export
+summary, not a day-to-day browsing tool. Both now exist, for different
+jobs.
+
+Verified with a 6-check script spanning a week boundary (Jul 31 / Aug
+3) and a month boundary (Jul/Aug): week view returns exactly the 3
+checks in that Mon-Sun range with the right $ total, prev/next week
+each isolate their single check correctly, month view returns all 5
+August checks ($500) vs. July's 1 ($100), and an empty month (January)
+correctly returns zero. `tsc --noEmit` clean, 71/71 tests pass. No
+schema change, no migration needed.
