@@ -2780,3 +2780,43 @@ each isolate their single check correctly, month view returns all 5
 August checks ($500) vs. July's 1 ($100), and an empty month (January)
 correctly returns zero. `tsc --noEmit` clean, 71/71 tests pass. No
 schema change, no migration needed.
+
+## Tile home page (2026-08-16)
+
+Oliver: "build home page as tiles contain a feature." The old "/" was a
+leftover from the very first prototype -- three text-link buttons
+(Shifts/Positions/Settings) plus a "playground calculator" link -- that
+had drifted badly out of sync with the real feature set (missing
+Employees, Schedule, Ledger, Reports entirely) and wasn't gated by
+login at all.
+
+Confirmed three scope questions with Oliver before building: (1) "/"
+becomes where everyone lands after login (both `login()` in
+`lib/actions/auth.ts` and the login page's own "already signed in"
+check now redirect to "/" instead of "/me"), replacing the old
+always-"/me" redirect; (2) all 7 manager nav items get a tile --
+Shifts, Employees, Positions, Schedule, Ledger, Reports, Settings, not
+split further; (3) STAFF accounts get their own small tile page too
+(My Schedule, My Pay) rather than skipping straight to /me -- otherwise
+the tile page nobody but managers ever sees.
+
+`app/page.tsx` is now a server component: no session -> redirect to
+`/login` (nothing useful to show an anonymous visitor); otherwise reads
+`session.systemRole` and renders `MANAGER_TILES` (7) or `STAFF_TILES`
+(2). Each tile is one large tap target (icon + label + one-line
+description, not a bare text link) -- matches the phone+desktop,
+low-computer-literacy-friendly bar from the accessibility audit
+(`project_atlas_target_users_accessibility` memory) more closely than
+the plain link row it replaced. Icons are small inline SVGs, no new
+icon-library dependency.
+
+Verified: `npx tsc --noEmit` shows only the pre-existing unrelated
+`app/layout.tsx` LayoutProps finding (confirmed via `git stash` to
+predate this change), `eslint` clean on all three touched files,
+`next build` clean (`/` now correctly shows as a dynamic route, since
+it reads the session cookie), 71/71 tests pass. Manually verified both
+role views by creating a session directly via `createSession()` and
+hitting `/` with that cookie against a `next start` server: MANAGER
+(Aey) renders all 7 tiles, STAFF (Alesso) renders the 2 staff tiles,
+and a request with no cookie 307s to `/login`. No schema change, no
+migration.

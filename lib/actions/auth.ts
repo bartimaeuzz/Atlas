@@ -42,7 +42,12 @@ export async function login(_prevState: LoginActionState, formData: FormData): P
     maxAge: 14 * 60 * 60, // matches session.ts's SESSION_DURATION_MS
   });
 
-  redirect("/me");
+  // Tile home page (2026-08-16): "/" is now a role-aware dashboard —
+  // MANAGER/ADMIN see all 7 feature tiles, STAFF see a small 2-tile page
+  // (My Schedule / My Pay). Everyone lands there after login now, instead
+  // of staff skipping straight to /me — the point of building the staff
+  // tile page is that it's actually seen, not bypassed every login.
+  redirect("/");
 }
 
 export async function logout(): Promise<void> {

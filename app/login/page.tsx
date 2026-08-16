@@ -6,9 +6,11 @@ import { getCurrentStaffSession } from "@/lib/auth/session";
 import { LoginForm } from "./LoginForm";
 
 export default async function LoginPage() {
-  // Already signed in — no point showing the login form again.
+  // Already signed in — no point showing the login form again. "/" is the
+  // role-aware tile home page (2026-08-16), same landing spot login itself
+  // now uses for every role.
   const session = await getCurrentStaffSession();
-  if (session) redirect("/me");
+  if (session) redirect("/");
 
   const activeEmployees = await db
     .select({ id: employees.id, name: employees.name })
