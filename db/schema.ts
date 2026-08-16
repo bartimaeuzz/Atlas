@@ -1033,3 +1033,30 @@ export const cardTransactions = sqliteTable("card_transactions", {
   createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
 });
+
+// Leave requests (2026-08-16, Schedule Planner Phase D) -- design
+// resolved 2026-08-11, confirmed self-service/no-approval on 2026-08-16
+// before building. Oliver's framing: by the time an employee logs one of
+// these, they've usually already told the manager informally ("Manager
+// คะ หนูไปเที่ยวแล้วค่ะ") -- this isn't an approval gate, it's a way to
+// PUSH that already-agreed absence into a log/calendar so the manager
+// doesn't forget. Any employee can create their own row (see
+// submitLeaveRequest in lib/actions/leave.ts); there's no status field
+// on purpose -- nothing to approve or deny.
+//
+// Deliberately does NOT touch employeeScheduleTemplates at all -- a
+// leave period is a temporary interruption to the recurring pattern,
+// not a change to it (unlike RESIGNATION/PROMOTION, which really do
+// change the template going forward). Instead, when the Weekly Plan is
+// built/viewed for a week overlapping a leave request's date range, that
+// employee's template-sourced slots in that week get auto-flagged as
+// needing coverage -- a DERIVED effect computed in loadWeeklyPlan.ts at
+// read time, not a persistent mutation anywhere else.
+export const leaveRequests = sqliteTable("leave_requests", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  startDate: text("start_date").notNull(), // ISO date, inclusive
+  endDate: text("end_date").notNull(), // ISO date, inclusive
+  note: text("note"),
+  loggedAt: text("logged_at").notNull().default(sql`(current_timestamp)`),
+});

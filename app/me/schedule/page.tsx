@@ -3,8 +3,10 @@ import { redirect } from "next/navigation";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadEmployeeSchedule } from "@/lib/schedule/loadEmployeeSchedule";
 import { loadRecentScheduleChanges } from "@/lib/schedule/loadRecentScheduleChanges";
+import { loadMyLeaveRequests } from "@/lib/schedule/loadLeaveRequests";
 import { shiftMonth, toIso } from "@/lib/schedule/weekMath";
 import { logout } from "@/lib/actions/auth";
+import { LeaveRequestsPanel } from "./LeaveRequestsPanel";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -37,11 +39,12 @@ export default async function MyScheduleView({
 
   const params = await searchParams;
   const monthAnchor = params.month || toIso(new Date());
-  const [data, recentChangesAll] = await Promise.all([
+  const [data, recentChangesAll, leaveRequests] = await Promise.all([
     loadEmployeeSchedule(session.id, monthAnchor),
     // Defaults to published-only -- see loadRecentScheduleChanges's own
     // comment for why that filter lives in the loader itself now.
     loadRecentScheduleChanges(session.id),
+    loadMyLeaveRequests(session.id),
   ]);
   const recentChanges = recentChangesAll.slice(0, 10);
 
@@ -75,6 +78,8 @@ export default async function MyScheduleView({
           Next month &rarr;
         </Link>
       </div>
+
+      <LeaveRequestsPanel requests={leaveRequests} />
 
       <div className="mb-6">
         <h2 className="text-sm font-medium mb-2">Recent changes to your schedule</h2>

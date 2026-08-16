@@ -2899,3 +2899,73 @@ CSV/bank statement import (v1 is manual entry only, confirmed with
 Oliver), photo attachment of statement pages, an audit log for Card
 edits (Supplier Check's audit log came in a later round after being
 asked for, not on first build -- same pattern here).
+
+## Leave requests — Schedule Planner Phase D (2026-08-16)
+
+Oliver picked this as the next feature after Card shipped, from a
+menu of backlog options. Design for the core `leaveRequests` table was
+already resolved on 2026-08-11 (see project_atlas_schedule_planner
+memory); before building, confirmed with Oliver via AskUserQuestion
+that it should be self-service with no approval step -- his framing:
+by the time an employee logs one, they've usually already told the
+manager informally ("Manager คะ หนูไปเที่ยวแล้วค่ะ"), so this isn't a
+request that needs accept/deny, it's a way to push an already-agreed
+absence into a log/calendar so the manager doesn't forget.
+
+Schema (migration 0014, purely additive): `leave_requests`
+(employeeId, startDate, endDate, optional note, loggedAt) -- no status
+field, nothing to approve. Deliberately does NOT touch
+`employee_schedule_templates` at all: a leave period is a temporary
+interruption to someone's recurring pattern, not a change to it
+(unlike RESIGNATION/PROMOTION, which really do change the template).
+Instead, `loadWeeklyPlan.ts` now computes a DERIVED `onLeave` flag per
+assignment at read time -- if an assignment's date falls inside any
+leave request logged by that employee, it's flagged, with the leave's
+own note surfaced in the tooltip. Nothing is mutated in the template
+or the assignment row itself.
+
+`lib/actions/leave.ts`: `submitLeaveRequest` (any signed-in employee,
+for themselves only), `deleteLeaveRequest` (the owner, or any
+manager/admin -- e.g. correcting an entry). No edit action -- a leave
+whose dates changed gets cancelled and resubmitted, same lightweight
+spirit as the rest of this table.
+
+UI: `/me/schedule` gained a "My leave requests" section (collapsible
+submit form + a list of the employee's own upcoming leave with a
+Cancel button) -- placed above "Recent changes to your schedule".
+`/schedule/leave` is the manager-facing inbox/log Oliver asked for
+("a Notification / Log Box that tells the Manager a change is coming")
+-- every leave request whose end date hasn't passed, soonest first, no
+approve/deny controls since there's nothing to approve. Linked from
+the Schedule hub. The Weekly Plan grid (`WeeklyPlanGrid.tsx`) gained a
+purple ring + dot on any assignment pill that overlaps a logged leave
+(same visual pattern as the existing red vacancy-soon ring, distinct
+color so the two don't get confused -- a leave is temporary, a vacancy
+is permanent) -- shown in both manager and read-only/staff preview
+modes, same "not gated by hideDiagnostics" treatment vacatingSoon
+already gets, since Oliver's original intent for that signal was that
+staff should see it too, not just managers.
+
+Verified: `eslint`/`tsc --noEmit` clean on every touched file (the
+7 pre-existing findings in `schedule/page.tsx`, `me/schedule/page.tsx`,
+and `PositionTemplateGrid.tsx` were confirmed via `git stash` to
+predate this change, not introduced by it), `next build` clean (new
+route `/schedule/leave`), 71/71 tests pass, plus a new 10-check
+direct-DB script (submit, per-employee isolation between
+loadMyLeaveRequests calls, the manager inbox correctly drops a request
+once its end date has passed, the Weekly Plan overlap flag fires only
+for the employee who's on leave and only for dates actually inside the
+range -- confirmed a same-week assignment just outside the leave's end
+date is correctly NOT flagged, deleting a request removes it from both
+loaders) -- deleted after use. Also manually smoke-tested `/schedule/
+leave`, the Schedule hub's new tile, and `/me/schedule`'s new panel
+against a real `next start` server with both a MANAGER and a STAFF
+session cookie.
+
+**Not built:** the shift-swap portal (Phase E) -- Oliver wants a
+dedicated design conversation on that before any code, same discipline
+this whole feature area has followed from the start. Month overview
+and Person schedule (the other two schedule views) don't show the
+leave flag yet -- scoped out of this round to keep it shippable; only
+the Weekly Plan grid (the view a manager actually builds/adjusts a
+week from) got it.

@@ -165,6 +165,7 @@ export function WeeklyPlanGrid({
                                   conflictPositionNames={conflictPositionNames}
                                   readOnly={readOnly}
                                   vacatingSoon={a.vacatingSoon}
+                                  onLeave={a.onLeave}
                                 />
                               );
                             })}
@@ -210,32 +211,39 @@ function AssignmentPill({
   conflictPositionNames,
   readOnly,
   vacatingSoon,
+  onLeave,
 }: {
   assignment: PlannedAssignmentRow;
   conflictPositionNames: string[];
   readOnly: boolean;
   vacatingSoon: PlannedAssignmentRow["vacatingSoon"];
+  onLeave: PlannedAssignmentRow["onLeave"];
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const hasConflict = conflictPositionNames.length > 0;
 
+  const leaveTitle = onLeave
+    ? `${assignment.employeeName} logged leave covering this date — needs coverage${onLeave.note ? `: "${onLeave.note}"` : ""}`
+    : undefined;
+  const vacancyTitle = vacatingSoon
+    ? `${assignment.employeeName} is ${VACANCY_REASON_LABEL[vacatingSoon.reason]} as of ${vacatingSoon.startsOn} — this slot will need a replacement`
+    : undefined;
+
   return (
     <div
-      title={
-        vacatingSoon
-          ? `${assignment.employeeName} is ${VACANCY_REASON_LABEL[vacatingSoon.reason]} as of ${vacatingSoon.startsOn} — this slot will need a replacement`
-          : undefined
-      }
+      title={[leaveTitle, vacancyTitle].filter(Boolean).join(" · ") || undefined}
       className={
         "flex items-center justify-between gap-1 rounded px-1.5 py-0.5 text-xs " +
         (assignment.isExtraCoverage ? "bg-yellow-100 text-yellow-900" : "bg-neutral-100 text-neutral-700") +
-        (vacatingSoon ? " ring-1 ring-red-400" : "")
+        (vacatingSoon ? " ring-1 ring-red-400" : "") +
+        (onLeave ? " ring-1 ring-purple-400" : "")
       }
     >
       <span className="flex items-center gap-1">
         {assignment.employeeName}
         {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+        {onLeave && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />}
         {hasConflict && (
           <span
             title={`Also scheduled as ${conflictPositionNames.join(", ")} in this same slot — double check this is intentional.`}

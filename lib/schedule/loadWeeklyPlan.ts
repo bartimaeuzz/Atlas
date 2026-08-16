@@ -10,6 +10,7 @@ import {
 } from "@/db/schema";
 import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
 import type { StaffingTargetPosition } from "@/lib/schedule/loadStaffingTargets";
+import { loadLeaveByEmployeeForRange } from "@/lib/schedule/loadLeaveRequests";
 
 export interface PlannedAssignmentRow {
   id: number;
@@ -29,6 +30,13 @@ export interface PlannedAssignmentRow {
    * Drawn from employeeScheduleTemplates.vacancyReason/vacancyStartsOn,
    * not a separate flag on the assignment itself. */
   vacatingSoon: { reason: "RESIGNATION" | "PROMOTION" | "OTHER"; startsOn: string } | null;
+  /** Set when this assignment's date falls inside a leave request this
+   * employee logged themselves (see leaveRequests / lib/actions/leave.ts)
+   * — a DERIVED flag computed here at read time, never a persisted
+   * mutation to the assignment or template row. Distinct from
+   * vacatingSoon: a leave is temporary (the employee is expected back on
+   * their normal template once it ends), a vacancy is permanent. */
+  onLeave: { note: string | null } | null;
 }
 
 export interface WeeklyPlanData {
@@ -110,8 +118,12 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
     );
   }
 
+  const leaveByEmployee = await loadLeaveByEmployeeForRange(dates[0], dates[dates.length - 1]);
+
   const assignments: PlannedAssignmentRow[] = rows.map((r) => {
     const vacancy = vacancyByKey.get(`${r.employeeId}:${r.positionId}:${dayOfWeek(r.date)}:${r.period}`);
+    const leaves = leaveByEmployee.get(r.employeeId);
+    const activeLeave = leaves?.find((l) => r.date >= l.startDate && r.date <= l.endDate) ?? null;
     // <= not < : an assignment that was already generated/added for the
     // exact vacancyStartsOn date should still show the warning — it's
     // still a real, currently-scheduled shift, just one the manager
@@ -125,6 +137,7 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
       period: r.period as "Lunch" | "Dinner",
       sourceType: r.sourceType as "FROM_TEMPLATE" | "MANUAL_ADD",
       vacatingSoon: vacancy && r.date <= vacancy.startsOn ? vacancy : null,
+      onLeave: activeLeave ? { note: activeLeave.note } : null,
     };
   });
 

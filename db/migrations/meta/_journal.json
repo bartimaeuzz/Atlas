@@ -99,6 +99,13 @@
       "when": 1786876182786,
       "tag": "0013_secret_strong_guy",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1786877354626,
+      "tag": "0014_gifted_bullseye",
+      "breakpoints": true
     }
   ]
 }
