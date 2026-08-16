@@ -3057,3 +3057,145 @@ schema change needed. The staff-facing "Recent changes to your
 schedule" log still has no badge (explicitly out of scope per Oliver's
 "manager only" answer) -- would need its own decision if he wants to
 revisit that later.
+
+## Shift-swap portal — Schedule Planner Phase E (2026-08-16, same session)
+
+Oliver's follow-up after the leave-requests red pill: "leave request
+card show red pill noti as well. no need to ship right now. ship it
+with what we gonna do next." Queued rather than shipped standalone (see
+memory's schedule-planner topic file); then asked "what to build next,"
+picked the shift-swap portal -- the one piece of the original
+2026-08-11 Schedule Planner vision (flight-crew-style swaps: Employee A
+requests -> B accepts/declines -> manager notified) that had stayed
+undesigned this whole time, explicitly deferred by Oliver's own request
+to a dedicated design conversation before any code.
+
+**Design confirmed via two AskUserQuestion rounds before writing
+anything**, all Recommended options except one custom answer:
+- Open to any qualified coworker (not a named-only request).
+- **Approval rule (Oliver's own words, not the suggested option):**
+  "if it equal or less than 3 days before shift occur ... before that
+  manager just got notified but no need approval." So a swap due more
+  than 3 days out finalizes the instant a coworker accepts (manager
+  just notified after the fact); a swap due 3 days or less out goes to
+  `pending_manager_approval` and needs an explicit Approve/Decline.
+- Eligibility system-enforced by position (via `employeePositions`,
+  active only) -- not just self-selected like the paper process it
+  replaces.
+- Only published-week shifts are swappable (draft weeks aren't real
+  commitments).
+- A manager declining a pending swap reverts it to the original
+  requester (nothing to undo -- the assignment was never actually
+  reassigned during the pending state).
+- The requester can cancel their own request while it's still `open`.
+- The Weekly Plan grid shows a NEW distinct blue ring for
+  `pending_manager_approval`, separate from the existing GREEN
+  (completed swap) and unrelated YELLOW (extra-coverage-needed).
+
+**Architecture finding surfaced before building, not asked as a
+question (a correctness detail, not a product decision):**
+`plannedShiftAssignments` (the plan) and `shiftRosterEntries` (the real
+payroll/tip-affecting roster on an actual `shifts` row) are separate --
+the roster only gets copied from the plan ONCE, at the moment a manager
+creates the real shift for that date (`seedRosterFromPublishedPlan` in
+`lib/actions/shift.ts`). So a swap completing after that point needs to
+update BOTH rows to keep payroll correct, and must refuse entirely if
+that real shift has already been finalized (payroll-locked) -- same
+"finalize closes the door" rule as Card statement periods and the
+Closing Report. Handled by `completeSwap()`, see below.
+
+**Schema:** new `swapRequests` table (migration `0016`) --
+`assignmentId` (FK to one specific `plannedShiftAssignments` row, not
+the recurring template -- temporary like leave, not permanent),
+`requestingEmployeeId`, `acceptingEmployeeId`, `status` enum (`open` ->
+`completed` OR `pending_manager_approval` -> `completed`/`declined`;
+`open` -> `cancelled`), `note`, `createdAt`, `respondedAt` (when
+someone accepts), `decidedAt`/`decidedByEmployeeId` (only set if a
+manager actually approved/declined).
+
+**Read side (`lib/schedule/loadSwapRequests.ts`):**
+`loadMySwappableAssignments` (own upcoming published shifts with no
+live swap already on them -- the offer picklist), `loadAcceptableSwapRequests`
+(open requests a given employee is eligible for: right position,
+not their own, not yet passed), `loadMySwapRequests` (full history,
+any status), `loadSwapRequestsForManager` (pending-approval first, then
+open, then completed/declined, cancelled excluded), `loadUnseenSwapCount`
+(same "no notificationSeen row = never visited = everything unseen"
+convention as the leave badge, sharing that table's new `"swap_requests"`
+section -- only counts requests that have been RESPONDED to, since an
+untouched `open` request doesn't need a manager's attention yet),
+`loadSwapStatusByAssignmentForWeek` (feeds the grid's blue/green ring,
+same derived-at-read-time pattern as `onLeave`/`vacatingSoon` in
+`loadWeeklyPlan.ts`).
+
+**Write side (`lib/actions/swap.ts`):** `createSwapRequest`
+(useActionState shape, re-validates ownership/publish-status/date
+server-side rather than trusting the picklist), `cancelSwapRequest`,
+`acceptSwapRequest` (re-checks position eligibility, same-day/period
+double-booking, and leave overlap server-side; branches on the 3-day
+threshold via a new `daysBetween()` helper in `weekMath.ts`),
+`approveSwapRequest`/`declineSwapRequest` (managers only).
+`completeSwap()` -- the actual plan+roster reassignment plus the
+finalized-shift refusal -- lives in a separate, plain (non-`"use
+server"`) module, `lib/schedule/completeSwap.ts`: exporting it from the
+`"use server"` actions file would have made it a client-callable Server
+Action with none of the authorization checks its callers do, so it's
+kept as an ordinary importable function instead, reachable only through
+`acceptSwapRequest`/`approveSwapRequest`.
+
+**UI:** `/schedule/swaps` (manager inbox, mirrors `/schedule/leave`'s
+shape, Approve/Decline buttons only on `pending_manager_approval` rows)
+plus a new shared `MarkSeenOnMount.tsx` moved up to the `/schedule`
+level (now used by both `/schedule/leave` and `/schedule/swaps`,
+previously lived under `leave/` only). `/me/schedule` gained a "Shift
+swaps" panel (offer form + open-requests-you-can-accept + your own
+request history with Cancel). The Schedule hub picked up a "Shift
+swaps" tile, and -- fulfilling the queued leave-card-badge ask from
+earlier -- both the "Leave requests" and "Shift swaps" tiles now show
+their own unseen-count badge, reusing the exact counts that already
+power the nav pill. The nav's single red pill on "Schedule" now sums
+leave + swap unseen counts (`unseenScheduleCount`, renamed from
+`unseenLeaveCount`) rather than adding a second badge -- confirmed:
+no new nav entry.
+
+**Bug caught during verification, fixed before shipping (same bug
+class as the leave-requests badge, in a new place):** `respondedAt`/
+`decidedAt` were first written via JS `new Date().toISOString()`, but
+`notificationSeen.lastSeenAt` is written via SQLite's own
+`current_timestamp` (see `notifications.ts`). Comparing those two
+string formats with `>` doesn't sort correctly -- this time in the
+OTHER direction from the leave bug: since ISO always sorts above SQL
+format lexicographically, the swap badge would never have cleared at
+all, regardless of whether a manager visited. Fixed by writing
+`respondedAt`/`decidedAt` via `sql\`(current_timestamp)\`` too, matching
+`lastSeenAt`'s format.
+
+Verified: `eslint`/`tsc --noEmit` clean (the same pre-existing findings
+confirmed via `git stash` -- `NavBarClient.tsx`'s unrelated
+`set-state-in-effect`, two unescaped-apostrophe findings that predate
+this change), `next build` clean (new route `/schedule/swaps`), 71/71
+tests pass, and a 22-check direct-DB verify script (deleted after use,
+confirmed idempotent by re-running it) covering: the day-threshold math,
+the swappable/acceptable eligibility filters (including the
+position-mismatch and self-request exclusions), `completeSwap`'s
+reassignment logic with and without a real shift present, the
+finalized-shift refusal (and that it leaves `shiftRosterEntries`
+untouched), the grid loader's pending/completed status + requester name,
+decline-reverts-to-requester, the unseen-count round trip (unseen ->
+visit clears it -> a new response after the visit brings it back), the
+manager list's sort order and cancelled-exclusion, and full-history
+retrieval for the requester. Also manually smoke-tested against a real
+`next start` server: the Schedule hub showed both tiles' badges with
+the right counts, the nav pill showed the correct combined total,
+`/schedule/swaps` rendered the open request, and `/me/schedule` (staff
+session) rendered its own posted request in the Shift swaps panel.
+
+**Not built:** the manager-approval decision itself isn't tested via a
+real signed-in POST to the server action in this round (Next.js Server
+Actions aren't easily invokable from a plain script the way a page GET
+is) -- covered instead by direct-DB tests of the exact same logic
+`approveSwapRequest`/`declineSwapRequest` execute, plus rendering
+smoke-tests. Photo/attachment support, a swap history report, and any
+kind of "who swaps the most" stat (mentioned as a future idea in
+[[project-atlas-future-features-backlog]] item 6) are all out of scope
+for this round.
