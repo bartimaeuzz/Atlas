@@ -107,6 +107,18 @@ const MANAGER_TILES: Tile[] = [
     ),
   },
   {
+    href: "/analytics",
+    label: "Analytics",
+    description: "P&L, revenue and expense breakdowns",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M4 19V5" />
+        <path d="M4 19h16" />
+        <path d="M8 19v-6M12 19V9M16 19v-3" />
+      </svg>
+    ),
+  },
+  {
     href: "/settings",
     label: "Settings",
     description: "Restaurant-wide configuration",

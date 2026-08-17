@@ -67,13 +67,18 @@ export async function toggleLedgerVendorActive(vendorId: number, nextActive: boo
 /* Categories                                                              */
 /* ---------------------------------------------------------------------- */
 
+const PNL_GROUPS = ["FOOD", "BEVERAGE_NONALC", "BEVERAGE_ALC", "OTHER_EXPENSE", "EXCLUDED"] as const;
+type PnlGroup = (typeof PNL_GROUPS)[number];
+
 export async function createLedgerCategory(_prevState: LedgerAdminActionState, formData: FormData): Promise<LedgerAdminActionState> {
   const name = String(formData.get("name") ?? "").trim();
+  const pnlGroupRaw = String(formData.get("pnlGroup") ?? "OTHER_EXPENSE");
   try {
     if (!name) throw new Error("Category name is required");
     const [existing] = await db.select().from(ledgerCategories).where(eq(ledgerCategories.name, name));
     if (existing) throw new Error(`A category named "${name}" already exists`);
-    await db.insert(ledgerCategories).values({ name, active: true });
+    const pnlGroup: PnlGroup = PNL_GROUPS.includes(pnlGroupRaw as PnlGroup) ? (pnlGroupRaw as PnlGroup) : "OTHER_EXPENSE";
+    await db.insert(ledgerCategories).values({ name, active: true, pnlGroup });
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -84,6 +89,19 @@ export async function createLedgerCategory(_prevState: LedgerAdminActionState, f
 export async function toggleLedgerCategoryActive(categoryId: number, nextActive: boolean) {
   await db.update(ledgerCategories).set({ active: nextActive }).where(eq(ledgerCategories.id, categoryId));
   revalidatePath("/ledger/categories");
+}
+
+/** Re-tags which P&L bucket this category rolls up into (2026-08-16,
+ * Analytics/P&L feature). Kept separate from the rest of the category
+ * record on purpose -- this is the ONLY thing the P&L rollup reads to
+ * decide where a category's dollars land, so changing it takes effect on
+ * every past AND future entry under that category the next time the P&L
+ * is viewed (there's nothing per-entry to migrate). */
+export async function setLedgerCategoryPnlGroup(categoryId: number, pnlGroup: string) {
+  if (!PNL_GROUPS.includes(pnlGroup as PnlGroup)) throw new Error("Invalid P&L group");
+  await db.update(ledgerCategories).set({ pnlGroup: pnlGroup as PnlGroup }).where(eq(ledgerCategories.id, categoryId));
+  revalidatePath("/ledger/categories");
+  revalidatePath("/analytics");
 }
 
 /* ---------------------------------------------------------------------- */

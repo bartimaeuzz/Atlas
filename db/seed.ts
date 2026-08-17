@@ -59,9 +59,23 @@ async function seed() {
   // Seeded "for testing sake" (Oliver's words) -- Youk Thai is expected
   // to edit/replace these with its own real vendors before going live,
   // same DNA-is-a-guideline precedent as everywhere else in this app.
-  await db.insert(ledgerCategories).values(
-    ["Bar", "Food", "Mis", "PAYROLL BOH", "PAYROLL FOH", "Fixed expenses", "Car", "SHM"].map((name) => ({ name }))
-  );
+  // pnlGroup tags added 2026-08-16 for the Analytics/P&L feature -- Bar is
+  // alcohol/bar-program (BEVERAGE_ALC), Drinks is non-alcoholic soda/soft
+  // drinks (BEVERAGE_NONALC, a new category added for this feature, split
+  // out from Food per Aey's request), PAYROLL BOH/FOH are EXCLUDED from the
+  // P&L rollup since Atlas's own computed shift-wage data is the payroll
+  // source of truth instead (see ledgerCategories' schema comment).
+  await db.insert(ledgerCategories).values([
+    { name: "Bar", pnlGroup: "BEVERAGE_ALC" },
+    { name: "Food", pnlGroup: "FOOD" },
+    { name: "Drinks", pnlGroup: "BEVERAGE_NONALC" },
+    { name: "Mis", pnlGroup: "OTHER_EXPENSE" },
+    { name: "PAYROLL BOH", pnlGroup: "EXCLUDED" },
+    { name: "PAYROLL FOH", pnlGroup: "EXCLUDED" },
+    { name: "Fixed expenses", pnlGroup: "OTHER_EXPENSE" },
+    { name: "Car", pnlGroup: "OTHER_EXPENSE" },
+    { name: "SHM", pnlGroup: "OTHER_EXPENSE" },
+  ]);
   await db.insert(ledgerVendors).values(
     [
       "NY Mutual Trading, Inc.",

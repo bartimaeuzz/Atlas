@@ -3307,3 +3307,141 @@ renders correctly on My Schedule. Commit `30a7496`.
 **Not built:** no attempt to surface this same week grid inside the
 existing single-day preview page or vice versa -- they stay two
 separate, purpose-built views per Oliver's confirmed answer.
+
+## Analytics / P&L, Phase 1 (2026-08-16/17, same session)
+
+Oliver: "i want analytic feature and P&L feature. as you can see in
+2026 - c.xlsx. it has chart page and report that summarize expenses and
+revenue. like i said before after Youk open we might get basic api key
+from toast to link real data. but now i want something that can pull
+data on our app and process it." Inspected the referenced reference
+workbook (`Atlas/DNA Closing report/2026 - C.xlsx`) via openpyxl -- its
+"Chart" sheet shows revenue split Toast vs Online (doughnut) and
+expense categories as a % of revenue (Bar/Food/Payroll BOH/Payroll
+FOH); its "Report" sheet is a pivot-style category-totals table.
+Confirmed scope via two `AskUserQuestion` rounds:
+
+- Nav placement: a new top-level `/analytics` page (not a Reports tab).
+- Payroll source: Atlas's own computed shift-wage data, not manual
+  ledger entries -- avoids relying on someone re-typing payroll by hand
+  and avoids drifting out of sync with what Shifts/Payroll already
+  compute.
+- Food cost basis: Oliver's answer rejected the two options actually
+  offered and specified a three-way split instead, per Aey's explicit
+  ask: "Aey want food to separate Food, drinks(soda, soft drink,
+  regular drinks at every restaurant has) and bar programs(alcoholic,
+  mocktail, bar work related)." Built as three-way, not the two
+  originally-offered options.
+- Labor cost basis: full employer cost -- base wage + extra pay +
+  incentives - deductions, excluding tips (tips are customer
+  pass-through, not restaurant spend).
+- Phasing: single-period P&L + Analytics snapshot first (this round).
+  Oliver's own framing ("at the end it will include year to date, month
+  to date. compare month to month, year to year... like charts in
+  stocks. have something like payroll vs sales. to find sweet spot...
+  online order vs dine in vs takeout") is logged here as the explicitly
+  deferred next round, not built now.
+- Researched (Oliver's own ask -- "you can do research which metric or
+  indicator impact or affect restaurant") industry KPI benchmarks via
+  WebSearch/WebFetch to ground this round's "sweet spot" indicators:
+  food cost 28-35%, labor cost 25-36%, prime cost 55-65%, net margin
+  3-8%, delivery commission 15-30% (source: WhippleWood CPAs Restaurant
+  Financial Benchmarks 2026, cross-checked against NOVA Platform, Rezku,
+  and owner.com). Bar/alcohol cost is shown as its own line but
+  deliberately WITHOUT a benchmark band -- no liquor-specific range was
+  part of this round's research, and showing a fabricated band would be
+  worse than showing none.
+
+**Schema**: `ledgerCategories.pnlGroup` (new column, enum FOOD /
+BEVERAGE_NONALC / BEVERAGE_ALC / OTHER_EXPENSE / EXCLUDED, default
+OTHER_EXPENSE) -- a restaurant-configurable classification tag on
+categories, following the same design precedent as
+`positions.category`/`alwaysVisibleInRoster`/`grantsManagerAccess`,
+rather than code that pattern-matches on category name strings (robust
+to renaming). The existing PAYROLL BOH/PAYROLL FOH ledger categories
+are tagged EXCLUDED -- they're legacy manual entries that would
+double-count against the computed shift-wage payroll line, so they're
+kept out of the P&L total but their sum still surfaces as
+`excludedTotal` on the Analytics page (linking to Expense categories to
+re-tag), rather than silently vanishing. A new "Drinks" category was
+added (BEVERAGE_NONALC) to support the three-way split. Migration
+`0017_unknown_prodigy.sql` (drizzle-kit generate + hand-added backfill
+UPDATEs/INSERT, same pattern as `0015_massive_guardian.sql`) --
+verified the backfill via a temporary script before deleting it. New
+server action `setLedgerCategoryPnlGroup` (`lib/actions/ledger.ts`) plus
+a `<select>` per row on `/ledger/categories`
+(`SetCategoryPnlGroupSelect.tsx`) and on the add-category form.
+
+**Loaders** (`lib/analytics/`): `loadRevenueBreakdown.ts` is a thin
+reshape of the existing `loadSalesTaxReport` (net sales by channel,
+Toast + each online platform) rather than a second query, so the two
+reports can't drift apart. `loadExpenseBreakdown.ts` is the first
+loader in the codebase to sum Petty Cash + Supplier Check + Card
+together by category for a date range (each channel's own report only
+ever summed by date/payment before this) -- reuses each channel's own
+established date-range rule (Petty Cash: logged date; Supplier Check:
+payment's `paidDate`, cash basis; Card: statement charge date).
+`loadPayrollCost.ts` sums `employeePayouts` (flatWageAmount +
+extraPayAmount + incentiveAmount - deductionAmount, excluding
+tipPoolShare/hostUpsellTipShare) for finalized shifts in range, split
+FOH/BOH via the same "representative position per (shift, employee)"
+heuristic `loadSummaryData.ts` already uses. `loadPnL.ts` composes all
+three into a full Revenue -> COGS (Food/Drinks/Bar) -> Gross profit ->
+Payroll -> Other opex -> Net profit statement, plus 5 benchmarked KPIs
+(food cost %, labor cost %, prime cost %, net margin %, bar cost % --
+the last unbenchmarked, `status: "not_applicable"`).
+
+**UI** (`app/(protected)/analytics/`): consulted the `dataviz` skill
+before writing any chart code, which was explicit that a horizontal bar
+(not a donut) is the right form for named-category part-to-whole data
+-- a disclosed, deliberate deviation from the reference workbook's
+donut style, documented in `BreakdownBarChart.tsx`'s own header. Every
+bar carries a direct text label (name + $ + %) rather than relying on
+color alone (also mitigates the palette validator's contrast WARN on 3
+slots), plus a `<details>` "View as table" fallback, no client JS
+needed. `KpiMeterCard.tsx` renders each benchmark as a Meter (skill
+guidance: "a single ratio against a limit" is a meter, not a chart) --
+a faint band marks the healthy range on the track, status ships as
+icon + label + color together, never color alone. `palette.ts` uses the
+dataviz skill's documented default palette, colors assigned in fixed
+order (never cycled/reassigned by value) so a channel/category means
+the same color across page loads; validated via
+`scripts/validate_palette.js`. The page itself
+(`app/(protected)/analytics/page.tsx`) has This week/month/year presets
+plus a custom date range, the 5 KPI meter cards, the two breakdown
+charts side by side, the excluded-payroll note, and the full P&L
+statement table. Nav entry added to `MANAGER_NAV_ITEMS`
+(`NavBarClient.tsx`, between Reports and Settings) and a matching 8th
+tile on the role-aware home page (`app/page.tsx`).
+
+Verified: `eslint`/`tsc --noEmit` clean project-wide (fixed two
+unescaped-quote findings introduced by this round's own new JSX; the
+one pre-existing `NavBarClient.tsx` setState-in-effect warning and the
+pre-existing `db/seed.ts` unused-var warning both predate this round,
+confirmed via `git diff`), 71/71 tests pass (unchanged), `next build`
+clean with `/analytics` registered as a route. A 16-check direct-DB
+verify script (deleted after use) confirmed: `loadRevenueBreakdown`'s
+total matches `loadSalesTaxReport`'s own net total for the same range;
+EXCLUDED categories never appear in the expense breakdown and
+`total + excludedTotal` accounts for the full raw sum across all three
+channels; expense category shares sum to ~1; payroll FOH + BOH equals
+payroll total and matches an independent direct-SQL recomputation;
+the full P&L arithmetic (cogs total, gross profit, net profit) holds
+exactly; `barCostPct` always reads `not_applicable`; and the KPI
+status-band boundary logic (below/at-low-edge/at-high-edge/above)
+classifies correctly. Also a real `next start` smoke test using a
+session token minted directly for a seeded manager account (deleted
+after use): `/analytics` returns 200 and its HTML contains all 5 KPI
+cards and both breakdown charts, `/ledger/categories` returns 200 and
+shows the new P&L dropdown with Drinks/FOOD/BEVERAGE_NONALC/
+BEVERAGE_ALC/EXCLUDED all present, and the home page's rendered HTML
+contains the new `/analytics` tile and nav link.
+
+**Not built (explicitly deferred, per Oliver's own framing):**
+month-to-date/year-to-date figures, period-over-period (MoM/YoY)
+trend charts "like stock charts," a payroll-vs-sales "sweet spot"
+indicator, and channel-level profitability (online order vs dine-in vs
+takeout). Also not built: any Toast/POS API integration -- this phase
+is 100% Atlas's own already-captured data, matching what Oliver said
+("now i want something that can pull data on our app and process it,"
+with the Toast API link explicitly framed as a later step).

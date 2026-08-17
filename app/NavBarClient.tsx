@@ -12,6 +12,7 @@ const MANAGER_NAV_ITEMS = [
   { href: "/schedule", label: "Schedule" },
   { href: "/ledger", label: "Ledger" },
   { href: "/reports", label: "Reports" },
+  { href: "/analytics", label: "Analytics" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -74,12 +75,16 @@ function UnseenBadge({ count }: { count: number }) {
  * instead of being split across two different spots.
  *
  * Hamburger menu on phone width (2026-08-15, accessibility audit fix) —
- * the 7-link manager row (MANAGER_NAV_ITEMS) doesn't fit a phone screen
- * and previously had no wrap/scroll fallback, so links would overflow
- * off-screen with no way to reach them. Below the `sm` breakpoint the
- * inline row is hidden and replaced with a hamburger button that opens
- * a stacked full-width link list instead; at `sm` and above the original
- * inline row is unchanged.
+ * the manager row (MANAGER_NAV_ITEMS, 8 links as of the Analytics addition
+ * below) doesn't fit a phone screen and previously had no wrap/scroll
+ * fallback, so links would overflow off-screen with no way to reach them.
+ * Below the `sm` breakpoint the inline row is hidden and replaced with a
+ * hamburger button that opens a stacked full-width link list instead; at
+ * `sm` and above the original inline row is unchanged. The desktop row is a
+ * plain flex row with `gap-4` and no overflow handling of its own, but
+ * text-only labels stay compact enough to fit typical desktop/tablet
+ * widths even at 8 items — confirmed 2026-08-16 when Analytics was added,
+ * revisit this if more items get added later.
  *
  * Red-pill unseen badge (2026-08-16, extended later same day to also
  * cover swap requests) — `unseenScheduleCount` is resolved server-side

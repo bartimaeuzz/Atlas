@@ -831,10 +831,29 @@ export const ledgerVendors = sqliteTable("ledger_vendors", {
 // same reasoning as Positions: category NAMES are Soothr-specific, and
 // Youk Thai (or any future restaurant Atlas is sold to) should be able to
 // rename/add/retire categories without a code change.
+//
+// pnlGroup (2026-08-16, Analytics/P&L feature): which P&L bucket this
+// category rolls up into, so the P&L can group correctly without
+// pattern-matching on category NAME (which is freely renameable). Confirmed
+// with Oliver/Aey: Food, non-alcoholic Drinks (soda/soft drinks), and Bar
+// (alcohol/mocktails/bar program) are tracked as three SEPARATE cost lines,
+// not blended into one "food cost" — standard restaurant practice, since
+// liquor cost runs a very different % of revenue than food cost.
+// PAYROLL BOH/PAYROLL FOH categories are tagged EXCLUDED: Atlas's own
+// computed shift-wage data (employeePayouts) is the P&L's payroll source of
+// truth (confirmed with Oliver), so a ledger entry logged under those
+// categories would double-count if it were also summed here. The category
+// itself isn't deleted (historical entries still reference it) — it's just
+// left out of the P&L rollup, and the categories admin page notes why.
 export const ledgerCategories = sqliteTable("ledger_categories", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  pnlGroup: text("pnl_group", {
+    enum: ["FOOD", "BEVERAGE_NONALC", "BEVERAGE_ALC", "OTHER_EXPENSE", "EXCLUDED"],
+  })
+    .notNull()
+    .default("OTHER_EXPENSE"),
 });
 
 // One row per petty cash payout. vendorId is nullable on purpose — a real
