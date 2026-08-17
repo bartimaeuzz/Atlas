@@ -9,9 +9,11 @@ const initialState: EmployeeActionState = { error: null };
 export function EmployeeForm({
   existing,
   allPositions,
+  viewerIsAdmin,
 }: {
   existing: EmployeeListRow | null;
   allPositions: AssignablePosition[];
+  viewerIsAdmin: boolean;
 }) {
   const action = existing ? updateEmployee : createEmployee;
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -44,15 +46,42 @@ export function EmployeeForm({
       )}
 
       <div>
-        <label className="block text-sm font-medium mb-1">Name</label>
+        <label className="block text-sm font-medium mb-1">Nickname / display name</label>
         <input
           type="text"
-          name="name"
-          defaultValue={existing?.name}
+          name="nickname"
+          defaultValue={existing?.nickname}
           required
           className="border rounded px-3 py-2 text-sm w-full"
         />
+        <p className="text-xs text-neutral-500 mt-1">
+          What shows up everywhere in the app — schedule, roster, nav, tip pools. Not necessarily their legal name.
+        </p>
       </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium mb-1">Legal first name</label>
+          <input
+            type="text"
+            name="legalFirstName"
+            defaultValue={existing?.legalFirstName ?? ""}
+            required
+            className="border rounded px-3 py-2 text-sm w-full"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Legal last name</label>
+          <input
+            type="text"
+            name="legalLastName"
+            defaultValue={existing?.legalLastName ?? ""}
+            required
+            className="border rounded px-3 py-2 text-sm w-full"
+          />
+        </div>
+      </div>
+      <p className="text-xs text-neutral-500 -mt-4">Used for payroll and tax documents only — never shown elsewhere in the app.</p>
 
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
@@ -119,6 +148,104 @@ export function EmployeeForm({
           </span>
         </span>
       </label>
+
+      {viewerIsAdmin ? (
+        <fieldset className="border rounded p-4">
+          <legend className="text-sm font-medium px-1">Personal information (Admin only)</legend>
+          <p className="text-xs text-neutral-500 mb-3">
+            Only visible to Admin accounts. Used for HR/payroll records — not shown anywhere else in the app.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Date of birth</label>
+              <input
+                type="date"
+                name="dateOfBirth"
+                defaultValue={existing?.personalInfo?.dateOfBirth ?? ""}
+                className="border rounded px-3 py-2 text-sm w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Mobile phone</label>
+              <input
+                type="tel"
+                name="mobilePhone"
+                defaultValue={existing?.personalInfo?.mobilePhone ?? ""}
+                placeholder="(555) 555-5555"
+                className="border rounded px-3 py-2 text-sm w-full"
+              />
+            </div>
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Address line 1</label>
+            <input
+              type="text"
+              name="addressLine1"
+              defaultValue={existing?.personalInfo?.addressLine1 ?? ""}
+              className="border rounded px-3 py-2 text-sm w-full"
+            />
+          </div>
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Address line 2 (optional)</label>
+            <input
+              type="text"
+              name="addressLine2"
+              defaultValue={existing?.personalInfo?.addressLine2 ?? ""}
+              placeholder="Apt, suite, unit, etc."
+              className="border rounded px-3 py-2 text-sm w-full"
+            />
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">City</label>
+              <input
+                type="text"
+                name="city"
+                defaultValue={existing?.personalInfo?.city ?? ""}
+                className="border rounded px-3 py-2 text-sm w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">State</label>
+              <input
+                type="text"
+                name="state"
+                defaultValue={existing?.personalInfo?.state ?? ""}
+                placeholder="NY"
+                className="border rounded px-3 py-2 text-sm w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">ZIP code</label>
+              <input
+                type="text"
+                name="zipCode"
+                defaultValue={existing?.personalInfo?.zipCode ?? ""}
+                className="border rounded px-3 py-2 text-sm w-full"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">SSN or ITIN</label>
+            <input
+              type="text"
+              name="ssnOrItin"
+              defaultValue={existing?.personalInfo?.ssnOrItin ?? ""}
+              placeholder="XXX-XX-XXXX"
+              className="border rounded px-3 py-2 text-sm w-full max-w-xs"
+            />
+            <p className="text-xs text-neutral-500 mt-1">
+              SSN is generally required for a W-2 employee; ITIN generally applies to people who aren&apos;t
+              authorized as a W-2 employee. Check with your accountant or payroll provider before relying on
+              this field for actual tax filing — Atlas doesn&apos;t validate or distinguish the two.
+            </p>
+          </div>
+        </fieldset>
+      ) : (
+        <p className="text-xs text-neutral-500 border rounded p-3 bg-neutral-50">
+          Date of birth, address, phone, and SSN/ITIN are only visible to Admin accounts.
+        </p>
+      )}
 
       <fieldset>
         <legend className="text-lg font-medium mb-2">Positions</legend>

@@ -36,7 +36,7 @@ async function hydrateAcceptingNames(rows: SwapRequestView[]): Promise<SwapReque
   const acceptingIds = [...new Set(rows.map((r) => r.acceptingEmployeeId).filter((id): id is number => id !== null))];
   if (acceptingIds.length === 0) return rows;
   const accepters = await db.select().from(employees).where(inArray(employees.id, acceptingIds));
-  const nameById = new Map(accepters.map((e) => [e.id, e.name]));
+  const nameById = new Map(accepters.map((e) => [e.id, e.nickname]));
   return rows.map((r) => ({
     ...r,
     acceptingEmployeeName: r.acceptingEmployeeId !== null ? nameById.get(r.acceptingEmployeeId) ?? null : null,
@@ -53,7 +53,7 @@ function baseSwapQuery() {
       positionId: plannedShiftAssignments.positionId,
       positionName: positions.name,
       requestingEmployeeId: swapRequests.requestingEmployeeId,
-      requestingEmployeeName: employees.name,
+      requestingEmployeeName: employees.nickname,
       acceptingEmployeeId: swapRequests.acceptingEmployeeId,
       status: swapRequests.status,
       note: swapRequests.note,
@@ -186,7 +186,7 @@ export async function loadSwapStatusByAssignmentForWeek(
     .select({
       assignmentId: swapRequests.assignmentId,
       status: swapRequests.status,
-      requestingEmployeeName: employees.name,
+      requestingEmployeeName: employees.nickname,
     })
     .from(swapRequests)
     .innerJoin(plannedShiftAssignments, eq(swapRequests.assignmentId, plannedShiftAssignments.id))

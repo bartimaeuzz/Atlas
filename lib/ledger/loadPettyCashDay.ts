@@ -86,7 +86,7 @@ export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> 
         categoryName: ledgerCategories.name,
         note: pettyCashEntries.note,
         amount: pettyCashEntries.amount,
-        createdByName: employees.name,
+        createdByName: employees.nickname,
         createdAt: pettyCashEntries.createdAt,
       })
       .from(pettyCashEntries)
@@ -135,7 +135,7 @@ export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> 
   let finalizedByName: string | null = null;
   if (reconciliation?.finalizedByEmployeeId) {
     const [emp] = await db.select().from(employees).where(eq(employees.id, reconciliation.finalizedByEmployeeId));
-    finalizedByName = emp?.name ?? null;
+    finalizedByName = emp?.nickname ?? null;
   }
 
   // Suggested beginning balance for a brand-new day: yesterday's expected

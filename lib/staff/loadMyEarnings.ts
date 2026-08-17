@@ -102,7 +102,7 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
     .orderBy(desc(shifts.date));
 
   if (myShiftRows.length === 0) {
-    return { employee: { id: employee.id, name: employee.name, systemRole: employee.systemRole }, shifts: [], lifetimeTotal: 0 };
+    return { employee: { id: employee.id, name: employee.nickname, systemRole: employee.systemRole }, shifts: [], lifetimeTotal: 0 };
   }
 
   const allShiftIds = myShiftRows.map((r) => r.shiftId);
@@ -113,7 +113,7 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
     .select({
       shiftId: shiftRosterEntries.shiftId,
       employeeId: shiftRosterEntries.employeeId,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       primaryPositionId: employees.primaryPositionId,
       positionId: positions.id,
       positionName: positions.name,
@@ -231,7 +231,7 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
   const lifetimeTotal = resultShifts.reduce((a, s) => a + s.payout.totalCorePayout, 0);
 
   return {
-    employee: { id: employee.id, name: employee.name, systemRole: employee.systemRole },
+    employee: { id: employee.id, name: employee.nickname, systemRole: employee.systemRole },
     shifts: resultShifts,
     lifetimeTotal: Math.round(lifetimeTotal * 100) / 100,
   };

@@ -84,7 +84,55 @@ export const positionTipPools = sqliteTable(
 
 export const employees = sqliteTable("employees", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull(),
+  // Renamed from `name` (2026-08-17) -- this was always the informal name
+  // shown everywhere in the app (schedule, roster, nav, tip pools: "Aey",
+  // "Bomb", "Papi"), never a legal name. Renaming makes that explicit now
+  // that a real legalFirstName/legalLastName exists below for payroll.
+  // Every OTHER loader in the app still aliases this back to `name` in
+  // its own return shape (`.select({ name: employees.nickname })`) --
+  // deliberately, since "nickname" is genuinely what those screens want
+  // to show, not a UI wording change.
+  nickname: text("nickname").notNull(),
+  // Legal name for payroll/tax documents (2026-08-17, Oliver: "I need a
+  // real name and last name for their payroll"). Nullable, NOT backfilled
+  // with a placeholder for existing seeded employees -- an empty legal
+  // name honestly means "not collected yet," not a fake value. Enforced
+  // as required at the form level for newly-created employees only.
+  legalFirstName: text("legal_first_name"),
+  legalLastName: text("legal_last_name"),
+  // Personal info (2026-08-17, Oliver: "employee section also need their
+  // staff personal information... mobile phone number, DOB, address,
+  // SSN or ITIN"). All nullable (not backfilled), and all gated to
+  // Admin-only at the application layer for now (see
+  // requireAdminAction in lib/actions/employees.ts) until the confirmed-
+  // but-not-yet-built Permission System's Financial Auditor tier exists
+  // (see project_atlas_permission_system memory) -- that's the real long-
+  // term home for this access control, this is a stopgap.
+  //
+  // ssnOrItin is stored as plain text, same trust model as the rest of
+  // this app's data (no field-level encryption at rest exists in this
+  // codebase yet) -- protected by the Admin-only application check, NOT
+  // by encryption. Worth real encryption-at-rest before this app handles
+  // a live restaurant's actual employee SSNs; flagged honestly rather
+  // than implied to be more secure than it is. Masked to last 4 digits
+  // in every read-only display; only the edit form (Admin-only) ever
+  // shows the full value.
+  //
+  // NOTE (2026-08-17, told to Oliver, not independently verified): SSN
+  // is generally for W-2 employees; ITIN is generally for people who
+  // file taxes but are NOT authorized as W-2 employees (contractors,
+  // dependents, etc.) -- collecting either one and treating them as
+  // interchangeable for payroll may not be correct. Verify with an
+  // accountant/payroll provider before relying on this field for actual
+  // filing; this app does not attempt to validate or distinguish the two.
+  dateOfBirth: text("date_of_birth"), // ISO date string
+  mobilePhone: text("mobile_phone"),
+  addressLine1: text("address_line1"),
+  addressLine2: text("address_line2"),
+  city: text("city"),
+  state: text("state"),
+  zipCode: text("zip_code"),
+  ssnOrItin: text("ssn_or_itin"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   hireDate: text("hire_date"), // ISO date string
   primaryPositionId: integer("primary_position_id").references(() => positions.id),

@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { loadAllPositionsForAssignment } from "@/lib/employees/loadEmployeesList";
+import { getCurrentStaffSession } from "@/lib/auth/session";
 import { EmployeeForm } from "../EmployeeForm";
 
 export default async function NewEmployeePage() {
+  const session = await getCurrentStaffSession();
+  const viewerIsAdmin = session?.systemRole === "ADMIN";
   const allPositions = await loadAllPositionsForAssignment();
 
   return (
@@ -11,7 +14,7 @@ export default async function NewEmployeePage() {
         <Link href="/employees" className="text-neutral-500 hover:underline">← Employees</Link>
       </p>
       <h1 className="text-2xl font-semibold mb-6">New employee</h1>
-      <EmployeeForm existing={null} allPositions={allPositions} />
+      <EmployeeForm existing={null} allPositions={allPositions} viewerIsAdmin={viewerIsAdmin} />
     </main>
   );
 }

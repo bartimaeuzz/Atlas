@@ -57,7 +57,7 @@ export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData>
     .select({
       rosterEntryId: shiftRosterEntries.id,
       employeeId: employees.id,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       primaryPositionId: employees.primaryPositionId,
       positionId: positions.id,
       positionName: positions.name,

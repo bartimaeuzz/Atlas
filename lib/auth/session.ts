@@ -52,7 +52,7 @@ export async function resolveSessionToken(token: string): Promise<StaffSessionEm
   const [row] = await db
     .select({
       id: employees.id,
-      name: employees.name,
+      name: employees.nickname,
       systemRole: employees.systemRole,
       primaryPositionId: employees.primaryPositionId,
       isFinancialAuditor: employees.isFinancialAuditor,

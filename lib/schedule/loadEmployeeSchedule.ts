@@ -37,7 +37,7 @@ export interface EmployeeScheduleData {
  * projected-vs-actual blending as loadMonthOverview, just filtered
  * down to one person. */
 export async function loadEmployeeSchedule(employeeId: number, monthAnchor: string): Promise<EmployeeScheduleData> {
-  const [employee] = await db.select({ name: employees.name }).from(employees).where(eq(employees.id, employeeId));
+  const [employee] = await db.select({ name: employees.nickname }).from(employees).where(eq(employees.id, employeeId));
   const employeeName = employee?.name ?? "Unknown";
 
   const firstOfMonth = monthStart(monthAnchor);

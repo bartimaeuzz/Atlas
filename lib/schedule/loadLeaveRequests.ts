@@ -19,7 +19,7 @@ export async function loadMyLeaveRequests(employeeId: number): Promise<LeaveRequ
     .select({
       id: leaveRequests.id,
       employeeId: leaveRequests.employeeId,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       startDate: leaveRequests.startDate,
       endDate: leaveRequests.endDate,
       note: leaveRequests.note,
@@ -43,7 +43,7 @@ export async function loadUpcomingLeaveRequests(todayIso: string): Promise<Leave
     .select({
       id: leaveRequests.id,
       employeeId: leaveRequests.employeeId,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       startDate: leaveRequests.startDate,
       endDate: leaveRequests.endDate,
       note: leaveRequests.note,

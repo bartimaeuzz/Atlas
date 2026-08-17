@@ -6,12 +6,39 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees, employeePositions, employeeWageRates, positions } from "@/db/schema";
 import { hashPin } from "@/lib/auth/pin";
+import { getCurrentStaffSession } from "@/lib/auth/session";
 
 export interface EmployeeActionState {
   error: string | null;
 }
 
 const SYSTEM_ROLES = ["STAFF", "MANAGER", "ADMIN"] as const;
+
+/** 2026-08-17 — this file had NO auth check at all before (only the
+ * page-level requireManager() in app/(protected)/layout.tsx, which does
+ * NOT protect a Server Action's own POST endpoint from being called
+ * directly — same gap class already found and fixed in tipPools.ts/
+ * payroll.ts, see project_atlas_security_audit_2026_08_17 memory).
+ * Worth closing here regardless, but especially now that this file
+ * writes SSN/DOB/address. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
+}
+
+/** Personal info (DOB, address, phone, SSN/ITIN) is Admin-only for now —
+ * a stopgap ahead of the confirmed-but-not-yet-built Permission System's
+ * Financial Auditor tier (see project_atlas_permission_system memory).
+ * Any attempt to set these fields from a non-Admin session is silently
+ * dropped, not just hidden in the UI — the same double-check discipline
+ * used everywhere else sensitive data is written in this app. */
+async function isAdminSession(): Promise<boolean> {
+  const session = await getCurrentStaffSession();
+  return session?.systemRole === "ADMIN";
+}
 
 /** Same "gather + validate, redirect() outside the try/catch" pattern as
  * lib/actions/positions.ts. Position assignment fields are dynamic
@@ -22,9 +49,15 @@ const SYSTEM_ROLES = ["STAFF", "MANAGER", "ADMIN"] as const;
  *   wageRate_<positionId>_Lunch    BOH-only wage rate, Lunch
  *   wageRate_<positionId>_Dinner   BOH-only wage rate, Dinner
  */
-function readEmployeeForm(formData: FormData, allPositionIds: number[]) {
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) throw new Error("Employee name is required");
+function readEmployeeForm(formData: FormData, allPositionIds: number[], includeSensitive: boolean) {
+  const nickname = String(formData.get("nickname") ?? "").trim();
+  if (!nickname) throw new Error("Nickname/display name is required");
+
+  const legalFirstName = String(formData.get("legalFirstName") ?? "").trim();
+  const legalLastName = String(formData.get("legalLastName") ?? "").trim();
+  if (!legalFirstName || !legalLastName) {
+    throw new Error("Legal first and last name are required (needed for payroll/tax documents)");
+  }
 
   const active = formData.get("active") === "on";
 
@@ -42,6 +75,24 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[]) {
   const systemRole = systemRoleRaw as (typeof SYSTEM_ROLES)[number];
 
   const isFinancialAuditor = formData.get("isFinancialAuditor") === "on";
+
+  // Personal info — only read from the form (and therefore only ever
+  // written) when the acting session is Admin. A non-Admin's form won't
+  // render these fields at all, but this is the actual enforcement point,
+  // not the UI hiding them.
+  function optionalTrimmed(field: string): string | null {
+    if (!includeSensitive) return undefined as unknown as string | null; // sentinel: "don't touch this field"
+    const v = String(formData.get(field) ?? "").trim();
+    return v || null;
+  }
+  const dateOfBirth = optionalTrimmed("dateOfBirth");
+  const mobilePhone = optionalTrimmed("mobilePhone");
+  const addressLine1 = optionalTrimmed("addressLine1");
+  const addressLine2 = optionalTrimmed("addressLine2");
+  const city = optionalTrimmed("city");
+  const state = optionalTrimmed("state");
+  const zipCode = optionalTrimmed("zipCode");
+  const ssnOrItin = optionalTrimmed("ssnOrItin");
 
   const assignedPositionIds: number[] = [];
   const tipPointByPosition = new Map<number, number>();
@@ -76,7 +127,17 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[]) {
   }
 
   return {
-    name,
+    nickname,
+    legalFirstName,
+    legalLastName,
+    dateOfBirth,
+    mobilePhone,
+    addressLine1,
+    addressLine2,
+    city,
+    state,
+    zipCode,
+    ssnOrItin,
     active,
     hireDate,
     primaryPositionId,
@@ -85,6 +146,24 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[]) {
     assignedPositionIds,
     tipPointByPosition,
     wageRatesToInsert,
+  };
+}
+
+/** Strips the sentinel "don't touch this field" values (see
+ * readEmployeeForm's optionalTrimmed) out of a Drizzle set()/values()
+ * payload — a non-Admin's submission simply never mentions these
+ * columns, rather than overwriting them with null. */
+function sensitiveFieldsOrUndefined(parsed: ReturnType<typeof readEmployeeForm>, includeSensitive: boolean) {
+  if (!includeSensitive) return {};
+  return {
+    dateOfBirth: parsed.dateOfBirth,
+    mobilePhone: parsed.mobilePhone,
+    addressLine1: parsed.addressLine1,
+    addressLine2: parsed.addressLine2,
+    city: parsed.city,
+    state: parsed.state,
+    zipCode: parsed.zipCode,
+    ssnOrItin: parsed.ssnOrItin,
   };
 }
 
@@ -116,18 +195,24 @@ async function syncEmployeeChildRows(
 export async function createEmployee(_prevState: EmployeeActionState, formData: FormData): Promise<EmployeeActionState> {
   let employeeId: number;
   try {
+    await requireManagerAction();
+    const includeSensitive = await isAdminSession();
+
     const allPositions = await db.select({ id: positions.id }).from(positions);
-    const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id));
+    const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id), includeSensitive);
 
     const [created] = await db
       .insert(employees)
       .values({
-        name: parsed.name,
+        nickname: parsed.nickname,
+        legalFirstName: parsed.legalFirstName,
+        legalLastName: parsed.legalLastName,
         active: parsed.active,
         hireDate: parsed.hireDate,
         primaryPositionId: parsed.primaryPositionId,
         systemRole: parsed.systemRole,
         isFinancialAuditor: parsed.isFinancialAuditor,
+        ...sensitiveFieldsOrUndefined(parsed, includeSensitive),
       })
       .returning();
     employeeId = created.id;
@@ -146,18 +231,24 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
   if (!employeeId) return { error: "Missing employee id" };
 
   try {
+    await requireManagerAction();
+    const includeSensitive = await isAdminSession();
+
     const allPositions = await db.select({ id: positions.id }).from(positions);
-    const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id));
+    const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id), includeSensitive);
 
     await db
       .update(employees)
       .set({
-        name: parsed.name,
+        nickname: parsed.nickname,
+        legalFirstName: parsed.legalFirstName,
+        legalLastName: parsed.legalLastName,
         active: parsed.active,
         hireDate: parsed.hireDate,
         primaryPositionId: parsed.primaryPositionId,
         systemRole: parsed.systemRole,
         isFinancialAuditor: parsed.isFinancialAuditor,
+        ...sensitiveFieldsOrUndefined(parsed, includeSensitive),
       })
       .where(eq(employees.id, employeeId));
 
@@ -176,6 +267,7 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
  * allEmployees query already filters to active only for NEW roster
  * entries (pre-existing filter, unrelated to this round). */
 export async function toggleEmployeeActive(employeeId: number, nextActive: boolean) {
+  await requireManagerAction();
   await db.update(employees).set({ active: nextActive }).where(eq(employees.id, employeeId));
   revalidatePath("/employees");
 }
@@ -190,6 +282,8 @@ export async function toggleEmployeeActive(employeeId: number, nextActive: boole
  * separate means a manager can't accidentally wipe someone's PIN while
  * editing an unrelated field. */
 export async function setEmployeePin(_prevState: EmployeeActionState, formData: FormData): Promise<EmployeeActionState> {
+  await requireManagerAction();
+
   const employeeId = Number(formData.get("employeeId"));
   const pin = String(formData.get("pin") ?? "").trim();
 

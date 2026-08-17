@@ -71,7 +71,7 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
   const payoutRows = await db
     .select({
       employeeId: employeePayouts.employeeId,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       pointValueUsed: employeePayouts.pointValueUsed,
       tipPoolShare: employeePayouts.tipPoolShare,
       pool1Share: employeePayouts.pool1Share,

@@ -70,7 +70,7 @@ export async function loadScheduleDayPreview(viewerEmployeeId: number, date: str
   const rows = await db
     .select({
       employeeId: plannedShiftAssignments.employeeId,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       positionId: positions.id,
       positionName: positions.name,
       positionCategory: positions.category,

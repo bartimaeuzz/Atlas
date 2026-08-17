@@ -23,7 +23,7 @@ export default async function WeeklyPlanPage({
 
   const activeEmployees = employeeList
     .filter((e) => e.active)
-    .map((e) => ({ id: e.id, name: e.name, primaryPositionId: e.primaryPositionId }));
+    .map((e) => ({ id: e.id, name: e.nickname, primaryPositionId: e.primaryPositionId }));
   const activePositions = allPositions.filter((p) => p.active);
 
   const prevWeek = shiftWeek(weekStartDate, -1);

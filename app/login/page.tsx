@@ -13,7 +13,7 @@ export default async function LoginPage() {
   if (session) redirect("/");
 
   const activeEmployees = await db
-    .select({ id: employees.id, name: employees.name })
+    .select({ id: employees.id, name: employees.nickname })
     .from(employees)
     .where(eq(employees.active, true));
   activeEmployees.sort((a, b) => a.name.localeCompare(b.name));

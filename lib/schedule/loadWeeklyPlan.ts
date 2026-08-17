@@ -90,7 +90,7 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
     .select({
       id: plannedShiftAssignments.id,
       employeeId: plannedShiftAssignments.employeeId,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       positionId: plannedShiftAssignments.positionId,
       positionName: positions.name,
       positionCategory: positions.category,

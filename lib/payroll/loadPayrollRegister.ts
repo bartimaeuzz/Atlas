@@ -80,7 +80,7 @@ export async function computeLivePayrollRegister(
   const payoutRows = await db
     .select({
       employeeId: employeePayouts.employeeId,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       flatWageAmount: employeePayouts.flatWageAmount,
       extraPayAmount: employeePayouts.extraPayAmount,
       incentiveAmount: employeePayouts.incentiveAmount,
@@ -174,7 +174,7 @@ export async function loadPayrollRegister(weekStartDate: string): Promise<Payrol
     const snapshotRows = await db
       .select({
         employeeId: payrollPeriodEmployeeTotals.employeeId,
-        employeeName: employees.name,
+        employeeName: employees.nickname,
         shiftCount: payrollPeriodEmployeeTotals.shiftCount,
         flatWageAmount: payrollPeriodEmployeeTotals.flatWageAmount,
         extraPayAmount: payrollPeriodEmployeeTotals.extraPayAmount,
@@ -188,11 +188,11 @@ export async function loadPayrollRegister(weekStartDate: string): Promise<Payrol
       .from(payrollPeriodEmployeeTotals)
       .innerJoin(employees, eq(payrollPeriodEmployeeTotals.employeeId, employees.id))
       .where(eq(payrollPeriodEmployeeTotals.payrollPeriodId, period.id))
-      .orderBy(employees.name);
+      .orderBy(employees.nickname);
 
     let paidByName: string | null = null;
     if (period.paidByEmployeeId) {
-      const [payer] = await db.select({ name: employees.name }).from(employees).where(eq(employees.id, period.paidByEmployeeId));
+      const [payer] = await db.select({ name: employees.nickname }).from(employees).where(eq(employees.id, period.paidByEmployeeId));
       paidByName = payer?.name ?? null;
     }
 

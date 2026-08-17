@@ -32,7 +32,7 @@ export function EmployeesTable({ employeeList }: { employeeList: EmployeeListRow
     const value = (e: EmployeeListRow): string => {
       switch (sortKey) {
         case "name":
-          return e.name;
+          return e.nickname;
         case "primaryPosition":
           return e.primaryPositionName ?? "";
         case "positions":
@@ -71,7 +71,7 @@ export function EmployeesTable({ employeeList }: { employeeList: EmployeeListRow
         {sorted.map((e) => (
           <tr key={e.id} className={"border-b" + (e.active ? "" : " opacity-50")}>
             <td className="py-2">
-              {e.name}
+              {e.nickname}
               {!e.active && <span className="ml-2 text-xs text-neutral-400">(retired)</span>}
             </td>
             <td className="py-2 text-neutral-500">{e.primaryPositionName ?? "—"}</td>

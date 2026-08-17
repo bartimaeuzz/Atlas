@@ -40,7 +40,7 @@ export default async function EmployeeSchedulePage({
                 href={`/schedule/plan/person?employeeId=${e.id}&month=${monthAnchor}`}
                 className="block border rounded p-3 hover:bg-neutral-50 text-sm"
               >
-                {e.name}
+                {e.nickname}
               </Link>
             ))}
           </div>

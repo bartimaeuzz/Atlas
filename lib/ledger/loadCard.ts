@@ -43,7 +43,7 @@ export async function loadCardStatementPeriods(): Promise<CardStatementPeriodVie
       statementTotal: cardStatementPeriods.statementTotal,
       status: cardStatementPeriods.status,
       reconciledAt: cardStatementPeriods.reconciledAt,
-      reconciledByName: employees.name,
+      reconciledByName: employees.nickname,
     })
     .from(cardStatementPeriods)
     .innerJoin(ledgerCards, eq(cardStatementPeriods.cardId, ledgerCards.id))
@@ -106,7 +106,7 @@ export async function loadCardStatementPeriodDetail(periodId: number): Promise<C
       statementTotal: cardStatementPeriods.statementTotal,
       status: cardStatementPeriods.status,
       reconciledAt: cardStatementPeriods.reconciledAt,
-      reconciledByName: employees.name,
+      reconciledByName: employees.nickname,
     })
     .from(cardStatementPeriods)
     .innerJoin(ledgerCards, eq(cardStatementPeriods.cardId, ledgerCards.id))
@@ -121,7 +121,7 @@ export async function loadCardStatementPeriodDetail(periodId: number): Promise<C
       categoryName: ledgerCategories.name,
       memo: cardTransactions.memo,
       amount: cardTransactions.amount,
-      createdByName: employees.name,
+      createdByName: employees.nickname,
     })
     .from(cardTransactions)
     .innerJoin(ledgerCategories, eq(cardTransactions.categoryId, ledgerCategories.id))

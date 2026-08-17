@@ -65,7 +65,7 @@ export async function loadTemplatesByPosition(): Promise<PositionTemplateGroup[]
     .select({
       id: employeeScheduleTemplates.id,
       employeeId: employeeScheduleTemplates.employeeId,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       positionId: employeeScheduleTemplates.positionId,
       dayOfWeek: employeeScheduleTemplates.dayOfWeek,
       period: employeeScheduleTemplates.period,
@@ -80,7 +80,7 @@ export async function loadTemplatesByPosition(): Promise<PositionTemplateGroup[]
     .map((p) => {
       const eligibleEmployees = activeEmployees
         .filter((e) => assignedPositionIdsByEmployee.get(e.id)?.has(p.id))
-        .map((e) => ({ id: e.id, name: e.name }))
+        .map((e) => ({ id: e.id, name: e.nickname }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
       const rowsForPosition = templateRows.filter((r) => r.positionId === p.id);

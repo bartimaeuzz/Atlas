@@ -80,7 +80,7 @@ function selectPaymentRows() {
       paidDate: supplierCheckPayments.paidDate,
       checkNumber: supplierCheckPayments.checkNumber,
       totalAmount: supplierCheckPayments.totalAmount,
-      paidByName: employees.name,
+      paidByName: employees.nickname,
       status: supplierCheckPayments.status,
       vendorName: ledgerVendors.name,
       payeeAddressLine1: ledgerVendors.payeeAddressLine1,

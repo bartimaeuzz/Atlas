@@ -51,7 +51,7 @@ export async function loadPendingInvoicesByVendor(): Promise<VendorPendingGroup[
       categoryName: ledgerCategories.name,
       description: supplierInvoices.description,
       amount: supplierInvoices.amount,
-      createdByName: employees.name,
+      createdByName: employees.nickname,
       vendorId: ledgerVendors.id,
       vendorName: ledgerVendors.name,
     })
@@ -143,10 +143,10 @@ export async function loadSupplierChecks({ from, to }: { from: string; to: strin
       checkDate: supplierCheckPayments.paidDate,
       checkNumber: supplierCheckPayments.checkNumber,
       totalAmount: supplierCheckPayments.totalAmount,
-      printedByName: employees.name,
+      printedByName: employees.nickname,
       status: supplierCheckPayments.status,
       deliveredAt: supplierCheckPayments.deliveredAt,
-      deliveredByName: deliveredByEmployee.name,
+      deliveredByName: deliveredByEmployee.nickname,
     })
     .from(supplierCheckPayments)
     .innerJoin(ledgerVendors, eq(supplierCheckPayments.vendorId, ledgerVendors.id))

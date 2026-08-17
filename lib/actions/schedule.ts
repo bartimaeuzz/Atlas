@@ -477,7 +477,7 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
               const ca = countThisWeek.get(a.id) ?? 0;
               const cb = countThisWeek.get(b.id) ?? 0;
               if (ca !== cb) return ca - cb;
-              return a.name.localeCompare(b.name);
+              return a.nickname.localeCompare(b.nickname);
             });
             const chosen = candidates[0];
 
@@ -615,7 +615,7 @@ async function logScheduleChange(params: {
   if (params.rows.length === 0) return; // nothing was actually removed -- don't log a no-op
 
   const [employeeRows, positionRows] = await Promise.all([
-    db.select({ id: employees.id, name: employees.name }).from(employees),
+    db.select({ id: employees.id, name: employees.nickname }).from(employees),
     db.select({ id: positions.id, name: positions.name }).from(positions),
   ]);
   const employeeNameById = new Map(employeeRows.map((e) => [e.id, e.name]));

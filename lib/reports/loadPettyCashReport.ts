@@ -59,7 +59,7 @@ export async function loadPettyCashReport(from: string, to: string): Promise<Pet
         otherCash: dailyCashReconciliations.otherCash,
         countedAmount: dailyCashReconciliations.countedAmount,
         status: dailyCashReconciliations.status,
-        finalizedByName: employees.name,
+        finalizedByName: employees.nickname,
       })
       .from(dailyCashReconciliations)
       .leftJoin(employees, eq(dailyCashReconciliations.finalizedByEmployeeId, employees.id))

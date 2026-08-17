@@ -45,7 +45,7 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
     .select({
       rosterEntryId: shiftRosterEntries.id,
       employeeId: employees.id,
-      employeeName: employees.name,
+      employeeName: employees.nickname,
       positionId: positions.id,
       positionName: positions.name,
       positionCategory: positions.category,
@@ -57,7 +57,7 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
     .where(eq(shiftRosterEntries.shiftId, shiftId));
 
   const allEmployees = await db
-    .select({ id: employees.id, name: employees.name, primaryPositionId: employees.primaryPositionId })
+    .select({ id: employees.id, name: employees.nickname, primaryPositionId: employees.primaryPositionId })
     .from(employees)
     .where(eq(employees.active, true));
 

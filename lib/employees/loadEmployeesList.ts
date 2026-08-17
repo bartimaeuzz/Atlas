@@ -16,9 +16,34 @@ export interface EmployeeWageRateRow {
   rate: number;
 }
 
+/** Personal info (2026-08-17, Oliver: "employee section also need their
+ * staff personal information... mobile phone number, DOB, address, SSN
+ * or ITIN"). Admin-only, see requireAdminAction-equivalent gating in
+ * lib/actions/employees.ts and employees.ssnOrItin's schema comment for
+ * the honest plaintext-at-rest note. Only ever populated by
+ * loadEmployeeForEdit when the caller has already confirmed the viewing
+ * session is Admin — loadEmployeesList (the plain listing table) never
+ * fetches or exposes this at all, since nothing on that page shows it. */
+export interface EmployeePersonalInfo {
+  dateOfBirth: string | null;
+  mobilePhone: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  ssnOrItin: string | null;
+}
+
 export interface EmployeeListRow {
   id: number;
-  name: string;
+  nickname: string;
+  /** Legal name for payroll/tax documents (2026-08-17) — nullable, not
+   * backfilled for pre-existing employees (see employees.legalFirstName's
+   * schema comment). Enforced as required going forward at the form
+   * level (readEmployeeForm in lib/actions/employees.ts), not the DB. */
+  legalFirstName: string | null;
+  legalLastName: string | null;
   active: boolean;
   hireDate: string | null;
   primaryPositionId: number | null;
@@ -35,6 +60,9 @@ export interface EmployeeListRow {
    * to edit an already Printed/Paid Supplier Check invoice, and whose
    * PIN doubles as the confirmation code required on those edits. */
   isFinancialAuditor: boolean;
+  /** null unless the caller is loadEmployeeForEdit with an Admin viewer
+   * -- see EmployeePersonalInfo's own doc comment. */
+  personalInfo: EmployeePersonalInfo | null;
 }
 
 /** Powers the /employees list + edit form — same shape as
@@ -97,7 +125,9 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
   return allEmployees
     .map((e) => ({
       id: e.id,
-      name: e.name,
+      nickname: e.nickname,
+      legalFirstName: e.legalFirstName,
+      legalLastName: e.legalLastName,
       active: e.active,
       hireDate: e.hireDate,
       primaryPositionId: e.primaryPositionId,
@@ -105,6 +135,7 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
       systemRole: e.systemRole as "STAFF" | "MANAGER" | "ADMIN",
       hasPinSet: e.pinHash !== null,
       isFinancialAuditor: e.isFinancialAuditor,
+      personalInfo: null, // the plain listing table never shows this -- see EmployeePersonalInfo's doc comment
       positions: ensurePrimaryPositionIncluded(
         positionRows
           .filter((r) => r.employeeId === e.id)
@@ -129,10 +160,10 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
           rate: r.rate,
         })),
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => a.nickname.localeCompare(b.nickname));
 }
 
-export async function loadEmployeeForEdit(employeeId: number): Promise<EmployeeListRow | null> {
+export async function loadEmployeeForEdit(employeeId: number, viewerIsAdmin: boolean): Promise<EmployeeListRow | null> {
   const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId));
   if (!employee) return null;
 
@@ -144,7 +175,9 @@ export async function loadEmployeeForEdit(employeeId: number): Promise<EmployeeL
 
   return {
     id: employee.id,
-    name: employee.name,
+    nickname: employee.nickname,
+    legalFirstName: employee.legalFirstName,
+    legalLastName: employee.legalLastName,
     active: employee.active,
     hireDate: employee.hireDate,
     primaryPositionId: employee.primaryPositionId,
@@ -152,6 +185,18 @@ export async function loadEmployeeForEdit(employeeId: number): Promise<EmployeeL
     systemRole: employee.systemRole as "STAFF" | "MANAGER" | "ADMIN",
     hasPinSet: employee.pinHash !== null,
     isFinancialAuditor: employee.isFinancialAuditor,
+    personalInfo: viewerIsAdmin
+      ? {
+          dateOfBirth: employee.dateOfBirth,
+          mobilePhone: employee.mobilePhone,
+          addressLine1: employee.addressLine1,
+          addressLine2: employee.addressLine2,
+          city: employee.city,
+          state: employee.state,
+          zipCode: employee.zipCode,
+          ssnOrItin: employee.ssnOrItin,
+        }
+      : null,
     positions: ensurePrimaryPositionIncluded(
       positionRows.map((r) => {
         const p = positionById.get(r.positionId);

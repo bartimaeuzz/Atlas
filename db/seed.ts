@@ -243,26 +243,26 @@ async function seed() {
   // /employees, since seed.ts never touches his production database.
   const [aey] = await db
     .insert(employees)
-    .values({ name: "Aey", primaryPositionId: bartender.id, systemRole: "MANAGER", isFinancialAuditor: true })
+    .values({ nickname: "Aey", primaryPositionId: bartender.id, systemRole: "MANAGER", isFinancialAuditor: true })
     .returning();
-  const [alesso] = await db.insert(employees).values({ name: "Alesso", primaryPositionId: busser.id }).returning();
-  const [bomb] = await db.insert(employees).values({ name: "Bomb", primaryPositionId: headChef.id }).returning();
-  const [carlos] = await db.insert(employees).values({ name: "Carlos", primaryPositionId: deliveryGuy.id }).returning();
-  const [chong] = await db.insert(employees).values({ name: "Chong", primaryPositionId: pastryChef.id }).returning();
-  const [chui] = await db.insert(employees).values({ name: "Chui", primaryPositionId: server.id }).returning();
-  const [erika] = await db.insert(employees).values({ name: "Erika", primaryPositionId: host.id }).returning();
-  const [film] = await db.insert(employees).values({ name: "Film", primaryPositionId: runner.id }).returning();
-  const [game] = await db.insert(employees).values({ name: "Game", primaryPositionId: sousChef.id }).returning();
-  const [gunner] = await db.insert(employees).values({ name: "Gunner", primaryPositionId: bagHandler.id }).returning();
-  const [jose] = await db.insert(employees).values({ name: "Jose", primaryPositionId: dishwasher.id }).returning();
-  const [juan] = await db.insert(employees).values({ name: "Juan", primaryPositionId: prep.id }).returning();
-  const [kris] = await db.insert(employees).values({ name: "Kris", primaryPositionId: server.id }).returning();
-  const [meji] = await db.insert(employees).values({ name: "Meji", primaryPositionId: host.id }).returning();
-  const [nancy] = await db.insert(employees).values({ name: "Nancy", primaryPositionId: floorManager.id }).returning();
-  const [oliver] = await db.insert(employees).values({ name: "Oliver", primaryPositionId: bartender.id, systemRole: "ADMIN" }).returning();
-  const [papi] = await db.insert(employees).values({ name: "Papi", primaryPositionId: lineCook.id }).returning();
-  const [sammuel] = await db.insert(employees).values({ name: "Sammuel", primaryPositionId: deliveryGuy.id }).returning();
-  const [wiinchy] = await db.insert(employees).values({ name: "Wiinchy", primaryPositionId: bartender.id }).returning();
+  const [alesso] = await db.insert(employees).values({ nickname: "Alesso", primaryPositionId: busser.id }).returning();
+  const [bomb] = await db.insert(employees).values({ nickname: "Bomb", primaryPositionId: headChef.id }).returning();
+  const [carlos] = await db.insert(employees).values({ nickname: "Carlos", primaryPositionId: deliveryGuy.id }).returning();
+  const [chong] = await db.insert(employees).values({ nickname: "Chong", primaryPositionId: pastryChef.id }).returning();
+  const [chui] = await db.insert(employees).values({ nickname: "Chui", primaryPositionId: server.id }).returning();
+  const [erika] = await db.insert(employees).values({ nickname: "Erika", primaryPositionId: host.id }).returning();
+  const [film] = await db.insert(employees).values({ nickname: "Film", primaryPositionId: runner.id }).returning();
+  const [game] = await db.insert(employees).values({ nickname: "Game", primaryPositionId: sousChef.id }).returning();
+  const [gunner] = await db.insert(employees).values({ nickname: "Gunner", primaryPositionId: bagHandler.id }).returning();
+  const [jose] = await db.insert(employees).values({ nickname: "Jose", primaryPositionId: dishwasher.id }).returning();
+  const [juan] = await db.insert(employees).values({ nickname: "Juan", primaryPositionId: prep.id }).returning();
+  const [kris] = await db.insert(employees).values({ nickname: "Kris", primaryPositionId: server.id }).returning();
+  const [meji] = await db.insert(employees).values({ nickname: "Meji", primaryPositionId: host.id }).returning();
+  const [nancy] = await db.insert(employees).values({ nickname: "Nancy", primaryPositionId: floorManager.id }).returning();
+  const [oliver] = await db.insert(employees).values({ nickname: "Oliver", primaryPositionId: bartender.id, systemRole: "ADMIN" }).returning();
+  const [papi] = await db.insert(employees).values({ nickname: "Papi", primaryPositionId: lineCook.id }).returning();
+  const [sammuel] = await db.insert(employees).values({ nickname: "Sammuel", primaryPositionId: deliveryGuy.id }).returning();
+  const [wiinchy] = await db.insert(employees).values({ nickname: "Wiinchy", primaryPositionId: bartender.id }).returning();
 
   // Standing position assignments — tipPointValue defaults to 1.0 for
   // everyone except Kris (kept at 0.8, a deliberate variance carried over
