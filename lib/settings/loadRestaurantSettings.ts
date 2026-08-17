@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { restaurantSettings } from "@/db/schema";
+import { employees, restaurantSettings } from "@/db/schema";
 
 export type PoolSplitMethod = "POINT_WEIGHTED" | "EQUAL_SPLIT";
 
@@ -81,5 +81,44 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     hostDrinkBonusPerDrinkAmount: row.hostDrinkBonusPerDrinkAmount,
     defaultSalesTaxRate: row.defaultSalesTaxRate,
     staffLoginMethod: row.staffLoginMethod as "NAME" | "ID",
+  };
+}
+
+export interface RecoveryCodeStatus {
+  /** True once an Admin has generated a code — the Settings page uses
+   * this to show "Generate" vs "Regenerate" and to warn that
+   * regenerating invalidates the old one. */
+  isSet: boolean;
+  setAt: string | null;
+  lastUsedAt: string | null;
+  /** Nickname of whoever's PIN was last reset via the code, for the
+   * "was this used without me knowing" visibility check — see
+   * db/schema.ts's recoveryCodeLastUsedForEmployeeId comment. Null if
+   * never used, or if that employee record is somehow gone. */
+  lastUsedForEmployeeNickname: string | null;
+}
+
+/** Separate from loadRestaurantSettings/RestaurantSettingsData above —
+ * this needs a join to resolve the last-used employee's display name,
+ * and is only ever read by the Admin-only "Account recovery" section of
+ * Settings, not by every caller of the main settings loader. */
+export async function loadRecoveryCodeStatus(): Promise<RecoveryCodeStatus> {
+  const [row] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
+  if (!row) return { isSet: false, setAt: null, lastUsedAt: null, lastUsedForEmployeeNickname: null };
+
+  let lastUsedForEmployeeNickname: string | null = null;
+  if (row.recoveryCodeLastUsedForEmployeeId) {
+    const [employee] = await db
+      .select({ nickname: employees.nickname })
+      .from(employees)
+      .where(eq(employees.id, row.recoveryCodeLastUsedForEmployeeId));
+    lastUsedForEmployeeNickname = employee?.nickname ?? null;
+  }
+
+  return {
+    isSet: row.recoveryCodeHash !== null,
+    setAt: row.recoveryCodeSetAt,
+    lastUsedAt: row.recoveryCodeLastUsedAt,
+    lastUsedForEmployeeNickname,
   };
 }

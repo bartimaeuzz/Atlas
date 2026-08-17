@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { login, type LoginActionState } from "@/lib/actions/auth";
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -58,6 +59,11 @@ export function LoginForm({
       <Button type="submit" loading={isPending} className="w-full" size="md">
         {isPending ? "Signing in…" : "Sign in"}
       </Button>
+      <p className="text-center text-sm text-[var(--ink-500)]">
+        <Link href="/login/recover" className="underline">
+          Forgot PIN?
+        </Link>
+      </p>
     </form>
   );
 }

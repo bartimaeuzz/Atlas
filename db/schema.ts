@@ -337,6 +337,38 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // "NAME" = original pick-from-list + PIN (default, unchanged
   // behavior). "ID" = type your YK login ID + PIN. See app/login/page.tsx.
   staffLoginMethod: text("staff_login_method", { enum: ["NAME", "ID"] }).notNull().default("NAME"),
+  // Account recovery code (2026-08-17, Oliver: "What should we do when the
+  // admin forgot his password?" -- clarified this needs to work for a
+  // customer restaurant with zero access back to Claude/Oliver, not just
+  // a script only Oliver can run). A restaurant-level "master key" --
+  // NOT tied to any one employee -- an Admin generates it from Settings,
+  // it's shown in plaintext exactly once at generation time (never stored
+  // that way), and it's the one thing that can reset ANY employee's PIN
+  // from the public /login/recover page without an existing session.
+  // Same hash format as employees.pinHash (lib/auth/pin.ts's generic
+  // scrypt hashPin/verifyPin -- not PIN-specific despite the name).
+  // Nullable -- a restaurant that never generates one simply has no
+  // self-service recovery path yet (same as today, before this feature).
+  recoveryCodeHash: text("recovery_code_hash"),
+  recoveryCodeSetAt: text("recovery_code_set_at"), // ISO timestamp, for Settings' "generated on ..." display
+  // Brute-force protection (2026-08-17, confirmed with Oliver: lock out
+  // after 5 wrong tries for 15 minutes) -- this code can reset every PIN
+  // in the restaurant, so guessing it is much higher-value than guessing
+  // one employee's PIN. Both reset to 0/null on ANY correct redemption;
+  // recoveryFailedAttempts resets to 0 (not just decremented) once a
+  // lockout is triggered, so the 15-minute window is the only thing
+  // standing between a locked-out attacker and a fresh set of 5 tries --
+  // deliberate, matches how simple lockout schemes normally work.
+  recoveryFailedAttempts: integer("recovery_failed_attempts").notNull().default(0),
+  recoveryLockedUntil: text("recovery_locked_until"), // ISO timestamp; null/past = not locked
+  // Visibility into whether/when the master key has actually been used
+  // (2026-08-17) -- surfaced on Settings so an Admin notices if it was
+  // redeemed without their knowledge. Deliberately NOT a full audit log
+  // table (single most-recent redemption only) -- a fuller log is easy to
+  // add later if actually wanted; this is the minimum that makes misuse
+  // visible without building an audit-log viewer nobody's asked for yet.
+  recoveryCodeLastUsedAt: text("recovery_code_last_used_at"),
+  recoveryCodeLastUsedForEmployeeId: integer("recovery_code_last_used_for_employee_id").references(() => employees.id),
 });
 
 export const onlinePlatforms = sqliteTable("online_platforms", {

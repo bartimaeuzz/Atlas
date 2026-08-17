@@ -148,6 +148,13 @@
       "when": 1786971305585,
       "tag": "0020_add_login_id_partner_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1787002595018,
+      "tag": "0021_add_recovery_code",
+      "breakpoints": true
     }
   ]
 }
