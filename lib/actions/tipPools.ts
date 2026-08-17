@@ -14,6 +14,24 @@ import { revalidatePath } from "next/cache";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import { restaurantSettings, positionTipPools } from "@/db/schema";
+import { getCurrentStaffSession } from "@/lib/auth/session";
+
+/** 2026-08-17 security audit finding #1 (BLOCKER) — neither action below
+ * checked auth at all; the page-level `requireManager()` in
+ * app/(protected)/layout.tsx only runs when a page renders, not when a
+ * Server Action's own POST endpoint is called directly. Every other
+ * actions file (ledger.ts, card.ts, supplierCheck.ts, swap.ts) already
+ * checks the session itself, which is the reference pattern this local
+ * helper mirrors — both functions here save immediately with no
+ * confirmation step, so a missing/wrong-role session must throw before
+ * touching the DB, not just log the caller. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
+}
 
 export type TipPoolGroup = "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY";
 export type PoolSplitMethod = "POINT_WEIGHTED" | "EQUAL_SPLIT";
@@ -27,6 +45,8 @@ export type PoolSplitMethod = "POINT_WEIGHTED" | "EQUAL_SPLIT";
  * page's checkboxes use — both stay in sync automatically since there's
  * only ever one underlying table. */
 export async function toggleTipPoolMembership(positionId: number, tipPoolGroup: TipPoolGroup, add: boolean) {
+  await requireManagerAction();
+
   if (add) {
     const [existing] = await db
       .select()
@@ -48,6 +68,8 @@ export async function toggleTipPoolMembership(positionId: number, tipPoolGroup: 
  * the only place this now lives (moved off the main Settings page, see
  * this file's header comment). */
 export async function updatePoolSplitMethod(tipPoolGroup: TipPoolGroup, method: PoolSplitMethod) {
+  await requireManagerAction();
+
   switch (tipPoolGroup) {
     case "POOL_1_DINE_IN":
       await db.update(restaurantSettings).set({ pool1SplitMethod: method }).where(eq(restaurantSettings.restaurantId, 1));
@@ -58,6 +80,10 @@ export async function updatePoolSplitMethod(tipPoolGroup: TipPoolGroup, method: 
     case "POOL_3_DELIVERY":
       await db.update(restaurantSettings).set({ pool3SplitMethod: method }).where(eq(restaurantSettings.restaurantId, 1));
       break;
+    default:
+      // 2026-08-17 security audit finding #3 (minor) — an unrecognized
+      // tipPoolGroup previously silently no-op'd instead of throwing.
+      throw new Error(`Unrecognized tip pool group: ${tipPoolGroup satisfies never}`);
   }
   revalidatePath("/settings/tip-pools");
 }

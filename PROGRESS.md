@@ -3640,3 +3640,40 @@ test confirmed `/settings/tip-pools` renders with real position data
 (Host correctly shows both Pool 1 and Pool 2 chips) and `/settings`
 correctly no longer shows the split-method UI while everything else on
 that page is unaffected.
+
+## Security audit fix — server-action auth gap in tip-pool + payroll actions (2026-08-17)
+
+Fixes findings #1-#3 from the 2026-08-17 `/scrutinize` codebase audit
+(`project_atlas_security_audit_2026_08_17` memory). Root cause: Server
+Actions (`"use server"` functions) are independently callable POST
+endpoints — calling one directly (e.g. replaying its request once the
+action ID is known, no login required) bypasses `app/(protected)/
+layout.tsx`'s `requireManager()` page gate entirely, since that only
+runs when a *page* renders. Most actions files already guard themselves
+correctly (`ledger.ts`, `card.ts`, `supplierCheck.ts`, `swap.ts`); these
+two didn't.
+
+- **`lib/actions/tipPools.ts`** — `toggleTipPoolMembership` and
+  `updatePoolSplitMethod` had no session check at all (audit finding #1,
+  BLOCKER). Added a local `requireManagerAction()` helper (session must
+  exist and be MANAGER/ADMIN, same check `swap.ts` already uses) as the
+  first line of both functions. Also gave `updatePoolSplitMethod`'s
+  `switch` a `default` case that throws on an unrecognized pool instead
+  of silently no-op'ing (finding #3, minor).
+- **`lib/actions/payroll.ts`** — `markPayrollPeriodPaid` only checked
+  "is anyone logged in" (`if (!session) throw`), not "is this a
+  manager," unlike its sibling `revertPayrollPeriodToDraft` three lines
+  down which correctly requires ADMIN (finding #2, MAJOR). Changed the
+  check to require MANAGER or ADMIN, matching the sibling.
+
+No schema change, no migration. `eslint`/`tsc --noEmit`/`next build` all
+clean; 71/71 existing tests pass. Verified the actual vulnerability is
+closed, not just the type signature: used Playwright against a real
+`next start` server to log in as ADMIN and capture the literal POST
+request (URL, `next-action` header, body) each button's click sends for
+both `toggleTipPoolMembership` and `markPayrollPeriodPaid`, then
+replayed those exact requests via `curl` twice each — once with no
+session cookie at all, once with a real STAFF (non-manager) session
+cookie — confirming both endpoints now reject with the intended error
+("Not authorized." / "Only a manager can mark payroll as paid.") and
+leave the DB unchanged, instead of silently succeeding.

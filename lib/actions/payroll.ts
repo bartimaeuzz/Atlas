@@ -25,7 +25,15 @@ import { computeLivePayrollRegister } from "@/lib/payroll/loadPayrollRegister";
  * silently change later if a shift is edited/refinalized. */
 export async function markPayrollPeriodPaid(weekStartDate: string) {
   const session = await getCurrentStaffSession();
-  if (!session) throw new Error("Not signed in");
+  // 2026-08-17 security audit finding #2 (MAJOR) — this only checked "is
+  // anyone logged in," not "is this a manager," even though /payroll
+  // itself is manager-gated and its sibling revertPayrollPeriodToDraft
+  // below correctly requires ADMIN. A STAFF-only session (e.g. someone
+  // who only ever logs in for My Schedule) could otherwise lock a week's
+  // payroll as paid by calling this action directly.
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Only a manager can mark payroll as paid.");
+  }
 
   const weekEndDate = datesInWeek(weekStartDate)[6];
 
