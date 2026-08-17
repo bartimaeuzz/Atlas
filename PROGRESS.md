@@ -3714,3 +3714,18 @@ Four real conflicts, all resolved by hand rather than blindly picking a side:
 - **`PROGRESS.md`** — pure append-order conflict, both sides' changelog entries kept.
 
 Verified post-merge: `tsc --noEmit` clean, `next build` clean, all 71 tests pass, `eslint` clean.
+
+---
+
+## Backfilled tests: Payroll register + Analytics/P&L (2026-08-17)
+
+Closed the test-coverage gap flagged in the 2026-08-17 project review — Payroll and Analytics/P&L were the two newest money-facing features and had zero automated tests, unlike the well-covered tip-pool/wage engine.
+
+Both files mixed DB fetching directly into the money math, unlike `lib/calc`'s framework-free pure functions (this project's own stated convention for testability). Extracted the actual math out of each, matching that convention rather than reaching for a different testing style:
+
+- **`lib/payroll/loadPayrollRegister.ts`** — pulled the per-shift-payout -> per-employee-per-week aggregation (sum across shifts, round every field independently, sort by name) into a new exported pure function `aggregatePayrollRows`. `computeLivePayrollRegister` is now a thin DB-fetch-then-delegate wrapper. 7 new tests: multi-shift summing (not overwriting), independent-employee separation, null `hostUpsellTipShare` defaulting safely to 0, per-field rounding, alphabetical sort, empty-week case.
+- **`lib/analytics/loadPnL.ts`** — pulled the COGS/gross-profit/net-profit composition and all 5 benchmarked KPI ratios + range classification into a new exported pure function `computePnL`. `loadPnL` is now a thin fetch-three-breakdowns-then-delegate wrapper. 7 new tests: gross/net profit math, food-cost-% correctly excluding bar (per Aey's request to track it separately), below/in/above-range classification against the cited benchmark bands, bar cost's deliberate `not_applicable` status, zero-revenue division safety, labor cost using Atlas's own computed payroll rather than the legacy EXCLUDED ledger category, prime cost composition.
+
+Both extractions are pure refactors — no behavior change, `loadPnL`/`computeLivePayrollRegister`'s public signatures and return values are identical to before.
+
+Verified: `tsc`/`eslint`/`build` all clean, test suite grew from 71 to 85 (all passing).

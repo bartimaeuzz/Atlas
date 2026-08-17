@@ -78,6 +78,22 @@ export async function loadPnL(dateFrom: string, dateTo: string): Promise<PnLData
     loadPayrollCost(dateFrom, dateTo),
   ]);
 
+  return computePnL(dateFrom, dateTo, revenue, expenses, payroll);
+}
+
+/** Pure composition step, split out from loadPnL (2026-08-17) specifically
+ * so the P&L math -- COGS/gross/net profit, the 5 benchmarked KPI ratios
+ * and their below/in/above-range classification -- is unit-testable the
+ * same way lib/calc's tip-pool/wage math already is, without needing a
+ * database. loadPnL itself stays a thin fetch-three-breakdowns-then-
+ * delegate wrapper; this function is the actual money math. */
+export function computePnL(
+  dateFrom: string,
+  dateTo: string,
+  revenue: RevenueBreakdown,
+  expenses: ExpenseBreakdown,
+  payroll: PayrollCostBreakdown
+): PnLData {
   const food = sumByPnlGroup(expenses, "FOOD");
   const drinks = sumByPnlGroup(expenses, "BEVERAGE_NONALC");
   const bar = sumByPnlGroup(expenses, "BEVERAGE_ALC");

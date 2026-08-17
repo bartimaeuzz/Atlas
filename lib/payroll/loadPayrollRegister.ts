@@ -94,6 +94,31 @@ export async function computeLivePayrollRegister(
     .innerJoin(employees, eq(employeePayouts.employeeId, employees.id))
     .where(inArray(employeePayouts.shiftId, finalizedShiftIds));
 
+  return { rows: aggregatePayrollRows(payoutRows), unfinalizedShiftCount };
+}
+
+export interface PayrollPayoutRow {
+  employeeId: number;
+  employeeName: string;
+  flatWageAmount: number;
+  extraPayAmount: number;
+  incentiveAmount: number;
+  deductionAmount: number;
+  tipPoolShare: number;
+  hostUpsellTipShare: number | null;
+  totalTip: number;
+  totalCorePayout: number;
+}
+
+/** Pure aggregation step, split out from computeLivePayrollRegister
+ * (2026-08-17) so the actual money math -- summing every shift's payout
+ * per employee across the week, rounding each field, sorting for
+ * display -- is unit-testable without a database, matching the same
+ * "pure calc function" convention lib/calc already follows. The one-row-
+ * per-(shift,employee) -> one-row-per-employee reduction is the real
+ * risk here (a bug would silently under/overstate what someone is owed
+ * for the week), not the DB fetch around it. */
+export function aggregatePayrollRows(payoutRows: PayrollPayoutRow[]): PayrollRegisterRow[] {
   const byEmployee = new Map<number, PayrollRegisterRow>();
   for (const p of payoutRows) {
     const existing = byEmployee.get(p.employeeId);
@@ -125,7 +150,7 @@ export async function computeLivePayrollRegister(
     }
   }
 
-  const rows = [...byEmployee.values()]
+  return [...byEmployee.values()]
     .map((r) => ({
       ...r,
       flatWageAmount: round2(r.flatWageAmount),
@@ -138,8 +163,6 @@ export async function computeLivePayrollRegister(
       totalCorePayout: round2(r.totalCorePayout),
     }))
     .sort((a, b) => a.employeeName.localeCompare(b.employeeName));
-
-  return { rows, unfinalizedShiftCount };
 }
 
 export async function loadPayrollRegister(weekStartDate: string): Promise<PayrollRegister> {
