@@ -3435,7 +3435,7 @@ after use): `/analytics` returns 200 and its HTML contains all 5 KPI
 cards and both breakdown charts, `/ledger/categories` returns 200 and
 shows the new P&L dropdown with Drinks/FOOD/BEVERAGE_NONALC/
 BEVERAGE_ALC/EXCLUDED all present, and the home page's rendered HTML
-contains the new `/analytics` tile and nav link.
+contains the new `/analytics` tile and nav link. Commit `eb7d895`.
 
 **Not built (explicitly deferred, per Oliver's own framing):**
 month-to-date/year-to-date figures, period-over-period (MoM/YoY)
