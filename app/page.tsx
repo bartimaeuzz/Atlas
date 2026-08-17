@@ -176,19 +176,25 @@ function TileLink({ tile }: { tile: Tile }) {
   return (
     <Link
       href={tile.href}
-      className="flex flex-col items-start gap-3 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm transition-colors hover:border-neutral-300 hover:bg-neutral-50 active:bg-neutral-100"
+      className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-1)] transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--paper)] active:bg-[var(--paper)]"
     >
-      <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-neutral-100 text-neutral-700">
+      <span className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--paper)] text-[var(--ink-700)]">
         {tile.icon}
       </span>
       <span>
-        <span className="block text-base font-semibold text-neutral-900">{tile.label}</span>
-        <span className="block text-sm text-neutral-500">{tile.description}</span>
+        <span className="block text-base font-semibold text-[var(--ink-900)]">{tile.label}</span>
+        <span className="block text-sm text-[var(--ink-500)]">{tile.description}</span>
       </span>
     </Link>
   );
 }
 
+/** Restyled onto design-system tokens during the design-system-v2 merge
+ * (2026-08-17) — this tile dashboard itself (2026-08-16) is newer than
+ * the design branch it merged with, so the OLD app/page.tsx from that
+ * branch (a static link list) was dropped entirely in favor of keeping
+ * this real feature and just re-skinning it, rather than regressing to
+ * the older placeholder content. */
 export default async function Home() {
   const session = await getCurrentStaffSession();
   if (!session) redirect("/login");
@@ -197,9 +203,9 @@ export default async function Home() {
   const tiles = isManager ? MANAGER_TILES : STAFF_TILES;
 
   return (
-    <main className="max-w-4xl mx-auto p-6 sm:p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-1">Welcome, {session.name.split(" ")[0]}</h1>
-      <p className="text-neutral-500 text-sm mb-6">
+    <main className="max-w-4xl mx-auto p-6 sm:p-8">
+      <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1">Welcome, {session.name.split(" ")[0]}</h1>
+      <p className="text-[var(--ink-500)] text-sm mb-6">
         {isManager ? "Pick where you want to work." : "Your schedule and pay, in one place."}
       </p>
       <div

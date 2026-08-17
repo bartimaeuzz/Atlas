@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/actions/auth";
+import { Avatar } from "@/components/ui/Avatar";
+import { MenuIcon } from "@/components/ui/icons";
 
 const MANAGER_NAV_ITEMS = [
   { href: "/shifts", label: "Shifts" },
@@ -17,28 +19,16 @@ const MANAGER_NAV_ITEMS = [
   { href: "/settings", label: "Settings" },
 ];
 
-/** Initials shown on the avatar circle -- first letter of the first two
- * words in the name ("Nancy Suksawat" -> "NS", a single-word name like
- * "Aey" -> "A"). Deliberately simple, no attempt at Thai-name-specific
- * logic. */
-function initialsFor(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  return parts
-    .slice(0, 2)
-    .map((p) => p[0]!.toUpperCase())
-    .join("");
-}
-
 /** Red-pill badge — a bare dot when the count fits inline next to a
  * short label, with the number itself only shown once it's ambiguous
  * (>9). Kept tiny and absolutely positioned so it doesn't push the nav
- * item's own text/layout around. */
+ * item's own text/layout around. Restyled onto the danger token during
+ * the design-system-v2 merge (2026-08-17) — was raw bg-red-500. */
 function UnseenBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
     <span
-      className="ml-1 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium leading-none align-middle"
+      className="ml-1 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[10px] font-medium leading-none align-middle"
       aria-label={`${count} unseen ${count === 1 ? "schedule item" : "schedule items"}`}
     >
       {count > 9 ? "9+" : count}
@@ -59,42 +49,30 @@ function UnseenBadge({ count }: { count: number }) {
  * server wrapper passes down just a display name, never the raw session
  * token, to keep the client bundle from touching anything session-shaped.
  *
- * Role-aware nav (2026-08-14) — the manager pages (Shifts/Employees/etc,
- * see lib/auth/guard.ts) are now actually gated server-side, so showing
- * those links to a STAFF account was misleading (click through, get
- * bounced to /login). A logged-in STAFF account sees the manager item
- * list replaced entirely; MANAGER/ADMIN accounts are unaffected there.
+ * Role-aware nav (2026-08-14) — the manager pages are gated server-side,
+ * so a STAFF account sees the reduced nav entirely, not a bounce-to-login.
  *
- * "Me menu" (2026-08-14, later same day, Oliver's own ask) — the
- * separate always-visible name text + "My Pay" link + "Sign out" button
- * on the right are now collapsed into one circular initials avatar.
- * Clicking it opens a small dropdown with "My Schedule" (any signed-in
- * account — the route itself has no role check, it just shows whatever
- * that employee's own published schedule is) and "My Pay", then Sign
- * out. This also removes the old separate "My Schedule" link from the
- * STAFF-only left nav, since it now lives in the same menu as My Pay
- * instead of being split across two different spots.
+ * "Me menu" (2026-08-14) — collapsed into one avatar with a dropdown
+ * (My Schedule / My Pay / Sign out).
  *
- * Hamburger menu on phone width (2026-08-15, accessibility audit fix) —
- * the manager row (MANAGER_NAV_ITEMS, 9 links as of the Payroll addition
- * below) doesn't fit a phone screen and previously had no wrap/scroll
- * fallback, so links would overflow off-screen with no way to reach them.
- * Below the `sm` breakpoint the inline row is hidden and replaced with a
- * hamburger button that opens a stacked full-width link list instead; at
- * `sm` and above the original inline row is unchanged. The desktop row is a
- * plain flex row with `gap-4` and no overflow handling of its own, but
- * text-only labels stay compact enough to fit typical desktop/tablet
- * widths even at 8 items — confirmed 2026-08-16 when Analytics was added,
- * revisit this if more items get added later.
+ * Hamburger menu on phone width (2026-08-15) — below `sm` the inline row
+ * is replaced with a hamburger-triggered stacked list.
  *
- * Red-pill unseen badge (2026-08-16, extended later same day to also
- * cover swap requests) — `unseenScheduleCount` is resolved server-side
- * in NavBar.tsx (needs DB reads, summed across leave + swap requests)
- * and passed down here just as a number. Rendered on the "Schedule" nav
- * item only, in both the desktop row and the hamburger list, since
- * that's the entry point for both the leave inbox (/schedule/leave) and
- * the swap inbox (/schedule/swaps). Purely presentational — this
- * component doesn't know or care what's behind the count. */
+ * Red-pill unseen badge (2026-08-16, extended later same day for swap
+ * requests) — `unseenScheduleCount` is resolved server-side in
+ * NavBar.tsx (needs DB reads across leave + swap requests) and passed
+ * down here as a number. Rendered on the "Schedule" nav item only, in
+ * both the desktop row and the hamburger list.
+ *
+ * Restyled onto the design-system tokens (2026-08-16, `design-system-v2`,
+ * merged into main 2026-08-17): "Atlas" wordmark uses the brand indigo
+ * color (a styled text wordmark, not an icon mark), the avatar uses the
+ * shared <Avatar> component (functional primary blue, not the old
+ * hardcoded black), and every hardcoded neutral/border class is now a
+ * semantic var(). The unseen-badge feature (shipped on `main` after the
+ * design branch forked) is preserved here, just restyled onto the danger
+ * token instead of raw red. Behavior is otherwise unchanged: role-aware
+ * nav, hamburger below `sm`, me-menu, click-outside/pathname close. */
 export function NavBarClient({
   auth,
   unseenScheduleCount = 0,
@@ -120,15 +98,13 @@ export function NavBarClient({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
 
-  // Close both menus automatically on navigation, so they don't stay open
-  // hovering over the new page.
   useEffect(() => {
     setMenuOpen(false);
     setMobileNavOpen(false);
   }, [pathname]);
 
   return (
-    <header className="border-b bg-white sticky top-0 z-10">
+    <header className="border-b border-[var(--border)] bg-[var(--card)] sticky top-0 z-10">
       <div className="max-w-4xl mx-auto px-4 sm:px-8 py-3 flex items-center gap-4 sm:gap-6 text-sm">
         {isManager && (
           <button
@@ -136,14 +112,12 @@ export function NavBarClient({
             onClick={() => setMobileNavOpen((v) => !v)}
             aria-label="Menu"
             aria-expanded={mobileNavOpen}
-            className="sm:hidden w-8 h-8 flex items-center justify-center rounded hover:bg-neutral-100 -ml-1"
+            className="sm:hidden w-10 h-10 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-[var(--paper)] -ml-1 text-[var(--ink-700)]"
           >
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
+            <MenuIcon />
           </button>
         )}
-        <Link href="/" className="font-semibold hover:text-neutral-600">
+        <Link href="/" className="font-bold text-[var(--brand)] hover:text-[var(--brand-700)] tracking-tight">
           Atlas
         </Link>
         <nav className="hidden sm:flex gap-4 flex-1">
@@ -154,7 +128,9 @@ export function NavBarClient({
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={isActive ? "font-medium text-black" : "text-neutral-500 hover:text-black"}
+                  className={
+                    "font-medium " + (isActive ? "text-[var(--ink-900)]" : "text-[var(--ink-500)] hover:text-[var(--ink-900)]")
+                  }
                 >
                   {item.label}
                   {item.href === "/schedule" && <UnseenBadge count={unseenScheduleCount} />}
@@ -170,21 +146,23 @@ export function NavBarClient({
               onClick={() => setMenuOpen((v) => !v)}
               aria-label={`${auth.name} — account menu`}
               aria-expanded={menuOpen}
-              className="w-8 h-8 rounded-full bg-black text-white text-xs font-medium flex items-center justify-center hover:bg-neutral-700 transition-colors"
+              className="hover:opacity-90 transition-opacity"
             >
-              {initialsFor(auth.name)}
+              <Avatar name={auth.name} size={36} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-white border rounded shadow-lg py-1 text-sm">
-                <div className="px-3 py-2 border-b">
-                  <p className="font-medium truncate">{auth.name}</p>
-                  <p className="text-xs text-neutral-500">{auth.systemRole === "STAFF" ? "Staff" : "Manager"}</p>
+              <div className="absolute right-0 mt-2 w-48 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-2)] py-1 text-sm">
+                <div className="px-3 py-2 border-b border-[var(--border)]">
+                  <p className="font-medium truncate text-[var(--ink-900)]">{auth.name}</p>
+                  <p className="text-xs text-[var(--ink-500)]">{auth.systemRole === "STAFF" ? "Staff" : "Manager"}</p>
                 </div>
                 <Link
                   href="/me/schedule"
                   className={
-                    "block px-3 py-2 " +
-                    (pathname.startsWith("/me/schedule") ? "font-medium text-black" : "text-neutral-600 hover:bg-neutral-50")
+                    "block px-3 py-2.5 " +
+                    (pathname.startsWith("/me/schedule")
+                      ? "font-medium text-[var(--ink-900)]"
+                      : "text-[var(--ink-700)] hover:bg-[var(--paper)]")
                   }
                 >
                   My Schedule
@@ -192,14 +170,14 @@ export function NavBarClient({
                 <Link
                   href="/me"
                   className={
-                    "block px-3 py-2 " +
-                    (pathname === "/me" ? "font-medium text-black" : "text-neutral-600 hover:bg-neutral-50")
+                    "block px-3 py-2.5 " +
+                    (pathname === "/me" ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-700)] hover:bg-[var(--paper)]")
                   }
                 >
                   My Pay
                 </Link>
-                <form action={logout} className="border-t">
-                  <button type="submit" className="w-full text-left px-3 py-2 text-neutral-600 hover:bg-neutral-50">
+                <form action={logout} className="border-t border-[var(--border)]">
+                  <button type="submit" className="w-full text-left px-3 py-2.5 text-[var(--ink-700)] hover:bg-[var(--paper)]">
                     Sign out
                   </button>
                 </form>
@@ -209,14 +187,14 @@ export function NavBarClient({
         ) : (
           <Link
             href="/login"
-            className={pathname === "/login" ? "font-medium text-black" : "text-neutral-500 hover:text-black"}
+            className={pathname === "/login" ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-500)] hover:text-[var(--ink-900)]"}
           >
             Staff Login
           </Link>
         )}
       </div>
       {isManager && mobileNavOpen && (
-        <nav className="sm:hidden border-t bg-white px-4 py-2 flex flex-col">
+        <nav className="sm:hidden border-t border-[var(--border)] bg-[var(--card)] px-4 py-2 flex flex-col">
           {MANAGER_NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
@@ -224,8 +202,8 @@ export function NavBarClient({
                 key={item.href}
                 href={item.href}
                 className={
-                  "px-1 py-2.5 text-base " +
-                  (isActive ? "font-medium text-black" : "text-neutral-500 hover:text-black")
+                  "px-1 py-3 text-base " +
+                  (isActive ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-500)] hover:text-[var(--ink-900)]")
                 }
               >
                 {item.label}

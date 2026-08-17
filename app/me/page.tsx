@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadMyEarnings } from "@/lib/staff/loadMyEarnings";
-import { logout } from "@/lib/actions/auth";
 import { MyEarningsView } from "./MyEarningsView";
 
 export default async function MyPayPage() {
@@ -13,14 +12,7 @@ export default async function MyPayPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-8 font-sans">
-      <div className="flex items-center justify-between mb-1">
-        <h1 className="text-2xl font-semibold">My Pay</h1>
-        <form action={logout}>
-          <button type="submit" className="text-sm text-neutral-500 hover:underline">
-            Sign out
-          </button>
-        </form>
-      </div>
+      <h1 className="text-2xl font-semibold mb-1">My Pay</h1>
       <p className="text-sm text-neutral-500 mb-8">
         {data.employee.name} — figures below are locked snapshots from each finalized shift, not
         recalculated live.

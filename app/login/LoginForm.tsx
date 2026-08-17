@@ -2,6 +2,9 @@
 
 import { useActionState } from "react";
 import { login, type LoginActionState } from "@/lib/actions/auth";
+import { Select, TextInput } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
 
 const initialState: LoginActionState = { error: null };
 
@@ -10,41 +13,30 @@ export function LoginForm({ employees }: { employees: { id: number; name: string
 
   return (
     <form action={formAction} className="space-y-4">
-      {state.error && (
-        <div className="border border-red-300 bg-red-50 text-red-700 rounded p-3 text-sm">{state.error}</div>
-      )}
-      <label className="block text-sm">
-        <span className="block text-neutral-500 mb-1">Your name</span>
-        <select name="employeeId" required className="border rounded px-2 py-2 w-full" defaultValue="">
-          <option value="" disabled>
-            Select your name…
+      {state.error && <Banner tone="danger" title="Couldn't sign in" description={state.error} />}
+      <Select name="employeeId" required defaultValue="" label="Your name">
+        <option value="" disabled>
+          Select your name…
+        </option>
+        {employees.map((e) => (
+          <option key={e.id} value={e.id}>
+            {e.name}
           </option>
-          {employees.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="block text-sm">
-        <span className="block text-neutral-500 mb-1">PIN</span>
-        <input
-          type="password"
-          inputMode="numeric"
-          name="pin"
-          required
-          autoComplete="off"
-          className="border rounded px-2 py-2 w-full tracking-widest text-lg"
-          placeholder="••••"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={isPending}
-        className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 disabled:opacity-50 w-full"
-      >
+        ))}
+      </Select>
+      <TextInput
+        type="password"
+        inputMode="numeric"
+        name="pin"
+        required
+        autoComplete="off"
+        placeholder="••••"
+        label="PIN"
+        className="tracking-[0.4em] text-lg text-center"
+      />
+      <Button type="submit" loading={isPending} className="w-full" size="md">
         {isPending ? "Signing in…" : "Sign in"}
-      </button>
+      </Button>
     </form>
   );
 }

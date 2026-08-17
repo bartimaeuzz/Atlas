@@ -1,68 +1,93 @@
 import Link from "next/link";
 import { loadShiftsList } from "@/lib/shift/loadShiftsList";
+import { PageHeader, EmptyState } from "@/components/ui/Card";
+import { LinkButton } from "@/components/ui/Button";
+import { StatusBadge } from "@/components/ui/Badge";
 
 export default async function ShiftsListPage() {
   const shifts = await loadShiftsList();
 
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Shifts</h1>
-        <div className="flex gap-2">
-          <Link href="/settings" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50 text-sm">
-            Settings
-          </Link>
-          <Link href="/positions" className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50 text-sm">
-            Positions
-          </Link>
-          <Link href="/shifts/new" className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 text-sm">
-            + New shift
-          </Link>
-        </div>
-      </div>
+    <main className="max-w-2xl mx-auto px-4 sm:px-8 py-8">
+      <PageHeader
+        title="Shifts"
+        actions={
+          <>
+            <LinkButton href="/settings" variant="secondary" size="sm">
+              Settings
+            </LinkButton>
+            <LinkButton href="/positions" variant="secondary" size="sm">
+              Positions
+            </LinkButton>
+            <LinkButton href="/shifts/new" size="sm">
+              + New shift
+            </LinkButton>
+          </>
+        }
+      />
 
       {shifts.length === 0 ? (
-        <p className="text-neutral-500 text-sm">No shifts yet.</p>
+        <EmptyState message="No shifts yet." action={<LinkButton href="/shifts/new" size="sm">+ New shift</LinkButton>} />
       ) : (
-        <table className="w-full text-sm border-collapse">
-          <thead>
-            <tr className="text-left text-neutral-500 border-b">
-              <th className="py-2">Date</th>
-              <th className="py-2">Period</th>
-              <th className="py-2">Status</th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
+        <>
+          {/* Phone: stacked cards — the standard for all dense data on small
+           * screens (2026-08-16 design-system decision), not a scrolling
+           * table. */}
+          <div className="sm:hidden space-y-2">
             {shifts.map((s) => (
-              <tr key={s.id} className="border-b">
-                <td className="py-2">{s.date}</td>
-                <td className="py-2">{s.period}</td>
-                <td className="py-2">
-                  <span
-                    className={
-                      "px-2 py-0.5 rounded text-xs " +
-                      (s.status === "finalized" ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")
-                    }
-                  >
-                    {s.status}
+              <Link
+                key={s.id}
+                href={s.status === "finalized" ? `/shifts/${s.id}/summary` : `/shifts/${s.id}/roster`}
+                className="block bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4"
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="font-semibold text-[var(--ink-900)]">{s.date}</span>
+                  <StatusBadge status={s.status} />
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-[var(--ink-500)]">{s.period}</span>
+                  <span className="text-sm text-[var(--primary)] font-medium">
+                    {s.status === "finalized" ? "View summary →" : "Continue →"}
                   </span>
-                </td>
-                <td className="py-2 text-right">
-                  {s.status === "finalized" ? (
-                    <Link href={`/shifts/${s.id}/summary`} className="underline text-blue-600">
-                      View summary →
-                    </Link>
-                  ) : (
-                    <Link href={`/shifts/${s.id}/roster`} className="underline text-blue-600">
-                      Continue →
-                    </Link>
-                  )}
-                </td>
-              </tr>
+                </div>
+              </Link>
             ))}
-          </tbody>
-        </table>
+          </div>
+
+          {/* Desktop: table */}
+          <table className="hidden sm:table w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
+                <th className="py-2.5 font-medium">Date</th>
+                <th className="py-2.5 font-medium">Period</th>
+                <th className="py-2.5 font-medium">Status</th>
+                <th className="py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {shifts.map((s) => (
+                <tr key={s.id} className="border-b border-[var(--border)]">
+                  <td className="py-3 text-[var(--ink-900)]">{s.date}</td>
+                  <td className="py-3 text-[var(--ink-700)]">{s.period}</td>
+                  <td className="py-3">
+                    <StatusBadge status={s.status} />
+                  </td>
+                  <td className="py-3 text-right">
+                    {s.status === "finalized" ? (
+                      <Link href={`/shifts/${s.id}/summary`} className="text-[var(--primary)] font-medium hover:underline">
+                        View summary →
+                      </Link>
+                    ) : (
+                      <Link href={`/shifts/${s.id}/roster`} className="text-[var(--primary)] font-medium hover:underline">
+                        Continue →
+                      </Link>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       )}
     </main>
   );
