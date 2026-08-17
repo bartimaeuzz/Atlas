@@ -3818,3 +3818,43 @@ method login, `/people` heading + nav label, `/employees` redirecting to
 login ID from the People table, flipping Settings to ID-method login and
 signing in with the freshly-generated ID + a newly-set PIN, and an
 Admin-only Reset clearing an ID so it can be regenerated.
+
+---
+
+## Dead-end prevention: can't remove the last active Manager/Admin (2026-08-17)
+
+Oliver: "then how admin login in case i'm not admin anymore. if i change
+my role to staff now. it means no dead end?" — a real gap, not just a
+hypothetical: every manager-facing page and every mutating action in this
+app (including the one that edits `systemRole` itself) is gated on "is
+this session MANAGER or ADMIN," with no separate recovery path if that
+population ever hits zero.
+
+Confirmed with Oliver via AskUserQuestion: block the save outright rather
+than just warn.
+
+- `lib/actions/employees.ts`'s new `hasOtherActiveManagerOrAdmin(excludeEmployeeId)` —
+  true if at least one OTHER active MANAGER/ADMIN exists.
+- `updateEmployee` now fetches the employee's current row before writing,
+  and if this save would drop them out of "active MANAGER/ADMIN" (role
+  changed away from MANAGER/ADMIN, or account retired via the same form)
+  while no other active MANAGER/ADMIN exists, rejects with a clear error
+  instead of saving.
+- `toggleEmployeeActive` (the People table's Retire button) gets the same
+  check for the retire path specifically — a retired account can't log
+  in at all, so retiring the last Manager/Admin is the same dead end as
+  demoting them. Its return type changed from `void` to `{error: string
+  | null}` so `EmployeeToggleActiveButton.tsx` can actually show the
+  rejection instead of failing silently.
+- Promoting someone else to Manager/Admin first re-opens the door — the
+  check is dynamic, not a one-time flag.
+
+No schema change, no migration. Verified: `tsc`/`eslint`/`next build`
+clean, 94/94 tests still passing. A throwaway direct-DB script (7 checks,
+deleted after use) exercised the guard logic itself. A full Playwright
+smoke test against a real `next start` server (with a fresh build —
+caught and corrected a first attempt that accidentally tested against a
+stale pre-guard build) confirmed both paths end to end: logged in as the
+database's sole active ADMIN, tried to demote himself to STAFF via the
+People edit form (blocked, DB unchanged) and tried to retire his own
+account from the People table (also blocked, DB unchanged).

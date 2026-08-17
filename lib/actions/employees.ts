@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees, employeePositions, employeeWageRates, positions } from "@/db/schema";
 import { hashPin } from "@/lib/auth/pin";
@@ -39,6 +39,22 @@ async function requireManagerAction() {
 async function isAdminSession(): Promise<boolean> {
   const session = await getCurrentStaffSession();
   return session?.systemRole === "ADMIN";
+}
+
+/** Dead-end prevention (2026-08-17, Oliver: "how admin login in case i'm
+ * not admin anymore. if i change my role to staff now. it means no dead
+ * end?"). Every manager-facing page and every mutating action in this
+ * app (including this very file, which is what edits systemRole) is
+ * gated on "is this session MANAGER or ADMIN" -- there's no separate
+ * recovery path if that population ever hits zero. Returns true if at
+ * least one active MANAGER/ADMIN OTHER than excludeEmployeeId exists --
+ * callers use this to block a save that would drop the count to zero. */
+async function hasOtherActiveManagerOrAdmin(excludeEmployeeId: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: employees.id })
+    .from(employees)
+    .where(and(eq(employees.active, true), inArray(employees.systemRole, ["MANAGER", "ADMIN"])));
+  return rows.some((r) => r.id !== excludeEmployeeId);
 }
 
 /** Same "gather + validate, redirect() outside the try/catch" pattern as
@@ -238,8 +254,25 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
     await requireManagerAction();
     const includeSensitive = await isAdminSession();
 
+    const [current] = await db.select().from(employees).where(eq(employees.id, employeeId));
+    if (!current) throw new Error("Employee not found");
+
     const allPositions = await db.select({ id: positions.id }).from(positions);
     const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id), includeSensitive);
+
+    // Dead-end prevention -- see hasOtherActiveManagerOrAdmin's doc comment.
+    // Only relevant when this save would actually DROP the employee out of
+    // "active MANAGER/ADMIN" (demoted to STAFF, or retired) -- promoting
+    // someone, or any other field edit, never needs this check.
+    const wasActiveManagerOrAdmin = current.active && (current.systemRole === "MANAGER" || current.systemRole === "ADMIN");
+    const staysActiveManagerOrAdmin = parsed.active && (parsed.systemRole === "MANAGER" || parsed.systemRole === "ADMIN");
+    if (wasActiveManagerOrAdmin && !staysActiveManagerOrAdmin) {
+      if (!(await hasOtherActiveManagerOrAdmin(employeeId))) {
+        throw new Error(
+          "Can't save -- this is the last active Manager/Admin account. Promote someone else to Manager or Admin first, or this change would lock everyone out of every manager page."
+        );
+      }
+    }
 
     await db
       .update(employees)
@@ -270,11 +303,34 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
  * togglePositionActive. A retired employee stays valid for every
  * historical shift they were rostered on; loadRosterPageData's
  * allEmployees query already filters to active only for NEW roster
- * entries (pre-existing filter, unrelated to this round). */
-export async function toggleEmployeeActive(employeeId: number, nextActive: boolean) {
+ * entries (pre-existing filter, unrelated to this round).
+ *
+ * Dead-end prevention (2026-08-17) — retiring the last active
+ * MANAGER/ADMIN is the same lockout risk as demoting them via
+ * updateEmployee (see hasOtherActiveManagerOrAdmin's doc comment): a
+ * retired account can't log in at all (login() checks employee.active),
+ * so retiring the last one is just as much a dead end as demoting them
+ * to STAFF. Returns an error string instead of throwing — this action is
+ * called directly from a client transition (EmployeeToggleActiveButton),
+ * not a form action, so the caller needs a value back to show, not an
+ * unhandled rejection. */
+export async function toggleEmployeeActive(employeeId: number, nextActive: boolean): Promise<{ error: string | null }> {
   await requireManagerAction();
+
+  if (!nextActive) {
+    const [current] = await db.select().from(employees).where(eq(employees.id, employeeId));
+    if (current?.active && (current.systemRole === "MANAGER" || current.systemRole === "ADMIN")) {
+      if (!(await hasOtherActiveManagerOrAdmin(employeeId))) {
+        return {
+          error: "Can't retire — this is the last active Manager/Admin account. Promote someone else first.",
+        };
+      }
+    }
+  }
+
   await db.update(employees).set({ active: nextActive }).where(eq(employees.id, employeeId));
   revalidatePath("/people");
+  return { error: null };
 }
 
 /** Set or reset an employee's staff-login PIN (2026-08-10) — lets an
