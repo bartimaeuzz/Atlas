@@ -160,6 +160,39 @@ export const employees = sqliteTable("employees", {
   // alone. Independent of systemRole on purpose — Aey is seeded as
   // MANAGER, not ADMIN, but still needs this specific power.
   isFinancialAuditor: integer("is_financial_auditor", { mode: "boolean" }).notNull().default(false),
+  // Partner flag (2026-08-17, Oliver: "add PARTNER") — independent of
+  // systemRole (which is about what they can SEE/do in the app, e.g. an
+  // ADMIN account might not be a restaurant partner, and a partner might
+  // be seeded as MANAGER, same reasoning as isFinancialAuditor above).
+  // Used as the default department when generating this person's login
+  // ID below (see lib/employees/loginId.ts) — a partner defaults to
+  // department digit 0, everyone else defaults to their position's
+  // FOH/BOH category. Editable per-employee on the People page.
+  isPartner: integer("is_partner", { mode: "boolean" }).notNull().default(false),
+  // Login ID (2026-08-17, Oliver: "build ID and login... format YK with 2
+  // digit yr 2 digit month 1 digit department 0=admin 1=partner 2=BOH
+  // 3=FOH and 3 digit running number" — refined in conversation to: no
+  // digit for admin (that's a login PERMISSION via systemRole, not a
+  // department), so the department digit actually generated is
+  // 0=Partner / 1=BOH / 2=FOH. Format: "YK" + hire-year(2) +
+  // hire-month(2) + department(1) + running number(3), e.g.
+  // "YK2608 1007" -> YK260810 07 for a BOH hire in Aug 2026, 7th ID ever
+  // generated (see lib/employees/loginId.ts for the exact builder).
+  // Nullable — not every employee has one generated yet. Generated
+  // on-demand from the People page (a manager picks the department in a
+  // dialog, pre-filled with a best guess from isPartner/position
+  // category) or in bulk via the one-time backfill script
+  // (db/backfillLoginIds.ts). Globally unique, one shared running-number
+  // sequence across all three departments (loginSequence below), per
+  // Oliver: "one shared global counter (never resets)."
+  loginId: text("login_id").unique(),
+  // The running-number sequence value used to generate loginId above —
+  // stored (not re-derived) so the "next" number is always
+  // MAX(loginSequence)+1 regardless of how many employees still have no
+  // ID yet. Kept as its own column instead of parsing it back out of
+  // loginId's string so the generator never has to trust its own past
+  // string formatting.
+  loginSequence: integer("login_sequence"),
 });
 
 // FOH only — many-to-many: one person can hold several positions, each at
@@ -297,6 +330,13 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // Kept this way to avoid a schema migration for a column default that
   // isn't hit in practice.
   defaultSalesTaxRate: real("default_sales_tax_rate").notNull().default(0),
+  // Staff login method (2026-08-17, Oliver: "here is test seed anyway I
+  // need easy way to login on each profile" -- wants BOTH the original
+  // pick-your-name dropdown AND the new YK login-ID field available,
+  // switchable per restaurant rather than picking one permanently).
+  // "NAME" = original pick-from-list + PIN (default, unchanged
+  // behavior). "ID" = type your YK login ID + PIN. See app/login/page.tsx.
+  staffLoginMethod: text("staff_login_method", { enum: ["NAME", "ID"] }).notNull().default("NAME"),
 });
 
 export const onlinePlatforms = sqliteTable("online_platforms", {

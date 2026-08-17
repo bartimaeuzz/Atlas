@@ -29,6 +29,10 @@ export interface RestaurantSettingsData {
    * Settings UI itself takes/shows this as a percent (8.875), not a raw
    * fraction — see lib/actions/settings.ts. */
   defaultSalesTaxRate: number;
+  /** Staff login method (2026-08-17) — "NAME" = pick-your-name dropdown +
+   * PIN (original, default), "ID" = type your YK login ID + PIN. See
+   * app/login/page.tsx and db/schema.ts's restaurantSettings comment. */
+  staffLoginMethod: "NAME" | "ID";
 }
 
 /** Single-row settings table (restaurantId=1 reserved for future
@@ -58,6 +62,7 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
       pool3SplitMethod: "EQUAL_SPLIT",
       hostDrinkBonusPerDrinkAmount: 0,
       defaultSalesTaxRate: 0.08875, // NYC default, matches the schema column default — see db/schema.ts
+      staffLoginMethod: "NAME",
     };
   }
   return {
@@ -75,5 +80,6 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     pool3SplitMethod: row.pool3SplitMethod as PoolSplitMethod,
     hostDrinkBonusPerDrinkAmount: row.hostDrinkBonusPerDrinkAmount,
     defaultSalesTaxRate: row.defaultSalesTaxRate,
+    staffLoginMethod: row.staffLoginMethod as "NAME" | "ID",
   };
 }

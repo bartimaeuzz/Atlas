@@ -18,14 +18,32 @@ export interface LoginActionState {
   error: string | null;
 }
 
+/** Login now supports two identification methods (2026-08-17, restaurant
+ * -configurable via restaurantSettings.staffLoginMethod, see
+ * lib/settings/loadRestaurantSettings.ts): the original "pick your name"
+ * dropdown (posts `employeeId`), or the new YK login-ID text field
+ * (posts `loginId`). The login page only ever renders ONE of these forms
+ * at a time based on the restaurant's current setting, but this action
+ * accepts either field so a stale page (setting flipped after it loaded)
+ * still degrades to a clear error instead of a crash. */
 export async function login(_prevState: LoginActionState, formData: FormData): Promise<LoginActionState> {
-  const employeeId = Number(formData.get("employeeId"));
+  const employeeIdRaw = formData.get("employeeId");
+  const loginIdRaw = String(formData.get("loginId") ?? "").trim();
   const pin = String(formData.get("pin") ?? "").trim();
 
-  if (!employeeId) return { error: "Choose your name from the list" };
   if (!pin) return { error: "Enter your PIN" };
 
-  const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId));
+  let employee: typeof employees.$inferSelect | undefined;
+
+  if (loginIdRaw) {
+    [employee] = await db.select().from(employees).where(eq(employees.loginId, loginIdRaw.toUpperCase()));
+    if (!employee) return { error: "Login ID not found — ask a manager" };
+  } else {
+    const employeeId = Number(employeeIdRaw);
+    if (!employeeId) return { error: "Choose your name from the list" };
+    [employee] = await db.select().from(employees).where(eq(employees.id, employeeId));
+  }
+
   if (!employee || !employee.active) return { error: "That account isn't available — ask a manager" };
   if (!employee.pinHash) return { error: "No PIN has been set for you yet — ask a manager to set one in Employee admin" };
 

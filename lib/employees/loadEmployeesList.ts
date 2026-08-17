@@ -60,6 +60,12 @@ export interface EmployeeListRow {
    * to edit an already Printed/Paid Supplier Check invoice, and whose
    * PIN doubles as the confirmation code required on those edits. */
   isFinancialAuditor: boolean;
+  /** See employees.isPartner's schema comment (2026-08-17). */
+  isPartner: boolean;
+  /** See employees.loginId's schema comment (2026-08-17) -- null until a
+   * manager generates one from the People page or the one-time backfill
+   * script has run. */
+  loginId: string | null;
   /** null unless the caller is loadEmployeeForEdit with an Admin viewer
    * -- see EmployeePersonalInfo's own doc comment. */
   personalInfo: EmployeePersonalInfo | null;
@@ -135,6 +141,8 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
       systemRole: e.systemRole as "STAFF" | "MANAGER" | "ADMIN",
       hasPinSet: e.pinHash !== null,
       isFinancialAuditor: e.isFinancialAuditor,
+      isPartner: e.isPartner,
+      loginId: e.loginId,
       personalInfo: null, // the plain listing table never shows this -- see EmployeePersonalInfo's doc comment
       positions: ensurePrimaryPositionIncluded(
         positionRows
@@ -185,6 +193,8 @@ export async function loadEmployeeForEdit(employeeId: number, viewerIsAdmin: boo
     systemRole: employee.systemRole as "STAFF" | "MANAGER" | "ADMIN",
     hasPinSet: employee.pinHash !== null,
     isFinancialAuditor: employee.isFinancialAuditor,
+    isPartner: employee.isPartner,
+    loginId: employee.loginId,
     personalInfo: viewerIsAdmin
       ? {
           dateOfBirth: employee.dateOfBirth,

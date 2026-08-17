@@ -149,6 +149,22 @@ export function EmployeeForm({
         </span>
       </label>
 
+      <label className="flex items-start gap-2 text-sm border rounded p-3 bg-neutral-50">
+        <input
+          type="checkbox"
+          name="isPartner"
+          defaultChecked={existing?.isPartner ?? false}
+          className="mt-0.5"
+        />
+        <span>
+          <span className="block font-medium">Partner</span>
+          <span className="block text-xs text-neutral-500 mt-0.5">
+            Restaurant partner/owner, independent of system role. Used as the default department
+            (Partner) when generating this person&apos;s login ID on the People page.
+          </span>
+        </span>
+      </label>
+
       {viewerIsAdmin ? (
         <fieldset className="border rounded p-4">
           <legend className="text-sm font-medium px-1">Personal information (Admin only)</legend>

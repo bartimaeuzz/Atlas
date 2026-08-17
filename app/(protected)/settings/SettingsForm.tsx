@@ -85,6 +85,35 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
       </fieldset>
 
       <fieldset>
+        <legend className="text-lg font-medium mb-3">Staff login</legend>
+        <p className="text-xs text-neutral-500 mb-3">
+          How staff sign in on the <Link href="/login" className="underline">/login</Link> page. &quot;Login ID&quot;
+          uses the YK ID generated per person on the <Link href="/people" className="underline">People</Link> page
+          instead of picking a name from a list.
+        </p>
+        <div className="space-y-2 text-sm">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="staffLoginMethod"
+              value="NAME"
+              defaultChecked={settings.staffLoginMethod === "NAME"}
+            />
+            Pick your name from a list
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name="staffLoginMethod"
+              value="ID"
+              defaultChecked={settings.staffLoginMethod === "ID"}
+            />
+            Type your login ID
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend className="text-lg font-medium mb-3">Tip pools</legend>
         <Link
           href="/settings/tip-pools"

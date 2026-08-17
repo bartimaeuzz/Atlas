@@ -4,6 +4,7 @@ import { loadEmployeeForEdit, loadAllPositionsForAssignment } from "@/lib/employ
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { EmployeeForm } from "../../EmployeeForm";
 import { SetPinForm } from "../../SetPinForm";
+import { GenerateLoginIdControl } from "../../GenerateLoginIdControl";
 
 export default async function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,12 +21,24 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
   return (
     <main className="max-w-2xl mx-auto p-8 font-sans">
       <p className="text-sm mb-1">
-        <Link href="/employees" className="text-neutral-500 hover:underline">← Employees</Link>
+        <Link href="/people" className="text-neutral-500 hover:underline">← People</Link>
       </p>
       <h1 className="text-2xl font-semibold mb-6">Edit employee — {employee.nickname}</h1>
       <EmployeeForm existing={employee} allPositions={allPositions} viewerIsAdmin={viewerIsAdmin} />
       <div className="mt-6">
         <SetPinForm employeeId={employee.id} hasPinSet={employee.hasPinSet} />
+      </div>
+      <div className="mt-6 text-sm">
+        <span className="block text-neutral-500 mb-1">Login ID</span>
+        <GenerateLoginIdControl
+          employeeId={employee.id}
+          loginId={employee.loginId}
+          isPartner={employee.isPartner}
+          primaryPositionCategory={
+            employee.positions.find((p) => p.positionId === employee.primaryPositionId)?.positionCategory ?? null
+          }
+          viewerIsAdmin={viewerIsAdmin}
+        />
       </div>
     </main>
   );

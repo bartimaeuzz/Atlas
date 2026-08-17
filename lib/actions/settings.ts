@@ -46,12 +46,23 @@ export async function updateRestaurantSettings(
 
     const flag = (name: string) => formData.get(name) === "on";
 
+    // Staff login method (2026-08-17, Oliver: wants both the name-dropdown
+    // AND the YK login-ID field available, switchable — "here is test seed
+    // anyway I need easy way to login on each profile"). See
+    // db/schema.ts's restaurantSettings.staffLoginMethod comment.
+    const staffLoginMethodRaw = String(formData.get("staffLoginMethod") ?? "NAME");
+    if (staffLoginMethodRaw !== "NAME" && staffLoginMethodRaw !== "ID") {
+      throw new Error("Invalid staff login method");
+    }
+    const staffLoginMethod = staffLoginMethodRaw as "NAME" | "ID";
+
     await db
       .update(restaurantSettings)
       .set({
         ccTipDeductionRate,
         hostDrinkBonusPerDrinkAmount,
         defaultSalesTaxRate,
+        staffLoginMethod,
         // pool1/2/3SplitMethod moved to /settings/tip-pools (2026-08-17) —
         // that page's split-method dropdowns save immediately via
         // lib/actions/tipPools.ts's updatePoolSplitMethod, not through

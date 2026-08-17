@@ -141,6 +141,13 @@
       "when": 1786968629435,
       "tag": "0019_add_employee_personal_info",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1786971305585,
+      "tag": "0020_add_login_id_partner_flag",
+      "breakpoints": true
     }
   ]
 }

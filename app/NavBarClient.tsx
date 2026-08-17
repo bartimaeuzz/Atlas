@@ -9,7 +9,7 @@ import { MenuIcon } from "@/components/ui/icons";
 
 const MANAGER_NAV_ITEMS = [
   { href: "/shifts", label: "Shifts" },
-  { href: "/employees", label: "Employees" },
+  { href: "/people", label: "People" },
   { href: "/positions", label: "Positions" },
   { href: "/schedule", label: "Schedule" },
   { href: "/ledger", label: "Ledger" },

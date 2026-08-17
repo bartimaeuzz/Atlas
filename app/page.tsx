@@ -47,8 +47,8 @@ const MANAGER_TILES: Tile[] = [
     ),
   },
   {
-    href: "/employees",
-    label: "Employees",
+    href: "/people",
+    label: "People",
     description: "Manage staff profiles, pay, and PINs",
     icon: (
       <svg {...iconProps}>

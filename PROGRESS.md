@@ -3729,3 +3729,92 @@ Both files mixed DB fetching directly into the money math, unlike `lib/calc`'s f
 Both extractions are pure refactors — no behavior change, `loadPnL`/`computeLivePayrollRegister`'s public signatures and return values are identical to before.
 
 Verified: `tsc`/`eslint`/`build` all clean, test suite grew from 71 to 85 (all passing).
+
+---
+
+## Employees → People rename + YK login ID (2026-08-17)
+
+Oliver: "change employees page to People. and build ID and login. format
+YK with 2 digit yr 2 digit month 1 digit departmemt 0=admin 1=partner
+2=BOH 3=FOH and 3 digit running number" — refined via several rounds of
+AskUserQuestion into a final, confirmed spec before any code was touched
+(per this project's standing "never assume" rule):
+
+**Rename:** "Employees" → "People" everywhere — nav link, page heading,
+breadcrumbs, tile on the home dashboard. Route moved from `/employees` to
+`/people` (`app/(protected)/employees` → `app/(protected)/people`, plain
+`git mv`). The old `/employees` URL still resolves — a small redirect page
+now lives there so no existing bookmark/link 404s. The underlying data
+model (`employees` table, loaders, actions, "employee" in doc comments)
+deliberately keeps its existing name — this is a UI-facing rename only,
+same reasoning `nickname` used when it kept its DB column name after being
+aliased everywhere else (2026-08-17, earlier this same day).
+
+**YK login ID format:** `YK` + hire-year(2) + hire-month(2) +
+department(1) + running-number(3), e.g. `YK26081007`. Admin isn't a
+department digit — it's a login PERMISSION via the existing
+`employees.systemRole`, not part of this ID — so the final 3-way mapping
+is `0=Partner / 1=BOH / 2=FOH` (confirmed after Oliver's first message
+listed a 4-way 0=admin/1=partner/2=BOH/3=FOH scheme, corrected in
+conversation). The running number is ONE shared global counter across all
+three departments, never resets (`employees.loginSequence`, new column —
+stores the sequence value used rather than re-deriving it from the string
+so the generator never has to trust its own past formatting). Pure
+builder function in `lib/employees/loginId.ts` (`buildLoginId`,
+`guessLoginIdDepartment`), 9 new unit tests.
+
+**New `employees.isPartner` flag** (Oliver: "add PARTNER" — there was no
+partner concept in the schema yet). Independent of `systemRole`, same
+pattern as `isFinancialAuditor`. Drives the department pre-fill guess
+when generating a login ID (partner flag wins, otherwise the employee's
+primary position's FOH/BOH category) — but the department is always a
+**manual picker**, confirmed/overridden by whoever clicks "Generate login
+ID" on the People page, never silently auto-applied (Oliver's explicit
+ask).
+
+**Backfill:** Oliver chose to auto-generate IDs for every existing
+employee immediately rather than generate-on-demand only for new hires
+(`db/backfillLoginIds.ts`, one-time, idempotent — only touches rows where
+`login_id` is still null, safe to re-run). Ordered by hire date ascending
+(nulls last) per Oliver's stated basis for the yr/month portion; falls
+back to today's date for any employee with no recorded hire date (true of
+every currently-seeded employee — `db/seed.ts` never sets `hireDate`).
+**Run once after migrating:** `npx tsx db/backfillLoginIds.ts`.
+
+**Login flow:** `restaurantSettings.staffLoginMethod` (new column,
+`"NAME"` default / `"ID"`) — Oliver wants BOTH the original
+pick-your-name dropdown and the new ID field available, switchable per
+restaurant rather than one replacing the other ("here is test seed
+anyway I need easy way to login on each profile"). New "Staff login"
+section on `/settings`. `app/login/page.tsx` renders the matching form;
+`lib/actions/auth.ts`'s `login()` now accepts either an `employeeId` or a
+`loginId` field and resolves the employee accordingly.
+
+**People page additions:** new "Login ID" column. Shows the generated ID
+once set; before that, a "Generate login ID" link opens an inline
+department dropdown (pre-filled with the guessed department) + Confirm.
+A generated ID is normally stable/non-regenerable (a login credential
+changing under someone mid-use is a real problem) — `viewerIsAdmin`
+unlocks a "Reset" escape hatch (`resetLoginId`, Admin-only, stricter than
+the MANAGER-level guard the rest of this file uses) for fixing a wrong
+backfill guess, e.g. a real partner who wasn't flagged `isPartner` yet
+when the backfill ran.
+
+**⚠ MIGRATION** — `migration 0020` adds `employees.is_partner`,
+`employees.login_id` (unique), `employees.login_sequence`, and
+`restaurant_settings.staff_login_method`, all purely additive. **Run
+`npm run db:migrate` after unzipping, then `npx tsx db/backfillLoginIds.ts`
+once to generate IDs for all existing employees.**
+
+Verified: `tsc --noEmit`/`eslint`/`next build` all clean (7 pre-existing
+unrelated findings elsewhere confirmed via `git stash` to predate this
+round, byte-for-byte the same 17-problem/8-error eslint output before and
+after). Test suite grew from 85 to 94 (9 new `loginId.ts` unit tests, all
+passing). Migration + backfill script round-tested against a fresh local
+SQLite DB seeded with the normal 19 employees. Full real-browser
+(Playwright, against a `next start` server) smoke test covering: NAME-
+method login, `/people` heading + nav label, `/employees` redirecting to
+`/people` once authenticated, creating a new person and generating their
+login ID from the People table, flipping Settings to ID-method login and
+signing in with the freshly-generated ID + a newly-set PIN, and an
+Admin-only Reset clearing an ID so it can be regenerated.

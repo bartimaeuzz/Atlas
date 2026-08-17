@@ -4,18 +4,27 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { EmployeeListRow } from "@/lib/employees/loadEmployeesList";
 import { EmployeeToggleActiveButton } from "./EmployeeToggleActiveButton";
+import { GenerateLoginIdControl } from "./GenerateLoginIdControl";
 
 type SortKey = "name" | "primaryPosition" | "positions" | "role";
 type SortDir = "asc" | "desc";
 
-/** Sortable Employees table (2026-08-10, Oliver: "a tiny touch... can you
- * add sorting to these column?"). Client-side, local React state — the
- * list is small (tens of employees, not thousands) and this is purely a
- * viewing convenience, so a full server round-trip / URL-param sort
- * wasn't worth the extra complexity. Split out of page.tsx (which stays a
- * server component doing the actual data load) since sort state needs to
- * live in the browser. */
-export function EmployeesTable({ employeeList }: { employeeList: EmployeeListRow[] }) {
+/** Sortable People table (2026-08-10, Oliver: "a tiny touch... can you
+ * add sorting to these column?"; renamed from EmployeesTable 2026-08-17
+ * along with the page itself, Oliver: "change employees page to
+ * People"). Client-side, local React state — the list is small (tens of
+ * employees, not thousands) and this is purely a viewing convenience, so
+ * a full server round-trip / URL-param sort wasn't worth the extra
+ * complexity. Split out of page.tsx (which stays a server component
+ * doing the actual data load) since sort state needs to live in the
+ * browser. */
+export function PeopleTable({
+  employeeList,
+  viewerIsAdmin,
+}: {
+  employeeList: EmployeeListRow[];
+  viewerIsAdmin: boolean;
+}) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -63,32 +72,46 @@ export function EmployeesTable({ employeeList }: { employeeList: EmployeeListRow
           />
           <SortableHeader label="Positions" sortKey="positions" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
           <SortableHeader label="Role" sortKey="role" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
+          <th className="py-2">Login ID</th>
           <th className="py-2"></th>
           <th className="py-2"></th>
         </tr>
       </thead>
       <tbody>
-        {sorted.map((e) => (
-          <tr key={e.id} className={"border-b" + (e.active ? "" : " opacity-50")}>
-            <td className="py-2">
-              {e.nickname}
-              {!e.active && <span className="ml-2 text-xs text-neutral-400">(retired)</span>}
-            </td>
-            <td className="py-2 text-neutral-500">{e.primaryPositionName ?? "—"}</td>
-            <td className="py-2 text-neutral-500">
-              {e.positions.length === 0 ? "—" : e.positions.map((p) => p.positionName).join(", ")}
-            </td>
-            <td className="py-2 text-neutral-500">{e.systemRole}</td>
-            <td className="py-2 text-right">
-              <Link href={`/employees/${e.id}/edit`} className="underline text-blue-600">
-                Edit
-              </Link>
-            </td>
-            <td className="py-2 text-right">
-              <EmployeeToggleActiveButton employeeId={e.id} active={e.active} />
-            </td>
-          </tr>
-        ))}
+        {sorted.map((e) => {
+          const primaryPositionCategory =
+            e.positions.find((p) => p.positionId === e.primaryPositionId)?.positionCategory ?? null;
+          return (
+            <tr key={e.id} className={"border-b" + (e.active ? "" : " opacity-50")}>
+              <td className="py-2">
+                {e.nickname}
+                {!e.active && <span className="ml-2 text-xs text-neutral-400">(retired)</span>}
+              </td>
+              <td className="py-2 text-neutral-500">{e.primaryPositionName ?? "—"}</td>
+              <td className="py-2 text-neutral-500">
+                {e.positions.length === 0 ? "—" : e.positions.map((p) => p.positionName).join(", ")}
+              </td>
+              <td className="py-2 text-neutral-500">{e.systemRole}</td>
+              <td className="py-2">
+                <GenerateLoginIdControl
+                  employeeId={e.id}
+                  loginId={e.loginId}
+                  isPartner={e.isPartner}
+                  primaryPositionCategory={primaryPositionCategory}
+                  viewerIsAdmin={viewerIsAdmin}
+                />
+              </td>
+              <td className="py-2 text-right">
+                <Link href={`/people/${e.id}/edit`} className="underline text-blue-600">
+                  Edit
+                </Link>
+              </td>
+              <td className="py-2 text-right">
+                <EmployeeToggleActiveButton employeeId={e.id} active={e.active} />
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

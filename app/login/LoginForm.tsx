@@ -8,22 +8,43 @@ import { Banner } from "@/components/ui/Banner";
 
 const initialState: LoginActionState = { error: null };
 
-export function LoginForm({ employees }: { employees: { id: number; name: string }[] }) {
+export function LoginForm({
+  employees,
+  method,
+}: {
+  employees: { id: number; name: string }[];
+  /** Which field this form renders — set per-restaurant in Settings ("Staff
+   * login"), see app/login/page.tsx. */
+  method: "NAME" | "ID";
+}) {
   const [state, formAction, isPending] = useActionState(login, initialState);
 
   return (
     <form action={formAction} className="space-y-4">
       {state.error && <Banner tone="danger" title="Couldn't sign in" description={state.error} />}
-      <Select name="employeeId" required defaultValue="" label="Your name">
-        <option value="" disabled>
-          Select your name…
-        </option>
-        {employees.map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.name}
+      {method === "NAME" ? (
+        <Select name="employeeId" required defaultValue="" label="Your name">
+          <option value="" disabled>
+            Select your name…
           </option>
-        ))}
-      </Select>
+          {employees.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.name}
+            </option>
+          ))}
+        </Select>
+      ) : (
+        <TextInput
+          type="text"
+          name="loginId"
+          required
+          autoComplete="off"
+          autoCapitalize="characters"
+          placeholder="YK26081007"
+          label="Login ID"
+          className="tracking-[0.15em] uppercase"
+        />
+      )}
       <TextInput
         type="password"
         inputMode="numeric"

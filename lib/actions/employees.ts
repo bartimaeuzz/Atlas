@@ -2,11 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees, employeePositions, employeeWageRates, positions } from "@/db/schema";
 import { hashPin } from "@/lib/auth/pin";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { buildLoginId, LOGIN_ID_DEPARTMENTS, type LoginIdDepartment } from "@/lib/employees/loginId";
 
 export interface EmployeeActionState {
   error: string | null;
@@ -75,6 +76,7 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[], includeS
   const systemRole = systemRoleRaw as (typeof SYSTEM_ROLES)[number];
 
   const isFinancialAuditor = formData.get("isFinancialAuditor") === "on";
+  const isPartner = formData.get("isPartner") === "on";
 
   // Personal info — only read from the form (and therefore only ever
   // written) when the acting session is Admin. A non-Admin's form won't
@@ -143,6 +145,7 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[], includeS
     primaryPositionId,
     systemRole,
     isFinancialAuditor,
+    isPartner,
     assignedPositionIds,
     tipPointByPosition,
     wageRatesToInsert,
@@ -212,6 +215,7 @@ export async function createEmployee(_prevState: EmployeeActionState, formData: 
         primaryPositionId: parsed.primaryPositionId,
         systemRole: parsed.systemRole,
         isFinancialAuditor: parsed.isFinancialAuditor,
+        isPartner: parsed.isPartner,
         ...sensitiveFieldsOrUndefined(parsed, includeSensitive),
       })
       .returning();
@@ -222,8 +226,8 @@ export async function createEmployee(_prevState: EmployeeActionState, formData: 
     return { error: e instanceof Error ? e.message : String(e) };
   }
 
-  revalidatePath("/employees");
-  redirect("/employees");
+  revalidatePath("/people");
+  redirect("/people");
 }
 
 export async function updateEmployee(_prevState: EmployeeActionState, formData: FormData): Promise<EmployeeActionState> {
@@ -248,6 +252,7 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
         primaryPositionId: parsed.primaryPositionId,
         systemRole: parsed.systemRole,
         isFinancialAuditor: parsed.isFinancialAuditor,
+        isPartner: parsed.isPartner,
         ...sensitiveFieldsOrUndefined(parsed, includeSensitive),
       })
       .where(eq(employees.id, employeeId));
@@ -257,8 +262,8 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
     return { error: e instanceof Error ? e.message : String(e) };
   }
 
-  revalidatePath("/employees");
-  redirect("/employees");
+  revalidatePath("/people");
+  redirect("/people");
 }
 
 /** Retire/reactivate — never a hard delete, same reasoning and pattern as
@@ -269,7 +274,7 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
 export async function toggleEmployeeActive(employeeId: number, nextActive: boolean) {
   await requireManagerAction();
   await db.update(employees).set({ active: nextActive }).where(eq(employees.id, employeeId));
-  revalidatePath("/employees");
+  revalidatePath("/people");
 }
 
 /** Set or reset an employee's staff-login PIN (2026-08-10) — lets an
@@ -292,6 +297,75 @@ export async function setEmployeePin(_prevState: EmployeeActionState, formData: 
 
   await db.update(employees).set({ pinHash: hashPin(pin) }).where(eq(employees.id, employeeId));
 
-  revalidatePath(`/employees/${employeeId}/edit`);
+  revalidatePath(`/people/${employeeId}/edit`);
   return { error: null };
+}
+
+/** Generate this employee's YK login ID (2026-08-17, Oliver: "build ID
+ * and login"). Manual department picker per Oliver's explicit ask (not
+ * auto-derived) — the People page pre-fills a best guess
+ * (guessLoginIdDepartment) but the manager confirms/overrides it here.
+ * The running number is the next value after the current global max
+ * (see employees.loginSequence's schema comment) — computed inside the
+ * same statement's WHERE-free scan rather than trusting a cached count,
+ * so two concurrent generations can't silently collide (a manager
+ * clicking twice fast is the realistic case here, not a busy multi-admin
+ * race — this app has no such scale yet, but the query itself is cheap
+ * either way). Refuses to regenerate an ID that already exists — a
+ * generated ID is meant to be stable once assigned (a login credential
+ * changing under someone is a real problem, e.g. mid-shift). */
+export async function generateLoginId(_prevState: EmployeeActionState, formData: FormData): Promise<EmployeeActionState> {
+  await requireManagerAction();
+
+  const employeeId = Number(formData.get("employeeId"));
+  if (!employeeId) return { error: "Missing employee id" };
+
+  const departmentRaw = String(formData.get("department") ?? "");
+  if (!LOGIN_ID_DEPARTMENTS.includes(departmentRaw as LoginIdDepartment)) {
+    return { error: "Choose a department (Partner / BOH / FOH)" };
+  }
+  const department = departmentRaw as LoginIdDepartment;
+
+  try {
+    const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId));
+    if (!employee) return { error: "Employee not found" };
+    if (employee.loginId) return { error: "This person already has a login ID — it isn't regenerated once assigned" };
+
+    const [{ maxSequence }] = await db
+      .select({ maxSequence: sql<number | null>`max(${employees.loginSequence})` })
+      .from(employees);
+    const sequence = (maxSequence ?? 0) + 1;
+
+    const loginId = buildLoginId({ hireDate: employee.hireDate, department, sequence });
+
+    await db.update(employees).set({ loginId, loginSequence: sequence }).where(eq(employees.id, employeeId));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+
+  revalidatePath("/people");
+  revalidatePath(`/people/${employeeId}/edit`);
+  return { error: null };
+}
+
+/** Admin-only escape hatch: clears an already-generated login ID so it can
+ * be regenerated with a different department (2026-08-17) — mainly for
+ * fixing the one-time backfill script's automatic department guess (e.g.
+ * a real partner who wasn't marked isPartner yet when the backfill ran).
+ * Deliberately Admin-only (stricter than the MANAGER-level
+ * requireManagerAction used elsewhere in this file) since a login ID is a
+ * live credential — clearing one that's already in someone's hands would
+ * lock them out until it's regenerated and re-shared with them, so this
+ * shouldn't be a casual one-click action available to every manager. Does
+ * NOT free up the running number that was spent — the next generation
+ * still gets the next-highest number, same "never reused" reasoning as
+ * generateLoginId's own sequencing. */
+export async function resetLoginId(employeeId: number): Promise<void> {
+  const session = await getCurrentStaffSession();
+  if (!session || session.systemRole !== "ADMIN") {
+    throw new Error("Not authorized.");
+  }
+  await db.update(employees).set({ loginId: null }).where(eq(employees.id, employeeId));
+  revalidatePath("/people");
+  revalidatePath(`/people/${employeeId}/edit`);
 }
