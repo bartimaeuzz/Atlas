@@ -3472,3 +3472,109 @@ No schema change, no migration. Verified: `eslint`/`tsc --noEmit`
 clean (only the pre-existing unrelated `app/layout.tsx` `LayoutProps`
 finding, predates this change), `next build` clean, 71/71 tests pass
 (unchanged — no test covered this form's specific field names).
+
+## Payroll — weekly payroll register, export, and sign-off (2026-08-17)
+
+Oliver: "i wanna built staff payroll." Scoped via 3 rounds of
+AskUserQuestion before building (per this project's "never assume"
+rule, doubly so for anything money-related): a pay-period register +
+export (not tax/withholding calc, which is a payroll-processor job, not
+Atlas's), weekly cadence reusing Atlas's own already-computed wage/tip
+numbers, finalized-shifts-only data source, a lock/mark-as-paid step,
+and a 3-sheet export. Opened the real payroll DNA file (" 2026.xlsx",
+in Atlas's DNA Closing report folder) directly rather than trusting the
+2-day-old memory summary — confirmed its PAYROLL/OUTSIDE/Export/
+MyExport/SIGN FORM sheets are exactly a weekly Payee/Amount/Memo
+register plus a bilingual wage-acknowledgment form.
+
+**One flag raised and resolved before building:** Oliver's first answer
+described the acknowledgment form's original purpose as being "to
+trick" undocumented workers — paused and asked for clarification rather
+than building that. Turned out to be a typo for "to prevent [the]
+restaurant [from] be[ing] tricked" (i.e. a standard wage-receipt,
+protecting the employer from later false wage-theft claims) — confirmed
+and proceeded. See project_atlas_payroll memory for the full exchange;
+worth remembering this kind of ambiguity is worth a pause, not an
+assumption in either direction.
+
+**Data model** (migration `0018_mean_expediter.sql`, purely additive):
+`payrollPeriods` (weekStartDate/weekEndDate, status draft/paid, paidAt/
+paidByEmployeeId, unique on weekStartDate) + `payrollPeriodEmployeeTotals`
+(the locked snapshot — one row per employee per paid week, mirrors
+employeePayouts' own column shape). A DRAFT week is always computed live
+from `employeePayouts` (never stale while still being decided); marking
+a week PAID snapshots the exact live numbers at that moment — the same
+"compute vs. write" separation as `computeFinalizationPreview.ts`, so
+the preview and the locked record can never drift apart. Blocked
+entirely unless every shift that exists that week is already finalized
+(same rule Ledger/Card already enforce) and there's at least one
+employee to pay. An ADMIN can revert a paid week back to draft to
+correct it (same override exception as Ledger/Card/Supplier Check),
+which deletes the snapshot rows.
+
+**What "payroll" actually is, deliberately**: no new payroll math
+anywhere — every dollar comes from `employeePayouts.totalCorePayout`
+(wage + extra + incentive − deduction + tip), summed per employee across
+a Monday-Sunday week of *finalized* shifts only. Same "don't duplicate
+the source of truth" precedent as `loadPayrollCost.ts` (Analytics) and
+My Pay — Payroll and Analytics now read the same underlying numbers
+through two different lenses (Analytics: FOH/BOH cost, excludes tips;
+Payroll: per-employee total including tips, since that's what's actually
+paid to the person).
+
+**UI**: `/payroll?week=YYYY-MM-DD` — one page, Prev/Next week nav (same
+`weekMath.ts` helpers as Supplier Check's picker), a status pill (Draft
+— live numbers / Paid — by X on date), an amber banner naming exactly
+how many shifts still need finalizing if the week isn't fully locked
+yet, the per-employee table (Wage/Extra/Incentive/Deduction/Tip/Total),
+"Mark this week paid" (disabled until every shift is finalized), Admin-
+only "Revert to draft" on a paid week, and a Download .xlsx link. Nav
+entry added to `MANAGER_NAV_ITEMS` (between Analytics and Settings) and
+a matching 9th tile on the home page.
+
+**Export** (`lib/payroll/buildPayrollWorkbook.ts`, ExcelJS, one .xlsx,
+3 sheets): "Check Export" (plain Payee/Amount/Memo, one row per
+employee, ready for check-printing software — matches the DNA file's
+own Export/MyExport shape); "Pay Stub Detail" (one block per employee:
+wage/extra/incentive/deduction/tip pool share/host drink bonus/total,
+meant to be printed and clipped to the physical check); "Wage
+Acknowledgment" (bilingual English/Spanish receipt per employee,
+reflecting the real computed amount and week-ending date, with a
+signature line). Deliberately dropped the DNA form's meal-break
+certification clause — Atlas doesn't track breaks at all, so having
+someone sign a certification about something the system never observed
+would be putting an unverifiable claim in writing; only the
+wage-received certification (which Atlas *can* back with real numbers)
+made it in.
+
+**Verified**: `eslint`/`tsc --noEmit`/`next build` all clean on every
+new/touched file (the pre-existing NavBarClient.tsx setState-in-effect
+warning and 7 other pre-existing findings elsewhere confirmed via `git
+stash` to predate this change), 71/71 existing tests pass unchanged
+(none of this feature's logic was a good fit for the existing pure-
+function test file — it's inherently DB-shaped). Two-part verification
+instead: a 9-check pure-DB script (deleted after use) confirmed the live
+register total matches an independent SQL sum, an empty week is
+correctly empty/unpayable, and a week with an unfinalized shift reports
+the right blocking count — and, since `markPayrollPeriodPaid`/
+`revertPayrollPeriodToDraft` need a real request-scoped session
+(`next/headers`' `cookies()` doesn't work in a standalone script), a
+13-check real `next start` smoke test using session tokens minted
+directly for a seeded MANAGER (Aey) and ADMIN (Oliver) account (temp
+verification route deleted after use) confirmed: blocked-when-
+unfinalized, successful mark-paid, snapshot-matches-live-at-lock-time,
+blocked double-pay, a non-Admin can't revert, Admin revert clears the
+snapshot, and the export workbook builds. Also manually confirmed the
+real `/payroll` page renders (status pill, table, Mark paid button,
+Download link) against the seeded week.
+
+**Not built (explicitly out of scope this round, per Oliver's own
+answer)**: tax/withholding calculation — that's a payroll-processor job
+(Gusto/ADP/etc.), not something to build in-house. Also not built:
+biweekly/semi-monthly cadence (weekly only, matching the real DNA
+process), CSV/direct-deposit-file export (the .xlsx is meant for
+check-printing software or a bookkeeper, same as Supplier Check's own
+export), and any UI for correcting an individual employee's numbers
+within a payroll week (a correction goes through fixing the underlying
+shift, then re-finalizing, same as everywhere else money is computed
+in this app).

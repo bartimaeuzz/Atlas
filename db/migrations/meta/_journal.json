@@ -127,6 +127,13 @@
       "when": 1786943558974,
       "tag": "0017_unknown_prodigy",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1786949258503,
+      "tag": "0018_mean_expediter",
+      "breakpoints": true
     }
   ]
 }

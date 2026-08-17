@@ -13,6 +13,7 @@ const MANAGER_NAV_ITEMS = [
   { href: "/ledger", label: "Ledger" },
   { href: "/reports", label: "Reports" },
   { href: "/analytics", label: "Analytics" },
+  { href: "/payroll", label: "Payroll" },
   { href: "/settings", label: "Settings" },
 ];
 
@@ -75,7 +76,7 @@ function UnseenBadge({ count }: { count: number }) {
  * instead of being split across two different spots.
  *
  * Hamburger menu on phone width (2026-08-15, accessibility audit fix) —
- * the manager row (MANAGER_NAV_ITEMS, 8 links as of the Analytics addition
+ * the manager row (MANAGER_NAV_ITEMS, 9 links as of the Payroll addition
  * below) doesn't fit a phone screen and previously had no wrap/scroll
  * fallback, so links would overflow off-screen with no way to reach them.
  * Below the `sm` breakpoint the inline row is hidden and replaced with a

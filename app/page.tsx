@@ -119,6 +119,19 @@ const MANAGER_TILES: Tile[] = [
     ),
   },
   {
+    href: "/payroll",
+    label: "Payroll",
+    description: "Weekly pay register, export, and sign-off",
+    icon: (
+      <svg {...iconProps}>
+        <rect x="2.5" y="6" width="19" height="13" rx="2" />
+        <path d="M2.5 10h19" />
+        <circle cx="12" cy="14.5" r="2.25" />
+        <path d="M6 3.5h12" />
+      </svg>
+    ),
+  },
+  {
     href: "/settings",
     label: "Settings",
     description: "Restaurant-wide configuration",

@@ -1170,3 +1170,64 @@ export const swapRequests = sqliteTable("swap_requests", {
   decidedAt: text("decided_at"), // set only when a manager approves/declines
   decidedByEmployeeId: integer("decided_by_employee_id").references(() => employees.id),
 });
+
+/* ---------------------------------------------------------------------- */
+/* Payroll — weekly payroll register (2026-08-17)                          */
+/* ---------------------------------------------------------------------- */
+
+// Aggregates each employee's already-computed shift payouts
+// (finalizeShift.ts's totalCorePayout — wage+extra+incentive-deduction+
+// tip, the exact amount an employee is owed) across a Monday-Sunday pay
+// week, matching the weekly cadence Soothr's real payroll DNA file
+// (" 2026.xlsx") uses. Deliberately reuses Atlas's own already-computed
+// numbers rather than re-deriving payroll math — same "don't duplicate
+// the source of truth" precedent as loadPayrollCost.ts (Analytics) and
+// My Pay.
+//
+// Two states, same "compute live, then lock a snapshot" pattern as
+// finalizeShift.ts / Card's statement periods: while DRAFT, a week's
+// numbers are always computed live from employeePayouts (nothing goes
+// stale while Oliver is still deciding); marking a week PAID snapshots
+// each employee's totals into payrollPeriodEmployeeTotals at that exact
+// moment — a locked historical record that won't silently change later
+// if a shift is edited/refinalized. Blocked entirely (see
+// markPayrollPeriodPaid in lib/actions/payroll.ts) unless every shift
+// that exists in that week is already finalized, same "can't reconcile
+// before the source data is locked" rule Ledger/Card already enforce.
+export const payrollPeriods = sqliteTable(
+  "payroll_periods",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    weekStartDate: text("week_start_date").notNull(), // Monday, ISO date
+    weekEndDate: text("week_end_date").notNull(), // Sunday, ISO date
+    status: text("status", { enum: ["draft", "paid"] }).notNull().default("draft"),
+    paidAt: text("paid_at"),
+    paidByEmployeeId: integer("paid_by_employee_id").references(() => employees.id),
+    createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
+  },
+  (t) => ({
+    uniqWeekStart: uniqueIndex("uniq_payroll_week_start").on(t.weekStartDate),
+  })
+);
+
+// One row per employee per PAID payroll period — the locked snapshot.
+// Mirrors employeePayouts' own column shape (wage/extra/incentive/
+// deduction/tip/total) summed across that week's finalized shifts, plus
+// shiftCount for context. Only ever written by markPayrollPeriodPaid;
+// deleted and rewritten if an ADMIN reverts a period back to draft to
+// correct it (see revertPayrollPeriodToDraft), same override precedent
+// as Ledger/Card/Supplier Check's finalized-record admin exception.
+export const payrollPeriodEmployeeTotals = sqliteTable("payroll_period_employee_totals", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  payrollPeriodId: integer("payroll_period_id").notNull().references(() => payrollPeriods.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  shiftCount: integer("shift_count").notNull().default(0),
+  flatWageAmount: real("flat_wage_amount").notNull().default(0),
+  extraPayAmount: real("extra_pay_amount").notNull().default(0),
+  incentiveAmount: real("incentive_amount").notNull().default(0),
+  deductionAmount: real("deduction_amount").notNull().default(0),
+  tipPoolShare: real("tip_pool_share").notNull().default(0),
+  hostUpsellTipShare: real("host_upsell_tip_share").notNull().default(0),
+  totalTip: real("total_tip").notNull().default(0),
+  totalCorePayout: real("total_core_payout").notNull().default(0),
+});
