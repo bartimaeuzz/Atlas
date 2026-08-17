@@ -38,24 +38,33 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="text-sm block">
             <span className="block text-neutral-500 mb-1">CC tip deduction rate</span>
-            <input
-              type="number"
-              step="0.001"
-              name="ccTipDeductionRate"
-              defaultValue={settings.ccTipDeductionRate}
-              className="border rounded px-3 py-1.5 text-sm w-32"
-            />
-            <span className="block text-xs text-neutral-400 mt-1">e.g. 0.045 for 4.5% — processor cut off card tips</span>
+            <div className="relative w-32">
+              <input
+                type="number"
+                step="0.001"
+                min="0"
+                max="100"
+                name="ccTipDeductionRatePercent"
+                defaultValue={settings.ccTipDeductionRate * 100}
+                className="border rounded pl-3 pr-6 py-1.5 text-sm w-full"
+              />
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">%</span>
+            </div>
+            <span className="block text-xs text-neutral-400 mt-1">e.g. 4.5 for 4.5% — processor cut off card tips</span>
           </label>
           <label className="text-sm block">
             <span className="block text-neutral-500 mb-1">Host drink bonus, $/drink</span>
-            <input
-              type="number"
-              step="0.01"
-              name="hostDrinkBonusPerDrinkAmount"
-              defaultValue={settings.hostDrinkBonusPerDrinkAmount}
-              className="border rounded px-3 py-1.5 text-sm w-32"
-            />
+            <div className="relative w-32">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                name="hostDrinkBonusPerDrinkAmount"
+                defaultValue={settings.hostDrinkBonusPerDrinkAmount}
+                className="border rounded pl-6 pr-3 py-1.5 text-sm w-full"
+              />
+            </div>
             <span className="block text-xs text-neutral-400 mt-1">0 turns the bonus off entirely</span>
           </label>
         </div>

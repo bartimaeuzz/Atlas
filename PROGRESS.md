@@ -3445,3 +3445,30 @@ takeout). Also not built: any Toast/POS API integration -- this phase
 is 100% Atlas's own already-captured data, matching what Oliver said
 ("now i want something that can pull data on our app and process it,"
 with the Toast API link explicitly framed as a later step).
+
+## Settings — CC tip deduction rate now a percent, drink bonus gets a $ sign (2026-08-17)
+
+Oliver: "in setting, change cc tip deduction to match tax style. allow
+input it as actual %. not as a fraction and also add % sign and drink
+tip add $ sign." This was the exact gap v51 (2026-08-15) flagged and
+deliberately left untouched ("CC tip deduction rate has the identical
+issue but wasn't touched — Oliver's ask was specifically the tax
+rate"). Applied the same fix now, plus the drink bonus's $ affordance.
+
+`SettingsForm.tsx`: "CC tip deduction rate" input now takes/shows a
+percent (e.g. `4.5`) with a trailing `%` suffix inside the field,
+mirroring "Default sales tax rate"'s existing pattern exactly (same
+`relative` wrapper, same `pl-3 pr-6`/absolute-positioned unit span).
+"Host drink bonus, $/drink" gets a leading `$` inside the field the
+same way. `lib/actions/settings.ts`: reads the new
+`ccTipDeductionRatePercent` form field, validates it's 0-100, divides
+by 100 before writing to `restaurantSettings.ccTipDeductionRate` —
+storage/schema and every downstream consumer (`finalizeShift.ts`,
+`computeFinalizationPreview.ts`) untouched, they still read the
+fraction. Host drink bonus is unchanged numerically (still stored/read
+as a raw dollar amount), only the input's visual $ prefix changed.
+
+No schema change, no migration. Verified: `eslint`/`tsc --noEmit`
+clean (only the pre-existing unrelated `app/layout.tsx` `LayoutProps`
+finding, predates this change), `next build` clean, 71/71 tests pass
+(unchanged — no test covered this form's specific field names).

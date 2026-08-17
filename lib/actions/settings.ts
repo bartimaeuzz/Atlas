@@ -17,10 +17,16 @@ export async function updateRestaurantSettings(
   formData: FormData
 ): Promise<SettingsActionState> {
   try {
-    const ccTipDeductionRate = Number(formData.get("ccTipDeductionRate") ?? 0);
-    if (Number.isNaN(ccTipDeductionRate) || ccTipDeductionRate < 0 || ccTipDeductionRate > 1) {
-      throw new Error("CC tip deduction rate must be a number between 0 and 1 (e.g. 0.045 for 4.5%)");
+    // Entered as a percent (e.g. 4.5 for 4.5%), same fix as the sales tax
+    // rate below (2026-08-15 accessibility audit flag #1, applied here
+    // 2026-08-17) — typing the raw fraction (0.045) invited the same
+    // silent-mistake risk. Converted to a fraction here for storage so
+    // every downstream consumer (tip pool calc) is unaffected.
+    const ccTipDeductionRatePercent = Number(formData.get("ccTipDeductionRatePercent") ?? 0);
+    if (Number.isNaN(ccTipDeductionRatePercent) || ccTipDeductionRatePercent < 0 || ccTipDeductionRatePercent > 100) {
+      throw new Error("CC tip deduction rate must be a percent between 0 and 100 (e.g. 4.5 for 4.5%)");
     }
+    const ccTipDeductionRate = ccTipDeductionRatePercent / 100;
 
     const hostDrinkBonusPerDrinkAmount = Number(formData.get("hostDrinkBonusPerDrinkAmount") ?? 0);
     if (Number.isNaN(hostDrinkBonusPerDrinkAmount) || hostDrinkBonusPerDrinkAmount < 0) {
