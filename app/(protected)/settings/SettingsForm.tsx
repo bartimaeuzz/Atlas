@@ -1,22 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { updateRestaurantSettings, type SettingsActionState } from "@/lib/actions/settings";
 import type { RestaurantSettingsData } from "@/lib/settings/loadRestaurantSettings";
 
 const initialState: SettingsActionState = { error: null, saved: false };
-
-function PoolMethodSelect({ name, defaultValue, label }: { name: string; defaultValue: string; label: string }) {
-  return (
-    <label className="text-sm block">
-      <span className="block text-neutral-500 mb-1">{label}</span>
-      <select name={name} defaultValue={defaultValue} className="border rounded px-2 py-1.5 text-sm">
-        <option value="POINT_WEIGHTED">Point-weighted</option>
-        <option value="EQUAL_SPLIT">Equal split</option>
-      </select>
-    </label>
-  );
-}
 
 export function SettingsForm({ settings }: { settings: RestaurantSettingsData }) {
   const [state, formAction, isPending] = useActionState(updateRestaurantSettings, initialState);
@@ -96,12 +85,21 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
       </fieldset>
 
       <fieldset>
-        <legend className="text-lg font-medium mb-3">Tip pool split method</legend>
-        <div className="grid sm:grid-cols-3 gap-4">
-          <PoolMethodSelect name="pool1SplitMethod" defaultValue={settings.pool1SplitMethod} label="Pool 1 — Dine-in" />
-          <PoolMethodSelect name="pool2SplitMethod" defaultValue={settings.pool2SplitMethod} label="Pool 2 — Takeout/online" />
-          <PoolMethodSelect name="pool3SplitMethod" defaultValue={settings.pool3SplitMethod} label="Pool 3 — Delivery" />
-        </div>
+        <legend className="text-lg font-medium mb-3">Tip pools</legend>
+        <Link
+          href="/settings/tip-pools"
+          className="flex items-center justify-between gap-3 border rounded-lg p-4 hover:bg-neutral-50 hover:border-neutral-300"
+        >
+          <span>
+            <span className="block text-sm font-medium">Manage tip pool assignment &amp; split method</span>
+            <span className="block text-xs text-neutral-500 mt-0.5">
+              Which positions are in Pool 1 / 2 / 3, and whether each pool splits point-weighted or equal
+            </span>
+          </span>
+          <span className="text-neutral-400 text-lg" aria-hidden>
+            →
+          </span>
+        </Link>
       </fieldset>
 
       <fieldset>

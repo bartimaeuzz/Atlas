@@ -19,11 +19,14 @@ export default async function PositionsListPage() {
           + New position
         </Link>
       </div>
-      <p className="text-neutral-500 text-sm mb-6">
+      <p className="text-neutral-500 text-sm mb-3">
         Create and edit job positions — which tip pool(s) they belong to, roster visibility, and
         (for FOH) their flat wage rate. Retiring a position keeps every past shift that used it
         intact; it just stops showing up when staffing new ones.
       </p>
+      <Link href="/settings/tip-pools" className="inline-block text-xs text-neutral-500 hover:text-black underline mb-6">
+        Bulk-manage tip pool assignment for every position →
+      </Link>
 
       {positionList.length === 0 ? (
         <p className="text-neutral-500 text-sm">No positions yet.</p>

@@ -3578,3 +3578,65 @@ export), and any UI for correcting an individual employee's numbers
 within a payroll week (a correction goes through fixing the underlying
 shift, then re-finalizing, same as everywhere else money is computed
 in this app).
+
+## Tip Pool Assignment — visual position↔pool board (2026-08-17)
+
+Oliver wanted a second, more visual way to manage which position is in
+which tip pool — described it as "game UI": unassigned positions on the
+left, one window per pool on the right, arrows or drag-and-drop to
+assign. Before building, walked through the concept as a clickable
+mockup (real position names, no backend) and flagged one real wrinkle:
+a position isn't always in exactly one pool — Host is deliberately in
+BOTH Pool 1 and Pool 2 at once (see `positionTipPools`' schema comment,
+a corrected bug from earlier in the project). A strict "move from
+unassigned into a pool" interaction can't represent that, so the
+mockup — and now the real feature — is a TOGGLE board instead: the left
+list is a permanent master list of every position, arrows/drag
+add-or-remove one pool membership at a time, nothing "moves away" from
+anywhere. Also flagged that drag-and-drop alone doesn't fit this app's
+own accessibility bar (phone-first, low-computer-literacy-friendly) —
+arrow/tap buttons are the primary interaction, drag is a bonus for a
+mouse.
+
+Oliver's follow-up, confirmed before building: (1) it writes the SAME
+`positionTipPools` data the Positions page's per-position checkboxes
+already write — not a fork; (2) it gets its own Settings section, not a
+tab under Positions; (3) the pool split-method control (point-weighted
+vs. equal split) moves OFF the main Settings page entirely and now
+lives ONLY in this new section, alongside the board.
+
+**What shipped** (no schema change, no migration): new page
+`/settings/tip-pools` — a filterable master list of every position
+(All / Unassigned only / FOH / BOH) plus one window per pool, each
+showing its members, a split-method dropdown, and an arrow/drag drop
+target. `lib/actions/tipPools.ts`: `toggleTipPoolMembership` (adds/
+removes exactly one `positionTipPools` row, idempotent, doesn't touch a
+position's other memberships — unlike the Positions edit page's
+existing `syncPositionChildRows`, which replaces a position's whole
+set) and `updatePoolSplitMethod` (updates one pool's column on
+`restaurantSettings`). Both save immediately on click/change, no
+separate "Save" button — the client board (`PoolBoard.tsx`) updates
+optimistically for a snappy feel and reverts with an error message if
+the server call fails, so the UI can't silently drift from the DB.
+`SettingsForm.tsx` lost its "Tip pool split method" fieldset entirely,
+replaced with a link card to the new page; `lib/actions/settings.ts`'s
+`updateRestaurantSettings` no longer reads/writes pool1/2/3SplitMethod.
+Cross-links added both ways: Settings → Tip Pool Assignment, and
+Positions list → "Bulk-manage tip pool assignment for every position."
+
+**Verified**: `eslint`/`tsc --noEmit`/`next build` clean on every new/
+touched file. 71/71 existing tests unchanged. Direct verification via a
+temporary API route (deleted after use, same technique as Payroll's —
+`revalidatePath()` needs a real Next.js request context, doesn't work
+in a standalone script) confirmed: toggling a membership on/off works
+and is idempotent (no duplicate row), toggling one pool never touches a
+position's OTHER pool memberships (Host ending up correctly in all 3
+pools when added to the 3rd, then back to exactly Pool 1 + Pool 2 when
+removed), an unrelated position (Bartender) is untouched throughout,
+each pool's split method updates independently without affecting the
+other two, and unrelated `restaurantSettings` fields (e.g.
+`ccTipDeductionRate`) are never touched. Also a real `next start` smoke
+test confirmed `/settings/tip-pools` renders with real position data
+(Host correctly shows both Pool 1 and Pool 2 chips) and `/settings`
+correctly no longer shows the split-method UI while everything else on
+that page is unaffected.

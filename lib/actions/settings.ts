@@ -10,8 +10,6 @@ export interface SettingsActionState {
   saved: boolean;
 }
 
-const POOL_METHODS = ["POINT_WEIGHTED", "EQUAL_SPLIT"] as const;
-
 export async function updateRestaurantSettings(
   _prevState: SettingsActionState,
   formData: FormData
@@ -46,14 +44,6 @@ export async function updateRestaurantSettings(
     }
     const defaultSalesTaxRate = defaultSalesTaxRatePercent / 100;
 
-    const poolMethod = (name: string) => {
-      const v = String(formData.get(name) ?? "");
-      if (!POOL_METHODS.includes(v as (typeof POOL_METHODS)[number])) {
-        throw new Error(`Invalid split method for ${name}`);
-      }
-      return v as (typeof POOL_METHODS)[number];
-    };
-
     const flag = (name: string) => formData.get(name) === "on";
 
     await db
@@ -62,9 +52,10 @@ export async function updateRestaurantSettings(
         ccTipDeductionRate,
         hostDrinkBonusPerDrinkAmount,
         defaultSalesTaxRate,
-        pool1SplitMethod: poolMethod("pool1SplitMethod"),
-        pool2SplitMethod: poolMethod("pool2SplitMethod"),
-        pool3SplitMethod: poolMethod("pool3SplitMethod"),
+        // pool1/2/3SplitMethod moved to /settings/tip-pools (2026-08-17) —
+        // that page's split-method dropdowns save immediately via
+        // lib/actions/tipPools.ts's updatePoolSplitMethod, not through
+        // this whole-form submit, so they're deliberately absent here now.
         rosterShowPeerTipFOH: flag("rosterShowPeerTipFOH"),
         rosterShowPeerTipBOH: flag("rosterShowPeerTipBOH"),
         rosterShowPeerWageFOH: flag("rosterShowPeerWageFOH"),
