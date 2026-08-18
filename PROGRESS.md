@@ -4108,3 +4108,57 @@ this is pushed and deployed, same as every prior UI change.
 
 **Delivery:** committed locally, zipped with full `.git` history (no push
 credentials in this sandbox, same as always).
+
+## Collapsible desktop sidebar + day-primary mobile weekly schedule (2026-08-19)
+
+Two small, independent asks from Oliver, both built and shipped together:
+
+**1. Collapsible desktop sidebar.** The 216px labeled sidebar (sm+) now
+collapses to the same 48px icon-only rail the mobile breakpoint already
+uses, via a toggle button under the brand header (`app/NavBarClient.tsx`).
+State lives in a new `NavCollapseContext` (`app/NavCollapseContext.tsx`),
+shared between the sidebar and a new `NavContentWrapper`
+(`app/NavContentWrapper.tsx`) that applies the page content's left
+padding — both resize together instantly on toggle, instead of the
+content padding staying stale until the next navigation. Persisted via a
+plain (non-httpOnly) cookie, read server-side in `app/layout.tsx` so the
+very first paint already has the correct sidebar width/content padding —
+no flash, no hydration mismatch. The mobile rail itself is untouched and
+has no toggle — it's still fixed at 48px/44x44 per Oliver's 2026-08-18
+"no more collapse or trims" call.
+
+**2. Day-primary mobile view for published/read-only weekly schedules.**
+`WeeklyPlanGrid.tsx`'s `readOnly` views (Preview, the locked/published
+view in `PublishedEditGate.tsx`, and staff's `/me/schedule/week`) now
+render a vertical list of days on mobile — first "column" is the day of
+week, each day showing every position that has either an assignment or
+(when diagnostics aren't hidden) an unmet staffing target — instead of
+the existing position-rows/horizontal-scroll-days table. This closes the
+"day-primary vs. position-primary" scoping question the 2026-08-18
+visual-audit follow-up explicitly left open for Oliver to decide; his
+answer was day-primary, and only for read-only views — the editable
+pre-publish planning grid (quick-add-per-cell) is deliberately unchanged,
+since flipping its axes would break that per-cell editing UX and wasn't
+what was asked for. Desktop is also unchanged, both modes.
+
+**Verification:** `tsc --noEmit` clean. `eslint` clean except the one
+pre-existing `react-hooks/set-state-in-effect` finding on the
+pathname-close effect (confirmed via prior sessions' `git stash` checks
+to already exist on unmodified `main`). `next build` clean, 47 routes
+(unchanged — no new routes added). `npm test` 99/99 pass. Rendered
+output spot-checked via a temporary DB-free test route (deleted before
+this commit) since this sandbox still has no working database: confirmed
+in the real served HTML that the collapsed/expanded sidebar and content
+padding stay in sync at both states, and that the day-primary grid
+correctly includes an under-target gap row in diagnostics mode while
+omitting it entirely in `hideDiagnostics` (staff) mode.
+
+**Not yet checked:** a live-viewport visual audit (this sandbox has no
+browser) — flagged for a `visual-audit` pass once Oliver confirms this
+is pushed and deployed, same as every prior UI change. Also worth a
+real-data check of the day-primary mobile view once it's live, since the
+only representative data available this session was hand-authored.
+
+**Delivery:** committed locally (commit `fc8346c`, off `dae1e78`), zipped
+with full `.git` history (no push credentials in this sandbox, same as
+always).
