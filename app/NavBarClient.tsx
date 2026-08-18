@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/actions/auth";
 import { Avatar } from "@/components/ui/Avatar";
+import { useNavCollapse } from "./NavCollapseContext";
 import {
   ShiftsIcon,
   PeopleIcon,
@@ -16,6 +17,7 @@ import {
   PayrollIcon,
   SettingsIcon,
   LoginIcon,
+  ChevronDownIcon,
 } from "@/components/ui/icons";
 import type { ComponentType, SVGProps } from "react";
 
@@ -38,17 +40,21 @@ const SETTINGS_ITEM: { href: string; label: string; icon: IconType } = {
 };
 
 /** Red-pill badge — rendered twice per nav item (see NavItem below), one
- * copy per breakpoint, since the desktop sidebar shows it inline after
- * the label and the mobile rail (icon-only) shows it as a small corner
- * dot on the icon itself. A bare dot until the count is ambiguous (>9),
- * same convention as before the sidebar retrofit. */
-function UnseenBadge({ count, corner }: { count: number; corner?: boolean }) {
+ * copy per "icon-only" vs "labeled" appearance, since the labeled
+ * sidebar shows it inline after the label and the icon-only rail (mobile,
+ * or desktop collapsed — same visual treatment) shows it as a small
+ * corner dot on the icon itself. A bare dot until the count is ambiguous
+ * (>9), same convention as before the sidebar retrofit. */
+function UnseenBadge({ count, corner, collapsed }: { count: number; corner?: boolean; collapsed: boolean }) {
   if (count <= 0) return null;
   const label = `${count} unseen ${count === 1 ? "schedule item" : "schedule items"}`;
   if (corner) {
     return (
       <span
-        className="sm:hidden absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[9px] font-medium leading-none"
+        className={
+          (collapsed ? "" : "sm:hidden ") +
+          "absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[9px] font-medium leading-none"
+        }
         aria-label={label}
       >
         {count > 9 ? "9+" : count}
@@ -57,7 +63,10 @@ function UnseenBadge({ count, corner }: { count: number; corner?: boolean }) {
   }
   return (
     <span
-      className="hidden sm:inline-flex ml-auto items-center justify-center min-w-[16px] h-[16px] px-1 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[10px] font-medium leading-none align-middle"
+      className={
+        (collapsed ? "hidden" : "hidden sm:inline-flex") +
+        " ml-auto items-center justify-center min-w-[16px] h-[16px] px-1 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[10px] font-medium leading-none align-middle"
+      }
       aria-label={label}
     >
       {count > 9 ? "9+" : count}
@@ -65,63 +74,108 @@ function UnseenBadge({ count, corner }: { count: number; corner?: boolean }) {
   );
 }
 
-/** One nav row. Desktop sidebar (>= sm): icon + visible text label, full
- * width. Mobile rail (< sm): icon only, 44x44 tap target (Apple's
- * comfortable-use minimum — confirmed with Oliver 2026-08-18 as the
- * floor, no further collapsing/trimming) centered in the 48px rail,
- * with an aria-label carrying the name for screen readers. This is a
- * deliberate, confirmed exception to the icon+visible-label rule
- * elsewhere in the app (see project_atlas_ui_design memory) — a
- * persistent always-visible rail is a different risk profile than the
- * hover-only title= tooltips that rule exists to stop. */
+/** One nav row. Labeled appearance (desktop sidebar, expanded — >= sm and
+ * not collapsed): icon + visible text label, full width. Icon-only
+ * appearance (mobile rail always, OR desktop sidebar collapsed): 44x44
+ * tap target (Apple's comfortable-use minimum — confirmed with Oliver
+ * 2026-08-18 as the floor for the mobile rail specifically, no further
+ * collapsing/trimming there) centered in the 48px rail, with an
+ * aria-label carrying the name for screen readers. This is a deliberate,
+ * confirmed exception to the icon+visible-label rule elsewhere in the
+ * app (see project_atlas_ui_design memory) — a persistent always-visible
+ * rail is a different risk profile than the hover-only title= tooltips
+ * that rule exists to stop. The desktop-collapsed state reuses this
+ * exact same icon-only treatment rather than inventing a second one. */
 function NavItem({
   href,
   label,
   Icon,
   badgeCount,
   active,
+  collapsed,
 }: {
   href: string;
   label: string;
   Icon: IconType;
   badgeCount?: number;
   active: boolean;
+  collapsed: boolean;
 }) {
+  const sizeClasses = collapsed
+    ? "mx-auto w-11 h-11 justify-center px-0 py-0"
+    : "mx-auto sm:mx-0 w-11 h-11 sm:w-auto sm:h-auto justify-center sm:justify-start px-0 sm:px-3 py-0 sm:py-2";
   return (
     <Link
       href={href}
       aria-label={label}
       aria-current={active ? "page" : undefined}
       className={
-        "relative flex items-center gap-3 rounded-[var(--radius-md)] mx-auto sm:mx-0 w-11 h-11 sm:w-auto sm:h-auto justify-center sm:justify-start px-0 sm:px-3 py-0 sm:py-2 font-medium text-[13.5px] " +
+        "relative flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] " +
+        sizeClasses +
+        " " +
         (active
           ? "bg-[var(--brand-tint)] text-[var(--brand)]"
           : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
       }
     >
       <Icon className="w-[18px] h-[18px] shrink-0" />
-      <span className="hidden sm:inline">{label}</span>
+      <span className={collapsed ? "hidden" : "hidden sm:inline"}>{label}</span>
       {typeof badgeCount === "number" && badgeCount > 0 && (
         <>
-          <UnseenBadge count={badgeCount} />
-          <UnseenBadge count={badgeCount} corner />
+          <UnseenBadge count={badgeCount} collapsed={collapsed} />
+          <UnseenBadge count={badgeCount} corner collapsed={collapsed} />
         </>
       )}
     </Link>
   );
 }
 
-/** Persistent left nav — sidebar on desktop/tablet (216px, labeled),
- * icon rail on phone (48px, icon-only, 44x44 targets). Replaces the old
- * horizontal top bar + hamburger-drawer pattern (2026-08-18) — Oliver's
- * explicit direction, comparing against a sibling app ("Track 1") that
- * uses a fixed left sidebar: nav should stay in the same screen
+/** Desktop-only collapse/expand toggle (2026-08-19, Oliver: "desktop
+ * version should be able to collapse nav bar"). Sits right under the
+ * brand header, styled like a nav row so it reads as part of the same
+ * rail rather than a bolted-on control. Absent at mobile widths — the
+ * mobile rail is already at its confirmed floor (48px/44x44, no further
+ * collapsing) and has no toggle to begin with. The chevron flips to show
+ * which direction the action goes: pointing toward the edge the sidebar
+ * will collapse into when expanded, pointing back out when collapsed. */
+function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+      aria-pressed={collapsed}
+      className={
+        "hidden sm:flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)] " +
+        (collapsed ? "w-11 h-11 mx-auto justify-center px-0 py-0" : "w-auto justify-start px-3 py-2 mx-2")
+      }
+    >
+      <ChevronDownIcon className={"w-[18px] h-[18px] shrink-0 " + (collapsed ? "-rotate-90" : "rotate-90")} />
+      {!collapsed && <span>Collapse</span>}
+    </button>
+  );
+}
+
+/** Persistent left nav — sidebar on desktop/tablet (216px, labeled,
+ * collapsible to a 48px icon rail as of 2026-08-19), icon rail on phone
+ * (48px, icon-only, 44x44 targets, not collapsible further). Replaces
+ * the old horizontal top bar + hamburger-drawer pattern (2026-08-18) —
+ * Oliver's explicit direction, comparing against a sibling app ("Track
+ * 1") that uses a fixed left sidebar: nav should stay in the same screen
  * location at every width, not move between a top bar and a slide-out
  * drawer. Confirmed and mocked up before building (see
  * project_atlas_ui_design memory, "Left sidebar nav" section) —
  * including the mobile rail's collapse width, which Oliver capped at
  * 48px/44x44 specifically to hold Apple's touch-target minimum rather
  * than shrinking further.
+ *
+ * Desktop collapse (2026-08-19): a separate, independent toggle from the
+ * mobile rail above — collapses the 216px labeled sidebar down to the
+ * same 48px icon-only look, driven by NavCollapseContext (shared with
+ * NavContentWrapper so the page content's left padding resizes in step,
+ * see that file). Persisted via a plain cookie (read server-side in
+ * layout.tsx) rather than localStorage specifically so the first
+ * server-rendered paint is already correct — no flash, no mismatch.
  *
  * Split into NavBar (server, reads the session cookie) + this client
  * component — usePathname needs a client component, but resolving the
@@ -136,7 +190,7 @@ function NavItem({
  * Red-pill unseen badge — `unseenScheduleCount` is resolved server-side
  * in NavBar.tsx (needs DB reads across leave + swap requests) and
  * passed down here as a number. Rendered on the "Schedule" nav item
- * only, in both the desktop-label and mobile-corner-dot forms (see
+ * only, in both the labeled and icon-only-corner-dot forms (see
  * NavItem/UnseenBadge above).
  *
  * Account menu opens upward (`bottom-full`), not downward — the avatar
@@ -157,6 +211,7 @@ export function NavBarClient({
 }) {
   const pathname = usePathname();
   const isManager = auth?.systemRole === "MANAGER" || auth?.systemRole === "ADMIN";
+  const { collapsed, toggle } = useNavCollapse();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -187,25 +242,45 @@ export function NavBarClient({
     return pathname === href || pathname.startsWith(href + "/");
   }
 
+  const navItemSizeClasses = collapsed
+    ? "mx-auto w-11 h-11 justify-center px-0 py-0"
+    : "mx-auto sm:mx-0 w-11 h-11 sm:w-auto sm:h-auto justify-center sm:justify-start px-0 sm:px-3 py-0 sm:py-2";
+
   return (
     <aside
-      className="fixed left-0 top-0 bottom-0 z-20 w-12 sm:w-[216px] flex flex-col bg-[var(--card)] border-r border-[var(--border)]"
+      className={
+        "fixed left-0 top-0 bottom-0 z-20 w-12 flex flex-col bg-[var(--card)] border-r border-[var(--border)] transition-[width] duration-150 ease-out " +
+        (collapsed ? "" : "sm:w-[216px]")
+      }
       aria-label="Main navigation"
     >
-      <div className="h-14 flex items-center justify-center sm:justify-start px-0 sm:px-4 shrink-0">
+      <div
+        className={
+          "h-14 flex items-center shrink-0 " + (collapsed ? "justify-center px-0" : "justify-center sm:justify-start px-0 sm:px-4")
+        }
+      >
         <Link
           href="/"
           aria-label="Atlas home"
-          className="sm:hidden w-8 h-8 rounded-[var(--radius-md)] bg-[var(--brand)] text-white flex items-center justify-center font-bold text-[13px]"
+          className={
+            (collapsed ? "" : "sm:hidden ") +
+            "w-8 h-8 rounded-[var(--radius-md)] bg-[var(--brand)] text-white flex items-center justify-center font-bold text-[13px]"
+          }
         >
           A
         </Link>
         <Link
           href="/"
-          className="hidden sm:block font-bold text-[17px] text-[var(--brand)] hover:text-[var(--brand-700)] tracking-tight"
+          className={
+            (collapsed ? "hidden" : "hidden sm:block") + " font-bold text-[17px] text-[var(--brand)] hover:text-[var(--brand-700)] tracking-tight"
+          }
         >
           Atlas
         </Link>
+      </div>
+
+      <div className={collapsed ? "px-1 pb-1" : "px-1 sm:px-2 pb-1"}>
+        <CollapseToggle collapsed={collapsed} onToggle={toggle} />
       </div>
 
       {isManager && (
@@ -221,6 +296,7 @@ export function NavBarClient({
               Icon={item.icon}
               active={isActive(item.href)}
               badgeCount={item.href === "/schedule" ? unseenScheduleCount : undefined}
+              collapsed={collapsed}
             />
           ))}
         </nav>
@@ -234,6 +310,7 @@ export function NavBarClient({
             label={SETTINGS_ITEM.label}
             Icon={SETTINGS_ITEM.icon}
             active={isActive(SETTINGS_ITEM.href)}
+            collapsed={collapsed}
           />
         )}
         {auth ? (
@@ -243,10 +320,13 @@ export function NavBarClient({
               onClick={() => setMenuOpen((v) => !v)}
               aria-label={`${auth.name} — account menu`}
               aria-expanded={menuOpen}
-              className="flex items-center gap-2.5 w-11 h-11 sm:w-full sm:h-auto mx-auto sm:mx-0 justify-center sm:justify-start rounded-[var(--radius-md)] px-0 sm:px-2 sm:py-2 hover:bg-[var(--paper)] transition-colors"
+              className={
+                "flex items-center gap-2.5 rounded-[var(--radius-md)] hover:bg-[var(--paper)] transition-colors " +
+                navItemSizeClasses
+              }
             >
               <Avatar name={auth.name} size={32} />
-              <span className="hidden sm:flex flex-col items-start leading-tight overflow-hidden min-w-0">
+              <span className={(collapsed ? "hidden" : "hidden sm:flex") + " flex-col items-start leading-tight overflow-hidden min-w-0"}>
                 <span className="text-[13px] font-semibold text-[var(--ink-900)] truncate max-w-[130px]">
                   {auth.name}
                 </span>
@@ -264,7 +344,10 @@ export function NavBarClient({
                 <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden="true" />
                 <div
                   role="menu"
-                  className="absolute left-0 sm:left-1 bottom-full mb-2 w-48 z-20 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-2)] py-1 text-sm"
+                  className={
+                    "absolute bottom-full mb-2 w-48 z-20 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-2)] py-1 text-sm " +
+                    (collapsed ? "left-0" : "left-0 sm:left-1")
+                  }
                 >
                   <div className="px-3 py-2 border-b border-[var(--border)]">
                     <p className="font-medium truncate text-[var(--ink-900)]">{auth.name}</p>
@@ -307,14 +390,16 @@ export function NavBarClient({
             aria-label="Staff Login"
             aria-current={pathname === "/login" ? "page" : undefined}
             className={
-              "flex items-center gap-3 rounded-[var(--radius-md)] mx-auto sm:mx-0 w-11 h-11 sm:w-auto sm:h-auto justify-center sm:justify-start px-0 sm:px-3 py-0 sm:py-2 font-medium text-[13.5px] " +
+              "flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] " +
+              navItemSizeClasses +
+              " " +
               (pathname === "/login"
                 ? "bg-[var(--brand-tint)] text-[var(--brand)]"
                 : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
             }
           >
             <LoginIcon className="w-[18px] h-[18px] shrink-0" />
-            <span className="hidden sm:inline">Staff Login</span>
+            <span className={collapsed ? "hidden" : "hidden sm:inline"}>Staff Login</span>
           </Link>
         )}
       </div>

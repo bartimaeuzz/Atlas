@@ -95,7 +95,28 @@ function dayOfWeekFor(dateIso: string): number {
  * horizontally (fixed with a sticky first column), and no visual signal
  * that the table scrolls at all on a narrow screen (fixed with a
  * mobile-only hint). Both are additive, don't change the grid's shape or
- * density, and don't foreclose whatever the real redesign decides. */
+ * density, and don't foreclose whatever the real redesign decides.
+ *
+ * 2026-08-19 — that scoping conversation happened: Oliver asked for
+ * day-primary specifically ("first column as days in a week (Vertically)
+ * ... so we can see all people assigned position whole week"), and only
+ * for read-only weekly views ("published schedule" — Preview, the
+ * locked/published PublishedEditGate view, and staff's My Schedule
+ * week), not the editable pre-publish planning grid. Scoped that way on
+ * purpose: the editable grid's quick-add-per-cell UX is built around a
+ * position×day×period cell, and re-deriving that from a day-primary
+ * layout would be a much bigger, riskier change than what was actually
+ * asked for. So `readOnly` mode now renders a genuinely different mobile
+ * layout (a vertical list of days, each showing every position that has
+ * either an assignment or — when diagnostics aren't hidden — an unmet
+ * staffing target that day) alongside the existing desktop table
+ * unchanged; `!readOnly` mode is completely untouched, still the single
+ * scroll-table at every width. Positions with neither an assignment nor
+ * a relevant gap are omitted from a day's card entirely (unlike the
+ * desktop table, which always lists every position as a row) — that's a
+ * deliberate difference, not an oversight: a focused per-day list
+ * benefits from hiding rows with nothing to say, where the desktop grid
+ * is meant to be an exhaustive overview. */
 export function WeeklyPlanGrid({
   data,
   weekId,
@@ -152,8 +173,82 @@ export function WeeklyPlanGrid({
       {(["Lunch", "Dinner"] as const).map((period) => (
         <section key={period}>
           <h2 className="text-lg font-medium mb-3 text-[var(--ink-900)]">{period}</h2>
-          <p className="sm:hidden text-xs text-[var(--ink-500)] mb-1.5">Swipe sideways to see the rest of the week →</p>
-          <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+          {readOnly && (
+            <div className="sm:hidden space-y-3">
+              {data.dates.map((date) => {
+                const dayOfWeek = dayOfWeekFor(date);
+                const dayRows = data.positions
+                  .map((p) => {
+                    const assignments = data.assignments.filter(
+                      (a) => a.positionId === p.id && a.date === date && a.period === period
+                    );
+                    const target = data.targets[`${p.id}:${dayOfWeek}:${period}`] ?? 0;
+                    return { position: p, assignments, target };
+                  })
+                  .filter(({ assignments, target }) => assignments.length > 0 || (!hideDiagnostics && target > 0));
+
+                return (
+                  <div key={date} className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
+                    <div className="px-3 py-2 bg-[var(--paper)] border-b border-[var(--border)] flex items-baseline gap-2">
+                      <span className="font-medium text-[var(--ink-900)]">{DAY_LABELS[dayOfWeek]}</span>
+                      <span className="text-xs text-[var(--ink-400)]">{date.slice(5)}</span>
+                    </div>
+                    {dayRows.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-[var(--ink-400)]">Nobody scheduled</div>
+                    ) : (
+                      <div className="divide-y divide-[var(--border)]">
+                        {dayRows.map(({ position, assignments, target }) => {
+                          const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
+                          return (
+                            <div key={position.id} className={"px-3 py-2" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
+                              <div className="text-xs text-[var(--ink-500)] mb-1">
+                                {position.name}
+                                {!hideDiagnostics && target > 0 && (
+                                  <span className={underTarget ? " ml-1 text-[var(--danger-700)] font-medium" : " ml-1"}>
+                                    ({assignments.length}/{target})
+                                  </span>
+                                )}
+                              </div>
+                              {assignments.length === 0 ? (
+                                <span className="text-xs text-[var(--ink-400)] italic">No one assigned</span>
+                              ) : (
+                                <div className="space-y-0.5">
+                                  {assignments.map((a) => {
+                                    const slotKey = `${a.employeeId}:${date}:${period}`;
+                                    const otherPositionIds = hideDiagnostics
+                                      ? []
+                                      : (slotPositionsByEmployee.get(slotKey) ?? []).filter((id) => id !== a.positionId);
+                                    const conflictPositionNames = [...new Set(otherPositionIds)].map(
+                                      (id) => positionNameById.get(id) ?? "?"
+                                    );
+                                    return (
+                                      <AssignmentPill
+                                        key={a.id}
+                                        assignment={a}
+                                        conflictPositionNames={conflictPositionNames}
+                                        readOnly
+                                        vacatingSoon={a.vacatingSoon}
+                                        onLeave={a.onLeave}
+                                        swap={a.swap}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {!readOnly && (
+            <p className="sm:hidden text-xs text-[var(--ink-500)] mb-1.5">Swipe sideways to see the rest of the week →</p>
+          )}
+          <div className={(readOnly ? "hidden sm:block " : "") + "overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"}>
           <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
