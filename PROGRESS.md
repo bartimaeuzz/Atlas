@@ -4010,3 +4010,25 @@ sandbox).
 
 **Delivery:** committed locally, zipped with full `.git` history (no push
 credentials in this sandbox, same as always).
+
+---
+
+## Fix: published-week grid was hidden behind the edit-lock (2026-08-18, same day)
+
+Oliver caught this from a live screenshot of the just-deployed Set-1
+retrofit: `PublishedEditGate.tsx`'s locked state returned early and
+rendered ONLY the "This week is published... Edit published schedule"
+notice card — the actual `WeeklyPlanGrid` never rendered at all until
+that button was clicked. His words: a published page should still show
+the table, with the notice floating above it, not instead of it
+("ก็ยังต้องโชว์ตารางโดยที่มีคำแจ้งเตือนลอยอยู่ข้างบน").
+
+Fixed: the grid now always renders — read-only (`readOnly` prop, same
+mode Preview's own "Staff view" toggle already uses) while locked, full
+quick-add/remove once unlocked. The warning notice + "Edit published
+schedule" button stay as a card above the grid instead of replacing it;
+`AutoFillWeekButton` and the "Add to a slot" form still only appear once
+unlocked, since those are edit actions. One file changed
+(`app/(protected)/schedule/plan/PublishedEditGate.tsx`).
+
+Verified: `tsc --noEmit`/`eslint`/`next build` all clean (47 routes).
