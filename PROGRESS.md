@@ -4032,3 +4032,79 @@ unlocked, since those are edit actions. One file changed
 (`app/(protected)/schedule/plan/PublishedEditGate.tsx`).
 
 Verified: `tsc --noEmit`/`eslint`/`next build` all clean (47 routes).
+
+
+---
+
+## Left sidebar nav: top bar + hamburger retired, replaced with a persistent left rail/sidebar (2026-08-18)
+
+Oliver compared Atlas against a sibling app ("Track 1") that uses a
+persistent left sidebar, and asked to bring that layout to Atlas without
+touching the design system — nav position should stay consistent at
+every screen width instead of moving between a top bar and a slide-out
+drawer. Confirmed and mocked up (two rounds, HTML comparison files) before
+writing any real code — desktop sidebar vs. a mobile hamburger-unchanged
+option vs. a mobile icon-rail option, then a second round on exactly how
+far the mobile rail could collapse. Oliver picked desktop sidebar + mobile
+icon rail (nav stays in the same place at both sizes), then capped the
+rail's collapse at 48px/44×44 touch targets — Apple's comfortable-use
+minimum, no further trimming, no hidden/collapsible edge-tab variant.
+
+**What changed (3 files):**
+- `components/ui/icons.tsx` — 10 new icons (one per manager nav
+  destination, plus a login icon for the signed-out state), same outline
+  style as the existing set (1.75px stroke, 24px canvas, rounded joins).
+- `app/NavBarClient.tsx` — rebuilt from a horizontal top bar + hamburger
+  drawer into a fixed-position `<aside>`: 216px labeled sidebar at `sm`
+  and above, 48px icon-only rail below it. Every existing behavior
+  carried over: role-aware nav (staff sees no main list, just the account
+  menu), the Schedule unseen-count red-pill badge (now rendered twice —
+  inline next to the label on desktop, a small corner dot on the icon at
+  rail width), the avatar/account dropdown (My Schedule / My Pay / Sign
+  out) with its existing click-outside/Escape/backdrop dismissal, and the
+  unauthenticated "Staff Login" state. The account menu now opens
+  *upward* (`bottom-full`) instead of downward, since the avatar is
+  pinned at the bottom of a fixed-height rail with no room below it. The
+  hamburger button/state/mobile-drawer panel are gone entirely — the rail
+  has no open/closed state to manage anymore, it's just always there.
+- `app/layout.tsx` — body no longer flexes around an in-flow header; the
+  nav is `fixed`, so `{children}` just needs matching left padding
+  (`pl-12 sm:pl-[216px]`) to clear it. No changes needed to any
+  individual page's own content wrapper — each page's existing
+  `max-w-4xl mx-auto` (or similar) still centers correctly inside the
+  padded area, so this stayed a 3-file change rather than the ~35-file
+  page-by-page retrofit it could have been.
+
+Deliberate accessibility call, documented in the component's own comment:
+the mobile rail is icon-only with an `aria-label` per item rather than a
+visible text label, which is a confirmed exception to Atlas's standing
+"icon + visible label" rule — made directly with Oliver, since a
+persistent always-visible rail is a different risk profile than the
+hover-only `title=` tooltips that rule was written to catch (those are
+invisible on touch; this is visible and tappable at all times, just
+unlabeled until tapped).
+
+**Verification:** `tsc --noEmit` clean. `next build` clean, all 47 routes
+compile (unchanged route count — this is a shell-only change). `npm test`
+99/99 pass (backend/logic tests, untouched by a nav-only change, run
+anyway for a full regression check). `eslint` on all three touched files
+clean except one pre-existing `react-hooks/set-state-in-effect` finding
+on the pathname-close effect — confirmed via `git stash` to already exist
+on unmodified `main`, not introduced here, left as-is (same triage
+convention as prior passes: log pre-existing findings, don't scope-creep
+into fixing unrelated ones). Rendered the real component through Next's
+own dev server via a temporary DB-free test route (deleted before
+delivery) since this sandbox has no local database and even `/login`
+500s here without one (confirmed pre-existing on unmodified `main` too,
+via the same stash-and-compare check) — confirmed in the actual served
+HTML: the sidebar/rail wrapper's fixed/width classes, all 9 nav
+labels+icons, both badge variants with the correct unseen count, the
+avatar/name/role account block, and the brand mark all render as
+intended.
+
+**Not yet checked:** an actual live-viewport visual audit (this sandbox
+has no browser) — flagged for a `visual-audit` pass once Oliver confirms
+this is pushed and deployed, same as every prior UI change.
+
+**Delivery:** committed locally, zipped with full `.git` history (no push
+credentials in this sandbox, same as always).

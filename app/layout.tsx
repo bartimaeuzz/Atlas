@@ -18,9 +18,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col font-sans bg-[var(--paper)] text-[var(--ink-900)]">
+      {/* NavBar renders as a fixed-position left sidebar/rail (2026-08-18
+       * retrofit, replacing the old in-flow top bar) — it no longer takes
+       * up document flow space, so `children` just needs matching
+       * left padding to clear it, not a flex layout. Width matches
+       * NavBarClient's own w-12 (48px, mobile rail) / sm:w-[216px]
+       * (desktop sidebar) exactly; keep these two in sync if either
+       * changes. */}
+      <body className="min-h-full font-sans bg-[var(--paper)] text-[var(--ink-900)]">
         <NavBar />
-        {children}
+        <div className="min-h-full pl-12 sm:pl-[216px]">{children}</div>
       </body>
     </html>
   );

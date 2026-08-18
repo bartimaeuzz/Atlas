@@ -5,84 +5,149 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { logout } from "@/lib/actions/auth";
 import { Avatar } from "@/components/ui/Avatar";
-import { MenuIcon } from "@/components/ui/icons";
+import {
+  ShiftsIcon,
+  PeopleIcon,
+  PositionsIcon,
+  ScheduleIcon,
+  LedgerIcon,
+  ReportsIcon,
+  AnalyticsIcon,
+  PayrollIcon,
+  SettingsIcon,
+  LoginIcon,
+} from "@/components/ui/icons";
+import type { ComponentType, SVGProps } from "react";
 
-const MANAGER_NAV_ITEMS = [
-  { href: "/shifts", label: "Shifts" },
-  { href: "/people", label: "People" },
-  { href: "/positions", label: "Positions" },
-  { href: "/schedule", label: "Schedule" },
-  { href: "/ledger", label: "Ledger" },
-  { href: "/reports", label: "Reports" },
-  { href: "/analytics", label: "Analytics" },
-  { href: "/payroll", label: "Payroll" },
-  { href: "/settings", label: "Settings" },
+type IconType = ComponentType<SVGProps<SVGSVGElement>>;
+
+const MANAGER_NAV_ITEMS: { href: string; label: string; icon: IconType }[] = [
+  { href: "/shifts", label: "Shifts", icon: ShiftsIcon },
+  { href: "/people", label: "People", icon: PeopleIcon },
+  { href: "/positions", label: "Positions", icon: PositionsIcon },
+  { href: "/schedule", label: "Schedule", icon: ScheduleIcon },
+  { href: "/ledger", label: "Ledger", icon: LedgerIcon },
+  { href: "/reports", label: "Reports", icon: ReportsIcon },
+  { href: "/analytics", label: "Analytics", icon: AnalyticsIcon },
+  { href: "/payroll", label: "Payroll", icon: PayrollIcon },
 ];
+const SETTINGS_ITEM: { href: string; label: string; icon: IconType } = {
+  href: "/settings",
+  label: "Settings",
+  icon: SettingsIcon,
+};
 
-/** Red-pill badge — a bare dot when the count fits inline next to a
- * short label, with the number itself only shown once it's ambiguous
- * (>9). Kept tiny and absolutely positioned so it doesn't push the nav
- * item's own text/layout around. Restyled onto the danger token during
- * the design-system-v2 merge (2026-08-17) — was raw bg-red-500. */
-function UnseenBadge({ count }: { count: number }) {
+/** Red-pill badge — rendered twice per nav item (see NavItem below), one
+ * copy per breakpoint, since the desktop sidebar shows it inline after
+ * the label and the mobile rail (icon-only) shows it as a small corner
+ * dot on the icon itself. A bare dot until the count is ambiguous (>9),
+ * same convention as before the sidebar retrofit. */
+function UnseenBadge({ count, corner }: { count: number; corner?: boolean }) {
   if (count <= 0) return null;
+  const label = `${count} unseen ${count === 1 ? "schedule item" : "schedule items"}`;
+  if (corner) {
+    return (
+      <span
+        className="sm:hidden absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[9px] font-medium leading-none"
+        aria-label={label}
+      >
+        {count > 9 ? "9+" : count}
+      </span>
+    );
+  }
   return (
     <span
-      className="ml-1 inline-flex items-center justify-center min-w-[16px] h-[16px] px-1 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[10px] font-medium leading-none align-middle"
-      aria-label={`${count} unseen ${count === 1 ? "schedule item" : "schedule items"}`}
+      className="hidden sm:inline-flex ml-auto items-center justify-center min-w-[16px] h-[16px] px-1 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[10px] font-medium leading-none align-middle"
+      aria-label={label}
     >
       {count > 9 ? "9+" : count}
     </span>
   );
 }
 
-/** Persistent top nav, always visible — added 2026-08-10 after Oliver
- * pointed out several pages (New Shift, New/Edit Position, Settings, the
- * playground calculator) had no way back except editing the URL bar by
- * hand. This alone fixes that for every page in the app, since it's in
- * the root layout, not per-page. Active section is highlighted so it also
- * answers "where am I" while navigating deep into a shift.
+/** One nav row. Desktop sidebar (>= sm): icon + visible text label, full
+ * width. Mobile rail (< sm): icon only, 44x44 tap target (Apple's
+ * comfortable-use minimum — confirmed with Oliver 2026-08-18 as the
+ * floor, no further collapsing/trimming) centered in the 48px rail,
+ * with an aria-label carrying the name for screen readers. This is a
+ * deliberate, confirmed exception to the icon+visible-label rule
+ * elsewhere in the app (see project_atlas_ui_design memory) — a
+ * persistent always-visible rail is a different risk profile than the
+ * hover-only title= tooltips that rule exists to stop. */
+function NavItem({
+  href,
+  label,
+  Icon,
+  badgeCount,
+  active,
+}: {
+  href: string;
+  label: string;
+  Icon: IconType;
+  badgeCount?: number;
+  active: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      aria-label={label}
+      aria-current={active ? "page" : undefined}
+      className={
+        "relative flex items-center gap-3 rounded-[var(--radius-md)] mx-auto sm:mx-0 w-11 h-11 sm:w-auto sm:h-auto justify-center sm:justify-start px-0 sm:px-3 py-0 sm:py-2 font-medium text-[13.5px] " +
+        (active
+          ? "bg-[var(--brand-tint)] text-[var(--brand)]"
+          : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
+      }
+    >
+      <Icon className="w-[18px] h-[18px] shrink-0" />
+      <span className="hidden sm:inline">{label}</span>
+      {typeof badgeCount === "number" && badgeCount > 0 && (
+        <>
+          <UnseenBadge count={badgeCount} />
+          <UnseenBadge count={badgeCount} corner />
+        </>
+      )}
+    </Link>
+  );
+}
+
+/** Persistent left nav — sidebar on desktop/tablet (216px, labeled),
+ * icon rail on phone (48px, icon-only, 44x44 targets). Replaces the old
+ * horizontal top bar + hamburger-drawer pattern (2026-08-18) — Oliver's
+ * explicit direction, comparing against a sibling app ("Track 1") that
+ * uses a fixed left sidebar: nav should stay in the same screen
+ * location at every width, not move between a top bar and a slide-out
+ * drawer. Confirmed and mocked up before building (see
+ * project_atlas_ui_design memory, "Left sidebar nav" section) —
+ * including the mobile rail's collapse width, which Oliver capped at
+ * 48px/44x44 specifically to hold Apple's touch-target minimum rather
+ * than shrinking further.
  *
  * Split into NavBar (server, reads the session cookie) + this client
- * component (2026-08-10, staff login round) — usePathname needs a client
- * component, but resolving the session cookie needs a server one; the
- * server wrapper passes down just a display name, never the raw session
- * token, to keep the client bundle from touching anything session-shaped.
+ * component — usePathname needs a client component, but resolving the
+ * session cookie needs a server one; the server wrapper passes down
+ * just a display name, never the raw session token, to keep the client
+ * bundle from touching anything session-shaped.
  *
- * Role-aware nav (2026-08-14) — the manager pages are gated server-side,
- * so a STAFF account sees the reduced nav entirely, not a bounce-to-login.
+ * Role-aware nav — the manager pages are gated server-side, so a STAFF
+ * account sees the reduced nav entirely (no main nav list, just the
+ * account menu's My Schedule / My Pay / Sign out), not a bounce-to-login.
  *
- * "Me menu" (2026-08-14) — collapsed into one avatar with a dropdown
- * (My Schedule / My Pay / Sign out).
+ * Red-pill unseen badge — `unseenScheduleCount` is resolved server-side
+ * in NavBar.tsx (needs DB reads across leave + swap requests) and
+ * passed down here as a number. Rendered on the "Schedule" nav item
+ * only, in both the desktop-label and mobile-corner-dot forms (see
+ * NavItem/UnseenBadge above).
  *
- * Hamburger menu on phone width (2026-08-15) — below `sm` the inline row
- * is replaced with a hamburger-triggered stacked list.
- *
- * Red-pill unseen badge (2026-08-16, extended later same day for swap
- * requests) — `unseenScheduleCount` is resolved server-side in
- * NavBar.tsx (needs DB reads across leave + swap requests) and passed
- * down here as a number. Rendered on the "Schedule" nav item only, in
- * both the desktop row and the hamburger list.
- *
- * Restyled onto the design-system tokens (2026-08-16, `design-system-v2`,
- * merged into main 2026-08-17): "Atlas" wordmark uses the brand indigo
- * color (a styled text wordmark, not an icon mark), the avatar uses the
- * shared <Avatar> component (functional primary blue, not the old
- * hardcoded black), and every hardcoded neutral/border class is now a
- * semantic var(). The unseen-badge feature (shipped on `main` after the
- * design branch forked) is preserved here, just restyled onto the danger
- * token instead of raw red. Behavior is otherwise unchanged: role-aware
- * nav, hamburger below `sm`, me-menu, click-outside/pathname close.
- *
- * Hamburger click-outside/Escape parity (2026-08-18, Oliver repro via
- * Chrome devtools) -- the account menu got outside-click + Escape +
- * backdrop dismissal on 2026-08-18, but the hamburger nav was missed:
- * it only ever closed on a second tap of the hamburger icon itself or a
- * pathname change. Now shares the same document-level mousedown/Escape
- * listener as the account menu, gated on refs for the hamburger button
- * + its panel instead of the avatar menu's wrapper. No backdrop here --
- * unlike the avatar dropdown, the hamburger panel is in-flow (pushes
- * content down, doesn't overlay it), so there's nothing to layer above. */
+ * Account menu opens upward (`bottom-full`), not downward — the avatar
+ * now lives pinned at the bottom of a fixed-height rail/sidebar, so
+ * there's no room below it for a dropdown the way the old top-bar
+ * version had. Click-outside/Escape/backdrop dismissal carried over
+ * unchanged from the pre-retrofit version (2026-08-18 fix for the
+ * account menu's keyboard/overlap gaps) — the hamburger-nav half of
+ * that fix is gone along with the hamburger itself, since the rail has
+ * no open/close state to dismiss anymore.
+ */
 export function NavBarClient({
   auth,
   unseenScheduleCount = 0,
@@ -95,40 +160,16 @@ export function NavBarClient({
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
-  const mobileNavRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (!menuOpen && !mobileNavOpen) return;
+    if (!menuOpen) return;
     function handleClickOutside(e: MouseEvent) {
-      if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
-      }
-      // 2026-08-18 visual-audit fix (Oliver, live repro via devtools): the
-      // hamburger nav got Escape/outside-click treatment when the account
-      // menu did on this same date -- it never had either, only a second
-      // tap of the hamburger icon itself or a page navigation closed it.
-      // Same click-outside pattern as the account menu, just against the
-      // hamburger button + its panel instead of the avatar menu's wrapper.
-      if (
-        mobileNavOpen &&
-        mobileNavButtonRef.current &&
-        !mobileNavButtonRef.current.contains(e.target as Node) &&
-        mobileNavRef.current &&
-        !mobileNavRef.current.contains(e.target as Node)
-      ) {
-        setMobileNavOpen(false);
       }
     }
-    // 2026-08-18 visual-audit fix: the menu previously only closed on an
-    // outside click, never on Escape — a real keyboard-accessibility gap
-    // (found live, account menu at 390px width).
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setMenuOpen(false);
-        setMobileNavOpen(false);
-      }
+      if (e.key === "Escape") setMenuOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
@@ -136,50 +177,65 @@ export function NavBarClient({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [menuOpen, mobileNavOpen]);
+  }, [menuOpen]);
 
   useEffect(() => {
     setMenuOpen(false);
-    setMobileNavOpen(false);
   }, [pathname]);
 
+  function isActive(href: string) {
+    return pathname === href || pathname.startsWith(href + "/");
+  }
+
   return (
-    <header className="border-b border-[var(--border)] bg-[var(--card)] sticky top-0 z-10">
-      <div className="max-w-4xl mx-auto px-4 sm:px-8 py-3 flex items-center gap-4 sm:gap-6 text-sm">
-        {isManager && (
-          <button
-            ref={mobileNavButtonRef}
-            type="button"
-            onClick={() => setMobileNavOpen((v) => !v)}
-            aria-label="Menu"
-            aria-expanded={mobileNavOpen}
-            className="sm:hidden w-10 h-10 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-[var(--paper)] -ml-1 text-[var(--ink-700)]"
-          >
-            <MenuIcon />
-          </button>
-        )}
-        <Link href="/" className="font-bold text-[var(--brand)] hover:text-[var(--brand-700)] tracking-tight">
+    <aside
+      className="fixed left-0 top-0 bottom-0 z-20 w-12 sm:w-[216px] flex flex-col bg-[var(--card)] border-r border-[var(--border)]"
+      aria-label="Main navigation"
+    >
+      <div className="h-14 flex items-center justify-center sm:justify-start px-0 sm:px-4 shrink-0">
+        <Link
+          href="/"
+          aria-label="Atlas home"
+          className="sm:hidden w-8 h-8 rounded-[var(--radius-md)] bg-[var(--brand)] text-white flex items-center justify-center font-bold text-[13px]"
+        >
+          A
+        </Link>
+        <Link
+          href="/"
+          className="hidden sm:block font-bold text-[17px] text-[var(--brand)] hover:text-[var(--brand-700)] tracking-tight"
+        >
           Atlas
         </Link>
-        <nav className="hidden sm:flex gap-4 flex-1">
-          {isManager &&
-            MANAGER_NAV_ITEMS.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={
-                    "font-medium " + (isActive ? "text-[var(--ink-900)]" : "text-[var(--ink-500)] hover:text-[var(--ink-900)]")
-                  }
-                >
-                  {item.label}
-                  {item.href === "/schedule" && <UnseenBadge count={unseenScheduleCount} />}
-                </Link>
-              );
-            })}
+      </div>
+
+      {isManager && (
+        <nav
+          aria-label="Sections"
+          className="flex-1 overflow-y-auto flex flex-col items-center sm:items-stretch gap-1 px-1 sm:px-2 py-2"
+        >
+          {MANAGER_NAV_ITEMS.map((item) => (
+            <NavItem
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              Icon={item.icon}
+              active={isActive(item.href)}
+              badgeCount={item.href === "/schedule" ? unseenScheduleCount : undefined}
+            />
+          ))}
         </nav>
-        <div className="flex-1 sm:hidden" />
+      )}
+      {!isManager && <div className="flex-1" />}
+
+      <div className="border-t border-[var(--border)] py-2 px-1 sm:px-2 flex flex-col items-center sm:items-stretch gap-1 shrink-0">
+        {isManager && (
+          <NavItem
+            href={SETTINGS_ITEM.href}
+            label={SETTINGS_ITEM.label}
+            Icon={SETTINGS_ITEM.icon}
+            active={isActive(SETTINGS_ITEM.href)}
+          />
+        )}
         {auth ? (
           <div className="relative" ref={menuRef}>
             <button
@@ -187,23 +243,28 @@ export function NavBarClient({
               onClick={() => setMenuOpen((v) => !v)}
               aria-label={`${auth.name} — account menu`}
               aria-expanded={menuOpen}
-              className="hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2.5 w-11 h-11 sm:w-full sm:h-auto mx-auto sm:mx-0 justify-center sm:justify-start rounded-[var(--radius-md)] px-0 sm:px-2 sm:py-2 hover:bg-[var(--paper)] transition-colors"
             >
-              <Avatar name={auth.name} size={36} />
+              <Avatar name={auth.name} size={32} />
+              <span className="hidden sm:flex flex-col items-start leading-tight overflow-hidden min-w-0">
+                <span className="text-[13px] font-semibold text-[var(--ink-900)] truncate max-w-[130px]">
+                  {auth.name}
+                </span>
+                <span className="text-[11.5px] text-[var(--ink-500)]">
+                  {auth.systemRole === "STAFF" ? "Staff" : "Manager"}
+                </span>
+              </span>
             </button>
             {menuOpen && (
               <>
-                {/* 2026-08-18 visual-audit fix: an invisible full-screen
-                 * backdrop, so the menu reliably renders above every other
-                 * positioned element on the page (found live: the menu
-                 * could overlap page content at 390px width) and gets a
-                 * second, more discoverable way to dismiss it (tap
-                 * anywhere) alongside the outside-click/Escape handlers
-                 * above. No visual change — bg is fully transparent. */}
+                {/* Invisible full-screen backdrop so the menu reliably
+                 * renders above every other positioned element on the
+                 * page and gets a second, more discoverable dismiss
+                 * (tap anywhere), alongside outside-click/Escape. */}
                 <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden="true" />
                 <div
                   role="menu"
-                  className="absolute right-0 mt-2 w-48 z-20 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-2)] py-1 text-sm"
+                  className="absolute left-0 sm:left-1 bottom-full mb-2 w-48 z-20 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-2)] py-1 text-sm"
                 >
                   <div className="px-3 py-2 border-b border-[var(--border)]">
                     <p className="font-medium truncate text-[var(--ink-900)]">{auth.name}</p>
@@ -243,32 +304,20 @@ export function NavBarClient({
         ) : (
           <Link
             href="/login"
-            className={pathname === "/login" ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-500)] hover:text-[var(--ink-900)]"}
+            aria-label="Staff Login"
+            aria-current={pathname === "/login" ? "page" : undefined}
+            className={
+              "flex items-center gap-3 rounded-[var(--radius-md)] mx-auto sm:mx-0 w-11 h-11 sm:w-auto sm:h-auto justify-center sm:justify-start px-0 sm:px-3 py-0 sm:py-2 font-medium text-[13.5px] " +
+              (pathname === "/login"
+                ? "bg-[var(--brand-tint)] text-[var(--brand)]"
+                : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
+            }
           >
-            Staff Login
+            <LoginIcon className="w-[18px] h-[18px] shrink-0" />
+            <span className="hidden sm:inline">Staff Login</span>
           </Link>
         )}
       </div>
-      {isManager && mobileNavOpen && (
-        <nav ref={mobileNavRef} className="sm:hidden border-t border-[var(--border)] bg-[var(--card)] px-4 py-2 flex flex-col">
-          {MANAGER_NAV_ITEMS.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={
-                  "px-1 py-3 text-base " +
-                  (isActive ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-500)] hover:text-[var(--ink-900)]")
-                }
-              >
-                {item.label}
-                {item.href === "/schedule" && <UnseenBadge count={unseenScheduleCount} />}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
-    </header>
+    </aside>
   );
 }
