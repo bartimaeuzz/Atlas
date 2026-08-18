@@ -72,7 +72,17 @@ function UnseenBadge({ count }: { count: number }) {
  * semantic var(). The unseen-badge feature (shipped on `main` after the
  * design branch forked) is preserved here, just restyled onto the danger
  * token instead of raw red. Behavior is otherwise unchanged: role-aware
- * nav, hamburger below `sm`, me-menu, click-outside/pathname close. */
+ * nav, hamburger below `sm`, me-menu, click-outside/pathname close.
+ *
+ * Hamburger click-outside/Escape parity (2026-08-18, Oliver repro via
+ * Chrome devtools) -- the account menu got outside-click + Escape +
+ * backdrop dismissal on 2026-08-18, but the hamburger nav was missed:
+ * it only ever closed on a second tap of the hamburger icon itself or a
+ * pathname change. Now shares the same document-level mousedown/Escape
+ * listener as the account menu, gated on refs for the hamburger button
+ * + its panel instead of the avatar menu's wrapper. No backdrop here --
+ * unlike the avatar dropdown, the hamburger panel is in-flow (pushes
+ * content down, doesn't overlay it), so there's nothing to layer above. */
 export function NavBarClient({
   auth,
   unseenScheduleCount = 0,
@@ -86,19 +96,39 @@ export function NavBarClient({
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const mobileNavButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileNavRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !mobileNavOpen) return;
     function handleClickOutside(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      if (menuOpen && menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
+      }
+      // 2026-08-18 visual-audit fix (Oliver, live repro via devtools): the
+      // hamburger nav got Escape/outside-click treatment when the account
+      // menu did on this same date -- it never had either, only a second
+      // tap of the hamburger icon itself or a page navigation closed it.
+      // Same click-outside pattern as the account menu, just against the
+      // hamburger button + its panel instead of the avatar menu's wrapper.
+      if (
+        mobileNavOpen &&
+        mobileNavButtonRef.current &&
+        !mobileNavButtonRef.current.contains(e.target as Node) &&
+        mobileNavRef.current &&
+        !mobileNavRef.current.contains(e.target as Node)
+      ) {
+        setMobileNavOpen(false);
       }
     }
     // 2026-08-18 visual-audit fix: the menu previously only closed on an
     // outside click, never on Escape — a real keyboard-accessibility gap
     // (found live, account menu at 390px width).
     function handleEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") setMenuOpen(false);
+      if (e.key === "Escape") {
+        setMenuOpen(false);
+        setMobileNavOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     document.addEventListener("keydown", handleEscape);
@@ -106,7 +136,7 @@ export function NavBarClient({
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [menuOpen]);
+  }, [menuOpen, mobileNavOpen]);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -118,6 +148,7 @@ export function NavBarClient({
       <div className="max-w-4xl mx-auto px-4 sm:px-8 py-3 flex items-center gap-4 sm:gap-6 text-sm">
         {isManager && (
           <button
+            ref={mobileNavButtonRef}
             type="button"
             onClick={() => setMobileNavOpen((v) => !v)}
             aria-label="Menu"
@@ -219,7 +250,7 @@ export function NavBarClient({
         )}
       </div>
       {isManager && mobileNavOpen && (
-        <nav className="sm:hidden border-t border-[var(--border)] bg-[var(--card)] px-4 py-2 flex flex-col">
+        <nav ref={mobileNavRef} className="sm:hidden border-t border-[var(--border)] bg-[var(--card)] px-4 py-2 flex flex-col">
           {MANAGER_NAV_ITEMS.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
             return (
