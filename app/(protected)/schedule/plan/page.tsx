@@ -5,6 +5,9 @@ import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
 import { GenerateWeekButton } from "./GenerateWeekButton";
 import { PublishedEditGate } from "./PublishedEditGate";
 import { DangerZone } from "./DangerZone";
+import { PageHeader, Card, EmptyState } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { LinkButton } from "@/components/ui/Button";
 
 export default async function WeeklyPlanPage({
   searchParams,
@@ -31,68 +34,59 @@ export default async function WeeklyPlanPage({
 
   return (
     <main className="max-w-5xl mx-auto p-8 font-sans">
-      <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
+      <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Schedule Planner
       </Link>
-      <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-2xl font-semibold">Weekly Plan</h1>
-        {data.week && (
-          <span
-            className={
-              "text-xs px-2 py-1 rounded font-medium " +
-              (data.week.status === "published" ? "bg-green-100 text-green-800" : "bg-neutral-100 text-neutral-600")
-            }
-          >
-            {data.week.status === "published" ? "Published" : "Draft"}
-          </span>
-        )}
-      </div>
-      <p className="text-neutral-500 text-sm mb-4">
-        Week of {data.dates[0]} to {data.dates[6]}. Once published, this week auto-fills the roster
-        when you create each day&apos;s actual shift — no re-entering names.
-      </p>
 
-      <div className="flex items-center gap-3 mb-6 text-sm">
-        <Link href={`/schedule/plan?week=${prevWeek}`} className="text-neutral-500 hover:text-black underline">
+      <PageHeader
+        title="Weekly Plan"
+        description={`Week of ${data.dates[0]} to ${data.dates[6]}. Once published, this week auto-fills the roster when you create each day's actual shift — no re-entering names.`}
+        actions={
+          data.week ? (
+            data.week.status === "published" ? (
+              <Badge tone="success">Published</Badge>
+            ) : (
+              <Badge tone="warning">Draft</Badge>
+            )
+          ) : undefined
+        }
+      />
+
+      <div className="flex flex-wrap items-center gap-3 mb-6 text-sm">
+        <Link href={`/schedule/plan?week=${prevWeek}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &larr; Previous week
         </Link>
-        <Link href={`/schedule/plan?week=${nextWeek}`} className="text-neutral-500 hover:text-black underline">
+        <Link href={`/schedule/plan?week=${nextWeek}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           Next week &rarr;
         </Link>
-        <span className="text-neutral-300">|</span>
-        <Link href={`/schedule/plan/month?month=${weekStartDate}`} className="text-neutral-500 hover:text-black underline">
+        <span className="text-[var(--border-strong)]">|</span>
+        <Link href={`/schedule/plan/month?month=${weekStartDate}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           Zoom out to month view
         </Link>
-        <Link href={`/schedule/plan/person?month=${weekStartDate}`} className="text-neutral-500 hover:text-black underline">
+        <Link href={`/schedule/plan/person?month=${weekStartDate}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           View by person
         </Link>
-        <Link href="/schedule/weeks" className="text-neutral-500 hover:text-black underline">
+        <Link href="/schedule/weeks" className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           All weeks
         </Link>
       </div>
 
       {!data.week ? (
-        <div className="border rounded p-6 text-center">
-          <p className="text-sm text-neutral-500 mb-4">
-            This week hasn&apos;t been planned yet. Generate it from your template assignments,
-            then adjust the exceptions.
-          </p>
-          <GenerateWeekButton weekStartDate={weekStartDate} />
-        </div>
+        <EmptyState
+          message="This week hasn't been planned yet. Generate it from your template assignments, then adjust the exceptions."
+          action={<GenerateWeekButton weekStartDate={weekStartDate} />}
+        />
       ) : (
         <>
           {data.week.status === "draft" && (
-            <div className="mb-6 flex items-center justify-between border rounded p-3 bg-neutral-50">
-              <p className="text-sm text-neutral-500">
+            <Card className="mb-6 flex flex-wrap items-center justify-between gap-3 !bg-[var(--paper)]">
+              <p className="text-sm text-[var(--ink-500)]">
                 Still a draft — only managers can see this until it&apos;s published.
               </p>
-              <Link
-                href={`/schedule/plan/preview?week=${weekStartDate}`}
-                className="bg-black text-white px-4 py-1.5 rounded hover:bg-neutral-800 text-sm"
-              >
+              <LinkButton href={`/schedule/plan/preview?week=${weekStartDate}`} variant="brand" size="sm">
                 Preview &amp; Publish
-              </Link>
-            </div>
+              </LinkButton>
+            </Card>
           )}
 
           <PublishedEditGate

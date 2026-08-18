@@ -4,6 +4,8 @@ import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadStaffWeeklyPlan } from "@/lib/schedule/loadStaffWeeklyPlan";
 import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
+import { PageHeader, EmptyState } from "@/components/ui/Card";
+import { Banner } from "@/components/ui/Banner";
 
 /**
  * Staff-facing full-week schedule view (2026-08-16, Oliver's ask: "staff
@@ -40,48 +42,45 @@ export default async function StaffWeeklyPlanPage({
 
   return (
     <main className="max-w-5xl mx-auto p-8 font-sans">
-      <Link href="/me/schedule" className="text-sm text-neutral-500 hover:text-black">
+      <Link href="/me/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; My Schedule
       </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-1">Full Week Schedule</h1>
-      <p className="text-neutral-500 text-sm mb-4">
-        Week of {weekStartDate}. Who&apos;s working when — a read-only look, same as what your
-        manager sees, minus the staffing-target warnings.
-      </p>
+      <PageHeader
+        title="Full Week Schedule"
+        description={`Week of ${weekStartDate}. Who's working when — a read-only look, same as what your manager sees, minus the staffing-target warnings.`}
+      />
 
       <div className="flex items-center gap-3 mb-4 text-sm">
-        <Link href={`/me/schedule/week?week=${prevWeek}`} className="text-neutral-500 hover:text-black underline">
+        <Link href={`/me/schedule/week?week=${prevWeek}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &larr; Previous week
         </Link>
-        <Link href={`/me/schedule/week?week=${nextWeek}`} className="text-neutral-500 hover:text-black underline">
+        <Link href={`/me/schedule/week?week=${nextWeek}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           Next week &rarr;
         </Link>
       </div>
 
       {!data ? (
-        <p className="text-sm text-neutral-400 border rounded p-3">
-          This week hasn&apos;t been published yet, so there&apos;s nothing to show.
-        </p>
+        <EmptyState message="This week hasn't been published yet, so there's nothing to show." />
       ) : (
         <>
           {!data.viewerCanSeeCoworkers && (
-            <p className="text-xs text-neutral-400 mb-4 border rounded p-2 bg-neutral-50">
-              Your restaurant&apos;s settings only show you your own schedule here, not coworkers&apos;.
-            </p>
+            <div className="mb-4">
+              <Banner tone="info" title="Coworker view is off" description="Your restaurant's settings only show you your own schedule here, not coworkers'." />
+            </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-4 mb-4 text-xs text-neutral-500">
+          <div className="flex flex-wrap items-center gap-4 mb-4 text-xs text-[var(--ink-500)]">
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full ring-1 ring-red-400 bg-white inline-block" /> Slot opening up soon
+              <span className="w-2 h-2 rounded-full ring-1 ring-[var(--danger)] bg-[var(--card)] inline-block" /> Slot opening up soon
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full ring-1 ring-purple-400 bg-white inline-block" /> Covering leave
+              <span className="w-2 h-2 rounded-full ring-1 ring-purple-400 bg-[var(--card)] inline-block" /> Covering leave
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full ring-1 ring-blue-400 bg-white inline-block" /> Shift swap — awaiting manager approval
+              <span className="w-2 h-2 rounded-full ring-1 ring-[var(--primary-border)] bg-[var(--card)] inline-block" /> Shift swap — awaiting manager approval
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full ring-1 ring-green-500 bg-white inline-block" /> Shift swap — completed
+              <span className="w-2 h-2 rounded-full ring-1 ring-[var(--success)] bg-[var(--card)] inline-block" /> Shift swap — completed
             </span>
           </div>
 

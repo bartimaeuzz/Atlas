@@ -12,6 +12,7 @@ import {
 import { shiftMonth, toIso } from "@/lib/schedule/weekMath";
 import { LeaveRequestsPanel } from "./LeaveRequestsPanel";
 import { SwapBoardPanel } from "./SwapBoardPanel";
+import { PageHeader, EmptyState } from "@/components/ui/Card";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -62,31 +63,30 @@ export default async function MyScheduleView({
 
   return (
     <main className="max-w-3xl mx-auto p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-1">My Schedule</h1>
-      <p className="text-sm text-neutral-500 mb-4">
-        {data.employeeName} — {data.monthLabel}. Grey days mean that week hasn't been published yet
-        — not that you're off.
-      </p>
+      <PageHeader
+        title="My Schedule"
+        description={`${data.employeeName} — ${data.monthLabel}. Grey days mean that week hasn't been published yet — not that you're off.`}
+      />
 
-      <div className="flex items-center gap-4 mb-4 text-sm">
-        <Link href="/me" className="text-neutral-500 hover:text-black underline">
+      <div className="flex flex-wrap items-center gap-4 mb-4 text-sm">
+        <Link href="/me" className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           My Pay
         </Link>
-        <span className="text-neutral-300">|</span>
-        <Link href={`/me/schedule?month=${prevMonth}`} className="text-neutral-500 hover:text-black underline">
+        <span className="text-[var(--border-strong)]">|</span>
+        <Link href={`/me/schedule?month=${prevMonth}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &larr; Previous month
         </Link>
-        <Link href={`/me/schedule?month=${nextMonth}`} className="text-neutral-500 hover:text-black underline">
+        <Link href={`/me/schedule?month=${nextMonth}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           Next month &rarr;
         </Link>
-        <span className="text-neutral-300">|</span>
+        <span className="text-[var(--border-strong)]">|</span>
         {/* Full-week view (2026-08-16, Oliver): a Position x Day grid
             like the manager sees, read-only, so staff can spot ring-
             color swap/leave status across the whole week at once
             instead of clicking one day at a time. Always lands on the
             week containing today; the page itself has its own
             prev/next week nav from there. */}
-        <Link href="/me/schedule/week" className="text-neutral-500 hover:text-black underline">
+        <Link href="/me/schedule/week" className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           View full week &rarr;
         </Link>
       </div>
@@ -96,13 +96,13 @@ export default async function MyScheduleView({
       <SwapBoardPanel swappable={swappable} acceptable={acceptableSwaps} mine={mySwaps} />
 
       <div className="mb-6">
-        <h2 className="text-sm font-medium mb-2">Recent changes to your schedule</h2>
+        <h2 className="text-sm font-medium mb-2 text-[var(--ink-900)]">Recent changes to your schedule</h2>
         {recentChanges.length > 0 ? (
           <>
-            <p className="text-xs text-neutral-500 mb-3">
+            <p className="text-xs text-[var(--ink-500)] mb-3">
               A manager removed these shifts after the schedule was already published.
             </p>
-            <div className="divide-y border rounded text-sm">
+            <div className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
               {recentChanges.map((c) => (
                 <div key={`${c.id}-${c.date}-${c.positionName}-${c.period}`} className="px-3 py-2">
                   <div className="flex items-center justify-between">
@@ -110,9 +110,9 @@ export default async function MyScheduleView({
                       {c.action === "DELETED_WEEK" ? "Whole week removed" : "Shift removed"} —{" "}
                       {c.date ?? `week of ${c.weekStartDate}`}: {c.positionName} ({c.period === "Lunch" ? "L" : "D"})
                     </span>
-                    <span className="text-xs text-neutral-400">{c.createdAt.slice(0, 10)}</span>
+                    <span className="text-xs text-[var(--ink-400)]">{c.createdAt.slice(0, 10)}</span>
                   </div>
-                  <p className="text-xs text-neutral-500 mt-0.5">
+                  <p className="text-xs text-[var(--ink-500)] mt-0.5">
                     By {c.performedByName}
                     {c.reason ? ` — "${c.reason}"` : ""}
                   </p>
@@ -121,16 +121,16 @@ export default async function MyScheduleView({
             </div>
           </>
         ) : (
-          <p className="text-sm text-neutral-400 border rounded p-3">No changes to schedule</p>
+          <EmptyState message="No changes to schedule" />
         )}
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-neutral-500 mb-3">
+      <div className="flex items-center gap-4 text-xs text-[var(--ink-500)] mb-3">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-neutral-100 border border-neutral-300 inline-block" /> Day off
+          <span className="w-2 h-2 rounded-sm bg-[var(--paper)] border border-[var(--border-strong)] inline-block" /> Day off
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-neutral-300 inline-block" /> Not published yet
+          <span className="w-2 h-2 rounded-sm bg-[var(--border-strong)] inline-block" /> Not published yet
         </span>
       </div>
 
@@ -138,7 +138,7 @@ export default async function MyScheduleView({
         <thead>
           <tr>
             {DAY_LABELS.map((label) => (
-              <th key={label} className="text-left text-neutral-500 pb-2 font-normal text-xs">
+              <th key={label} className="text-left text-[var(--ink-500)] pb-2 font-normal text-xs">
                 {label}
               </th>
             ))}
@@ -154,7 +154,7 @@ export default async function MyScheduleView({
 
                 const cellInner = (
                   <>
-                    <span className={"text-xs " + (isPublished ? "text-neutral-600" : "text-neutral-400")}>
+                    <span className={"text-xs " + (isPublished ? "text-[var(--ink-700)]" : "text-[var(--ink-400)]")}>
                       {dayNumber}
                     </span>
                     {isPublished && (
@@ -164,17 +164,17 @@ export default async function MyScheduleView({
                             <div
                               key={si}
                               className={
-                                "text-[10px] rounded px-1 py-0.5 " +
+                                "text-[10px] rounded-[var(--radius-sm)] px-1 py-0.5 " +
                                 (s.isExtraCoverage
-                                  ? "bg-yellow-100 text-yellow-900"
-                                  : "bg-neutral-100 text-neutral-700")
+                                  ? "bg-[var(--warning-tint)] text-[var(--warning-700)]"
+                                  : "bg-[var(--paper)] text-[var(--ink-700)]")
                               }
                             >
                               {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
                             </div>
                           ))
                         ) : (
-                          <div className="text-[10px] rounded px-1 py-0.5 border border-neutral-200 text-neutral-400 text-center">
+                          <div className="text-[10px] rounded-[var(--radius-sm)] px-1 py-0.5 border border-[var(--border)] text-[var(--ink-400)] text-center">
                             Day off
                           </div>
                         )}
@@ -186,7 +186,7 @@ export default async function MyScheduleView({
                 return (
                   <td
                     key={day.date}
-                    className={"align-top border p-1.5" + (isPublished ? "" : " bg-neutral-100")}
+                    className={"align-top border border-[var(--border)] p-1.5" + (isPublished ? "" : " bg-[var(--paper)]")}
                   >
                     {isPublished ? (
                       // Published days are clickable -- see who's working
@@ -195,7 +195,7 @@ export default async function MyScheduleView({
                       // nothing staff are allowed to see there yet.
                       <Link
                         href={`/me/schedule/day?date=${day.date}`}
-                        className={"block min-h-24 rounded hover:bg-neutral-50" + (day.inMonth ? "" : " opacity-40")}
+                        className={"block min-h-24 rounded-[var(--radius-sm)] hover:bg-[var(--paper)]" + (day.inMonth ? "" : " opacity-40")}
                       >
                         {cellInner}
                       </Link>

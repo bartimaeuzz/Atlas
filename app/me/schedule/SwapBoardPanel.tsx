@@ -8,6 +8,10 @@ import {
   type SwapRequestActionState,
 } from "@/lib/actions/swap";
 import type { SwapRequestView } from "@/lib/schedule/loadSwapRequests";
+import { Select, TextInput } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
+import { EmptyState } from "@/components/ui/Card";
 
 const initialState: SwapRequestActionState = { error: null };
 
@@ -41,11 +45,11 @@ export function SwapBoardPanel({
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-medium">Shift swaps</h2>
+        <h2 className="text-sm font-medium text-[var(--ink-900)]">Shift swaps</h2>
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="text-xs text-neutral-500 hover:text-black underline"
+          className="text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline"
         >
           {showForm ? "Hide form" : "+ Offer a shift"}
         </button>
@@ -55,8 +59,8 @@ export function SwapBoardPanel({
 
       {acceptable.length > 0 && (
         <div className="mb-3">
-          <p className="text-xs text-neutral-500 mb-1.5">Open requests you can accept</p>
-          <ul className="divide-y border rounded text-sm">
+          <p className="text-xs text-[var(--ink-500)] mb-1.5">Open requests you can accept</p>
+          <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
             {acceptable.map((r) => (
               <AcceptableRow key={r.id} request={r} />
             ))}
@@ -66,8 +70,8 @@ export function SwapBoardPanel({
 
       {mine.length > 0 && (
         <div>
-          <p className="text-xs text-neutral-500 mb-1.5">Your swap requests</p>
-          <ul className="divide-y border rounded text-sm">
+          <p className="text-xs text-[var(--ink-500)] mb-1.5">Your swap requests</p>
+          <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
             {mine.map((r) => (
               <MyRequestRow key={r.id} request={r} />
             ))}
@@ -75,9 +79,7 @@ export function SwapBoardPanel({
         </div>
       )}
 
-      {acceptable.length === 0 && mine.length === 0 && (
-        <p className="text-sm text-neutral-400 border rounded p-3">No swap activity right now.</p>
-      )}
+      {acceptable.length === 0 && mine.length === 0 && <EmptyState message="No swap activity right now." />}
     </div>
   );
 }
@@ -91,36 +93,26 @@ function OfferSwapForm({
 
   if (swappable.length === 0) {
     return (
-      <p className="text-sm text-neutral-400 border rounded p-3 mb-3">
-        No upcoming published shifts available to offer.
-      </p>
+      <div className="mb-3">
+        <EmptyState message="No upcoming published shifts available to offer." />
+      </div>
     );
   }
 
   return (
-    <form action={formAction} className="border rounded p-3 bg-neutral-50 space-y-2 mb-3 text-sm">
-      {state.error && <p className="text-red-600">{state.error}</p>}
-      <label className="block">
-        <span className="block text-neutral-500 mb-1 text-xs">Which shift?</span>
-        <select name="assignmentId" required className="border rounded px-2 py-2 text-sm w-full">
-          {swappable.map((s) => (
-            <option key={s.assignmentId} value={s.assignmentId}>
-              {s.date} — {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="block">
-        <span className="block text-neutral-500 mb-1 text-xs">Note (optional)</span>
-        <input type="text" name="note" placeholder="e.g. doctor's appointment" className="border rounded px-2 py-2 text-sm w-full" />
-      </label>
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full bg-black text-white px-4 py-2.5 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
-      >
+    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)] space-y-3 mb-3 text-sm">
+      {state.error && <Banner tone="danger" title="Couldn't post" description={state.error} />}
+      <Select label="Which shift?" name="assignmentId" required>
+        {swappable.map((s) => (
+          <option key={s.assignmentId} value={s.assignmentId}>
+            {s.date} — {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
+          </option>
+        ))}
+      </Select>
+      <TextInput label="Note (optional)" type="text" name="note" placeholder="e.g. doctor's appointment" />
+      <Button type="submit" loading={isPending} className="w-full">
         {isPending ? "Posting…" : "Post for swap"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -132,19 +124,21 @@ function AcceptableRow({ request }: { request: SwapRequestView }) {
   return (
     <li className="px-3 py-2.5 flex items-start justify-between gap-2">
       <div>
-        <div className="font-medium">
+        <div className="font-medium text-[var(--ink-900)]">
           {request.requestingEmployeeName}
-          <span className="text-neutral-500 font-normal">
+          <span className="text-[var(--ink-500)] font-normal">
             {" "}
             — {request.positionName}, {request.date} ({request.period === "Lunch" ? "L" : "D"})
           </span>
         </div>
-        {request.note && <div className="text-neutral-500 text-xs mt-0.5">&quot;{request.note}&quot;</div>}
-        {error && <div className="text-red-600 text-xs mt-0.5">{error}</div>}
+        {request.note && <div className="text-[var(--ink-500)] text-xs mt-0.5">&quot;{request.note}&quot;</div>}
+        {error && <div className="text-[var(--danger-700)] text-xs mt-0.5">{error}</div>}
       </div>
-      <button
+      <Button
         type="button"
-        disabled={isPending}
+        size="sm"
+        loading={isPending}
+        className="shrink-0"
         onClick={() =>
           startTransition(async () => {
             setError(null);
@@ -155,10 +149,9 @@ function AcceptableRow({ request }: { request: SwapRequestView }) {
             }
           })
         }
-        className="text-xs px-2 py-1 rounded bg-black text-white hover:bg-neutral-700 disabled:opacity-50 shrink-0"
       >
         Accept
-      </button>
+      </Button>
     </li>
   );
 }
@@ -175,22 +168,22 @@ function MyRequestRow({ request }: { request: SwapRequestView }) {
   return (
     <li className="px-3 py-2.5 flex items-start justify-between gap-2">
       <div>
-        <div className="font-medium">
+        <div className="font-medium text-[var(--ink-900)]">
           {request.positionName}
-          <span className="text-neutral-500 font-normal">
+          <span className="text-[var(--ink-500)] font-normal">
             {" "}
             — {request.date} ({request.period === "Lunch" ? "L" : "D"})
           </span>
         </div>
-        <div className="text-neutral-500 text-xs mt-0.5">{label}</div>
-        {request.note && <div className="text-neutral-400 text-xs mt-0.5">&quot;{request.note}&quot;</div>}
+        <div className="text-[var(--ink-500)] text-xs mt-0.5">{label}</div>
+        {request.note && <div className="text-[var(--ink-400)] text-xs mt-0.5">&quot;{request.note}&quot;</div>}
       </div>
       {request.status === "open" && (
         <button
           type="button"
           disabled={isPending}
           onClick={() => startTransition(() => cancelSwapRequest(request.id))}
-          className="text-xs text-neutral-400 hover:text-red-600 disabled:opacity-50 shrink-0"
+          className="text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0"
         >
           Cancel
         </button>

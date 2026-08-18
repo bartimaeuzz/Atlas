@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadEmployeeSchedule } from "@/lib/schedule/loadEmployeeSchedule";
 import { loadEmployeesList } from "@/lib/employees/loadEmployeesList";
 import { shiftMonth, toIso, weekStartFor } from "@/lib/schedule/weekMath";
+import { PageHeader, Card } from "@/components/ui/Card";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -24,23 +25,18 @@ export default async function EmployeeSchedulePage({
 
     return (
       <main className="max-w-3xl mx-auto p-8 font-sans">
-        <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
+        <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
           &larr; Schedule Planner
         </Link>
-        <h1 className="text-2xl font-semibold mt-2 mb-1">Person Schedule</h1>
-        <p className="text-neutral-500 text-sm mb-6">Pick someone to see their shifts for the month.</p>
+        <PageHeader title="Person Schedule" description="Pick someone to see their shifts for the month." />
 
         {activeEmployees.length === 0 ? (
-          <p className="text-sm text-neutral-500">No active employees yet.</p>
+          <p className="text-sm text-[var(--ink-500)]">No active employees yet.</p>
         ) : (
           <div className="grid sm:grid-cols-2 gap-2">
             {activeEmployees.map((e) => (
-              <Link
-                key={e.id}
-                href={`/schedule/plan/person?employeeId=${e.id}&month=${monthAnchor}`}
-                className="block border rounded p-3 hover:bg-neutral-50 text-sm"
-              >
-                {e.nickname}
+              <Link key={e.id} href={`/schedule/plan/person?employeeId=${e.id}&month=${monthAnchor}`}>
+                <Card className="hover:bg-[var(--paper)] transition-colors text-sm !p-3">{e.nickname}</Card>
               </Link>
             ))}
           </div>
@@ -57,36 +53,35 @@ export default async function EmployeeSchedulePage({
 
   return (
     <main className="max-w-5xl mx-auto p-8 font-sans">
-      <Link href="/schedule/plan/person" className="text-sm text-neutral-500 hover:text-black">
+      <Link href="/schedule/plan/person" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Change person
       </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-1">{data.employeeName}</h1>
-      <p className="text-neutral-500 text-sm mb-4">{data.monthLabel}</p>
+      <PageHeader title={data.employeeName} description={data.monthLabel} />
 
       <div className="flex items-center gap-3 mb-4 text-sm">
         <Link
           href={`/schedule/plan/person?employeeId=${employeeId}&month=${prevMonth}`}
-          className="text-neutral-500 hover:text-black underline"
+          className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline"
         >
           &larr; Previous month
         </Link>
         <Link
           href={`/schedule/plan/person?employeeId=${employeeId}&month=${nextMonth}`}
-          className="text-neutral-500 hover:text-black underline"
+          className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline"
         >
           Next month &rarr;
         </Link>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-neutral-500 mb-3">
+      <div className="flex items-center gap-4 text-xs text-[var(--ink-500)] mb-3">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Published
+          <span className="w-2 h-2 rounded-full bg-[var(--success)] inline-block" /> Published
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-neutral-400 inline-block" /> Draft
+          <span className="w-2 h-2 rounded-full bg-[var(--border-strong)] inline-block" /> Draft
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Projected — not generated yet
+          <span className="w-2 h-2 rounded-full bg-[var(--primary)] inline-block" /> Projected — not generated yet
         </span>
       </div>
 
@@ -94,7 +89,7 @@ export default async function EmployeeSchedulePage({
         <thead>
           <tr>
             {DAY_LABELS.map((label) => (
-              <th key={label} className="text-left text-neutral-500 pb-2 font-normal text-xs">
+              <th key={label} className="text-left text-[var(--ink-500)] pb-2 font-normal text-xs">
                 {label}
               </th>
             ))}
@@ -104,14 +99,16 @@ export default async function EmployeeSchedulePage({
           {data.weeks.map((week, i) => (
             <tr key={i}>
               {week.map((day) => (
-                <td key={day.date} className="align-top border p-0">
+                <td key={day.date} className="align-top border border-[var(--border)] p-0">
                   <Link
                     href={`/schedule/plan?week=${weekStartFor(day.date)}`}
-                    className={"block min-h-24 p-1.5 hover:bg-neutral-50" + (day.inMonth ? "" : " opacity-40")}
+                    className={"block min-h-24 p-1.5 hover:bg-[var(--paper)]" + (day.inMonth ? "" : " opacity-40")}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-neutral-600">{Number(day.date.slice(8))}</span>
+                      <span className="text-xs text-[var(--ink-700)]">{Number(day.date.slice(8))}</span>
                       {day.shifts.length > 0 && (
+                        // title= kept as a desktop hover hint only; see note in month/page.tsx
+                        // -- still on the repo-wide title= tooltip migration backlog.
                         <span
                           title={
                             day.weekStatus === "published"
@@ -123,10 +120,10 @@ export default async function EmployeeSchedulePage({
                           className={
                             "w-1.5 h-1.5 rounded-full shrink-0 " +
                             (day.weekStatus === "published"
-                              ? "bg-green-500"
+                              ? "bg-[var(--success)]"
                               : day.weekStatus === "draft"
-                                ? "bg-neutral-400"
-                                : "bg-blue-400")
+                                ? "bg-[var(--border-strong)]"
+                                : "bg-[var(--primary)]")
                           }
                         />
                       )}
@@ -137,7 +134,7 @@ export default async function EmployeeSchedulePage({
                           key={si}
                           className={
                             "text-[10px] rounded px-1 py-0.5 " +
-                            (s.isExtraCoverage ? "bg-yellow-100 text-yellow-900" : "bg-neutral-100 text-neutral-700")
+                            (s.isExtraCoverage ? "bg-[var(--warning-tint)] text-[var(--warning-700)]" : "bg-[var(--paper)] text-[var(--ink-700)]")
                           }
                         >
                           {s.positionName} ({s.period === "Lunch" ? "L" : "D"})

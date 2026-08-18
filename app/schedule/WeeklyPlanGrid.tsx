@@ -70,7 +70,20 @@ function dayOfWeekFor(dateIso: string): number {
  * component (readOnly + hideDiagnostics, same as Preview's staff view)
  * instead of drifting into a second copy. This file has no page.tsx of
  * its own, so it doesn't add a route — same pattern already used for
- * MarkSeenOnMount.tsx living directly under app/(protected)/schedule/. */
+ * MarkSeenOnMount.tsx living directly under app/(protected)/schedule/.
+ *
+ * Design-system restyle (2026-08-18): tokens swapped in wherever a direct
+ * equivalent exists (danger/warning/success/primary/ink/border/paper).
+ * Deliberately did NOT touch: the table layout itself, or the two
+ * categorical colors that have no token (purple = on-leave, orange =
+ * double-booking conflict) — inventing new tokens for a two-instance use
+ * case is exactly the granularity/scope-creep pattern this project now
+ * flags explicitly (see project_atlas_ui_design.md). A real stacked-card
+ * mobile layout for this grid (today it only gets horizontal scroll on
+ * small screens) is intentionally deferred to its own dedicated design
+ * pass, same as Danger Zone and dark mode each were — this component is
+ * too dense (vacancy/leave/swap rings, conflict badges, inline quick-add)
+ * to restructure safely inside a token-restyle pass. */
 export function WeeklyPlanGrid({
   data,
   weekId,
@@ -126,16 +139,16 @@ export function WeeklyPlanGrid({
     <div className="space-y-8">
       {(["Lunch", "Dinner"] as const).map((period) => (
         <section key={period}>
-          <h2 className="text-lg font-medium mb-3">{period}</h2>
+          <h2 className="text-lg font-medium mb-3 text-[var(--ink-900)]">{period}</h2>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
-              <tr className="text-left text-neutral-500 border-b">
+              <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
                 <th className="py-1.5 pr-2">Position</th>
                 {data.dates.map((d) => (
                   <th key={d} className="py-1.5 text-left align-bottom">
                     <div>{DAY_LABELS[dayOfWeekFor(d)]}</div>
-                    <div className="text-xs font-normal text-neutral-400">{d.slice(5)}</div>
+                    <div className="text-xs font-normal text-[var(--ink-400)]">{d.slice(5)}</div>
                   </th>
                 ))}
               </tr>
@@ -145,10 +158,10 @@ export function WeeklyPlanGrid({
                 const prevCategory = i > 0 ? data.positions[i - 1].category : null;
                 const showCategoryBreak = p.category !== prevCategory;
                 return (
-                  <tr key={p.id} className={"border-b align-top" + (showCategoryBreak && i > 0 ? " border-t-2" : "")}>
+                  <tr key={p.id} className={"border-b border-[var(--border)] align-top" + (showCategoryBreak && i > 0 ? " border-t-2 border-t-[var(--border-strong)]" : "")}>
                     <td className="py-1.5 pr-2 whitespace-nowrap">
                       {p.name}
-                      <span className="text-xs text-neutral-400 ml-1">({p.category})</span>
+                      <span className="text-xs text-[var(--ink-400)] ml-1">({p.category})</span>
                     </td>
                     {data.dates.map((date) => {
                       const dayOfWeek = dayOfWeekFor(date);
@@ -158,7 +171,7 @@ export function WeeklyPlanGrid({
                       );
                       const underTarget = !hideDiagnostics && target > 0 && cellAssignments.length < target;
                       return (
-                        <td key={date} className={"py-1.5 px-1 align-top" + (underTarget ? " bg-red-50" : "")}>
+                        <td key={date} className={"py-1.5 px-1 align-top" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
                           <div className="space-y-0.5">
                             {cellAssignments.map((a) => {
                               const slotKey = `${a.employeeId}:${date}:${period}`;
@@ -181,7 +194,7 @@ export function WeeklyPlanGrid({
                               );
                             })}
                             {!hideDiagnostics && target > 0 && (
-                              <div className={"text-xs" + (underTarget ? " text-red-600 font-medium" : " text-neutral-400")}>
+                              <div className={"text-xs" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-400)]")}>
                                 {cellAssignments.length}/{target}
                               </div>
                             )}
@@ -253,20 +266,20 @@ function AssignmentPill({
     <div
       title={[leaveTitle, vacancyTitle, swapTitle].filter(Boolean).join(" · ") || undefined}
       className={
-        "flex items-center justify-between gap-1 rounded px-1.5 py-0.5 text-xs " +
-        (assignment.isExtraCoverage ? "bg-yellow-100 text-yellow-900" : "bg-neutral-100 text-neutral-700") +
-        (vacatingSoon ? " ring-1 ring-red-400" : "") +
+        "flex items-center justify-between gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs " +
+        (assignment.isExtraCoverage ? "bg-[var(--warning-tint)] text-[var(--warning-700)]" : "bg-[var(--paper)] text-[var(--ink-700)]") +
+        (vacatingSoon ? " ring-1 ring-[var(--danger)]" : "") +
         (onLeave ? " ring-1 ring-purple-400" : "") +
-        (swap?.status === "completed" ? " ring-1 ring-green-500" : "") +
-        (swap?.status === "pending_manager_approval" ? " ring-1 ring-blue-400" : "")
+        (swap?.status === "completed" ? " ring-1 ring-[var(--success)]" : "") +
+        (swap?.status === "pending_manager_approval" ? " ring-1 ring-[var(--primary-border)]" : "")
       }
     >
       <span className="flex items-center gap-1">
         {assignment.employeeName}
-        {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />}
+        {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-[var(--danger)] shrink-0" />}
         {onLeave && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />}
-        {swap?.status === "completed" && <span className="w-1.5 h-1.5 rounded-full bg-green-500 shrink-0" />}
-        {swap?.status === "pending_manager_approval" && <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />}
+        {swap?.status === "completed" && <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] shrink-0" />}
+        {swap?.status === "pending_manager_approval" && <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] shrink-0" />}
         {hasConflict && (
           <span
             title={`Also scheduled as ${conflictPositionNames.join(", ")} in this same slot — double check this is intentional.`}
@@ -286,7 +299,7 @@ function AssignmentPill({
               router.refresh();
             })
           }
-          className="text-neutral-400 hover:text-red-600 disabled:opacity-50"
+          className="text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50"
           title="Remove"
         >
           ×
@@ -359,7 +372,7 @@ function QuickAddCell({
             setSelectedId(e.target.value === "" ? "" : Number(e.target.value));
             setError(null);
           }}
-          className="text-[10px] border rounded px-0.5 py-0.5 max-w-[76px] text-neutral-500 disabled:opacity-50"
+          className="text-[10px] border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-0.5 py-0.5 max-w-[76px] text-[var(--ink-500)] bg-[var(--card)] disabled:opacity-50"
         >
           <option value="">+ Add</option>
           {eligible.length > 0 && (
@@ -380,7 +393,7 @@ function QuickAddCell({
         {selectedId !== "" && (
           <>
             <label
-              className="flex items-center gap-0.5 text-[9px] text-neutral-400 cursor-pointer"
+              className="flex items-center gap-0.5 text-[9px] text-[var(--ink-400)] cursor-pointer"
               title="Extra coverage — an anticipated busy day, not filling a known gap"
             >
               <input
@@ -395,14 +408,14 @@ function QuickAddCell({
               type="button"
               onClick={handleAdd}
               disabled={isPending}
-              className="text-[10px] bg-black text-white rounded px-1 leading-tight disabled:opacity-50"
+              className="text-[10px] bg-[var(--primary)] text-white rounded-[var(--radius-sm)] px-1 leading-tight disabled:opacity-50 hover:bg-[var(--primary-600)]"
             >
               +
             </button>
           </>
         )}
       </div>
-      {error && <div className="text-[9px] text-red-600 mt-0.5">{error}</div>}
+      {error && <div className="text-[9px] text-[var(--danger-700)] mt-0.5">{error}</div>}
     </div>
   );
 }

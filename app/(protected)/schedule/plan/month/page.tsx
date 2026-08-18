@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { loadMonthOverview } from "@/lib/schedule/loadMonthOverview";
 import { shiftMonth, toIso, weekStartFor } from "@/lib/schedule/weekMath";
+import { PageHeader } from "@/components/ui/Card";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -24,44 +25,43 @@ export default async function MonthOverviewPage({
 
   return (
     <main className="max-w-5xl mx-auto p-8 font-sans">
-      <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
+      <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Schedule Planner
       </Link>
-      <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-2xl font-semibold">Month Overview</h1>
-        <div className="flex items-center gap-3 text-sm">
-          <Link href={`/schedule/plan/person?month=${monthAnchor}`} className="text-neutral-500 hover:text-black underline">
-            View by person
-          </Link>
-          <Link href={`/schedule/plan?week=${weekStartFor(monthAnchor)}`} className="text-neutral-500 hover:text-black underline">
-            Zoom in to weekly view &rarr;
-          </Link>
-        </div>
-      </div>
-      <p className="text-neutral-500 text-sm mb-4">
-        {data.monthLabel}. Weeks you haven&apos;t generated yet are projected from your recurring
-        templates — click any day to jump into that week: a read-only Preview for weeks that
-        already exist, or straight to Generate for ones that don&apos;t.
-      </p>
+
+      <PageHeader
+        title="Month Overview"
+        description={`${data.monthLabel}. Weeks you haven't generated yet are projected from your recurring templates — click any day to jump into that week: a read-only Preview for weeks that already exist, or straight to Generate for ones that don't.`}
+        actions={
+          <div className="flex items-center gap-3 text-sm">
+            <Link href={`/schedule/plan/person?month=${monthAnchor}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+              View by person
+            </Link>
+            <Link href={`/schedule/plan?week=${weekStartFor(monthAnchor)}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+              Zoom in to weekly view &rarr;
+            </Link>
+          </div>
+        }
+      />
 
       <div className="flex items-center gap-3 mb-4 text-sm">
-        <Link href={`/schedule/plan/month?month=${prevMonth}`} className="text-neutral-500 hover:text-black underline">
+        <Link href={`/schedule/plan/month?month=${prevMonth}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &larr; Previous month
         </Link>
-        <Link href={`/schedule/plan/month?month=${nextMonth}`} className="text-neutral-500 hover:text-black underline">
+        <Link href={`/schedule/plan/month?month=${nextMonth}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           Next month &rarr;
         </Link>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-neutral-500 mb-3">
+      <div className="flex items-center gap-4 text-xs text-[var(--ink-500)] mb-3">
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-green-500 inline-block" /> Published
+          <span className="w-2 h-2 rounded-full bg-[var(--success)] inline-block" /> Published
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-neutral-400 inline-block" /> Draft
+          <span className="w-2 h-2 rounded-full bg-[var(--border-strong)] inline-block" /> Draft
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> Projected — not generated yet
+          <span className="w-2 h-2 rounded-full bg-[var(--primary)] inline-block" /> Projected — not generated yet
         </span>
       </div>
 
@@ -69,7 +69,7 @@ export default async function MonthOverviewPage({
         <thead>
           <tr>
             {DAY_LABELS.map((label) => (
-              <th key={label} className="text-left text-neutral-500 pb-2 font-normal text-xs">
+              <th key={label} className="text-left text-[var(--ink-500)] pb-2 font-normal text-xs">
                 {label}
               </th>
             ))}
@@ -79,7 +79,7 @@ export default async function MonthOverviewPage({
           {data.weeks.map((week, i) => (
             <tr key={i}>
               {week.map((day) => (
-                <td key={day.date} className="align-top border p-0">
+                <td key={day.date} className="align-top border border-[var(--border)] p-0">
                   <Link
                     href={
                       // A generated week (draft/published) has something
@@ -96,10 +96,15 @@ export default async function MonthOverviewPage({
                         ? `/schedule/plan?week=${weekStartFor(day.date)}`
                         : `/schedule/plan/preview?week=${weekStartFor(day.date)}&view=manager`
                     }
-                    className={"block h-20 p-1.5 hover:bg-neutral-50" + (day.inMonth ? "" : " opacity-40")}
+                    className={"block h-20 p-1.5 hover:bg-[var(--paper)]" + (day.inMonth ? "" : " opacity-40")}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-neutral-600">{Number(day.date.slice(8))}</span>
+                      <span className="text-xs text-[var(--ink-700)]">{Number(day.date.slice(8))}</span>
+                      {/* title= kept as a desktop hover hint only; the legend above and the
+                          "N short"/"Covered" text below are the primary, mobile-visible signal
+                          — this dot alone is not the sole conveyor of status (2026-08-18).
+                          NOTE: still on the backlog list for the repo-wide title= tooltip
+                          migration (see project_atlas_ui_design.md, backlog item 2). */}
                       <span
                         title={
                           day.weekStatus === "published"
@@ -111,16 +116,16 @@ export default async function MonthOverviewPage({
                         className={
                           "w-1.5 h-1.5 rounded-full shrink-0 " +
                           (day.weekStatus === "published"
-                            ? "bg-green-500"
+                            ? "bg-[var(--success)]"
                             : day.weekStatus === "draft"
-                              ? "bg-neutral-400"
-                              : "bg-blue-400")
+                              ? "bg-[var(--border-strong)]"
+                              : "bg-[var(--primary)]")
                         }
                       />
                     </div>
                     {day.targetCells > 0 && (
                       <div
-                        className={"text-[11px] mt-1 " + (day.shortfallCells > 0 ? "text-red-600 font-medium" : "text-green-600")}
+                        className={"text-[11px] mt-1 " + (day.shortfallCells > 0 ? "text-[var(--danger-700)] font-medium" : "text-[var(--success-700)]")}
                       >
                         {day.shortfallCells > 0 ? `${day.shortfallCells} short` : "Covered"}
                       </div>

@@ -2,6 +2,10 @@ import Link from "next/link";
 import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import { PublishWeekButton } from "../PublishWeekButton";
+import { PageHeader, Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { LinkButton } from "@/components/ui/Button";
+import { Tabs, Tab } from "@/components/ui/Tabs";
 
 /** Safety-check step between the editable draft grid and actually
  * publishing (2026-08-11, Oliver). Two views, toggled by ?view=:
@@ -32,8 +36,8 @@ export default async function WeeklyPlanPreviewPage({
   if (!weekStartDate) {
     return (
       <main className="max-w-5xl mx-auto p-8 font-sans">
-        <p className="text-sm text-neutral-500 mb-4">Missing week.</p>
-        <Link href="/schedule/plan" className="text-sm text-neutral-500 hover:text-black underline">
+        <p className="text-sm text-[var(--ink-500)] mb-4">Missing week.</p>
+        <Link href="/schedule/plan" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &larr; Back to Weekly Plan
         </Link>
       </main>
@@ -45,10 +49,10 @@ export default async function WeeklyPlanPreviewPage({
   if (!data.week) {
     return (
       <main className="max-w-5xl mx-auto p-8 font-sans">
-        <p className="text-sm text-neutral-500 mb-4">This week hasn&apos;t been generated yet.</p>
+        <p className="text-sm text-[var(--ink-500)] mb-4">This week hasn&apos;t been generated yet.</p>
         <Link
           href={`/schedule/plan?week=${weekStartDate}`}
-          className="text-sm text-neutral-500 hover:text-black underline"
+          className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline"
         >
           &larr; Back to Weekly Plan
         </Link>
@@ -60,54 +64,33 @@ export default async function WeeklyPlanPreviewPage({
 
   return (
     <main className="max-w-5xl mx-auto p-8 font-sans">
-      <Link href={`/schedule/plan?week=${weekStartDate}`} className="text-sm text-neutral-500 hover:text-black">
+      <Link href={`/schedule/plan?week=${weekStartDate}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Schedule Planner
       </Link>
-      <div className="flex items-center justify-between mt-2 mb-1">
-        <h1 className="text-2xl font-semibold">Preview</h1>
-        <span
-          className={
-            "text-xs px-2 py-1 rounded font-medium " +
-            (week.status === "published" ? "bg-green-100 text-green-800" : "bg-neutral-100 text-neutral-600")
-          }
-        >
-          {week.status === "published" ? "Published" : "Draft"}
-        </span>
-      </div>
-      <p className="text-neutral-500 text-sm mb-4">
-        Week of {data.dates[0]} to {data.dates[6]}. This is a read-only look — nothing here can be
-        changed. To make changes, use the Edit button below.
+
+      <PageHeader
+        title="Preview"
+        description="This is a read-only look — nothing here can be changed. To make changes, use the Edit button below."
+        actions={week.status === "published" ? <Badge tone="success">Published</Badge> : <Badge tone="warning">Draft</Badge>}
+      />
+      <p className="text-sm text-[var(--ink-500)] -mt-4 mb-4">
+        Week of {data.dates[0]} to {data.dates[6]}.
       </p>
 
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 text-sm">
-          <Link
-            href={`/schedule/plan/preview?week=${weekStartDate}&view=manager`}
-            className={
-              "px-3 py-1.5 rounded border " +
-              (view === "manager" ? "bg-black text-white border-black" : "text-neutral-600 hover:bg-neutral-50")
-            }
-          >
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <Tabs>
+          <Tab href={`/schedule/plan/preview?week=${weekStartDate}&view=manager`} active={view === "manager"}>
             Manager view
-          </Link>
-          <Link
-            href={`/schedule/plan/preview?week=${weekStartDate}&view=staff`}
-            className={
-              "px-3 py-1.5 rounded border " +
-              (view === "staff" ? "bg-black text-white border-black" : "text-neutral-600 hover:bg-neutral-50")
-            }
-          >
+          </Tab>
+          <Tab href={`/schedule/plan/preview?week=${weekStartDate}&view=staff`} active={view === "staff"}>
             Staff view
-          </Link>
-        </div>
-        <Link
-          href={`/schedule/plan?week=${weekStartDate}`}
-          className="bg-neutral-900 text-white px-4 py-1.5 rounded hover:bg-neutral-800 text-sm shrink-0"
-        >
+          </Tab>
+        </Tabs>
+        <LinkButton href={`/schedule/plan?week=${weekStartDate}`} variant="secondary" size="sm" className="shrink-0">
           Edit this week &rarr;
-        </Link>
+        </LinkButton>
       </div>
-      <p className="text-xs text-neutral-400 mb-6">
+      <p className="text-xs text-[var(--ink-500)] mb-6">
         {view === "manager"
           ? "Same warnings you see while editing — understaffed slots, double-bookings, vacating-soon — so you can catch problems before publishing."
           : "What employees will see once this is published — no manager-only warnings."}
@@ -116,12 +99,12 @@ export default async function WeeklyPlanPreviewPage({
       <WeeklyPlanGrid data={data} readOnly hideDiagnostics={view === "staff"} />
 
       {week.status === "draft" && (
-        <div className="mt-8 flex items-center justify-between border rounded p-3 bg-neutral-50">
-          <p className="text-sm text-neutral-500">
+        <Card className="mt-8 flex flex-wrap items-center justify-between gap-3 !bg-[var(--paper)]">
+          <p className="text-sm text-[var(--ink-500)]">
             Looks right? Publishing makes this visible to staff and starts auto-filling new shifts.
           </p>
           <PublishWeekButton weekId={week.id} />
-        </div>
+        </Card>
       )}
     </main>
   );

@@ -2,6 +2,9 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { addPlannedAssignment, type PlannedAssignmentActionState } from "@/lib/actions/schedule";
+import { Select } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
 
 const initialState: PlannedAssignmentActionState = { error: null };
 
@@ -10,7 +13,10 @@ const initialState: PlannedAssignmentActionState = { error: null };
  * The "Extra coverage" checkbox is the YELLOW flag — confirmed standalone
  * with Oliver, independent of any red vacancy: a manager marking a day
  * as needing extra headcount beyond the template (expected busy day,
- * known advance-booked event). */
+ * known advance-booked event). Restyled onto the design system 2026-08-18
+ * -- selects now use the shared `Select` component instead of one-off
+ * borders, per the already-standing rule against inconsistent `<select>`
+ * styling (2026-08-16 verification pass). */
 export function AddPlannedAssignmentForm({
   weekId,
   dates,
@@ -48,79 +54,61 @@ export function AddPlannedAssignmentForm({
   return (
     <form action={formAction} className="space-y-3">
       <input type="hidden" name="weekId" value={weekId} />
-      {state.error && (
-        <div className="border border-red-300 bg-red-50 text-red-700 rounded p-3 text-sm">{state.error}</div>
-      )}
+      {state.error && <Banner tone="danger" title="Couldn't add" description={state.error} />}
       <div className="grid sm:grid-cols-6 gap-3 items-end">
-        <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Employee</span>
-          <select
-            name="employeeId"
-            required
-            className="border rounded px-2 py-1 w-full"
-            value={selectedEmployeeId}
-            onChange={(e) => setSelectedEmployeeId(Number(e.target.value))}
-          >
-            {allEmployees.map((emp) => (
-              <option key={emp.id} value={emp.id}>{emp.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Position</span>
-          <select
-            key={selectedEmployeeId}
-            name="positionId"
-            required
-            defaultValue={defaultPositionId}
-            className="border rounded px-2 py-1 w-full"
-          >
-            {hasAnyAssignment ? (
-              <>
-                <optgroup label="Assigned to this person">
-                  {assignedPositions.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Other positions">
-                  {otherPositions.map((p) => (
-                    <option key={p.id} value={p.id} style={{ color: "#9ca3af" }}>{p.name} ({p.category})</option>
-                  ))}
-                </optgroup>
-              </>
-            ) : (
-              allPositions.map((p) => (
-                <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
-              ))
-            )}
-          </select>
-        </label>
-        <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Date</span>
-          <select name="date" required defaultValue={dates[0]} className="border rounded px-2 py-1 w-full">
-            {dates.map((d) => (
-              <option key={d} value={d}>{d}</option>
-            ))}
-          </select>
-        </label>
-        <label className="text-sm">
-          <span className="block text-neutral-500 mb-1">Period</span>
-          <select name="period" required defaultValue="Dinner" className="border rounded px-2 py-1 w-full">
-            <option value="Lunch">Lunch</option>
-            <option value="Dinner">Dinner</option>
-          </select>
-        </label>
-        <label className="text-sm flex items-center gap-2 pb-1.5">
-          <input type="checkbox" name="isExtraCoverage" />
-          <span className="text-neutral-500">Extra coverage</span>
-        </label>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 text-sm disabled:opacity-50"
+        <Select
+          label="Employee"
+          name="employeeId"
+          required
+          value={selectedEmployeeId}
+          onChange={(e) => setSelectedEmployeeId(Number(e.target.value))}
         >
+          {allEmployees.map((emp) => (
+            <option key={emp.id} value={emp.id}>{emp.name}</option>
+          ))}
+        </Select>
+        <Select
+          label="Position"
+          key={selectedEmployeeId}
+          name="positionId"
+          required
+          defaultValue={defaultPositionId}
+        >
+          {hasAnyAssignment ? (
+            <>
+              <optgroup label="Assigned to this person">
+                {assignedPositions.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+                ))}
+              </optgroup>
+              <optgroup label="Other positions">
+                {otherPositions.map((p) => (
+                  <option key={p.id} value={p.id} style={{ color: "var(--ink-500)" }}>{p.name} ({p.category})</option>
+                ))}
+              </optgroup>
+            </>
+          ) : (
+            allPositions.map((p) => (
+              <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
+            ))
+          )}
+        </Select>
+        <Select label="Date" name="date" required defaultValue={dates[0]}>
+          {dates.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </Select>
+        <Select label="Period" name="period" required defaultValue="Dinner">
+          <option value="Lunch">Lunch</option>
+          <option value="Dinner">Dinner</option>
+        </Select>
+        <label className="text-sm flex items-center gap-2 pb-3">
+          <input type="checkbox" name="isExtraCoverage" className="w-4 h-4" />
+          <span className="text-[var(--ink-500)]">Extra coverage</span>
+        </label>
+        <Button type="submit" loading={isPending}>
           {isPending ? "Adding…" : "Add"}
-        </button>
+        </Button>
       </div>
     </form>
   );

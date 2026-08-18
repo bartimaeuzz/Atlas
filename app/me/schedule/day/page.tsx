@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadScheduleDayPreview, type DayPreviewEntry } from "@/lib/schedule/loadScheduleDayPreview";
+import { PageHeader, EmptyState } from "@/components/ui/Card";
+import { Banner } from "@/components/ui/Banner";
 
 const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -32,10 +34,10 @@ export default async function ScheduleDayPreviewPage({
   if (!date) {
     return (
       <main className="max-w-2xl mx-auto p-8 font-sans">
-        <Link href="/me/schedule" className="text-sm text-neutral-500 hover:text-black">
+        <Link href="/me/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
           &larr; My Schedule
         </Link>
-        <p className="text-sm text-neutral-500 mt-4">Missing date.</p>
+        <p className="text-sm text-[var(--ink-500)] mt-4">Missing date.</p>
       </main>
     );
   }
@@ -44,22 +46,22 @@ export default async function ScheduleDayPreviewPage({
 
   return (
     <main className="max-w-2xl mx-auto p-8 font-sans">
-      <Link href="/me/schedule" className="text-sm text-neutral-500 hover:text-black">
+      <Link href="/me/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; My Schedule
       </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-1">{formatDateLabel(date)}</h1>
+      <PageHeader title={formatDateLabel(date)} />
 
       {!data ? (
-        <p className="text-sm text-neutral-500 mt-4">
+        <p className="text-sm text-[var(--ink-500)] mt-4">
           This day hasn&apos;t been published yet, so there&apos;s nothing to preview.
         </p>
       ) : (
         <>
-          <p className="text-neutral-500 text-sm mb-6">Who&apos;s working this day.</p>
+          <p className="text-[var(--ink-500)] text-sm mb-6">Who&apos;s working this day.</p>
           {!data.viewerCanSeeCoworkers && (
-            <p className="text-xs text-neutral-400 mb-4 border rounded p-2 bg-neutral-50">
-              Your restaurant&apos;s settings only show you your own schedule here, not coworkers&apos;.
-            </p>
+            <div className="mb-4">
+              <Banner tone="info" title="Coworker view is off" description="Your restaurant's settings only show you your own schedule here, not coworkers'." />
+            </div>
           )}
           <DaySection title="Lunch" entries={data.lunch} viewerEmployeeId={session.id} />
           <DaySection title="Dinner" entries={data.dinner} viewerEmployeeId={session.id} />
@@ -80,18 +82,18 @@ function DaySection({
 }) {
   return (
     <div className="mb-6">
-      <h2 className="text-sm font-medium mb-2">{title}</h2>
+      <h2 className="text-sm font-medium mb-2 text-[var(--ink-900)]">{title}</h2>
       {entries.length === 0 ? (
-        <p className="text-sm text-neutral-400 border rounded p-3">Nobody scheduled.</p>
+        <EmptyState message="Nobody scheduled." />
       ) : (
-        <ul className="divide-y border rounded text-sm">
+        <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
           {entries.map((e) => (
             <li key={`${e.employeeId}-${e.positionId}`} className="px-3 py-2 flex items-center justify-between">
-              <span className={e.employeeId === viewerEmployeeId ? "font-medium" : ""}>
+              <span className={e.employeeId === viewerEmployeeId ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-700)]"}>
                 {e.employeeName}
                 {e.employeeId === viewerEmployeeId ? " (you)" : ""}
               </span>
-              <span className="text-neutral-500">{e.positionName}</span>
+              <span className="text-[var(--ink-500)]">{e.positionName}</span>
             </li>
           ))}
         </ul>

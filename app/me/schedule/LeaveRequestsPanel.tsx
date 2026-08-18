@@ -4,6 +4,10 @@ import { useActionState, useState, useTransition } from "react";
 import { submitLeaveRequest, deleteLeaveRequest, type LeaveRequestActionState } from "@/lib/actions/leave";
 import type { LeaveRequestView } from "@/lib/schedule/loadLeaveRequests";
 import { toIso } from "@/lib/schedule/weekMath";
+import { TextInput } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
+import { EmptyState } from "@/components/ui/Card";
 
 const initialState: LeaveRequestActionState = { error: null };
 
@@ -22,8 +26,8 @@ export function LeaveRequestsPanel({ requests }: { requests: LeaveRequestView[] 
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-medium">My leave requests</h2>
-        <button type="button" onClick={() => setShowForm((v) => !v)} className="text-xs text-neutral-500 hover:text-black underline">
+        <h2 className="text-sm font-medium text-[var(--ink-900)]">My leave requests</h2>
+        <button type="button" onClick={() => setShowForm((v) => !v)} className="text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           {showForm ? "Hide form" : "+ Request leave"}
         </button>
       </div>
@@ -31,9 +35,9 @@ export function LeaveRequestsPanel({ requests }: { requests: LeaveRequestView[] 
       {showForm && <LeaveRequestForm key={requests.length} />}
 
       {requests.length === 0 ? (
-        <p className="text-sm text-neutral-400 border rounded p-3">No leave logged.</p>
+        <EmptyState message="No leave logged." />
       ) : (
-        <ul className="divide-y border rounded text-sm">
+        <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
           {requests.map((r) => (
             <LeaveRequestRow key={r.id} request={r} />
           ))}
@@ -47,29 +51,16 @@ function LeaveRequestForm() {
   const [state, formAction, isPending] = useActionState(submitLeaveRequest, initialState);
 
   return (
-    <form action={formAction} className="border rounded p-3 bg-neutral-50 space-y-2 mb-3 text-sm">
-      {state.error && <p className="text-red-600">{state.error}</p>}
+    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)] space-y-3 mb-3 text-sm">
+      {state.error && <Banner tone="danger" title="Couldn't submit" description={state.error} />}
       <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="block text-neutral-500 mb-1 text-xs">Start date</span>
-          <input type="date" name="startDate" required defaultValue={toIso(new Date())} className="border rounded px-2 py-2 text-sm w-full" />
-        </label>
-        <label className="block">
-          <span className="block text-neutral-500 mb-1 text-xs">End date</span>
-          <input type="date" name="endDate" required defaultValue={toIso(new Date())} className="border rounded px-2 py-2 text-sm w-full" />
-        </label>
+        <TextInput label="Start date" type="date" name="startDate" required defaultValue={toIso(new Date())} />
+        <TextInput label="End date" type="date" name="endDate" required defaultValue={toIso(new Date())} />
       </div>
-      <label className="block">
-        <span className="block text-neutral-500 mb-1 text-xs">Note (optional)</span>
-        <input type="text" name="note" placeholder="e.g. traveling abroad" className="border rounded px-2 py-2 text-sm w-full" />
-      </label>
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full bg-black text-white px-4 py-2.5 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
-      >
+      <TextInput label="Note (optional)" type="text" name="note" placeholder="e.g. traveling abroad" />
+      <Button type="submit" loading={isPending} className="w-full">
         {isPending ? "Submitting…" : "Submit"}
-      </button>
+      </Button>
     </form>
   );
 }
@@ -79,17 +70,17 @@ function LeaveRequestRow({ request }: { request: LeaveRequestView }) {
   return (
     <li className="px-3 py-2.5 flex items-start justify-between gap-2">
       <div>
-        <div className="font-medium">
+        <div className="font-medium text-[var(--ink-900)]">
           {request.startDate}
           {request.endDate !== request.startDate ? ` to ${request.endDate}` : ""}
         </div>
-        {request.note && <div className="text-neutral-500 text-xs mt-0.5">{request.note}</div>}
+        {request.note && <div className="text-[var(--ink-500)] text-xs mt-0.5">{request.note}</div>}
       </div>
       <button
         type="button"
         disabled={isPending}
         onClick={() => startTransition(() => deleteLeaveRequest(request.id))}
-        className="text-xs text-neutral-400 hover:text-red-600 disabled:opacity-50 shrink-0"
+        className="text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0"
       >
         Cancel
       </button>

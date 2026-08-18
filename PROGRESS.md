@@ -3927,3 +3927,86 @@ lockout state machine precisely: 4 wrong attempts accumulate without
 locking, the 5th locks for 15 minutes, the CORRECT code is still
 rejected during that window, and it succeeds again once the window has
 passed, with attempt/lockout state cleared on any successful redemption.
+
+---
+
+## Design-system retrofit: Schedule Planner, Set 1 (2026-08-18)
+
+First subsystem-wide retrofit since the `design-system-v2` merge — Schedule
+Planner had zero design-system adoption (0/26 files importing
+`@/components/ui`), confirmed by repo-wide grep before starting. Scoped to
+Set 1 (the manager weekly-plan flow + the staff-facing `/me/schedule/*`
+views, 17 files) after Oliver deferred the choice of which subsystem to
+retrofit next to this session's judgment (Schedule Planner, over Payroll
+or Ledger — highest-frequency manager screen, and the one place a UI
+review + scrutinize pass this same session had already turned up real
+bugs). Set 2 (`targets/*`, `templates/*`, `weeks/`, `leave/`, `swaps/`) is
+explicitly **not** covered — proposed as its own follow-up pass, not yet
+confirmed with Oliver.
+
+**Files restyled (17):** the `/schedule` hub (rebuilt as a tiered layout —
+one prominent primary tile for Weekly Plan, then This week/Zoom
+views/Set up once groupings, replacing six equal-weight tiles with no
+hierarchy — closes flag 3 from the earlier accessibility audit), all of
+`plan/` (`page.tsx`, `preview/page.tsx`, `month/page.tsx`,
+`person/page.tsx`, `PublishWeekButton`, `GenerateWeekButton`,
+`AutoFillWeekButton`, `PublishedEditGate`, `AddPlannedAssignmentForm`,
+`DangerZone`), `app/schedule/WeeklyPlanGrid.tsx` (the shared grid used by
+both the manager and staff views), and all five `app/me/schedule/*` files
+(`page.tsx`, `day/page.tsx`, `week/page.tsx`, `SwapBoardPanel`,
+`LeaveRequestsPanel`). All now use `PageHeader`/`Card`/`Banner`/`Badge`/
+`Select`/`TextInput`/`Button`/`ConfirmDialog`/`EmptyState`/`Tabs` and CSS
+custom-property tokens in place of raw hardcoded Tailwind.
+
+**Real bug fixed along the way:** `PublishWeekButton.tsx`'s raw
+`window.confirm()` replaced with the styled `ConfirmDialog` — same
+anti-pattern as the `RosterGrid.tsx` fix from the `design-system-v2`
+round, found via a live-code reconciliation pass earlier this session
+(promoted into the `scrutinize` skill as a standing check: design/plan
+docs now get checked against actual repo code, not just internal
+consistency, before being marked confirmed).
+
+**Deliberately not touched, flagged as backlog:**
+- `PayrollActions.tsx` has the same raw-`window.confirm()` bug (in both
+  `MarkPaidButton` and `RevertToDraftButton`) — out of scope this pass
+  (Payroll wasn't the chosen subsystem), carried forward for Payroll's
+  own retrofit.
+- A 23-file repo-wide pattern of native `title=` used as the only hover
+  tooltip for a status signal (calendar day dots, assignment-pill ring
+  explanations) — doesn't work on touch/mobile at all, which matters
+  given this session's standing mobile-parity requirement. Two more
+  instances live inside this pass's own files
+  (`plan/month/page.tsx`, `plan/person/page.tsx`) — left as-is rather
+  than fixed ad hoc, since every one of those cells already has a
+  color-coded legend and (for the month grid) an inline "N short" label
+  as the mobile-visible primary signal; `title=` is supplementary, not
+  the sole channel. The full migration is too large and cross-cutting to
+  fold into a single subsystem's retrofit — it needs its own triage
+  pass across every subsystem it touches.
+- `WeeklyPlanGrid.tsx` got token-color restyling only, not a structural
+  stacked-card mobile conversion — the grid today gets horizontal-scroll
+  on phone, unchanged this pass. It's dense enough (vacancy/leave/swap
+  status rings, double-booking badges, inline quick-add dropdowns) that
+  restructuring it needs its own dedicated design reasoning pass, the
+  same treatment Danger Zone and dark mode each got before being coded,
+  rather than being decided inline during a token-restyle pass.
+- Two categorical ring/dot colors in `WeeklyPlanGrid.tsx` (purple =
+  on-leave, orange = double-booking conflict) have no design-system
+  token and were left as literal Tailwind colors rather than inventing
+  new tokens for a two-instance use case — the granularity/scope-creep
+  boundary this session's scrutinize pass also promoted into a standing
+  check.
+
+**Verification:** `tsc --noEmit` clean. `eslint` on the touched
+directories clean (the only errors/warnings found — 2 `set-state-in-effect`
+errors, 2 unused-var warnings — are pre-existing, confirmed inside
+`templates/PositionTemplateGrid.tsx`, a Set-2 file this pass never
+touched). `next build` succeeds (47 routes, all compile). Backgrounded
+`next dev` + curl smoke test against all 8 touched routes: no 500s: every
+route correctly 307-redirects to `/login` with no active session (this
+sandbox has no Turso credentials, so DB-backed pages can't be exercised
+authenticated here — same limitation as every prior session in this
+sandbox).
+
+**Delivery:** committed locally, zipped with full `.git` history (no push
+credentials in this sandbox, same as always).
