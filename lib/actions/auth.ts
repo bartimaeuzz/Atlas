@@ -31,7 +31,22 @@ export async function login(_prevState: LoginActionState, formData: FormData): P
   const loginIdRaw = String(formData.get("loginId") ?? "").trim();
   const pin = String(formData.get("pin") ?? "").trim();
 
-  if (!pin) return { error: "Enter your PIN" };
+  // The login page only ever renders ONE identity field (NAME dropdown
+  // posts `employeeId`, ID text field posts `loginId` — see the method
+  // comment above), so `formData.has()` tells us unambiguously which one
+  // this submission used, regardless of which is empty.
+  const usesLoginId = formData.has("loginId");
+  const identityMissing = usesLoginId ? !loginIdRaw : !Number(employeeIdRaw);
+
+  // 2026-08-18 visual-audit fix: this used to check `pin` alone and
+  // return immediately, so a submission with BOTH the name and PIN empty
+  // only ever told the person about the PIN — they'd fix that, resubmit,
+  // and only then discover the name field was also required. Collect
+  // every missing field into one message instead.
+  const missing: string[] = [];
+  if (identityMissing) missing.push(usesLoginId ? "your Login ID" : "your name");
+  if (!pin) missing.push("your PIN");
+  if (missing.length > 0) return { error: `Enter ${missing.join(" and ")}` };
 
   let employee: typeof employees.$inferSelect | undefined;
 

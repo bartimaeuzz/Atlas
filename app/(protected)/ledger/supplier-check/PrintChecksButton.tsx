@@ -55,14 +55,20 @@ export function PrintChecksButton({ groups }: { groups: VendorPendingGroup[] }) 
 
   if (groups.length === 0) {
     return (
-      <button
-        type="button"
-        disabled
-        className="px-4 py-2 rounded border text-sm text-neutral-400 cursor-not-allowed"
-        title="No pending invoices to print"
-      >
-        Print Checks
-      </button>
+      <div>
+        <button
+          type="button"
+          disabled
+          className="px-4 py-2 rounded border text-sm text-neutral-400 cursor-not-allowed"
+          title="No pending invoices to print"
+        >
+          Print Checks
+        </button>
+        {/* 2026-08-18 visual-audit fix: this used to be explained only by
+         * a hover title=, invisible on touch — and this button's disabled
+         * state has no other on-screen explanation. */}
+        <p className="text-xs text-neutral-500 mt-1.5">No pending invoices to print.</p>
+      </div>
     );
   }
 

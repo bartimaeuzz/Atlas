@@ -3,66 +3,107 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { markPayrollPeriodPaid, revertPayrollPeriodToDraft } from "@/lib/actions/payroll";
+import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Banner } from "@/components/ui/Banner";
 
+/** Restyled onto the design system 2026-08-18 -- replaces two raw
+ * `window.confirm()` calls (plus hardcoded black/border button styling)
+ * with the app's real ConfirmDialog, same fix already applied to
+ * PublishWeekButton.tsx and RosterGrid.tsx for the same anti-pattern.
+ * ConfirmDialog (not DangerConfirmDialog) is the right tier for both
+ * actions here -- neither is truly irreversible: Mark Paid has an
+ * explicit Admin-only Revert-to-draft path right below it, and Revert
+ * itself just moves the record back a step, it doesn't delete anything.
+ * DangerConfirmDialog's typed-word confirm is reserved for actions with
+ * no way back at all (delete a shift/employee, wipe a report). */
 export function MarkPaidButton({ weekStartDate, disabled }: { weekStartDate: string; disabled: boolean }) {
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   return (
     <div>
-      <button
-        type="button"
+      <Button
+        variant="primary"
+        size="sm"
         disabled={disabled || isPending}
         title={disabled ? "Finalize every shift this week first" : undefined}
-        onClick={() => {
-          if (!confirm("Mark this week's payroll as paid? This locks the numbers as a permanent record.")) return;
+        onClick={() => setOpen(true)}
+      >
+        {isPending ? "Marking paid…" : "Mark this week paid"}
+      </Button>
+      {/* 2026-08-18 visual-audit fix: was hover-title-only, invisible on
+       * touch. title= kept as a free desktop-hover bonus. */}
+      {disabled && <p className="text-xs text-[var(--ink-500)] mt-1.5">Finalize every shift this week first.</p>}
+      <ConfirmDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Mark this week's payroll as paid?"
+        description="This locks the numbers as a permanent record. An Admin can revert it back to draft afterward if a correction is needed."
+        confirmLabel="Mark paid"
+        loading={isPending}
+        onConfirm={() => {
           setError(null);
           startTransition(async () => {
             try {
               await markPayrollPeriodPaid(weekStartDate);
+              setOpen(false);
               router.refresh();
             } catch (e) {
               setError(e instanceof Error ? e.message : "Couldn't mark this week paid.");
+              setOpen(false);
             }
           });
         }}
-        className="px-4 py-2 rounded bg-black text-white text-sm hover:bg-neutral-800 disabled:opacity-50"
-      >
-        {isPending ? "Marking paid…" : "Mark this week paid"}
-      </button>
-      {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+      />
+      {error && (
+        <div className="mt-2">
+          <Banner tone="danger" title="Couldn't mark this week paid" description={error} />
+        </div>
+      )}
     </div>
   );
 }
 
 export function RevertToDraftButton({ weekStartDate }: { weekStartDate: string }) {
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   return (
     <div>
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => {
-          if (!confirm("Revert this paid week back to draft so it can be corrected? (Admin only)")) return;
+      <Button variant="secondary" size="sm" disabled={isPending} onClick={() => setOpen(true)}>
+        {isPending ? "Reverting…" : "Revert to draft (Admin)"}
+      </Button>
+      <ConfirmDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title="Revert this week to draft?"
+        description="Lets the numbers be corrected. This is an Admin-only action."
+        confirmLabel="Revert to draft"
+        loading={isPending}
+        onConfirm={() => {
           setError(null);
           startTransition(async () => {
             try {
               await revertPayrollPeriodToDraft(weekStartDate);
+              setOpen(false);
               router.refresh();
             } catch (e) {
               setError(e instanceof Error ? e.message : "Couldn't revert this week.");
+              setOpen(false);
             }
           });
         }}
-        className="px-4 py-2 rounded border text-sm text-neutral-600 hover:bg-neutral-50 disabled:opacity-50"
-      >
-        {isPending ? "Reverting…" : "Revert to draft (Admin)"}
-      </button>
-      {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+      />
+      {error && (
+        <div className="mt-2">
+          <Banner tone="danger" title="Couldn't revert this week" description={error} />
+        </div>
+      )}
     </div>
   );
 }

@@ -83,7 +83,19 @@ function dayOfWeekFor(dateIso: string): number {
  * small screens) is intentionally deferred to its own dedicated design
  * pass, same as Danger Zone and dark mode each were — this component is
  * too dense (vacancy/leave/swap rings, conflict badges, inline quick-add)
- * to restructure safely inside a token-restyle pass. */
+ * to restructure safely inside a token-restyle pass.
+ *
+ * 2026-08-18 (visual-audit follow-up): still not a full stacked-card
+ * conversion — that's a real information-hierarchy decision (day-primary
+ * vs. position-primary grouping on a narrow screen) that needs a scoping
+ * conversation with Oliver, not a mechanical CSS pass, per the project's
+ * "never assume" rule. What's safe to ship now without that conversation:
+ * the two concrete usability gaps in the existing scroll-table stopgap —
+ * losing track of which position row you're on while scrolling
+ * horizontally (fixed with a sticky first column), and no visual signal
+ * that the table scrolls at all on a narrow screen (fixed with a
+ * mobile-only hint). Both are additive, don't change the grid's shape or
+ * density, and don't foreclose whatever the real redesign decides. */
 export function WeeklyPlanGrid({
   data,
   weekId,
@@ -140,11 +152,12 @@ export function WeeklyPlanGrid({
       {(["Lunch", "Dinner"] as const).map((period) => (
         <section key={period}>
           <h2 className="text-lg font-medium mb-3 text-[var(--ink-900)]">{period}</h2>
+          <p className="sm:hidden text-xs text-[var(--ink-500)] mb-1.5">Swipe sideways to see the rest of the week →</p>
           <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
           <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
-                <th className="py-1.5 pr-2">Position</th>
+                <th className="py-1.5 pr-2 sticky left-0 z-[1] bg-[var(--card)]">Position</th>
                 {data.dates.map((d) => (
                   <th key={d} className="py-1.5 text-left align-bottom">
                     <div>{DAY_LABELS[dayOfWeekFor(d)]}</div>
@@ -159,7 +172,7 @@ export function WeeklyPlanGrid({
                 const showCategoryBreak = p.category !== prevCategory;
                 return (
                   <tr key={p.id} className={"border-b border-[var(--border)] align-top" + (showCategoryBreak && i > 0 ? " border-t-2 border-t-[var(--border-strong)]" : "")}>
-                    <td className="py-1.5 pr-2 whitespace-nowrap">
+                    <td className="py-1.5 pr-2 whitespace-nowrap sticky left-0 z-[1] bg-[var(--card)]">
                       {p.name}
                       <span className="text-xs text-[var(--ink-400)] ml-1">({p.category})</span>
                     </td>

@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees } from "@/db/schema";
 import { RecoverForm } from "./RecoverForm";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Public "Forgot PIN?" page (2026-08-17) — deliberately reachable without
  * any session, same as /login itself. Lists every active employee (not
@@ -30,7 +31,7 @@ export default async function RecoverPage() {
       </div>
       <RecoverForm employees={activeEmployees} />
       <p className="text-center text-sm text-[var(--ink-500)] mt-6">
-        <Link href="/login" className="underline">
+        <Link href="/login" className={`underline inline-block ${TAP_TARGET_PAD}`}>
           ← Back to sign in
         </Link>
       </p>

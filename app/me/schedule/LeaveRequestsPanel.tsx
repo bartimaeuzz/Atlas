@@ -8,6 +8,7 @@ import { TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { EmptyState } from "@/components/ui/Card";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const initialState: LeaveRequestActionState = { error: null };
 
@@ -27,7 +28,11 @@ export function LeaveRequestsPanel({ requests }: { requests: LeaveRequestView[] 
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-sm font-medium text-[var(--ink-900)]">My leave requests</h2>
-        <button type="button" onClick={() => setShowForm((v) => !v)} className="text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <button
+          type="button"
+          onClick={() => setShowForm((v) => !v)}
+          className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
+        >
           {showForm ? "Hide form" : "+ Request leave"}
         </button>
       </div>

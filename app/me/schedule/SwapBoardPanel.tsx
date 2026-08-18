@@ -12,6 +12,7 @@ import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { EmptyState } from "@/components/ui/Card";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const initialState: SwapRequestActionState = { error: null };
 
@@ -49,7 +50,7 @@ export function SwapBoardPanel({
         <button
           type="button"
           onClick={() => setShowForm((v) => !v)}
-          className="text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline"
+          className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
         >
           {showForm ? "Hide form" : "+ Offer a shift"}
         </button>

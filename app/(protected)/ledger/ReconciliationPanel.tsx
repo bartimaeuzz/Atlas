@@ -128,25 +128,35 @@ export function ReconciliationPanel({ data, isAdmin }: { data: PettyCashDayData;
       {saved && !error && <p className="text-sm text-green-700 mt-3">Saved.</p>}
 
       {!locked && (
-        <div className="flex items-center gap-3 mt-4">
-          <button
-            type="button"
-            disabled={isPending}
-            onClick={handleSaveDraft}
-            className="border px-4 py-2 rounded text-sm hover:bg-neutral-50 disabled:opacity-50"
-          >
-            {isPending ? "Saving…" : "Save"}
-          </button>
-          {!finalized && (
+        <div className="mt-4">
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              disabled={isPending || !data.shiftsReady}
-              onClick={handleFinalize}
-              className="bg-black text-white px-4 py-2 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
-              title={!data.shiftsReady ? "Finish finalizing today's shift(s) first" : undefined}
+              disabled={isPending}
+              onClick={handleSaveDraft}
+              className="border px-4 py-2 rounded text-sm hover:bg-neutral-50 disabled:opacity-50"
             >
-              Finalize day
+              {isPending ? "Saving…" : "Save"}
             </button>
+            {!finalized && (
+              <button
+                type="button"
+                disabled={isPending || !data.shiftsReady}
+                onClick={handleFinalize}
+                className="bg-black text-white px-4 py-2 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
+                title={!data.shiftsReady ? "Finish finalizing today's shift(s) first" : undefined}
+              >
+                Finalize day
+              </button>
+            )}
+          </div>
+          {/* 2026-08-18 visual-audit fix: the disabled reason used to live
+           * only in a hover title=, invisible on touch. Always-visible
+           * caption instead -- error prevention shouldn't depend on
+           * whether the input device supports hover. title= kept as a
+           * free desktop-hover bonus. */}
+          {!finalized && !data.shiftsReady && (
+            <p className="text-xs text-neutral-500 mt-1.5">Finish finalizing today&apos;s shift(s) first.</p>
           )}
         </div>
       )}

@@ -94,8 +94,18 @@ export function NavBarClient({
         setMenuOpen(false);
       }
     }
+    // 2026-08-18 visual-audit fix: the menu previously only closed on an
+    // outside click, never on Escape — a real keyboard-accessibility gap
+    // (found live, account menu at 390px width).
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setMenuOpen(false);
+    }
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [menuOpen]);
 
   useEffect(() => {
@@ -151,37 +161,52 @@ export function NavBarClient({
               <Avatar name={auth.name} size={36} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-2)] py-1 text-sm">
-                <div className="px-3 py-2 border-b border-[var(--border)]">
-                  <p className="font-medium truncate text-[var(--ink-900)]">{auth.name}</p>
-                  <p className="text-xs text-[var(--ink-500)]">{auth.systemRole === "STAFF" ? "Staff" : "Manager"}</p>
+              <>
+                {/* 2026-08-18 visual-audit fix: an invisible full-screen
+                 * backdrop, so the menu reliably renders above every other
+                 * positioned element on the page (found live: the menu
+                 * could overlap page content at 390px width) and gets a
+                 * second, more discoverable way to dismiss it (tap
+                 * anywhere) alongside the outside-click/Escape handlers
+                 * above. No visual change — bg is fully transparent. */}
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} aria-hidden="true" />
+                <div
+                  role="menu"
+                  className="absolute right-0 mt-2 w-48 z-20 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-2)] py-1 text-sm"
+                >
+                  <div className="px-3 py-2 border-b border-[var(--border)]">
+                    <p className="font-medium truncate text-[var(--ink-900)]">{auth.name}</p>
+                    <p className="text-xs text-[var(--ink-500)]">{auth.systemRole === "STAFF" ? "Staff" : "Manager"}</p>
+                  </div>
+                  <Link
+                    href="/me/schedule"
+                    role="menuitem"
+                    className={
+                      "block px-3 py-2.5 " +
+                      (pathname.startsWith("/me/schedule")
+                        ? "font-medium text-[var(--ink-900)]"
+                        : "text-[var(--ink-700)] hover:bg-[var(--paper)]")
+                    }
+                  >
+                    My Schedule
+                  </Link>
+                  <Link
+                    href="/me"
+                    role="menuitem"
+                    className={
+                      "block px-3 py-2.5 " +
+                      (pathname === "/me" ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-700)] hover:bg-[var(--paper)]")
+                    }
+                  >
+                    My Pay
+                  </Link>
+                  <form action={logout} className="border-t border-[var(--border)]">
+                    <button type="submit" role="menuitem" className="w-full text-left px-3 py-2.5 text-[var(--ink-700)] hover:bg-[var(--paper)]">
+                      Sign out
+                    </button>
+                  </form>
                 </div>
-                <Link
-                  href="/me/schedule"
-                  className={
-                    "block px-3 py-2.5 " +
-                    (pathname.startsWith("/me/schedule")
-                      ? "font-medium text-[var(--ink-900)]"
-                      : "text-[var(--ink-700)] hover:bg-[var(--paper)]")
-                  }
-                >
-                  My Schedule
-                </Link>
-                <Link
-                  href="/me"
-                  className={
-                    "block px-3 py-2.5 " +
-                    (pathname === "/me" ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-700)] hover:bg-[var(--paper)]")
-                  }
-                >
-                  My Pay
-                </Link>
-                <form action={logout} className="border-t border-[var(--border)]">
-                  <button type="submit" className="w-full text-left px-3 py-2.5 text-[var(--ink-700)] hover:bg-[var(--paper)]">
-                    Sign out
-                  </button>
-                </form>
-              </div>
+              </>
             )}
           </div>
         ) : (

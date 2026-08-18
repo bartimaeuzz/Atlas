@@ -6,6 +6,7 @@ import { login, type LoginActionState } from "@/lib/actions/auth";
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const initialState: LoginActionState = { error: null };
 
@@ -60,7 +61,11 @@ export function LoginForm({
         {isPending ? "Signing in…" : "Sign in"}
       </Button>
       <p className="text-center text-sm text-[var(--ink-500)]">
-        <Link href="/login/recover" className="underline">
+        {/* 2026-08-18 visual-audit fix: this link's clickable area measured
+         * 77x19px live, failing WCAG 2.5.8's 24x24 floor on height —
+         * TAP_TARGET_PAD expands the real hit box without changing how it
+         * looks. See components/ui/touchTarget.ts. */}
+        <Link href="/login/recover" className={`underline inline-block ${TAP_TARGET_PAD}`}>
           Forgot PIN?
         </Link>
       </p>

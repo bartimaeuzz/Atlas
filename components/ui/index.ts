@@ -10,3 +10,4 @@ export * from "./Modal";
 export * from "./ConfirmDialog";
 export * from "./DangerConfirmDialog";
 export * from "./DangerZoneSection";
+export * from "./touchTarget";
