@@ -19,6 +19,7 @@ import {
   SettingsIcon,
   LoginIcon,
   ChevronDownIcon,
+  ShieldIcon,
 } from "@/components/ui/icons";
 import type { ComponentType, ReactNode, SVGProps } from "react";
 
@@ -38,6 +39,15 @@ const SETTINGS_ITEM: { href: string; label: string; icon: IconType } = {
   href: "/settings",
   label: "Settings",
   icon: SettingsIcon,
+};
+// Admin-only, matching the confirmed Permission System design ("Manage
+// Permissions — Admin ✓ only, not delegable") — kept separate from
+// SETTINGS_ITEM/MANAGER_NAV_ITEMS so its render gate below can check
+// systemRole === "ADMIN" specifically rather than the broader isManager.
+const PERMISSIONS_ITEM: { href: string; label: string; icon: IconType } = {
+  href: "/permissions",
+  label: "Permissions",
+  icon: ShieldIcon,
 };
 
 /** Red-pill badge — rendered twice per nav item (see NavItem below), one
@@ -441,6 +451,15 @@ export function NavBarClient({
             label={SETTINGS_ITEM.label}
             Icon={SETTINGS_ITEM.icon}
             active={isActive(SETTINGS_ITEM.href)}
+            collapsed={collapsed}
+          />
+        )}
+        {auth?.systemRole === "ADMIN" && (
+          <NavItem
+            href={PERMISSIONS_ITEM.href}
+            label={PERMISSIONS_ITEM.label}
+            Icon={PERMISSIONS_ITEM.icon}
+            active={isActive(PERMISSIONS_ITEM.href)}
             collapsed={collapsed}
           />
         )}
