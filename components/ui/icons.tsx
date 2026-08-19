@@ -195,3 +195,14 @@ export function LoginIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** Shield outline (2026-08-19) — Permission and Roles nav item. Standard
+ * feather-style shield glyph, matches this file's existing 24px-canvas /
+ * 1.75px-stroke convention. */
+export function ShieldIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}

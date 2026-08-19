@@ -21,3 +21,19 @@ export async function requireManager(): Promise<StaffSessionEmployee> {
   }
   return session;
 }
+
+/** Page-level guard for Admin-only surfaces (2026-08-19, Permission
+ * System Phase 1) — the "Permission and Roles" page specifically, since
+ * the confirmed design has it as "Admin ✓ only, not delegable." A
+ * logged-in non-Admin (Staff/Manager) is sent to /people rather than
+ * /login — they DO have a valid session, just not this page's access
+ * level, so bouncing them to the login screen would be confusing/wrong;
+ * an anonymous visitor still lands on /login via the same check
+ * requireManager uses (no session at all fails both branches below the
+ * same way). */
+export async function requireAdmin(): Promise<StaffSessionEmployee> {
+  const session = await getCurrentStaffSession();
+  if (!session) redirect("/login");
+  if (session.systemRole !== "ADMIN") redirect("/people");
+  return session;
+}
