@@ -1,15 +1,31 @@
--- NOTE (2026-08-19): drizzle-kit generated this with `DEFAULT (current_timestamp)`
--- (parenthesized), matching this schema's usual sql`(current_timestamp)` TS-level
--- convention for CREATE TABLE columns. That form works for CREATE TABLE, but SQLite's
--- ALTER TABLE ADD COLUMN restricts a NOT NULL column's default to NULL, a literal
--- constant, or one of the bare keywords CURRENT_TIME/CURRENT_DATE/CURRENT_TIMESTAMP --
--- a parenthesized expression like `(current_timestamp)` doesn't qualify, even though
--- it evaluates to the identical value. Local libsql (used by `npm run db:migrate`
--- against a local file) is lenient and applied the parenthesized form without
--- complaint; Turso's hosted libsql server enforces the stricter rule and rejected it
--- with "Cannot add a column with non-constant default". Fixed by hand to the bare
--- keyword form below -- confirmed equivalent at runtime, confirmed to succeed against
--- both local libsql and (pending re-run) Turso. Future ADD COLUMN migrations on this
--- schema that pick up a `(current_timestamp)`-style default from schema.ts will need
--- the same manual fix -- see feedback_drizzle_hosted_db_caution.md.
-ALTER TABLE `staff_sessions` ADD `last_activity_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL;
+-- NOTE (2026-08-19, revised): drizzle-kit originally generated this with
+-- `DEFAULT (current_timestamp)` (parenthesized), matching this schema's usual
+-- sql`(current_timestamp)` TS-level convention. Turso's hosted libsql server
+-- rejected it: "Cannot add a column with non-constant default". First attempt at a
+-- fix swapped in the bare keyword form (`DEFAULT CURRENT_TIMESTAMP`, no parens) --
+-- valid per plain SQLite's documented ADD COLUMN rules (NOT NULL default may be
+-- NULL, a literal constant, or CURRENT_TIME/CURRENT_DATE/CURRENT_TIMESTAMP) and
+-- confirmed working against a local libsql file -- but Turso rejected THAT too,
+-- with the identical error. So Turso's actual restriction, whatever its exact
+-- internal reasoning (likely: no function-evaluated default at all for ADD COLUMN,
+-- stricter than vanilla SQLite's documented exception), is stricter than plain
+-- SQLite's own documented behavior -- confirmed empirically, not from docs.
+--
+-- Fix: split into two statements that avoid the restriction entirely. Step 1 adds
+-- the column with NO default and NOT NULL dropped (a bare nullable ADD COLUMN has
+-- no default-value computation at all, so nothing for Turso to reject). Step 2
+-- backfills every existing row via UPDATE, which has no such restriction since it's
+-- an ordinary per-row computation, not a schema-level default. The column is left
+-- nullable at the actual DB/SQLite level -- SQLite can't add a NOT NULL constraint
+-- to an existing column without a full 12-step table rebuild, which is riskier to
+-- run against a live production table than accepting this gap. The app-level
+-- Drizzle schema (db/schema.ts) still declares `.notNull()` as the intended
+-- invariant, and every write path that populates this column (createSession,
+-- resolveSessionToken's throttled touch, touchSessionActivity) always supplies a
+-- real value, so the column is NOT NULL in practice even though SQLite itself
+-- isn't enforcing it. See feedback_drizzle_hosted_db_caution.md for the durable
+-- lesson: future ADD COLUMN migrations on this schema must avoid ANY
+-- function-evaluated default, not just the parenthesized form.
+ALTER TABLE `staff_sessions` ADD `last_activity_at` text;
+--> statement-breakpoint
+UPDATE `staff_sessions` SET `last_activity_at` = COALESCE(`last_activity_at`, `created_at`, CURRENT_TIMESTAMP) WHERE `last_activity_at` IS NULL;
