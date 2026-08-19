@@ -1,1 +1,15 @@
-ALTER TABLE `staff_sessions` ADD `last_activity_at` text DEFAULT (current_timestamp) NOT NULL;
+-- NOTE (2026-08-19): drizzle-kit generated this with `DEFAULT (current_timestamp)`
+-- (parenthesized), matching this schema's usual sql`(current_timestamp)` TS-level
+-- convention for CREATE TABLE columns. That form works for CREATE TABLE, but SQLite's
+-- ALTER TABLE ADD COLUMN restricts a NOT NULL column's default to NULL, a literal
+-- constant, or one of the bare keywords CURRENT_TIME/CURRENT_DATE/CURRENT_TIMESTAMP --
+-- a parenthesized expression like `(current_timestamp)` doesn't qualify, even though
+-- it evaluates to the identical value. Local libsql (used by `npm run db:migrate`
+-- against a local file) is lenient and applied the parenthesized form without
+-- complaint; Turso's hosted libsql server enforces the stricter rule and rejected it
+-- with "Cannot add a column with non-constant default". Fixed by hand to the bare
+-- keyword form below -- confirmed equivalent at runtime, confirmed to succeed against
+-- both local libsql and (pending re-run) Turso. Future ADD COLUMN migrations on this
+-- schema that pick up a `(current_timestamp)`-style default from schema.ts will need
+-- the same manual fix -- see feedback_drizzle_hosted_db_caution.md.
+ALTER TABLE `staff_sessions` ADD `last_activity_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL;
