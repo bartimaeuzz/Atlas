@@ -255,6 +255,22 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
  * layout.tsx) rather than localStorage specifically so the first
  * server-rendered paint is already correct — no flash, no mismatch.
  *
+ * `<nav>`/bottom-icons horizontal alignment (fixed 2026-08-19, Oliver
+ * caught it from a live screenshot): can't use a flat `items-center
+ * sm:items-stretch` on those two flex containers, because `sm:` is a
+ * viewport-width breakpoint, not a `collapsed`-state check — a
+ * *desktop-width* collapsed sidebar would still get `sm:items-stretch`
+ * even though it should behave like the always-centered mobile rail.
+ * A fixed-width child (`w-11`) inside a `stretch`-aligned column flex
+ * container doesn't get centered, it falls back to flush-left with all
+ * the leftover space on the right — which is exactly the "no gap on
+ * the right of the icons" / "icons don't line up with the logo or the
+ * Collapse button" bug Oliver saw. Fix: branch on the JS `collapsed`
+ * prop explicitly (`items-center` unconditionally when collapsed,
+ * regardless of viewport) instead of leaning on the `sm:` breakpoint
+ * alone, so the collapsed desktop rail centers exactly like the mobile
+ * rail always has.
+ *
  * Split into NavBar (server, reads the session cookie) + this client
  * component — usePathname needs a client component, but resolving the
  * session cookie needs a server one; the server wrapper passes down
@@ -375,7 +391,10 @@ export function NavBarClient({
       {isManager && (
         <nav
           aria-label="Sections"
-          className="flex-1 overflow-y-auto flex flex-col items-center sm:items-stretch gap-1 px-1 sm:px-2 py-2"
+          className={
+            "flex-1 overflow-y-auto flex flex-col gap-1 py-2 " +
+            (collapsed ? "items-center px-1" : "items-center sm:items-stretch px-1 sm:px-2")
+          }
         >
           {MANAGER_NAV_ITEMS.map((item) => (
             <NavItem
@@ -392,7 +411,12 @@ export function NavBarClient({
       )}
       {!isManager && <div className="flex-1" />}
 
-      <div className="border-t border-[var(--border)] py-2 px-1 sm:px-2 flex flex-col items-center sm:items-stretch gap-1 shrink-0">
+      <div
+        className={
+          "border-t border-[var(--border)] py-2 flex flex-col gap-1 shrink-0 " +
+          (collapsed ? "items-center px-1" : "items-center sm:items-stretch px-1 sm:px-2")
+        }
+      >
         {isManager && (
           <NavItem
             href={SETTINGS_ITEM.href}
