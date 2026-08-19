@@ -1370,3 +1370,67 @@ export const payrollPeriodEmployeeTotals = sqliteTable("payroll_period_employee_
   totalTip: real("total_tip").notNull().default(0),
   totalCorePayout: real("total_core_payout").notNull().default(0),
 });
+
+/* ---------------------------------------------------------------------- */
+/* Permission System — Foundation (2026-08-19)                             */
+/* Design confirmed 2026-08-17, expanded/finalized/scrutinized 2026-08-18  */
+/* — see project_atlas_permission_system memory for the full spec. This is */
+/* Phase 1 ("Foundation") of a multi-phase build Oliver explicitly chose   */
+/* to sequence first (2026-08-19): the capability schema + Admin-only      */
+/* "Permission and Roles" page. Later phases (not yet built): the          */
+/* server-action capability audit (every lib/actions/*.ts file must be     */
+/* checked against these flags — publishWeek in schedule.ts currently has  */
+/* NO auth check at all, confirmed 2026-08-19), the activation-link/step-  */
+/* up-PIN login rework, the People contact-info/HR-sensitive field tiers,  */
+/* Tip Pool structure tightening, and the Schedule log expansion +         */
+/* Activity Log page. Nothing below is enforced anywhere yet — it's        */
+/* storage + an admin UI to manage it, ready for later phases to read.     */
+/* ---------------------------------------------------------------------- */
+
+// Capability-checkbox model (CONFIRMED design) — NOT a fixed role enum.
+// Each employee account has independently-togglable capability flags,
+// keyed by a stable string (see lib/permissions/capabilities.ts for the
+// registry of valid keys, categories, and which are per-item-expirable).
+// "Partner"/"Floor Manager"/"Assistant Manager"/"Admin"/"Staff" are UX
+// preset BUNDLES applied at grant time (see applyAccountTypePreset in
+// lib/actions/permissions.ts) — not stored anywhere as a binding; only
+// the resulting per-capability rows below are what any auth check ever
+// reads. One row per (employeeId, capabilityKey) — upserted, not
+// deleted, on every change, so a capability's history (when it was
+// granted/revoked/expired) stays reconstructable from permissionGrantLog
+// even after being toggled off. expiresAt is only meaningful for the
+// Financial Auditor subset's per-item-expirable capabilities (see
+// registry) — null means "no expiry" for everything else.
+export const employeeCapabilities = sqliteTable(
+  "employee_capabilities",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    employeeId: integer("employee_id").notNull().references(() => employees.id),
+    capabilityKey: text("capability_key").notNull(),
+    granted: integer("granted", { mode: "boolean" }).notNull().default(false),
+    expiresAt: text("expires_at"), // ISO date string; null = no expiry
+    updatedAt: text("updated_at").notNull().default(sql`(current_timestamp)`),
+  },
+  (t) => ({
+    uniqEmployeeCapability: uniqueIndex("uniq_employee_capability").on(t.employeeId, t.capabilityKey),
+  })
+);
+
+// Every capability grant/revoke, including Admin's own — Oliver was
+// explicit this must be logged ("ล็อกการให้สิทธิ์ไว้ด้วย เผื่อฉันโกง",
+// roughly "log the permission grants too, in case I cheat"). Append-only,
+// never updated/deleted. Not yet surfaced in a viewer page — same pattern
+// as schedule_change_log before its Activity Log viewer existed; this
+// table exists so the audit trail starts accumulating from Phase 1
+// onward, with no retroactive gap once the unified Activity Log page
+// (a later phase) is built to display it.
+export const permissionGrantLog = sqliteTable("permission_grant_log", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  employeeId: integer("employee_id").notNull().references(() => employees.id), // whose capability changed
+  capabilityKey: text("capability_key").notNull(),
+  action: text("action", { enum: ["GRANTED", "REVOKED"] }).notNull(),
+  expiresAt: text("expires_at"), // the expiry value at the moment of this change, if any
+  actingEmployeeId: integer("acting_employee_id").notNull().references(() => employees.id), // the Admin who made the change
+  note: text("note"), // e.g. "applied Floor Manager preset" for bulk preset-apply actions
+  occurredAt: text("occurred_at").notNull().default(sql`(current_timestamp)`),
+});
