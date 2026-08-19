@@ -247,6 +247,13 @@ export const staffSessions = sqliteTable("staff_sessions", {
   employeeId: integer("employee_id").notNull().references(() => employees.id),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
   expiresAt: text("expires_at").notNull(),
+  // 30-minute inactivity auto-logout (confirmed 2026-08-18, see
+  // project memory "Atlas Session Security"): updated on real activity
+  // (page loads / server actions), throttled — see
+  // lib/auth/idleTimeout.ts. Checked alongside expiresAt in
+  // resolveSessionToken; a session is only valid within BOTH the 30-min
+  // idle window and the 14h hard cap, whichever is stricter.
+  lastActivityAt: text("last_activity_at").notNull().default(sql`(current_timestamp)`),
 });
 
 // Single-row settings table (restaurantId reserved for future multi-tenant use).
@@ -1189,7 +1196,7 @@ export const cardTransactions = sqliteTable("card_transactions", {
 // resolved 2026-08-11, confirmed self-service/no-approval on 2026-08-16
 // before building. Oliver's framing: by the time an employee logs one of
 // these, they've usually already told the manager informally ("Manager
-// คะ หนูไปเที่ยวแล้วค่ะ") -- this isn't an approval gate, it's a way to
+// คะ หนูตไปเที่ยวแล้วค่ะ") -- this isn't an approval gate, it's a way to
 // PUSH that already-agreed absence into a log/calendar so the manager
 // doesn't forget. Any employee can create their own row (see
 // submitLeaveRequest in lib/actions/leave.ts); there's no status field
