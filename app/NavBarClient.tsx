@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { logout } from "@/lib/actions/auth";
 import { Avatar } from "@/components/ui/Avatar";
 import { useNavCollapse } from "./NavCollapseContext";
@@ -19,7 +20,7 @@ import {
   LoginIcon,
   ChevronDownIcon,
 } from "@/components/ui/icons";
-import type { ComponentType, SVGProps } from "react";
+import type { ComponentType, ReactNode, SVGProps } from "react";
 
 type IconType = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -80,21 +81,63 @@ function UnseenBadge({ count, corner, collapsed }: { count: number; corner?: boo
  * for mouse users, and a WCAG gap for keyboard users since aria-label
  * alone produces no visible focus indicator of *what* the icon is).
  * Reuses the same card/border/shadow tokens as the account-menu popover
- * rather than inventing a new component. Rendered only when the parent
- * row is in its collapsed/icon-only state, and only shown at sm+ widths
- * — the mobile rail is a separate, deliberately always-icon-only design
- * with no hover concept to serve (see NavItem doc comment above), and
- * relies on aria-label alone by design. Parent element needs `group
- * relative` for the hover/focus-visible + positioning to work. */
-function CollapsedTooltip({ label }: { label: string }) {
-  return (
-    <span
-      role="tooltip"
-      className="pointer-events-none absolute left-full top-1/2 z-30 ml-2 hidden -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-[12px] font-medium text-[var(--ink-900)] opacity-0 shadow-[var(--shadow-2)] transition-opacity duration-100 sm:block group-hover:opacity-100 group-focus-visible:opacity-100"
-    >
-      {label}
-    </span>
-  );
+ * rather than inventing a new component.
+ *
+ * Portal-rendered to document.body with a JS-computed fixed position,
+ * NOT a plain CSS absolute/group-hover span — the main nav list sits in
+ * a `overflow-y-auto` scroll container (needed for long lists on short
+ * viewports), and CSS overflow clips any positioned descendant that
+ * extends past its edge, including one positioned via `left-full`. A
+ * first pass using group-hover/absolute rendered at opacity:1 in the
+ * DOM (confirmed via computed-style inspection) but was invisibly
+ * clipped by that ancestor — caught by re-checking the deployed fix
+ * live rather than trusting the code-level checks alone. Escaping via
+ * a portal + `position: fixed` sidesteps the clipping entirely.
+ *
+ * `active` gates whether this even attaches listeners/renders anything
+ * — false for every row when the sidebar is expanded (the text label is
+ * already visible inline, no tooltip needed) or on the mobile rail
+ * (deliberately always icon-only with no hover concept to serve, see
+ * NavItem doc comment above; the desktop-collapsed toggle intentionally
+ * doesn't affect mobile's own icon-only rendering — see NavItem's
+ * `collapsed` prop usage). */
+function useCollapsedTooltip<T extends HTMLElement>(label: string, active: boolean) {
+  const ref = useRef<T | null>(null);
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!open || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setPos({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+  }, [open]);
+
+  if (!active) {
+    return { ref, handlers: {}, tooltip: null as ReactNode };
+  }
+
+  const handlers = {
+    onMouseEnter: () => setOpen(true),
+    onMouseLeave: () => setOpen(false),
+    onFocus: () => setOpen(true),
+    onBlur: () => setOpen(false),
+  };
+
+  const tooltip =
+    open && pos && typeof document !== "undefined"
+      ? createPortal(
+          <span
+            role="tooltip"
+            style={{ top: pos.top, left: pos.left }}
+            className="pointer-events-none fixed z-30 hidden -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-[12px] font-medium text-[var(--ink-900)] shadow-[var(--shadow-2)] sm:block"
+          >
+            {label}
+          </span>,
+          document.body
+        )
+      : null;
+
+  return { ref, handlers, tooltip };
 }
 
 /** One nav row. Labeled appearance (desktop sidebar, expanded — >= sm and
@@ -127,30 +170,35 @@ function NavItem({
   const sizeClasses = collapsed
     ? "mx-auto w-11 h-11 justify-center px-0"
     : "mx-auto sm:mx-0 w-11 h-11 sm:w-auto justify-center sm:justify-start px-0 sm:px-3";
+  const { ref: tooltipRef, handlers: tooltipHandlers, tooltip } = useCollapsedTooltip<HTMLAnchorElement>(label, collapsed);
   return (
-    <Link
-      href={href}
-      aria-label={label}
-      aria-current={active ? "page" : undefined}
-      className={
-        "group relative flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] " +
-        sizeClasses +
-        " " +
-        (active
-          ? "bg-[var(--brand-tint)] text-[var(--brand)]"
-          : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
-      }
-    >
-      <Icon className="w-[18px] h-[18px] shrink-0" />
-      <span className={collapsed ? "hidden" : "hidden sm:inline"}>{label}</span>
-      {typeof badgeCount === "number" && badgeCount > 0 && (
-        <>
-          <UnseenBadge count={badgeCount} collapsed={collapsed} />
-          <UnseenBadge count={badgeCount} corner collapsed={collapsed} />
-        </>
-      )}
-      {collapsed && <CollapsedTooltip label={label} />}
-    </Link>
+    <>
+      <Link
+        href={href}
+        ref={tooltipRef}
+        aria-label={label}
+        aria-current={active ? "page" : undefined}
+        className={
+          "relative flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] " +
+          sizeClasses +
+          " " +
+          (active
+            ? "bg-[var(--brand-tint)] text-[var(--brand)]"
+            : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
+        }
+        {...tooltipHandlers}
+      >
+        <Icon className="w-[18px] h-[18px] shrink-0" />
+        <span className={collapsed ? "hidden" : "hidden sm:inline"}>{label}</span>
+        {typeof badgeCount === "number" && badgeCount > 0 && (
+          <>
+            <UnseenBadge count={badgeCount} collapsed={collapsed} />
+            <UnseenBadge count={badgeCount} corner collapsed={collapsed} />
+          </>
+        )}
+      </Link>
+      {tooltip}
+    </>
   );
 }
 
@@ -163,21 +211,26 @@ function NavItem({
  * which direction the action goes: pointing toward the edge the sidebar
  * will collapse into when expanded, pointing back out when collapsed. */
 function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+  const { ref: tooltipRef, handlers: tooltipHandlers, tooltip } = useCollapsedTooltip<HTMLButtonElement>("Expand", collapsed);
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-      aria-pressed={collapsed}
-      className={
-        "group relative hidden sm:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)] " +
-        (collapsed ? "w-11 mx-auto justify-center px-0" : "w-auto justify-start px-3 mx-2")
-      }
-    >
-      <ChevronDownIcon className={"w-[18px] h-[18px] shrink-0 " + (collapsed ? "-rotate-90" : "rotate-90")} />
-      {!collapsed && <span>Collapse</span>}
-      {collapsed && <CollapsedTooltip label="Expand" />}
-    </button>
+    <>
+      <button
+        type="button"
+        ref={tooltipRef}
+        onClick={onToggle}
+        aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+        aria-pressed={collapsed}
+        className={
+          "relative hidden sm:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)] " +
+          (collapsed ? "w-11 mx-auto justify-center px-0" : "w-auto justify-start px-3 mx-2")
+        }
+        {...tooltipHandlers}
+      >
+        <ChevronDownIcon className={"w-[18px] h-[18px] shrink-0 " + (collapsed ? "-rotate-90" : "rotate-90")} />
+        {!collapsed && <span>Collapse</span>}
+      </button>
+      {tooltip}
+    </>
   );
 }
 
@@ -271,6 +324,17 @@ export function NavBarClient({
     ? "mx-auto w-11 h-11 justify-center px-0"
     : "mx-auto sm:mx-0 w-11 h-11 sm:w-auto justify-center sm:justify-start px-0 sm:px-3";
 
+  const {
+    ref: accountTooltipRef,
+    handlers: accountTooltipHandlers,
+    tooltip: accountTooltip,
+  } = useCollapsedTooltip<HTMLButtonElement>(auth?.name ?? "Account", collapsed && !!auth);
+  const {
+    ref: loginTooltipRef,
+    handlers: loginTooltipHandlers,
+    tooltip: loginTooltip,
+  } = useCollapsedTooltip<HTMLAnchorElement>("Staff Login", collapsed && !auth);
+
   return (
     <aside
       className={
@@ -342,13 +406,15 @@ export function NavBarClient({
           <div className="relative" ref={menuRef}>
             <button
               type="button"
+              ref={accountTooltipRef}
               onClick={() => setMenuOpen((v) => !v)}
               aria-label={`${auth.name} — account menu`}
               aria-expanded={menuOpen}
               className={
-                "group relative flex items-center gap-2.5 rounded-[var(--radius-md)] hover:bg-[var(--paper)] transition-colors " +
+                "flex items-center gap-2.5 rounded-[var(--radius-md)] hover:bg-[var(--paper)] transition-colors " +
                 navItemSizeClasses
               }
+              {...accountTooltipHandlers}
             >
               <Avatar name={auth.name} size={32} />
               <span className={(collapsed ? "hidden" : "hidden sm:flex") + " flex-col items-start leading-tight overflow-hidden min-w-0"}>
@@ -359,8 +425,8 @@ export function NavBarClient({
                   {auth.systemRole === "STAFF" ? "Staff" : "Manager"}
                 </span>
               </span>
-              {collapsed && <CollapsedTooltip label={auth.name} />}
             </button>
+            {accountTooltip}
             {menuOpen && (
               <>
                 {/* Invisible full-screen backdrop so the menu reliably
@@ -411,23 +477,27 @@ export function NavBarClient({
             )}
           </div>
         ) : (
-          <Link
-            href="/login"
-            aria-label="Staff Login"
-            aria-current={pathname === "/login" ? "page" : undefined}
-            className={
-              "group relative flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] " +
-              navItemSizeClasses +
-              " " +
-              (pathname === "/login"
-                ? "bg-[var(--brand-tint)] text-[var(--brand)]"
-                : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
-            }
-          >
-            <LoginIcon className="w-[18px] h-[18px] shrink-0" />
-            <span className={collapsed ? "hidden" : "hidden sm:inline"}>Staff Login</span>
-            {collapsed && <CollapsedTooltip label="Staff Login" />}
-          </Link>
+          <>
+            <Link
+              href="/login"
+              ref={loginTooltipRef}
+              aria-label="Staff Login"
+              aria-current={pathname === "/login" ? "page" : undefined}
+              className={
+                "relative flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] " +
+                navItemSizeClasses +
+                " " +
+                (pathname === "/login"
+                  ? "bg-[var(--brand-tint)] text-[var(--brand)]"
+                  : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
+              }
+              {...loginTooltipHandlers}
+            >
+              <LoginIcon className="w-[18px] h-[18px] shrink-0" />
+              <span className={collapsed ? "hidden" : "hidden sm:inline"}>Staff Login</span>
+            </Link>
+            {loginTooltip}
+          </>
         )}
       </div>
     </aside>
