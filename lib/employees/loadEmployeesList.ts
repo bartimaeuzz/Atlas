@@ -27,6 +27,7 @@ export interface EmployeeWageRateRow {
 export interface EmployeePersonalInfo {
   dateOfBirth: string | null;
   mobilePhone: string | null;
+  email: string | null;
   addressLine1: string | null;
   addressLine2: string | null;
   city: string | null;
@@ -199,6 +200,7 @@ export async function loadEmployeeForEdit(employeeId: number, viewerIsAdmin: boo
       ? {
           dateOfBirth: employee.dateOfBirth,
           mobilePhone: employee.mobilePhone,
+          email: employee.email,
           addressLine1: employee.addressLine1,
           addressLine2: employee.addressLine2,
           city: employee.city,

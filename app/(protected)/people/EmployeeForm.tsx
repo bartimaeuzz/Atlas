@@ -193,6 +193,16 @@ export function EmployeeForm({
             </div>
           </div>
           <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Email</label>
+            <input
+              type="email"
+              name="email"
+              defaultValue={existing?.personalInfo?.email ?? ""}
+              placeholder="name@example.com"
+              className="border rounded px-3 py-2 text-sm w-full max-w-sm"
+            />
+          </div>
+          <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Address line 1</label>
             <input
               type="text"
@@ -259,7 +269,7 @@ export function EmployeeForm({
         </fieldset>
       ) : (
         <p className="text-xs text-neutral-500 border rounded p-3 bg-neutral-50">
-          Date of birth, address, phone, and SSN/ITIN are only visible to Admin accounts.
+          Date of birth, address, phone, email, and SSN/ITIN are only visible to Admin accounts.
         </p>
       )}
 

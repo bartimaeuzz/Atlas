@@ -127,6 +127,18 @@ export const employees = sqliteTable("employees", {
   // filing; this app does not attempt to validate or distinguish the two.
   dateOfBirth: text("date_of_birth"), // ISO date string
   mobilePhone: text("mobile_phone"),
+  // Email (2026-08-19) — added as a prerequisite for the confirmed-but-
+  // not-yet-built Permission System's "Contact-info tier" (mobile phone,
+  // email, DOB — open to Floor Manager and above once the capability
+  // system exists; see project_atlas_permission_system memory). Same
+  // stopgap access model as the rest of this personal-info block for now:
+  // nullable, not backfilled, gated Admin-only at the application layer
+  // (requireManagerAction + isAdminSession in lib/actions/employees.ts)
+  // until that capability tier is actually built. No uniqueness
+  // constraint and no format validation deliberately -- this is a plain
+  // contact field, not a login credential (that's loginId, a separate
+  // system per project_atlas_people_login_id memory).
+  email: text("email"),
   addressLine1: text("address_line1"),
   addressLine2: text("address_line2"),
   city: text("city"),

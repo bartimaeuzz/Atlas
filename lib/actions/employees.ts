@@ -105,6 +105,7 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[], includeS
   }
   const dateOfBirth = optionalTrimmed("dateOfBirth");
   const mobilePhone = optionalTrimmed("mobilePhone");
+  const email = optionalTrimmed("email");
   const addressLine1 = optionalTrimmed("addressLine1");
   const addressLine2 = optionalTrimmed("addressLine2");
   const city = optionalTrimmed("city");
@@ -150,6 +151,7 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[], includeS
     legalLastName,
     dateOfBirth,
     mobilePhone,
+    email,
     addressLine1,
     addressLine2,
     city,
@@ -177,6 +179,7 @@ function sensitiveFieldsOrUndefined(parsed: ReturnType<typeof readEmployeeForm>,
   return {
     dateOfBirth: parsed.dateOfBirth,
     mobilePhone: parsed.mobilePhone,
+    email: parsed.email,
     addressLine1: parsed.addressLine1,
     addressLine2: parsed.addressLine2,
     city: parsed.city,
