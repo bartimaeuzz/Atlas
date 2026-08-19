@@ -255,21 +255,39 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
  * layout.tsx) rather than localStorage specifically so the first
  * server-rendered paint is already correct — no flash, no mismatch.
  *
- * `<nav>`/bottom-icons horizontal alignment (fixed 2026-08-19, Oliver
- * caught it from a live screenshot): can't use a flat `items-center
- * sm:items-stretch` on those two flex containers, because `sm:` is a
- * viewport-width breakpoint, not a `collapsed`-state check — a
- * *desktop-width* collapsed sidebar would still get `sm:items-stretch`
- * even though it should behave like the always-centered mobile rail.
- * A fixed-width child (`w-11`) inside a `stretch`-aligned column flex
- * container doesn't get centered, it falls back to flush-left with all
- * the leftover space on the right — which is exactly the "no gap on
- * the right of the icons" / "icons don't line up with the logo or the
- * Collapse button" bug Oliver saw. Fix: branch on the JS `collapsed`
- * prop explicitly (`items-center` unconditionally when collapsed,
- * regardless of viewport) instead of leaning on the `sm:` breakpoint
- * alone, so the collapsed desktop rail centers exactly like the mobile
- * rail always has.
+ * `<nav>`/bottom-icons horizontal alignment (2026-08-19, Oliver caught it
+ * from a live screenshot — took two passes to actually fix, see below):
+ *
+ * First pass swapped a flat `items-center sm:items-stretch` for a branch
+ * on the JS `collapsed` prop, since `sm:` is a viewport-width breakpoint
+ * and doesn't know about `collapsed` — a *desktop-width* collapsed
+ * sidebar was still getting `sm:items-stretch`. That was real, but
+ * shipping and re-checking it live (commit 5176147) showed the icons
+ * were STILL flush against the rail's right edge with no gap — the
+ * actual bug was one level deeper and this alone didn't fix it.
+ *
+ * Real cause: the collapsed rail is 48px (`w-12`) with a 1px right
+ * border, so 47px of interior width is available. Each icon-only
+ * `NavItem`/`CollapseToggle`/account button is 44px (`w-11 h-11`) and
+ * centers itself via its own `mx-auto` — but the `<nav>`/bottom-icons
+ * containers additionally had `px-1` (4px each side) on top of that,
+ * leaving only 47 - 8 = 39px of content box for a 44px child. A child
+ * wider than its content box can't be centered by auto margins — the
+ * browser has no negative space to distribute, so the margins resolve
+ * to 0 and the child sits flush at the content box's start edge, which
+ * happens to be flush against the rail's own right border. `items-center`
+ * on the container never mattered here; `mx-auto` on the child was
+ * always what did the centering, and it silently failed under overflow.
+ * (The same `px-1` was present on the always-icon-only mobile rail too,
+ * via the shared non-`sm:` base classes — same latent bug there, just
+ * less visually obvious at that width; this fix covers both.)
+ *
+ * Fix: drop that redundant `px-1`/`px-0 pb-1` padding to `px-0` on the
+ * icon-only rail (both the collapsed-desktop branch and the shared
+ * mobile-width base), so the icon's own `mx-auto` has the full 47px to
+ * center 44px within — a small, even ~1.5px gap on each side, matching
+ * how the header's "A" logo (`px-0`, `justify-center`) already centers
+ * cleanly in the same rail width.
  *
  * Split into NavBar (server, reads the session cookie) + this client
  * component — usePathname needs a client component, but resolving the
@@ -384,7 +402,7 @@ export function NavBarClient({
         </Link>
       </div>
 
-      <div className={collapsed ? "px-1 pb-1" : "px-1 sm:px-2 pb-1"}>
+      <div className={collapsed ? "px-0 pb-1" : "px-1 sm:px-2 pb-1"}>
         <CollapseToggle collapsed={collapsed} onToggle={toggle} />
       </div>
 
@@ -393,7 +411,7 @@ export function NavBarClient({
           aria-label="Sections"
           className={
             "flex-1 overflow-y-auto flex flex-col gap-1 py-2 " +
-            (collapsed ? "items-center px-1" : "items-center sm:items-stretch px-1 sm:px-2")
+            (collapsed ? "items-center px-0" : "items-center sm:items-stretch px-0 sm:px-2")
           }
         >
           {MANAGER_NAV_ITEMS.map((item) => (
@@ -414,7 +432,7 @@ export function NavBarClient({
       <div
         className={
           "border-t border-[var(--border)] py-2 flex flex-col gap-1 shrink-0 " +
-          (collapsed ? "items-center px-1" : "items-center sm:items-stretch px-1 sm:px-2")
+          (collapsed ? "items-center px-0" : "items-center sm:items-stretch px-0 sm:px-2")
         }
       >
         {isManager && (
