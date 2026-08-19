@@ -1,0 +1,1 @@
+ALTER TABLE `staff_sessions` ADD `last_activity_at` text DEFAULT (current_timestamp) NOT NULL;
