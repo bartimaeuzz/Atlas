@@ -196,4 +196,59 @@ Finalize and confirmed the shift became `finalized` with exactly 1
 calculation row + 8 payout rows, and the locked totals matched the preview
 exactly. 30 tests still passing (calc engine itself didn't change).
 
-END_OF_FIFTH_CHUNK_TEST
+## Host drink bonus wired into the persisted flow (2026-08-09) — first real use of the Metrics engine
+
+Closed the gap noted below (kept for history) — this was the first concrete
+slice of the "generic Metrics + Incentive Rules engine" (schema existed
+since the original Track 2 design, zero logic/UI until now). Deliberately
+used only the engine's storage layer (`MetricDefinition`, `MetricValue`)
+plus a small new `positionMetrics` join table, not the full
+`IncentiveRule`/conditions/targets/weights evaluator — the reward math
+(drink count × $/drink, pulled off Pool 1's top, capped by the pool itself)
+was already correct and tested in `tipPool.ts`'s `HostDrinkBonusEntry`
+mechanism; re-deriving it generically added risk without adding value yet.
+Full rule evaluation stays deferred until a second bonus scenario (BOH
+sales-split, Manager weekly token) is actually being built — see the START
+HERE section's deferred list.
+
+- **`positionMetrics`** (new table): which positions are eligible to have a
+  given EMPLOYEE_SHIFT metric collected — e.g. Host ↔ `host_qualifying_drink_count`.
+  Generic on purpose: a future bonus metric just needs new rows here, not
+  new closing-report page code. Also replaced a `positionName.startsWith("Host")`
+  hack that lived in the playground calculator (`CalculatorForm.tsx`) — both
+  the real closing report and the playground now read eligibility from the
+  same source.
+- **`RestaurantSettings.hostDrinkBonusPerDrinkAmount`** (new, default 0,
+  Youk Thai seeded to $1.00) — restaurant-configurable $/drink rate.
+- **Closing Report** gets a new "Bonus metrics" section — generic loop over
+  enabled EMPLOYEE_SHIFT metrics × eligible roster rows (today just Host's
+  drink count; a future metric grows this section automatically). Saves
+  into the existing `metricValues` table, same upsert pattern as the
+  existing "Tip points" section.
+- **`finalizeShift.ts`** no longer passes a hardcoded empty `hostDrinkBonus`
+  array — `computeFinalizationPreview.ts` now resolves it from saved
+  `metricValues` × the per-drink rate. `FinalizeEmployeePayout` gained
+  `hostUpsellTipShare` (reusing an existing-but-previously-unused
+  `EmployeePayout` column name — unrelated to the older, still-dead
+  `HostUpsellTipRecord` table, which stores dollar amounts not a drink
+  count and remains unused tech debt from before this round).
+- **Preview + Summary Report** both render the bonus now: a "Host drink
+  bonus (pulled off Pool 1 top)" line when nonzero, and a per-employee
+  "Drink bonus" column in the payout table.
+- 32 tests total (was 30) — two new tests: the bonus flowing through
+  end-to-end additively (host gets their normal Pool 1 share PLUS the flat
+  bonus, not either/or), and a bonus larger than the pool throwing the
+  existing friendly error instead of silently clamping.
+- Verified directly against the real DB: saved a drink count for Erika via
+  the same code path the closing-report form uses, confirmed the Preview
+  page computes the bonus correctly with zero DB writes, then finalized and
+  confirmed the locked `EmployeePayout`/`TipPoolCalculation` rows match
+  exactly. Also verified `loadClosingReportData` only surfaces Host as
+  eligible for the metric (not the whole roster).
+
+**Original gap note, kept for history:** the host cocktail/mocktail drink
+bonus (qualifying-drink-count × $/drink, pulled off the top of Pool 1)
+existed in `lib/calc/tipPool.ts` and the playground calculator, but wasn't
+captured anywhere in the persisted closing-report flow — `finalizeShift`
+always passed an empty bonus list. No schema field held "qualifying drink
+count" for a real saved shift. Resolved above.
