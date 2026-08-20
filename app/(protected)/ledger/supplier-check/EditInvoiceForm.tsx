@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { editSupplierInvoice } from "@/lib/actions/supplierCheck";
+import { TextInput } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
 
 /** Shared inline "fix a typo or wrong amount" form (2026-08-15, Oliver's
  * ask) -- used both for a still-Pending invoice (PendingByVendor.tsx, no
@@ -74,76 +77,52 @@ export function EditInvoiceForm({
   }
 
   return (
-    <div className="border rounded p-2.5 bg-white space-y-2 text-xs">
+    <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--card)] space-y-2 text-sm">
       <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="block text-neutral-500 mb-0.5">Invoice #</span>
-          <input
-            type="text"
-            value={form.invoiceNumber}
-            onChange={(e) => setForm((f) => ({ ...f, invoiceNumber: e.target.value }))}
-            className="border rounded px-2 py-1 w-full"
-          />
-        </label>
-        <label className="block">
-          <span className="block text-neutral-500 mb-0.5">Amount</span>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={form.amount}
-            onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-            className="border rounded px-2 py-1 w-full"
-          />
-        </label>
+        <TextInput
+          label="Invoice #"
+          value={form.invoiceNumber}
+          onChange={(e) => setForm((f) => ({ ...f, invoiceNumber: e.target.value }))}
+        />
+        <TextInput
+          type="number"
+          label="Amount"
+          step="0.01"
+          min="0"
+          value={form.amount}
+          onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+        />
       </div>
-      <label className="block">
-        <span className="block text-neutral-500 mb-0.5">Description</span>
-        <input
-          type="text"
-          value={form.description}
-          onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-          className="border rounded px-2 py-1 w-full"
-        />
-      </label>
-      <label className="block">
-        <span className="block text-neutral-500 mb-0.5">Reason for this change — logged with the edit</span>
-        <input
-          type="text"
-          value={form.reason}
-          onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
-          placeholder="e.g. amount was a typo, should be $45 not $54"
-          className="border rounded px-2 py-1 w-full"
-        />
-      </label>
+      <TextInput
+        label="Description"
+        value={form.description}
+        onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+      />
+      <TextInput
+        label="Reason for this change — logged with the edit"
+        value={form.reason}
+        onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
+        placeholder="e.g. amount was a typo, should be $45 not $54"
+      />
       {requireAuditorCode && (
-        <label className="block">
-          <span className="block text-neutral-500 mb-0.5">
-            Financial auditor&apos;s code — required to confirm a change to an already printed/paid check
-          </span>
-          <input
-            type="password"
-            inputMode="numeric"
-            value={form.auditorCode}
-            onChange={(e) => setForm((f) => ({ ...f, auditorCode: e.target.value }))}
-            className="border rounded px-2 py-1 w-full max-w-[120px]"
-            placeholder="4-digit code"
-          />
-        </label>
+        <TextInput
+          type="password"
+          inputMode="numeric"
+          label="Financial auditor's code — required to confirm a change to an already printed/paid check"
+          value={form.auditorCode}
+          onChange={(e) => setForm((f) => ({ ...f, auditorCode: e.target.value }))}
+          className="max-w-[140px]"
+          placeholder="4-digit code"
+        />
       )}
-      {error && <p className="text-red-600">{error}</p>}
+      {error && <Banner tone="danger" title={error} />}
       <div className="flex items-center gap-2 pt-1">
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={handleSave}
-          className="bg-black text-white px-3 py-1.5 rounded hover:bg-neutral-800 disabled:opacity-50"
-        >
+        <Button type="button" size="sm" loading={isPending} onClick={handleSave}>
           {isPending ? "Saving…" : "Save"}
-        </button>
-        <button type="button" onClick={onDone} className="text-neutral-500 hover:text-black px-2 py-1.5">
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onDone}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   );

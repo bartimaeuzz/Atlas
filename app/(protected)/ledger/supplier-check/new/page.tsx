@@ -11,11 +11,11 @@ export default async function NewSupplierInvoicePage() {
   const [vendors, categories] = await Promise.all([loadLedgerVendors(), loadLedgerCategories()]);
 
   return (
-    <main className="max-w-lg mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/ledger/supplier-check" className="text-sm text-neutral-500 hover:text-black">
+    <main className="max-w-lg mx-auto p-4 sm:p-8">
+      <Link href="/ledger/supplier-check" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Supplier
       </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-4">Log an invoice</h1>
+      <h1 className="text-2xl font-bold text-[var(--ink-900)] mt-2 mb-4">Log an invoice</h1>
       <LogInvoiceForm vendors={vendors} categories={categories} />
     </main>
   );

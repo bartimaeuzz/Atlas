@@ -4,6 +4,10 @@ import { useState, useTransition } from "react";
 import { deletePendingInvoice } from "@/lib/actions/supplierCheck";
 import type { VendorPendingGroup } from "@/lib/ledger/loadSupplierCheck";
 import { EditInvoiceForm } from "./EditInvoiceForm";
+import { Card } from "@/components/ui/Card";
+import { XIcon } from "@/components/ui/icons";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { formatMoney } from "../formatMoney";
 
 /** One vendor's not-yet-checked invoices -- read-only reference plus the
  * ability to edit a typo/wrong amount (2026-08-15) or delete a
@@ -18,13 +22,13 @@ export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
   const [editingId, setEditingId] = useState<number | null>(null);
 
   return (
-    <div className="border rounded p-3">
+    <Card className="!p-3">
       <div className="flex items-center justify-between mb-2">
-        <span className="font-medium text-sm">{group.vendorName}</span>
-        <span className="text-xs text-neutral-500">${group.totalPending.toFixed(2)} pending</span>
+        <span className="font-medium text-sm text-[var(--ink-900)]">{group.vendorName}</span>
+        <span className="text-xs tabular-nums text-[var(--ink-500)]">{formatMoney(group.totalPending)} pending</span>
       </div>
 
-      <ul className="divide-y text-sm">
+      <ul className="divide-y divide-[var(--border)] text-sm">
         {group.invoices.map((inv) => (
           <li key={inv.id} className="py-2">
             {editingId === inv.id ? (
@@ -39,20 +43,20 @@ export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
             ) : (
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <div className="font-medium">
-                    #{inv.invoiceNumber} <span className="text-neutral-500 font-normal">· {inv.categoryName}</span>
+                  <div className="font-medium text-[var(--ink-900)]">
+                    #{inv.invoiceNumber} <span className="text-[var(--ink-500)] font-normal">· {inv.categoryName}</span>
                   </div>
-                  {inv.description && <div className="text-neutral-500 text-xs">{inv.description}</div>}
-                  <div className="text-neutral-400 text-[11px]">
+                  {inv.description && <div className="text-[var(--ink-500)] text-xs">{inv.description}</div>}
+                  <div className="text-[var(--ink-500)] opacity-75 text-[11px]">
                     {inv.receivedDate} · logged by {inv.createdByName}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="font-medium">${inv.amount.toFixed(2)}</span>
+                  <span className="font-medium tabular-nums text-[var(--ink-900)]">{formatMoney(inv.amount)}</span>
                   <button
                     type="button"
                     onClick={() => setEditingId(inv.id)}
-                    className="text-neutral-400 hover:text-black text-xs underline"
+                    className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] text-xs underline ${TAP_TARGET_PAD}`}
                   >
                     Edit
                   </button>
@@ -60,10 +64,10 @@ export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
                     type="button"
                     disabled={isDeleting}
                     onClick={() => startDelete(() => deletePendingInvoice(inv.id))}
-                    className="text-neutral-400 hover:text-red-600 disabled:opacity-50"
+                    className={`text-[var(--ink-500)] hover:text-[var(--danger)] disabled:opacity-50 ${TAP_TARGET_PAD}`}
                     aria-label={`Remove invoice ${inv.invoiceNumber}`}
                   >
-                    &times;
+                    <XIcon width={16} height={16} />
                   </button>
                 </div>
               </div>
@@ -71,6 +75,6 @@ export function PendingByVendor({ group }: { group: VendorPendingGroup }) {
           </li>
         ))}
       </ul>
-    </div>
+    </Card>
   );
 }

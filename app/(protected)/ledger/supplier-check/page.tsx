@@ -6,6 +6,10 @@ import { LedgerTabs } from "../LedgerTabs";
 import { PendingByVendor } from "./PendingByVendor";
 import { ChecksTable } from "./ChecksTable";
 import { PrintChecksButton } from "./PrintChecksButton";
+import { PageHeader } from "@/components/ui/Card";
+import { LinkButton } from "@/components/ui/Button";
+import { Tab } from "@/components/ui/Tabs";
+import { formatMoney } from "../formatMoney";
 
 /** Month helpers, same shape as /ledger/page.tsx's (kept local rather
  * than shared -- matches that file's own precedent of each page owning
@@ -93,25 +97,21 @@ export default async function SupplierCheckPage({
   const canEditLockedInvoices = session ? session.systemRole === "ADMIN" || session.isFinancialAuditor : false;
 
   return (
-    <main className="max-w-lg mx-auto p-4 sm:p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-1">Ledger</h1>
-      <p className="text-neutral-500 text-sm mb-4">Invoice-based vendor payments, settled by check.</p>
+    <main className="max-w-lg mx-auto p-4 sm:p-8">
+      <PageHeader title="Ledger" description="Invoice-based vendor payments, settled by check." />
 
       <LedgerTabs active="supplier" />
 
       <div className="flex items-center justify-between gap-3 mb-6">
-        <Link
-          href="/ledger/supplier-check/new"
-          className="px-4 py-2 rounded bg-black text-white text-sm hover:bg-neutral-800"
-        >
+        <LinkButton href="/ledger/supplier-check/new" size="sm">
           + Add item
-        </Link>
+        </LinkButton>
         <PrintChecksButton groups={pendingGroups} />
       </div>
 
       {pendingGroups.length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-neutral-600 mb-2">Not yet checked</h2>
+          <h2 className="text-sm font-semibold text-[var(--ink-700)] mb-2">Not yet checked</h2>
           <div className="space-y-4 mb-6">
             {pendingGroups.map((g) => (
               <PendingByVendor key={g.vendorId} group={g} />
@@ -121,20 +121,14 @@ export default async function SupplierCheckPage({
       )}
 
       <div className="flex items-center justify-between gap-3 mb-2">
-        <h2 className="text-sm font-semibold text-neutral-600">Checks</h2>
-        <div className="flex items-center gap-1 text-sm">
-          <Link
-            href={`/ledger/supplier-check?view=week&week=${weekStart}`}
-            className={`px-3 py-1.5 rounded ${view === "week" ? "bg-black text-white" : "text-neutral-500 hover:bg-neutral-100"}`}
-          >
+        <h2 className="text-sm font-semibold text-[var(--ink-700)]">Checks</h2>
+        <div className="flex items-center gap-2 text-sm">
+          <Tab href={`/ledger/supplier-check?view=week&week=${weekStart}`} active={view === "week"}>
             Week
-          </Link>
-          <Link
-            href={`/ledger/supplier-check?view=month&month=${month}`}
-            className={`px-3 py-1.5 rounded ${view === "month" ? "bg-black text-white" : "text-neutral-500 hover:bg-neutral-100"}`}
-          >
+          </Tab>
+          <Tab href={`/ledger/supplier-check?view=month&month=${month}`} active={view === "month"}>
             Month
-          </Link>
+          </Tab>
         </div>
       </div>
 
@@ -145,25 +139,25 @@ export default async function SupplierCheckPage({
               ? `/ledger/supplier-check?view=week&week=${shiftWeek(weekStart, -1)}`
               : `/ledger/supplier-check?view=month&month=${shiftMonth(month, -1)}`
           }
-          className="text-sm text-neutral-500 hover:text-black"
+          className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]"
         >
           &larr; Prev
         </Link>
-        <span className="font-medium text-sm">{view === "week" ? weekLabel(weekStart) : monthLabel(month)}</span>
+        <span className="font-medium text-sm text-[var(--ink-900)]">{view === "week" ? weekLabel(weekStart) : monthLabel(month)}</span>
         <Link
           href={
             view === "week"
               ? `/ledger/supplier-check?view=week&week=${shiftWeek(weekStart, 1)}`
               : `/ledger/supplier-check?view=month&month=${shiftMonth(month, 1)}`
           }
-          className="text-sm text-neutral-500 hover:text-black"
+          className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]"
         >
           Next &rarr;
         </Link>
       </div>
 
-      <p className="text-sm text-neutral-500 mb-3">
-        {checks.length === 0 ? "No checks in this period." : `${checks.length} check${checks.length === 1 ? "" : "s"} -- $${periodTotal.toFixed(2)} total`}
+      <p className="text-sm text-[var(--ink-500)] mb-3">
+        {checks.length === 0 ? "No checks in this period." : `${checks.length} check${checks.length === 1 ? "" : "s"} -- ${formatMoney(periodTotal)} total`}
       </p>
 
       <ChecksTable checks={checks} canEditLockedInvoices={canEditLockedInvoices} />
