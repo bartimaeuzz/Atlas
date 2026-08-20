@@ -3,6 +3,10 @@
 import { useActionState } from "react";
 import { setEmployeePin } from "@/lib/actions/employees";
 import type { EmployeeActionState } from "@/lib/actions/employees";
+import { Card } from "@/components/ui/Card";
+import { TextInput } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
 
 const initialState: EmployeeActionState = { error: null };
 
@@ -15,39 +19,41 @@ export function SetPinForm({ employeeId, hasPinSet }: { employeeId: number; hasP
   const [state, formAction, isPending] = useActionState(setEmployeePin, initialState);
 
   return (
-    <div className="border rounded p-4">
-      <h2 className="text-sm font-medium mb-1">Staff login PIN</h2>
-      <p className="text-xs text-neutral-500 mb-3">
+    <Card>
+      <h2 className="text-sm font-semibold text-[var(--ink-900)] mb-1">Staff login PIN</h2>
+      <p className="text-xs text-[var(--ink-500)] mb-3">
         {hasPinSet
           ? "A PIN is already set — entering a new one below replaces it."
           : "No PIN set yet — this person can't sign in to their pay view until one is set."}
       </p>
-      <form action={formAction} className="flex items-end gap-2">
+      <form action={formAction} className="flex flex-col sm:flex-row sm:items-end gap-3">
         <input type="hidden" name="employeeId" value={employeeId} />
-        <label className="text-sm flex-1">
-          <span className="block text-neutral-500 mb-1">New PIN (4–8 digits)</span>
-          <input
+        <div className="flex-1">
+          <TextInput
             type="password"
             inputMode="numeric"
             name="pin"
+            label="New PIN (4–8 digits)"
             required
             autoComplete="off"
-            className="border rounded px-2 py-1 w-full tracking-widest"
+            className="tracking-widest"
             placeholder="••••"
           />
-        </label>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="bg-black text-white px-3 py-1.5 rounded hover:bg-neutral-800 disabled:opacity-50 text-sm"
-        >
+        </div>
+        <Button type="submit" loading={isPending}>
           {isPending ? "Saving…" : hasPinSet ? "Reset PIN" : "Set PIN"}
-        </button>
+        </Button>
       </form>
-      {state.error && <p className="text-red-600 text-xs mt-2">{state.error}</p>}
-      {!state.error && !isPending && state !== initialState && (
-        <p className="text-green-700 text-xs mt-2">PIN updated.</p>
+      {state.error && (
+        <div className="mt-3">
+          <Banner tone="danger" title="Couldn't save PIN" description={state.error} />
+        </div>
       )}
-    </div>
+      {!state.error && !isPending && state !== initialState && (
+        <div className="mt-3">
+          <Banner tone="success" title="PIN updated." />
+        </div>
+      )}
+    </Card>
   );
 }

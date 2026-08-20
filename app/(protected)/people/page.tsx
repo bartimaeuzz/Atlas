@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { loadEmployeesList } from "@/lib/employees/loadEmployeesList";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { PeopleTable } from "./PeopleTable";
+import { PageHeader, EmptyState } from "@/components/ui/Card";
+import { LinkButton } from "@/components/ui/Button";
 
 /** Renamed from "Employees" to "People" (2026-08-17, Oliver). Route moved
  * from /employees to /people — old URL still resolves via the redirect
@@ -14,21 +15,15 @@ export default async function PeopleListPage() {
   const viewerIsAdmin = session?.systemRole === "ADMIN";
 
   return (
-    <main className="max-w-4xl mx-auto p-8 font-sans">
-      <div className="flex items-center justify-between mb-2">
-        <h1 className="text-2xl font-semibold">People</h1>
-        <Link href="/people/new" className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 text-sm">
-          + New person
-        </Link>
-      </div>
-      <p className="text-neutral-500 text-sm mb-6">
-        Create and edit staff — which positions they can work, their standing tip point value, and
-        (for BOH) their per-employee wage rate. Retiring someone keeps every past shift they worked
-        intact; it just stops offering them when staffing new ones.
-      </p>
+    <main className="max-w-4xl mx-auto p-6 sm:p-8">
+      <PageHeader
+        title="People"
+        description="Create and edit staff — which positions they can work, their standing tip point value, and (for BOH) their per-employee wage rate. Retiring someone keeps every past shift they worked intact; it just stops offering them when staffing new ones."
+        actions={<LinkButton href="/people/new" size="sm">+ New person</LinkButton>}
+      />
 
       {employeeList.length === 0 ? (
-        <p className="text-neutral-500 text-sm">No one added yet.</p>
+        <EmptyState message="No one added yet." />
       ) : (
         <PeopleTable employeeList={employeeList} viewerIsAdmin={viewerIsAdmin} />
       )}

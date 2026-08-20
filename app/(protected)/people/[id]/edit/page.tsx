@@ -19,17 +19,17 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
   if (!employee) notFound();
 
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
-      <p className="text-sm mb-1">
-        <Link href="/people" className="text-neutral-500 hover:underline">← People</Link>
-      </p>
-      <h1 className="text-2xl font-semibold mb-6">Edit employee — {employee.nickname}</h1>
+    <main className="max-w-2xl mx-auto p-6 sm:p-8">
+      <Link href="/people" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        &larr; People
+      </Link>
+      <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-6">Edit employee — {employee.nickname}</h1>
       <EmployeeForm existing={employee} allPositions={allPositions} viewerIsAdmin={viewerIsAdmin} />
       <div className="mt-6">
         <SetPinForm employeeId={employee.id} hasPinSet={employee.hasPinSet} />
       </div>
       <div className="mt-6 text-sm">
-        <span className="block text-neutral-500 mb-1">Login ID</span>
+        <span className="block text-[var(--ink-500)] mb-1">Login ID</span>
         <GenerateLoginIdControl
           employeeId={employee.id}
           loginId={employee.loginId}
