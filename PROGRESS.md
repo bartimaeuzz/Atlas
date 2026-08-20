@@ -1238,3 +1238,207 @@ on.
 - Auth (systemRole field exists on Employee, no actual login system yet)
 - Deploy to Vercel
 - Validation against real Youk Thai numbers — **partially resolved 2026-08-10**, see below (Oliver provided a real monthly sales/tax export, `MARCH 2026.xlsx`, used to design and verify the sales/tax report feature). `2026 - R.xlsx` (the original closing-report DNA file, for tip/wage validation) still not provided.
+
+## Sales tax fields + sales/tax export report (2026-08-10)
+
+Oliver asked for a report export before doing anything else ("ก่อนจะ Export ได้
+เราต้องมาคุยกันก่อนไหมว่าเราต้องการอะไรบ้าง?") — right call, since this
+surfaced a real gap: Atlas never had a sales-tax field at all. Rather than
+design blind, Oliver shared a real file: an email from Aey (the Youk Thai
+manager) with the actual monthly report she sends — `MARCH 2026.xlsx` — a
+Toast section (daily Net Sale/Tax/Total Sale/Cash/CC/CC Tips/Total Credit)
+and one section per online platform (Grubhub/Uber/DoorDash/HungryPanda,
+each with Net/Tax/Tips/Total).
+
+**Real finding from reviewing that file, confirmed with Oliver using the
+actual numbers:** the file's "CC" and "Total Credit" columns are SWAPPED
+relative to their own labels. Proven directly: every single row satisfies
+`labeled-"Total Credit" + "CC Tips" == labeled-"CC"` (checked across 4+
+days, e.g. Mar 1: 23,528.60 + 4,188.24 = 27,716.84). This means the column
+labeled "CC" is actually the total that hit the card terminal (sales +
+tip combined), and the column labeled "Total Credit" is actually the
+card-sales-only portion (no tip) — the opposite of what the labels say.
+Confirmed with Oliver: the export uses CORRECT labels (`CC Sales`,
+`Total Credit`), not a copy of the swapped original.
+
+Also confirmed with Oliver: `shiftSales.totalSales` has ALWAYS meant Net
+Sale (pre-tax) — nothing about its existing meaning changes, tax is
+purely additive as a new field.
+
+**What shipped:**
+- `restaurantSettings.defaultSalesTaxRate` (seeded 0.08875 — NYC's
+  combined rate, confirmed by checking Tax/NetSale ratio in the real
+  file's data, comes out to exactly 0.08875 on every row). Editable on
+  `/settings`.
+- `shiftSales.salesTax` and `onlinePlatformSalesRecords.taxAmount` —
+  both NULLABLE (same `null = not yet touched` convention as
+  `shiftWageAdjustments.wageOverrideAmount`). `loadClosingReportData.ts`
+  auto-suggests `base × defaultSalesTaxRate` when null, flagged via a new
+  `salesTaxIsAuto`/`taxAmountIsAuto` boolean the UI uses to show "auto-
+  calculated, edit if it differs." Once a manager saves the closing
+  report (even unchanged), that number becomes the explicit, permanent
+  figure for that shift — chose nullable specifically so a legitimate $0
+  entry doesn't get silently overwritten by the auto-suggestion on next
+  load.
+- New `lib/reports/loadSalesTaxReport.ts` — rolls up FINALIZED shifts
+  into daily rows grouped by calendar date (summing Lunch+Dinner, since
+  Atlas's `shifts` table is per-meal-period but Toast/accounting report
+  per day), computing `ccSalesOnly = totalSales - cashSales` and
+  `totalCredit = ccSalesOnly + ccTipTotal` with the corrected semantics
+  above. Same auto-fill-if-null fallback as the closing report, so a
+  report over old/never-revisited shifts still shows a sane tax figure
+  instead of $0.
+- New `/reports` page — preset buttons (This week/month/year) + a custom
+  date-range form, on-page Toast daily table + online-platform range
+  totals, and an "Export .xlsx" link.
+- New `app/reports/export/route.ts` (first Route Handler in this app —
+  needed for the `Content-Disposition` header a server action can't set)
+  + `lib/reports/buildSalesTaxWorkbook.ts` (new `exceljs` dependency) —
+  generates a `.xlsx` laid out like the real MARCH 2026.xlsx (Toast
+  section, then one 4-column block per platform side by side, then
+  online sale/tax totals), correct labels, opens directly in Google
+  Sheets via upload — Oliver's stated normal workflow, no Google API
+  integration needed.
+- Deliberate simplification vs. the original file: every platform gets
+  the same 4 columns (Net/Tax/Tips/Total) — the original inconsistently
+  omitted Tips for Uber, but Atlas tracks tips uniformly across every
+  platform already, so there's no reason to omit it here.
+
+**Verified:**
+- Migration `db/migrations/0003_graceful_shooting_star.sql` (3 new
+  columns across `online_platform_sales_records`, `restaurant_settings`,
+  `shift_sales`).
+- `verify_sales_tax.ts` — auto-suggestion formula matches expected
+  (`totalSales × 0.08875`), flagged auto before any save, and an explicit
+  save with a DELIBERATELY different number is preserved exactly and
+  flagged non-auto on reload (never silently overwritten).
+- `verify_sales_tax_report.ts` — real seeded data (14 finalized shifts,
+  7 days) rolls up to exactly 7 daily rows; every day's `netSale + tax =
+  totalSale` and `ccSalesOnly + ccTips = totalCredit`; daily rows sum
+  exactly to the totals row; online platform totals sum correctly;
+  `buildSalesTaxWorkbook` produces a real, correctly-laid-out `.xlsx`
+  (spot-checked by reading it back with openpyxl).
+- 68 unit tests still passing (tax is reporting-only, doesn't touch the
+  calc engine, so nothing existing changed behavior).
+- `next build` succeeds, no TypeScript errors.
+
+**Not yet run:** `npm run db:migrate` against the live Turso database —
+same order-of-operations as every prior schema change, Oliver migrates
+Turso before pushing this code live.
+
+## Post-deploy fixes: broken dark theme, live sales-tax calc, roster position default (2026-08-10)
+
+Oliver tested the sales-tax + Reports round live (after migrating and
+pushing it himself) and came back with three things.
+
+**Dark theme was unusable.** Screenshot showed a half-black page — real
+bug, not a design choice: `app/globals.css` still had create-next-app's
+default `@media (prefers-color-scheme: dark)` block from day one, flipping
+the body background to near-black whenever the browser/OS is in dark
+mode. Every page in this app is built with hardcoded light-mode Tailwind
+classes (`bg-white` cards, `text-neutral-500`, etc.) with zero `dark:`
+variants anywhere, so the result was a broken half-dark page, not a real
+dark theme. **Fix:** removed the dark-mode media query entirely, added
+`color-scheme: light` to `:root` so native form controls (date pickers,
+etc.) stay light too. Forces light mode always until a real dark theme is
+deliberately designed (would touch every page — not attempted here).
+
+**Sales tax didn't visibly auto-calculate.** The auto-suggestion was only
+ever computed once, server-side, at page load (`loadClosingReportData.ts`)
+— typing a new Total sales value did nothing to the Sales tax field until
+a full reload, which looked broken even though the underlying formula was
+correct. **Fix:** `ClosingReportForm.tsx`'s Total sales / Sales tax pair
+(and each online platform's Sales amount / Sales tax pair, via new
+`PlatformSalesRow` sub-component) are now live client state — Sales tax
+recomputes as the sales figure changes, UNLESS the manager has directly
+edited the Sales tax field themselves (tracked per-field, starts "already
+touched" if a real explicit value was saved before, so reopening a
+filled-in report never silently overwrites a prior manual correction).
+`loadClosingReportData.ts`/`ClosingReportData` now also expose
+`defaultSalesTaxRate` at the top level so the client component has the
+rate to compute with.
+
+**Roster "Add someone" — asked for the Position dropdown to default to
+the picked employee's primary position** ("point at the primary position
+so I don't need to select every time"). `loadRosterPageData.ts`'s
+`allEmployees` now also returns `primaryPositionId`. `AddRosterEntryForm.tsx`
+computes a sane default (primary position if active & assigned, else
+first assigned, else first overall) and applies it via
+`key={selectedEmployeeId}` + `defaultValue` on the Position `<select>` —
+remounts fresh with the new default every time the employee changes,
+while staying a normal, freely-editable dropdown afterward.
+
+**Verified:** 68 unit tests still passing (none of this touches the calc
+engine). `next build` clean. Ad hoc script confirmed
+`loadRosterPageData` returns real `primaryPositionId` values against
+seeded data and `loadClosingReportData.defaultSalesTaxRate` matches the
+seeded 0.08875 (not kept as a permanent `verify_*.ts`, since it's a thin
+plumbing check rather than a new business rule). No schema changes this
+round — no migration needed, just commit + push.
+
+## Sortable Employees list (2026-08-10)
+
+Oliver: "a tiny touch wont hinder our work, can you add sorting to these
+column?" — the Employees admin list had no way to reorder rows other
+than the default (alphabetical by name from the loader).
+
+Extracted the table out of `app/employees/page.tsx` into a new client
+component, `EmployeesTable.tsx`, since sort state has to live in the
+browser while the page itself stays a server component doing the actual
+data load. Clicking a column header (Name, Primary position, Positions,
+Role) sorts by it ascending, clicking again reverses to descending; a
+▲/▼ indicator shows the active column and direction. Plain client-side
+`useMemo` + `localeCompare` — the employee list is small (tens of rows,
+not thousands) and this is a viewing convenience only, so a full
+server-round-trip/URL-param sort wasn't worth the extra complexity.
+
+Oliver later reported "Can you check it yourself? Nothing is happening"
+after this shipped. Rather than assume the code was broken, used the
+Claude-in-Chrome browser tool to personally load the live production
+site and click the column headers — sorting worked correctly both
+directions. Likely a stale-cache or click-location issue on Oliver's
+end, not a code bug; reported back instead of re-patching working code.
+
+**Verified:** no schema/logic changes, so no new unit tests were needed;
+confirmed working directly against the live production site.
+
+## Split peer-earnings visibility into independent Tip/Wage toggles (2026-08-10)
+
+Backlog item picked up after confirming Phase 1 (Closing Report system +
+roster + export report) was functionally complete. The "peer earnings"
+setting on My Pay's coworker list was one combined FOH/BOH toggle that
+hid or showed tip share AND flat wage together. Oliver confirmed scope
+via two clarifying questions: keep the same FOH/BOH category-level
+granularity (not per-employee — that's a bigger ACL change, not asked
+for), and only split the Tip/Wage toggles that already exist (do NOT add
+Incentive/Total to the coworker view — those aren't shown to coworkers
+today and would need new plumbing beyond a toggle split).
+
+`restaurantSettings` gained `rosterShowPeerWageFOH`/`BOH` (new columns,
+same true/false default split the combined toggle already had, so
+nothing changes for Youk Thai until someone flips Tip and Wage
+independently). The existing `roster_show_peer_earnings_foh`/`boh` SQL
+columns were REPURPOSED as Tip-only — same column, renamed only in
+TypeScript (`rosterShowPeerTipFOH`/`BOH`) — so this half of the split
+needed zero migration risk, just an ADD for the new Wage columns
+(migration `0004_legal_shaman.sql`).
+
+`lib/roster/visibility.ts`'s `getVisibleRosterEntries` now redacts
+`tipShare` and `flatWage` independently instead of as one all-or-nothing
+pair — a category can show tip share while hiding wage, or vice versa.
+Settings page's "Roster — peer earnings visibility" fieldset now shows
+four checkboxes (Tip FOH/BOH, Wage FOH/BOH) instead of two. My Pay's
+"Also worked this shift" coworker rows render tip and wage independently
+now (one, both, or neither, depending on the category's settings)
+instead of assuming both were always shown together.
+
+**Verified:** extended `visibility.test.ts` with tests specifically for
+the independent split (tip shown/wage hidden, the reverse, and the
+viewer's own row always showing both regardless of settings) — 71 unit
+tests total, all passing. `next build` clean (compiled + typechecked;
+this sandbox's outputs mount has a known FUSE quirk that blocks the
+build's final write step, worked around by building a clean rsync'd
+copy in the sandbox home directory instead — same class of limitation
+already documented for `npm install`/git in the ui-design session
+notes). Migration NOT yet applied to the production Turso DB — run
+`npm run db:migrate` to apply, then `git push`.
