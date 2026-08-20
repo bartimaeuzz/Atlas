@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useTransition } from "react";
 import { toggleLedgerVendorActive } from "@/lib/actions/ledger";
+import { EmptyState } from "@/components/ui/Card";
+import { LinkButton } from "@/components/ui/Button";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 interface Vendor {
   id: number;
@@ -21,17 +24,20 @@ export function VendorsList({ vendors }: { vendors: Vendor[] }) {
   return (
     <div className="space-y-4">
       {vendors.length === 0 ? (
-        <p className="text-sm text-neutral-400">No vendors yet.</p>
+        <EmptyState message="No vendors yet." />
       ) : (
-        <ul className="divide-y border rounded text-sm">
+        <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-lg)] text-sm bg-[var(--card)]">
           {vendors.map((v) => (
-            <li key={v.id} className={"px-3 py-2 flex items-center justify-between" + (v.active ? "" : " opacity-50")}>
-              <span>
+            <li key={v.id} className={"px-3 py-2.5 flex items-center justify-between gap-2" + (v.active ? "" : " opacity-50")}>
+              <span className="text-[var(--ink-900)]">
                 {v.name}
-                {!v.active && <span className="ml-2 text-xs text-neutral-400">(retired)</span>}
+                {!v.active && <span className="ml-2 text-xs text-[var(--ink-500)]">(retired)</span>}
               </span>
               <div className="flex items-center gap-3">
-                <Link href={`/ledger/vendors/${v.id}/edit`} className="text-xs text-neutral-500 hover:text-black underline">
+                <Link
+                  href={`/ledger/vendors/${v.id}/edit`}
+                  className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
+                >
                   Edit
                 </Link>
                 <ToggleVendorActiveButton vendorId={v.id} nextActive={!v.active} />
@@ -41,9 +47,9 @@ export function VendorsList({ vendors }: { vendors: Vendor[] }) {
         </ul>
       )}
 
-      <Link href="/ledger/vendors/new" className="text-sm underline text-neutral-500 hover:text-black">
+      <LinkButton href="/ledger/vendors/new" variant="secondary" size="sm">
         + Add a vendor
-      </Link>
+      </LinkButton>
     </div>
   );
 }
@@ -55,7 +61,7 @@ function ToggleVendorActiveButton({ vendorId, nextActive }: { vendorId: number; 
       type="button"
       disabled={isPending}
       onClick={() => startTransition(() => toggleLedgerVendorActive(vendorId, nextActive))}
-      className="text-xs text-neutral-500 hover:text-black underline disabled:opacity-50"
+      className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline disabled:opacity-50 ${TAP_TARGET_PAD}`}
     >
       {nextActive ? "Reactivate" : "Retire"}
     </button>

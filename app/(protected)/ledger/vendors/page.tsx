@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { loadLedgerVendors } from "@/lib/ledger/loadLedgerAdmin";
 import { VendorsList } from "./VendorsList";
+import { PageHeader } from "@/components/ui/Card";
 
 /** Vendor/supplier directory admin (2026-08-14, Ledger v1). Seeded from
  * Soothr's real vendor list at Oliver's request ("for testing sake") —
@@ -11,15 +12,14 @@ export default async function LedgerVendorsPage() {
   const vendors = await loadLedgerVendors();
 
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
-      <Link href="/ledger" className="text-sm text-neutral-500 hover:text-black">
+    <main className="max-w-2xl mx-auto p-6 sm:p-8">
+      <Link href="/ledger" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Ledger
       </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-1">Vendors</h1>
-      <p className="text-neutral-500 text-sm mb-6">
-        Suppliers used on Petty Cash and (later) Supplier Check entries. Retiring a vendor keeps
-        every past entry that used it intact; it just stops being offered for new ones.
-      </p>
+      <PageHeader
+        title="Vendors"
+        description="Suppliers used on Petty Cash and (later) Supplier Check entries. Retiring a vendor keeps every past entry that used it intact; it just stops being offered for new ones."
+      />
 
       <VendorsList vendors={vendors} />
     </main>
