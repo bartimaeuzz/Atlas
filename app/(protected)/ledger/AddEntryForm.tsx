@@ -2,6 +2,9 @@
 
 import { useActionState } from "react";
 import { addPettyCashEntry, type PettyCashEntryActionState } from "@/lib/actions/ledger";
+import { Select, TextInput } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
 
 const initialState: PettyCashEntryActionState = { error: null };
 
@@ -24,57 +27,41 @@ export function AddEntryForm({
   const [state, formAction, isPending] = useActionState(addPettyCashEntry, initialState);
 
   return (
-    <form action={formAction} className="border rounded p-3 bg-neutral-50 space-y-2 mb-4">
+    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
       <input type="hidden" name="date" value={date} />
-      {state.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state.error && <Banner tone="danger" title="Couldn't add expense" description={state.error} />}
       <div className="grid grid-cols-2 gap-2">
-        <label className="block text-sm">
-          <span className="block text-neutral-500 mb-1 text-xs">Category</span>
-          <select name="categoryId" required className="border rounded px-2 py-2 text-sm w-full">
-            <option value="">Choose…</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block text-sm">
-          <span className="block text-neutral-500 mb-1 text-xs">Vendor (optional)</span>
-          <select name="vendorId" className="border rounded px-2 py-2 text-sm w-full">
-            <option value="">No vendor</option>
-            {vendors.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <Select name="categoryId" label="Category" required>
+          <option value="">Choose…</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </Select>
+        <Select name="vendorId" label="Vendor (optional)">
+          <option value="">No vendor</option>
+          {vendors.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name}
+            </option>
+          ))}
+        </Select>
       </div>
-      <label className="block text-sm">
-        <span className="block text-neutral-500 mb-1 text-xs">Note</span>
-        <input type="text" name="note" placeholder="e.g. Pay out to Tommy: flowers" className="border rounded px-2 py-2 text-sm w-full" />
-      </label>
-      <label className="block text-sm">
-        <span className="block text-neutral-500 mb-1 text-xs">Amount</span>
-        <input
-          type="number"
-          name="amount"
-          step="0.01"
-          min="0.01"
-          required
-          placeholder="0.00"
-          className="border rounded px-2 py-2 text-sm w-full"
-          inputMode="decimal"
-        />
-      </label>
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full bg-black text-white px-4 py-2.5 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
-      >
+      <TextInput type="text" name="note" label="Note" placeholder="e.g. Pay out to Tommy: flowers" />
+      <TextInput
+        type="number"
+        name="amount"
+        label="Amount"
+        step="0.01"
+        min="0.01"
+        required
+        placeholder="0.00"
+        inputMode="decimal"
+      />
+      <Button type="submit" loading={isPending} className="w-full">
         {isPending ? "Adding…" : "+ Add expense"}
-      </button>
+      </Button>
     </form>
   );
 }

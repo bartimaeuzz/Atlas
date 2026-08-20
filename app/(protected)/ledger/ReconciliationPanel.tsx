@@ -3,6 +3,11 @@
 import { useState, useTransition } from "react";
 import { saveDailyReconciliationDraft, finalizePettyCashDay } from "@/lib/actions/ledger";
 import type { PettyCashDayData } from "@/lib/ledger/loadPettyCashDay";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
+import { TextInput } from "@/components/ui/Field";
+import { formatMoney } from "./formatMoney";
 
 /** The "opening manager counts the drawer against what the closing
  * manager handed over" ritual Oliver described, digitized. Sales cash /
@@ -67,19 +72,25 @@ export function ReconciliationPanel({ data, isAdmin }: { data: PettyCashDayData;
   }
 
   return (
-    <div className="border rounded p-4">
-      <h2 className="font-medium mb-3">Cash drawer reconciliation</h2>
+    <Card>
+      <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">Cash drawer reconciliation</h2>
 
       {finalized && (
-        <div className="mb-3 text-xs bg-green-50 text-green-800 border border-green-200 rounded p-2">
-          Finalized {data.finalizedAt ? new Date(data.finalizedAt).toLocaleString() : ""}
-          {data.finalizedByName ? ` by ${data.finalizedByName}` : ""}
+        <div className="mb-3">
+          <Banner
+            tone="success"
+            title="Finalized"
+            description={`${data.finalizedAt ? new Date(data.finalizedAt).toLocaleString() : ""}${data.finalizedByName ? ` by ${data.finalizedByName}` : ""}`}
+          />
         </div>
       )}
       {!data.shiftsReady && !locked && (
-        <div className="mb-3 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded p-2">
-          Today&apos;s shift(s) aren&apos;t finalized yet — cash sales/tip figures below won&apos;t be final, and this day
-          can&apos;t be finalized until they are.
+        <div className="mb-3">
+          <Banner
+            tone="warning"
+            title="Today's shift(s) aren't finalized yet"
+            description="Cash sales/tip figures below won't be final, and this day can't be finalized until they are."
+          />
         </div>
       )}
 
@@ -92,62 +103,63 @@ export function ReconciliationPanel({ data, isAdmin }: { data: PettyCashDayData;
         <ReadOnlyField label="Petty cash paid out today" value={-data.totalPettyCashOut} />
         <ReadOnlyField label="Expected total balance" value={expectedTotalBalance} bold />
 
-        <label className="block">
-          <span className="block text-neutral-500 mb-1">Counted amount (physical count)</span>
-          <input
-            type="number"
-            step="0.01"
-            inputMode="decimal"
-            value={countedAmount}
-            onChange={(e) => setCountedAmount(e.target.value)}
-            disabled={locked}
-            placeholder="0.00"
-            className="border rounded px-3 py-2 text-sm w-full disabled:bg-neutral-100"
-          />
-        </label>
+        <TextInput
+          type="number"
+          label="Counted amount (physical count)"
+          step="0.01"
+          inputMode="decimal"
+          value={countedAmount}
+          onChange={(e) => setCountedAmount(e.target.value)}
+          disabled={locked}
+          placeholder="0.00"
+        />
 
         {countedNum != null && Number.isFinite(countedNum) && (
-          <div className={"text-xs rounded p-2 " + (matches ? "bg-green-50 text-green-800" : "bg-red-50 text-red-700")}>
-            {matches ? "Matches the expected total." : `Off by $${Math.abs(diff!).toFixed(2)} ${diff! > 0 ? "over" : "short"}.`}
-          </div>
+          <Banner
+            tone={matches ? "success" : "danger"}
+            title={matches ? "Matches the expected total." : `Off by ${formatMoney(Math.abs(diff!))} ${diff! > 0 ? "over" : "short"}.`}
+          />
         )}
 
         <label className="block">
-          <span className="block text-neutral-500 mb-1">Note (optional)</span>
+          <span className="block text-sm font-medium text-[var(--ink-700)] mb-1.5">Note (optional)</span>
           <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             disabled={locked}
             rows={2}
-            className="border rounded px-3 py-2 text-sm w-full disabled:bg-neutral-100"
+            className="w-full border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 text-base bg-[var(--card)] text-[var(--ink-900)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-border)] focus:border-[var(--primary)] disabled:bg-[var(--paper)] disabled:text-[var(--ink-500)]"
           />
         </label>
       </div>
 
-      {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
-      {saved && !error && <p className="text-sm text-green-700 mt-3">Saved.</p>}
+      {error && (
+        <div className="mt-3">
+          <Banner tone="danger" title="Couldn't save" description={error} />
+        </div>
+      )}
+      {saved && !error && (
+        <div className="mt-3">
+          <Banner tone="success" title="Saved." />
+        </div>
+      )}
 
       {!locked && (
         <div className="mt-4">
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={handleSaveDraft}
-              className="border px-4 py-2 rounded text-sm hover:bg-neutral-50 disabled:opacity-50"
-            >
+            <Button type="button" variant="secondary" loading={isPending} onClick={handleSaveDraft}>
               {isPending ? "Saving…" : "Save"}
-            </button>
+            </Button>
             {!finalized && (
-              <button
+              <Button
                 type="button"
+                variant="brand"
                 disabled={isPending || !data.shiftsReady}
                 onClick={handleFinalize}
-                className="bg-black text-white px-4 py-2 rounded text-sm hover:bg-neutral-800 disabled:opacity-50"
                 title={!data.shiftsReady ? "Finish finalizing today's shift(s) first" : undefined}
               >
                 Finalize day
-              </button>
+              </Button>
             )}
           </div>
           {/* 2026-08-18 visual-audit fix: the disabled reason used to live
@@ -156,11 +168,11 @@ export function ReconciliationPanel({ data, isAdmin }: { data: PettyCashDayData;
            * whether the input device supports hover. title= kept as a
            * free desktop-hover bonus. */}
           {!finalized && !data.shiftsReady && (
-            <p className="text-xs text-neutral-500 mt-1.5">Finish finalizing today&apos;s shift(s) first.</p>
+            <p className="text-xs text-[var(--ink-500)] mt-1.5">Finish finalizing today&apos;s shift(s) first.</p>
           )}
         </div>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -176,26 +188,25 @@ function Field({
   editable: boolean;
 }) {
   return (
-    <label className="block">
-      <span className="block text-neutral-500 mb-1">{label}</span>
-      <input
-        type="number"
-        step="0.01"
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        disabled={!editable}
-        className="border rounded px-3 py-2 text-sm w-full disabled:bg-neutral-100"
-      />
-    </label>
+    <TextInput
+      type="number"
+      label={label}
+      step="0.01"
+      inputMode="decimal"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value))}
+      disabled={!editable}
+    />
   );
 }
 
 function ReadOnlyField({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-neutral-500">{label}</span>
-      <span className={bold ? "font-semibold" : ""}>${value.toFixed(2)}</span>
+      <span className="text-[var(--ink-500)]">{label}</span>
+      <span className={`tabular-nums ${bold ? "font-semibold text-[var(--ink-900)]" : "text-[var(--ink-700)]"}`}>
+        {formatMoney(value)}
+      </span>
     </div>
   );
 }

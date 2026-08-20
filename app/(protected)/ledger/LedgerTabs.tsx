@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Tab } from "@/components/ui/Tabs";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Shared tab header for the Ledger area (2026-08-14 restructure, Oliver's
  * ask: "after enter ledger page shows petty cash and supplier tabs").
@@ -11,46 +13,37 @@ import Link from "next/link";
  * Card tab added 2026-08-16 -- a third channel, reconcile-a-statement-
  * period shape rather than log-as-you-go (see db/schema.ts's
  * cardStatementPeriods comment). "Cards" joins Vendors/Categories on the
- * right since it's the same kind of admin-managed reference data. */
+ * right since it's the same kind of admin-managed reference data.
+ *
+ * Restyled onto the design system 2026-08-19 -- reuses the shared Tab
+ * primitive (functional primary active state, not brand indigo -- see
+ * that component's own doc comment) instead of hand-rolled black/white
+ * pill styling. */
 export function LedgerTabs({ active }: { active: "petty-cash" | "supplier" | "card" }) {
   return (
     <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
       <div className="flex items-center gap-2 text-sm">
-        <TabLink href="/ledger" isActive={active === "petty-cash"}>
+        <Tab href="/ledger" active={active === "petty-cash"}>
           Petty Cash
-        </TabLink>
-        <TabLink href="/ledger/supplier-check" isActive={active === "supplier"}>
+        </Tab>
+        <Tab href="/ledger/supplier-check" active={active === "supplier"}>
           Supplier
-        </TabLink>
-        <TabLink href="/ledger/card" isActive={active === "card"}>
+        </Tab>
+        <Tab href="/ledger/card" active={active === "card"}>
           Card
-        </TabLink>
+        </Tab>
       </div>
       <div className="flex items-center gap-3 text-xs">
-        <Link href="/ledger/vendors" className="text-neutral-500 hover:text-black underline">
+        <Link href="/ledger/vendors" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           Vendors
         </Link>
-        <Link href="/ledger/categories" className="text-neutral-500 hover:text-black underline">
+        <Link href="/ledger/categories" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           Categories
         </Link>
-        <Link href="/ledger/cards" className="text-neutral-500 hover:text-black underline">
+        <Link href="/ledger/cards" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           Cards
         </Link>
       </div>
     </div>
-  );
-}
-
-function TabLink({ href, isActive, children }: { href: string; isActive: boolean; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className={
-        "px-3 py-1.5 rounded border " +
-        (isActive ? "bg-black text-white border-black" : "text-neutral-600 hover:bg-neutral-50")
-      }
-    >
-      {children}
-    </Link>
   );
 }
