@@ -913,3 +913,3252 @@ The previous round's fix (above) removed Aey's hardcoded `systemRole:
 MANAGER` on the theory that her elevated access should be derived purely
 from which position she's rostered at each shift. Oliver corrected this
 directly — in Thai, flagging a language barrier in the earlier English
+exchange: Aey is one of the restaurant's PARTNERS, not just a
+cross-trained staff member. She works actual shifts (often as Bartender)
+but should see everything — including BOH wages — every single day,
+regardless of which position she's covering that day.
+
+**Fix:** restored `systemRole: "MANAGER"` on Aey's seed record. No code
+change was needed in `lib/staff/loadMyEarnings.ts` — its "effective role"
+computation already checks standing `systemRole` first and only falls
+back to the shift-scoped `grantsManagerAccess` check if standing role is
+plain STAFF, so simply restoring her seed value was sufficient.
+
+**The two mechanisms now correctly represent two different real
+situations, and both stay:**
+- `employees.systemRole = MANAGER/ADMIN` — permanent, person-level
+  elevation (Aey as partner, Oliver as owner/admin).
+- `positions.grantsManagerAccess` — temporary, shift-level elevation for
+  an ordinary staff member covering a Floor Manager/Manager shift for a
+  day (the scenario the previous round's fix was actually built for, and
+  still correctly handles).
+
+Verified against the real DB post-reseed: Aey, rostered as Bartender
+(her usual shift), sees all 19 coworkers including all 6 BOH staff and
+their wage figures — confirms standing MANAGER role, not the shift-scoped
+flag, is what's granting the access.
+
+## Pastry Chef corrected from FOH to BOH (2026-08-10, same round)
+
+Oliver caught a seed data mistake: "might be minor mistake from me but
+Pastry Chef is BOH not FOH in seed data." The position had been seeded
+with `category: "FOH"` and a `positionShiftRates` flat-rate row, which
+doesn't match how BOH wages actually work in this app (per-employee
+`employeeWageRates`, not a flat per-position rate).
+
+**Fix:** changed `category` to `"BOH"`, removed its `positionShiftRates`
+rows entirely, and added Chong (the Pastry Chef employee) to the seed's
+BOH wage list at the same $100 Lunch / $200 Dinner placeholder as the
+other five BOH staff. Verified: Pastry Chef now has zero
+`positionShiftRates` rows and Chong has two `employeeWageRates` rows
+(Lunch $100, Dinner $200), and shows up correctly in the BOH block of
+both the Preview and Summary payout tables.
+
+## Position column + consistent sort on Preview and Summary payout tables (2026-08-10, same round)
+
+Oliver asked for "Payout by employee" (Preview + Summary Report) to show
+each employee's position, sorted the same direction as My Pay's "Also
+worked this shift" list, for consistency across the app.
+
+**Fix:** added a shared `lib/shift/payoutSort.ts` helper
+(`sortPayoutsForDisplay`) implementing the same FOH-before-BOH, then
+position name, then employee name ordering already used in
+`loadMyEarnings.ts`'s `compareCoworkerRows`. Both
+`computeFinalizationPreview.ts` and `loadSummaryData.ts` now compute a
+`positionByEmployeeId` map (via the same representative-row convention
+used everywhere else for multi-role employees) and both the Preview page
+and Summary Report page render a new "Position" column and sort through
+the shared helper instead of their previous ad-hoc sorts (summary was
+previously sorted by payout amount descending).
+
+Verified against the real DB: Summary Report's 19-row payout table now
+reads as one alphabetized FOH block (by position, then name) followed by
+one alphabetized BOH block, ending with Pastry Chef (Chong) correctly in
+the BOH block.
+
+62 tests still passing, `tsc --noEmit` clean, production build clean.
+No schema change this round (`grantsManagerAccess` column was already
+added and pushed in the prior round) — only seed data and application
+code changed, so this handoff needs a reseed but NOT another
+`drizzle-kit push`.
+
+## Not started yet
+
+## drizzle-kit push abandoned for Turso — replaced with generate + migrate (2026-08-10)
+
+While deploying, `drizzle-kit push --force` against a completely empty
+Turso database reported "No changes detected" instead of creating any
+of the 27 tables — a real, documented bug in how drizzle-kit's live
+introspection talks to Turso's HTTP protocol (confirmed against a known
+GitHub issue: Turso introspection can misreport an empty database).
+Worked around it live by generating the schema as plain SQL
+(`drizzle-kit generate`, which is local-only and unaffected — it never
+connects to the target) and running each CREATE TABLE/INDEX statement
+individually against Turso's SQL console. Also discovered mid-repair
+that pasting the ENTIRE multi-statement script into that console
+executes and reports success for the WHOLE batch but silently applies
+NOTHING — another symptom of the same underlying transaction-handling
+bug on Turso's HTTP protocol (matches a second known drizzle-kit/libSQL
+GitHub issue about transactions breaking on Turso specifically).
+Statement-by-statement execution is reliable; multi-statement is not.
+
+**Root fix, not just a one-off patch:** rather than keep doing this by
+hand for every future schema change, added `db/migrate.ts` using
+Drizzle's own `migrate()` function (`drizzle-orm/libsql/migrator`)
+instead of `drizzle-kit push`. This is a fundamentally different, more
+robust mechanism — `push` does a live diff/introspection against the
+target (the buggy part); `migrate()` just applies a fixed, ordered list
+of already-generated SQL files and tracks which ones it's already run
+in a `__drizzle_migrations` table on the target DB itself. No
+introspection, no diffing, so it sidesteps this whole bug class. This is
+also the mechanism Drizzle's own docs recommend for production —
+`push` is explicitly meant for rapid local prototyping, not deploys.
+
+New workflow for any FUTURE schema change: `npm run db:generate`
+(writes a new SQL file to `db/migrations/`, purely local, safe) then
+`npm run db:migrate` (applies only what's new, safe to re-run, works
+against either the local file or Turso depending on `DATABASE_URL`).
+`db:push` script kept in package.json for quick local-only prototyping
+but should NOT be used against Turso going forward.
+
+Verified independently of Oliver's Turso credentials: ran `db:migrate`
+twice against a fresh throwaway local SQLite file — first run created
+all 27 tables plus the tracking table (confirmed via direct row count),
+second run correctly detected the migration was already applied and did
+nothing (idempotent). 62 tests still passing, build clean.
+
+
+## DB driver migrated from better-sqlite3 to libSQL (Turso-ready) (2026-08-10)
+
+First step toward a real deployment (Oliver picked this over two other
+options — Incentive Rules generalization, real-data validation — via
+AskUserQuestion, explicitly to get off local-only SQLite so the app can
+finally be a live URL instead of a git-bundle-handoff loop).
+
+**Why this had to happen first:** the app ran on `better-sqlite3` against
+a local file (`db/atlas.db`). That's fine for a dev sandbox but doesn't
+work on Vercel — serverless functions don't have a persistent local
+disk, and `better-sqlite3` needs a native binary matched to the deploy
+target's OS/architecture, which breaks in serverless builds anyway. Turso
+is a hosted, SQLite-compatible database (the `libSQL` fork) built
+specifically for this — same SQL dialect, same Drizzle schema file,
+reachable over the network from anywhere including Vercel.
+
+**What changed:** `db/client.ts` now uses `@libsql/client` +
+`drizzle-orm/libsql` instead of `better-sqlite3` +
+`drizzle-orm/better-sqlite3`. Connection is env-var driven: with no
+`DATABASE_URL` set it opens the same local file as before (`file:./db/atlas.db`,
+override with `DATABASE_PATH`) — local dev is unchanged. Set
+`DATABASE_URL` (a `libsql://...` URL) + `DATABASE_AUTH_TOKEN` and it
+points at a hosted Turso database instead — no other code changes
+needed anywhere in the app for that switch. `drizzle.config.ts` updated
+to `dialect: "turso"` with the same env-var logic, so `drizzle-kit push`
+works identically against either target. `better-sqlite3` uninstalled —
+zero remaining references outside a couple of explanatory comments.
+
+**Two real bugs caught by this migration, not hypothetical:**
+1. `db/seed.ts`'s delete-then-recreate loop (`for (const t of tableNames)
+   db.run(...)`) was never awaited. This silently worked under
+   better-sqlite3 because that driver is synchronous under the hood —
+   the loop blocked on each statement whether or not `await` was there.
+   libSQL's driver is genuinely async; the same code fired all DELETEs
+   without waiting, raced the inserts that followed, and produced
+   `UNIQUE constraint failed` errors on reseed. Fixed by awaiting each
+   iteration (order matters here — children before parents, so this had
+   to stay sequential, not `Promise.all`). Audited the entire codebase
+   for the same pattern (any un-awaited `db.run`/`db.insert`/etc.) —
+   this was the only occurrence.
+2. The module-level `PRAGMA foreign_keys = ON` (needed every session,
+   same as it was under better-sqlite3) can't use top-level `await` —
+   `db/client.ts` is `require()`-d synchronously by `tsx`-run scripts
+   (seed, tests) via CommonJS, and Node throws `ERR_REQUIRE_ASYNC_MODULE`
+   on an async module in that context. Used a fire-and-forget
+   (`void client.execute(...)`) instead — safe in practice since it
+   resolves before any real application query gets a chance to run.
+
+**Verified thoroughly, not just unit tests:** 62 tests pass, `tsc
+--noEmit` clean, `npm run build` clean, `npx drizzle-kit push --force`
+reports "No changes detected" against the existing schema (confirms the
+new dialect config reads the same DB correctly), `npm run db:seed`
+completes cleanly end-to-end on the new driver, and — the real test — ran
+an actual production build (`next build && next start`) and curled
+`/shifts`, `/positions`, `/login` against the live server: all 200, and
+the shifts page correctly rendered all 14 real seeded shifts with their
+real dates/periods/status, proving the new driver works through Next's
+actual server-rendering runtime, not just standalone scripts.
+
+**Not done yet, this is prep only:** no Turso database exists yet — that
+requires Oliver to create an account (Claude can't create accounts on
+his behalf). No Vercel deployment yet either. Next: confirm with Oliver
+how he wants deployment wired up (GitHub-connected continuous deploy vs.
+one-off manual deploys) and walk him through the Turso account/env-var
+setup.
+
+
+## Shipped (2026-08-10) — disciplinary/correction deductions
+
+Oliver's ask (originally backlogged same day, built same day once he
+said "deduction"): the restaurant needs a way to deduct pay for
+disciplinary issues (late to work, breaking restaurant property, etc.).
+Since FOH/BOH wages are flat-rate per shift (not hourly), a deduction
+can't come out of hours worked — it's a direct dollar amount taken off
+that person's payout, its own line item, never netted silently into
+another number. Confirmed via AskUserQuestion before building: (1)
+visible to the disciplined employee + managers only, NEVER other
+coworkers — same precedent as `extraPayAmount` never appearing on the
+"Also worked this shift" list; (2) takes effect immediately when a Floor
+Manager enters it, no separate approval step, same trust level as the
+existing wage override/extra pay fields; (3) a one-off dollar amount per
+shift only, no running/lifetime total for now (a broader "employee
+performance/attendance stats dashboard" idea — lateness frequency, days
+scheduled, shift-swap counts, for evaluation/year-end bonus — was saved
+as backlog instead, see `project_atlas_future_features_backlog` in
+memory).
+
+**What shipped:**
+- Extended the existing `shiftWageAdjustments` table (not a new table,
+  per the original backlog note) with `deductionAmount` (real, default 0)
+  and `deductionReason` (text, nullable) — same per-shift-per-employee row
+  as the wage override/extra pay fields.
+- `employeePayouts.deductionAmount` — same snapshot-column pattern as
+  `extraPayAmount`/`incentiveAmount`.
+- `lib/calc/finalizeShift.ts` — `deductionAmount` is subtracted in
+  `totalCorePayout` as its own term (wage/override/extra pay/incentive
+  amounts themselves are untouched), defaults to 0 via `?? 0` so every
+  existing caller/test without a `deductionAmount` key keeps compiling
+  and behaving exactly as before.
+- New "Disciplinary deductions" fieldset on the Closing Report form
+  (`deduction_<id>` + `deductionReason_<id>` inputs), wired through
+  `upsertWageAdjustments` in `lib/actions/shift.ts` — negative amounts
+  rejected same as the existing fields.
+- New "Deduction" column (red, `-$X.XX`) on both the Preview page and the
+  Summary Report's payout table, positioned between Incentive and Total.
+- New "Deduction" row (red, only shown when > 0) in My Pay's own-payout
+  block in `MyEarningsView.tsx` — deliberately NOT added to
+  `MyEarningsCoworkerRow`, so it structurally cannot leak onto a
+  coworker's row.
+- Migration `db/migrations/0002_blue_hawkeye.sql` — three
+  `ALTER TABLE ... ADD COLUMN` statements (`employee_payouts` +
+  `shift_wage_adjustments` x2), generated via `drizzle-kit generate`.
+
+**Verified:**
+- 3 new unit tests in `lib/calc/__tests__/finalizeShift.test.ts`
+  (deduction alone, deduction combined with override + extra pay,
+  backward-compat default-to-0 when the field is omitted entirely) — all
+  68 tests pass.
+- `next build` succeeds, no TypeScript errors.
+- Real-DB e2e script (`verify_deduction.ts`) run against the actual
+  seeded data: set an $8.50 deduction on one employee's finalized
+  payout → confirmed it appears correctly in that employee's OWN My Pay
+  view AND in the manager-facing Summary Report row → confirmed a
+  coworker viewing the same shift sees the disciplined employee's roster
+  row (name/position/tip/wage) with NO `deductionAmount` field present at
+  all, not even a zeroed-out one. All checks passed.
+
+**Not yet run:** `npm run db:migrate` against the live Turso database —
+Oliver needs to run this himself before pushing this code live (same
+order-of-operations as every prior schema change: migrate Turso first,
+then deploy code that expects the new columns).
+
+
+## Backlog (2026-08-10) — per-column, per-viewer earnings visibility on My Pay
+
+Oliver's ask, explicitly deferred ("don't need to do it right now... save
+it as a backlog"): the current visibility settings
+(`rosterShowPeerEarningsFOH`/`BOH`) are coarse — they hide/show tip share
+and flat wage together, as one pair, per FOH/BOH category. He wants finer
+admin control: separate toggles per financial COLUMN (Tip, Wage,
+Incentive, Total) rather than one combined on/off, AND the ability for
+an admin to decide "whoever sees whatever" — implying per-employee or
+per-role granularity, not just per-category.
+
+**Not scoped or designed yet** — needs a real conversation before
+building, per usual: does "whoever sees whatever" mean per-employee
+overrides (a real access-control table, more complex) or just more
+columns added to the existing per-category toggle (simpler, consistent
+with the current settings model)? Revisit when this becomes the actual
+next request rather than guessing at the shape now.
+
+**Note (2026-08-10, deployed round):** this per-column granularity is
+still NOT built — see the separate, narrower feature shipped below
+("coworker list visibility") which addresses a related-but-different ask
+(hide the WHOLE coworker list, not fine-grained per-column control).
+
+## Coworker list visibility on My Pay — FOH/BOH toggle (2026-08-10)
+
+Oliver's ask, given after the Turso deployment went live and he was
+poking around My Pay: he wants staff who log in to check their own pay to
+optionally not see the "Also worked this shift" coworker list AT ALL —
+not just have the $ figures hidden (already covered by
+`rosterShowPeerEarningsFOH`/`BOH`), but the whole list of names/positions
+suppressed, as a privacy safeguard for the future. Confirmed via
+AskUserQuestion before building: (1) split FOH/BOH, mirroring the
+existing `rosterRestrictFOHToOwnCategory`/`BOH` pattern rather than one
+global toggle, and (2) a NEW, independent setting rather than repurposing
+the existing peer-earnings checkboxes — so a restaurant could show the
+list with earnings hidden, OR hide the list entirely even with earnings
+on.
+
+**What shipped:**
+- `restaurantSettings.rosterShowCoworkerListFOH`/`BOH` (both default
+  `true` — preserves today's behavior for Youk Thai until someone flips
+  them in Settings).
+- `lib/roster/visibility.ts`: new, EARLIER gate in
+  `getVisibleRosterEntries` — keyed by the VIEWER's own category (same
+  convention as the restrict-to-own-category setting). When off, every
+  entry except the viewer's own is dropped before any of the existing
+  restrict/earnings-redaction logic even runs. MANAGER/ADMIN are exempt,
+  same as every other visibility rule in this file.
+- No UI change needed in `MyEarningsView.tsx` — it already only renders
+  the "Also worked this shift" section when `coworkers.length > 1`, so
+  once the loader returns just the viewer's own row, the section
+  disappears for free.
+- Settings page: new fieldset "Roster — coworker list visibility (My
+  Pay)" with the two checkboxes, right above the existing category
+  visibility fieldset.
+- Migration `db/migrations/0001_large_power_man.sql` — two
+  `ALTER TABLE ... ADD COLUMN` statements, generated via
+  `drizzle-kit generate` (never `push`, per [[feedback-drizzle-hosted-db-caution]]).
+
+**Verified:**
+- 3 new unit tests in `lib/roster/__tests__/visibility.test.ts` (off for
+  FOH only, independence per category, MANAGER/ADMIN unaffected) — all 65
+  tests pass.
+- `db/migrate.ts` applied cleanly against a fresh throwaway local DB,
+  confirmed both columns present via direct `PRAGMA table_info` query.
+- Real-DB e2e script (`verify_coworker_list_setting.ts`) run against the
+  actual seeded data: default state (Erika, FOH, sees 13 coworker rows on
+  a shift) → flip `rosterShowCoworkerListFOH` off → Erika now sees ONLY
+  her own row on every shift, her own totalCorePayout unchanged → Papi
+  (BOH) unaffected, still sees BOH coworkers → Oliver (ADMIN) unaffected
+  → flipped back to `true`, confirmed restored. All checks passed.
+- `next build` succeeds, no TypeScript errors.
+
+- Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — host drink bonus (above) uses the engine's storage tables directly with hardcoded reward logic, not a generic evaluator yet
+- Auth (systemRole field exists on Employee, no actual login system yet)
+- Deploy to Vercel
+- Validation against real Youk Thai numbers — **partially resolved 2026-08-10**, see below (Oliver provided a real monthly sales/tax export, `MARCH 2026.xlsx`, used to design and verify the sales/tax report feature). `2026 - R.xlsx` (the original closing-report DNA file, for tip/wage validation) still not provided.
+
+## Sales tax fields + sales/tax export report (2026-08-10)
+
+Oliver asked for a report export before doing anything else ("ก่อนจะ Export ได้
+เราต้องมาคุยกันก่อนไหมว่าเราต้องการอะไรบ้าง?") — right call, since this
+surfaced a real gap: Atlas never had a sales-tax field at all. Rather than
+design blind, Oliver shared a real file: an email from Aey (the Youk Thai
+manager) with the actual monthly report she sends — `MARCH 2026.xlsx` — a
+Toast section (daily Net Sale/Tax/Total Sale/Cash/CC/CC Tips/Total Credit)
+and one section per online platform (Grubhub/Uber/DoorDash/HungryPanda,
+each with Net/Tax/Tips/Total).
+
+**Real finding from reviewing that file, confirmed with Oliver using the
+actual numbers:** the file's "CC" and "Total Credit" columns are SWAPPED
+relative to their own labels. Proven directly: every single row satisfies
+`labeled-"Total Credit" + "CC Tips" == labeled-"CC"` (checked across 4+
+days, e.g. Mar 1: 23,528.60 + 4,188.24 = 27,716.84). This means the column
+labeled "CC" is actually the total that hit the card terminal (sales +
+tip combined), and the column labeled "Total Credit" is actually the
+card-sales-only portion (no tip) — the opposite of what the labels say.
+Confirmed with Oliver: the export uses CORRECT labels (`CC Sales`,
+`Total Credit`), not a copy of the swapped original.
+
+Also confirmed with Oliver: `shiftSales.totalSales` has ALWAYS meant Net
+Sale (pre-tax) — nothing about its existing meaning changes, tax is
+purely additive as a new field.
+
+**What shipped:**
+- `restaurantSettings.defaultSalesTaxRate` (seeded 0.08875 — NYC's
+  combined rate, confirmed by checking Tax/NetSale ratio in the real
+  file's data, comes out to exactly 0.08875 on every row). Editable on
+  `/settings`.
+- `shiftSales.salesTax` and `onlinePlatformSalesRecords.taxAmount` —
+  both NULLABLE (same `null = not yet touched` convention as
+  `shiftWageAdjustments.wageOverrideAmount`). `loadClosingReportData.ts`
+  auto-suggests `base × defaultSalesTaxRate` when null, flagged via a new
+  `salesTaxIsAuto`/`taxAmountIsAuto` boolean the UI uses to show "auto-
+  calculated, edit if it differs." Once a manager saves the closing
+  report (even unchanged), that number becomes the explicit, permanent
+  figure for that shift — chose nullable specifically so a legitimate $0
+  entry doesn't get silently overwritten by the auto-suggestion on next
+  load.
+- New `lib/reports/loadSalesTaxReport.ts` — rolls up FINALIZED shifts
+  into daily rows grouped by calendar date (summing Lunch+Dinner, since
+  Atlas's `shifts` table is per-meal-period but Toast/accounting report
+  per day), computing `ccSalesOnly = totalSales - cashSales` and
+  `totalCredit = ccSalesOnly + ccTipTotal` with the corrected semantics
+  above. Same auto-fill-if-null fallback as the closing report, so a
+  report over old/never-revisited shifts still shows a sane tax figure
+  instead of $0.
+- New `/reports` page — preset buttons (This week/month/year) + a custom
+  date-range form, on-page Toast daily table + online-platform range
+  totals, and an "Export .xlsx" link.
+- New `app/reports/export/route.ts` (first Route Handler in this app —
+  needed for the `Content-Disposition` header a server action can't set)
+  + `lib/reports/buildSalesTaxWorkbook.ts` (new `exceljs` dependency) —
+  generates a `.xlsx` laid out like the real MARCH 2026.xlsx (Toast
+  section, then one 4-column block per platform side by side, then
+  online sale/tax totals), correct labels, opens directly in Google
+  Sheets via upload — Oliver's stated normal workflow, no Google API
+  integration needed.
+- Deliberate simplification vs. the original file: every platform gets
+  the same 4 columns (Net/Tax/Tips/Total) — the original inconsistently
+  omitted Tips for Uber, but Atlas tracks tips uniformly across every
+  platform already, so there's no reason to omit it here.
+
+**Verified:**
+- Migration `db/migrations/0003_graceful_shooting_star.sql` (3 new
+  columns across `online_platform_sales_records`, `restaurant_settings`,
+  `shift_sales`).
+- `verify_sales_tax.ts` — auto-suggestion formula matches expected
+  (`totalSales × 0.08875`), flagged auto before any save, and an explicit
+  save with a DELIBERATELY different number is preserved exactly and
+  flagged non-auto on reload (never silently overwritten).
+- `verify_sales_tax_report.ts` — real seeded data (14 finalized shifts,
+  7 days) rolls up to exactly 7 daily rows; every day's `netSale + tax =
+  totalSale` and `ccSalesOnly + ccTips = totalCredit`; daily rows sum
+  exactly to the totals row; online platform totals sum correctly;
+  `buildSalesTaxWorkbook` produces a real, correctly-laid-out `.xlsx`
+  (spot-checked by reading it back with openpyxl).
+- 68 unit tests still passing (tax is reporting-only, doesn't touch the
+  calc engine, so nothing existing changed behavior).
+- `next build` succeeds, no TypeScript errors.
+
+**Not yet run:** `npm run db:migrate` against the live Turso database —
+same order-of-operations as every prior schema change, Oliver migrates
+Turso before pushing this code live.
+
+## Post-deploy fixes: broken dark theme, live sales-tax calc, roster position default (2026-08-10)
+
+Oliver tested the sales-tax + Reports round live (after migrating and
+pushing it himself) and came back with three things.
+
+**Dark theme was unusable.** Screenshot showed a half-black page — real
+bug, not a design choice: `app/globals.css` still had create-next-app's
+default `@media (prefers-color-scheme: dark)` block from day one, flipping
+the body background to near-black whenever the browser/OS is in dark
+mode. Every page in this app is built with hardcoded light-mode Tailwind
+classes (`bg-white` cards, `text-neutral-500`, etc.) with zero `dark:`
+variants anywhere, so the result was a broken half-dark page, not a real
+dark theme. **Fix:** removed the dark-mode media query entirely, added
+`color-scheme: light` to `:root` so native form controls (date pickers,
+etc.) stay light too. Forces light mode always until a real dark theme is
+deliberately designed (would touch every page — not attempted here).
+
+**Sales tax didn't visibly auto-calculate.** The auto-suggestion was only
+ever computed once, server-side, at page load (`loadClosingReportData.ts`)
+— typing a new Total sales value did nothing to the Sales tax field until
+a full reload, which looked broken even though the underlying formula was
+correct. **Fix:** `ClosingReportForm.tsx`'s Total sales / Sales tax pair
+(and each online platform's Sales amount / Sales tax pair, via new
+`PlatformSalesRow` sub-component) are now live client state — Sales tax
+recomputes as the sales figure changes, UNLESS the manager has directly
+edited the Sales tax field themselves (tracked per-field, starts "already
+touched" if a real explicit value was saved before, so reopening a
+filled-in report never silently overwrites a prior manual correction).
+`loadClosingReportData.ts`/`ClosingReportData` now also expose
+`defaultSalesTaxRate` at the top level so the client component has the
+rate to compute with.
+
+**Roster "Add someone" — asked for the Position dropdown to default to
+the picked employee's primary position** ("point at the primary position
+so I don't need to select every time"). `loadRosterPageData.ts`'s
+`allEmployees` now also returns `primaryPositionId`. `AddRosterEntryForm.tsx`
+computes a sane default (primary position if active & assigned, else
+first assigned, else first overall) and applies it via
+`key={selectedEmployeeId}` + `defaultValue` on the Position `<select>` —
+remounts fresh with the new default every time the employee changes,
+while staying a normal, freely-editable dropdown afterward.
+
+**Verified:** 68 unit tests still passing (none of this touches the calc
+engine). `next build` clean. Ad hoc script confirmed
+`loadRosterPageData` returns real `primaryPositionId` values against
+seeded data and `loadClosingReportData.defaultSalesTaxRate` matches the
+seeded 0.08875 (not kept as a permanent `verify_*.ts`, since it's a thin
+plumbing check rather than a new business rule). No schema changes this
+round — no migration needed, just commit + push.
+
+## Sortable Employees list (2026-08-10)
+
+Oliver: "a tiny touch wont hinder our work, can you add sorting to these
+column?" — the Employees admin list had no way to reorder rows other
+than the default (alphabetical by name from the loader).
+
+Extracted the table out of `app/employees/page.tsx` into a new client
+component, `EmployeesTable.tsx`, since sort state has to live in the
+browser while the page itself stays a server component doing the actual
+data load. Clicking a column header (Name, Primary position, Positions,
+Role) sorts by it ascending, clicking again reverses to descending; a
+▲/▼ indicator shows the active column and direction. Plain client-side
+`useMemo` + `localeCompare` — the employee list is small (tens of rows,
+not thousands) and this is a viewing convenience only, so a full
+server-round-trip/URL-param sort wasn't worth the extra complexity.
+
+Oliver later reported "Can you check it yourself? Nothing is happening"
+after this shipped. Rather than assume the code was broken, used the
+Claude-in-Chrome browser tool to personally load the live production
+site and click the column headers — sorting worked correctly both
+directions. Likely a stale-cache or click-location issue on Oliver's
+end, not a code bug; reported back instead of re-patching working code.
+
+**Verified:** no schema/logic changes, so no new unit tests were needed;
+confirmed working directly against the live production site.
+
+## Split peer-earnings visibility into independent Tip/Wage toggles (2026-08-10)
+
+Backlog item picked up after confirming Phase 1 (Closing Report system +
+roster + export report) was functionally complete. The "peer earnings"
+setting on My Pay's coworker list was one combined FOH/BOH toggle that
+hid or showed tip share AND flat wage together. Oliver confirmed scope
+via two clarifying questions: keep the same FOH/BOH category-level
+granularity (not per-employee — that's a bigger ACL change, not asked
+for), and only split the Tip/Wage toggles that already exist (do NOT add
+Incentive/Total to the coworker view — those aren't shown to coworkers
+today and would need new plumbing beyond a toggle split).
+
+`restaurantSettings` gained `rosterShowPeerWageFOH`/`BOH` (new columns,
+same true/false default split the combined toggle already had, so
+nothing changes for Youk Thai until someone flips Tip and Wage
+independently). The existing `roster_show_peer_earnings_foh`/`boh` SQL
+columns were REPURPOSED as Tip-only — same column, renamed only in
+TypeScript (`rosterShowPeerTipFOH`/`BOH`) — so this half of the split
+needed zero migration risk, just an ADD for the new Wage columns
+(migration `0004_legal_shaman.sql`).
+
+`lib/roster/visibility.ts`'s `getVisibleRosterEntries` now redacts
+`tipShare` and `flatWage` independently instead of as one all-or-nothing
+pair — a category can show tip share while hiding wage, or vice versa.
+Settings page's "Roster — peer earnings visibility" fieldset now shows
+four checkboxes (Tip FOH/BOH, Wage FOH/BOH) instead of two. My Pay's
+"Also worked this shift" coworker rows render tip and wage independently
+now (one, both, or neither, depending on the category's settings)
+instead of assuming both were always shown together.
+
+**Verified:** extended `visibility.test.ts` with tests specifically for
+the independent split (tip shown/wage hidden, the reverse, and the
+viewer's own row always showing both regardless of settings) — 71 unit
+tests total, all passing. `next build` clean (compiled + typechecked;
+this sandbox's outputs mount has a known FUSE quirk that blocks the
+build's final write step, worked around by building a clean rsync'd
+copy in the sandbox home directory instead — same class of limitation
+already documented for `npm install`/git in the ui-design session
+notes). Migration NOT yet applied to the production Turso DB — run
+`npm run db:migrate` to apply, then `git push`.
+
+## Schedule Planner — Phase 1 shipped: staffing targets + template assignments (2026-08-11)
+
+First piece of a much larger feature Oliver and I designed across several
+rounds of discussion, grounded in a real reference schedule from another
+NYC Thai restaurant (Soothr LIC, shared as a screenshot). Full design
+doc: `Atlas_Schedule_Planner_Schema_v1.md` (also saved to project
+memory as `project_atlas_schedule_planner`). Building it in phases on
+purpose — Oliver's own words: "คิด Schema ให้แตกก่อนที่จะเริ่มลงมือทำ"
+(think the schema all the way through before starting to build).
+
+**What Phase 1 is:** the foundation everything else sits on. Two new
+tables, both purely additive (migration `0005`, no changes to any
+existing table):
+
+- `positionStaffingTargets` — "how many of this Position do we need,
+  this day-of-week, this period?" Confirmed against the real Soothr
+  sheet: the numbered position rows (Runner 1/2/3/4, Bar 1/2/3, Host
+  1/2/3, etc.) are exactly this — a headcount target, not distinct job
+  titles. New page `/schedule/targets`: an editable grid (Position rows
+  × day-of-week columns, one grid per Lunch/Dinner), full-grid resync on
+  save (same delete-then-reinsert pattern as `syncPositionChildRows` in
+  `lib/actions/positions.ts`).
+- `employeeScheduleTemplates` — "Employee X normally works Position Y,
+  this day-of-week, this period," the recurring baseline a week's plan
+  (a later phase) will be pre-filled from. Confirmed with Oliver: this
+  is a deliberately FIXED baseline — it only changes when someone tells
+  the Manager to (a resignation, a promotion, a sales-driven staffing
+  need), not on an automatic weekly rebuild. New page
+  `/schedule/templates`: add-assignment form (reuses the same
+  employee-picks-defaults-position UX as the roster's "Add someone"
+  form), list of active assignments, retire button (same
+  retire-don't-delete convention as Positions/Employees).
+
+**The RED flag, corrected mid-design:** first guess was that red meant
+an open swap request — wrong. Oliver corrected it: red means a slot is
+KNOWN to be vacating — resignation notice given (two weeks is Thai
+restaurant custom) or a promotion/transfer to a different position.
+Doubles as an internal "open shift, come talk to me" signal for other
+staff and the Manager's own hiring/coverage tracker. Implemented as
+`vacancyReason` (`RESIGNATION`/`PROMOTION`/`OTHER`) +
+`vacancyStartsOn` on the template row — set via a "Mark vacating" inline
+form on `/schedule/templates`, cleared via "Clear vacancy." Deliberately
+does NOT cover approved LEAVE (a temporary absence shouldn't mutate the
+permanent recurring pattern) — that's a separate `leaveRequests` table
+in a later phase, cross-referenced at weekly-plan-build time instead.
+
+**What's explicitly NOT built yet** (see the schema doc's "proposed
+build order"): the actual weekly plan grid + publish + auto-seed into
+`shifts`/`shiftRosterEntries`, the staff-facing "My Schedule" view,
+leave requests + Manager request log, and the swap-request portal
+(yellow/green states). Also backlog, not started: KPI/performance-linked
+shift allocation, an AI ops dashboard, OpenTable/Resy integration, and a
+training/"restaurant bible" archive with AI chat — all noted in memory,
+none scoped.
+
+**Verified:** all 71 existing unit tests still pass unchanged (nothing
+in Phase 1 touches the calc engine or existing tables). `next build`
+clean — compiled, typechecked, and generated all 21 routes including the
+three new `/schedule*` pages with zero errors (again worked around the
+sandbox's outputs-mount FUSE quirk on the build's own finalize step by
+building a clean rsync'd copy in the sandbox home directory). No new
+unit tests added — Phase 1 is straightforward CRUD with no new
+calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
+`0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
+Turso DB — run `npm run db:migrate` to apply, then `git push`.
+
+## Vacancy marking now scoped by reason (2026-08-11, same day)
+
+Oliver spotted this testing on himself: he marked one of his template
+rows (Monday Dinner Bartender) as resigning, but his other recurring
+rows (Wed/Thu Lunch, Wed Dinner) didn't show the red warning at all.
+Not a bug — the vacancy lookup was working exactly as scoped, just
+scoped too narrowly. Confirmed with Oliver: "resigning" should mean
+the person is leaving entirely, so it should flag every shift they
+have, not just the one row clicked. That also raised a real second
+case he asked about: what if an employee just wants to permanently
+drop ONE recurring day (not resigning, not promoted)? That's exactly
+what the existing `OTHER` reason is for — it just needed the scope
+rule spelled out.
+
+`setTemplateVacancy`/`clearTemplateVacancy` (`lib/actions/schedule.ts`)
+now scope by reason instead of always touching just the clicked row:
+
+- **RESIGNATION** — every active template row for that `employeeId`,
+  any position/day/period.
+- **PROMOTION** — every active row for that `employeeId` +
+  `positionId` (other positions they hold stay untouched).
+- **OTHER** — just the single row clicked. Relabeled in the UI as
+  "Dropping this shift only" so the scope is obvious at the point of
+  choosing, not just in a tooltip. This is the "employee asked to
+  permanently drop this one recurring day" case.
+
+Clearing a vacancy reads the row's CURRENT reason first and clears
+using that same scope, so undoing a resignation clears every row it
+flagged rather than leaving the others stuck red. `TemplatesTable.tsx`
+now shows a one-line scope hint under the reason dropdown
+("Flags every shift this person has..." etc.) so the behavior isn't a
+surprise. No schema changes — this is entirely in the action layer;
+`db/schema.ts`'s comment on `employeeScheduleTemplates` updated to
+document the cascade rule for future reference.
+
+Verified: all 71 tests pass, `next build` clean (23 routes, unchanged
+— no new pages, just changed action/UI behavior).
+
+## Correction: Preview reverted to fully read-only (2026-08-11, same day)
+
+The "editable Manager view" change in the entry right below this one
+was wrong — Oliver corrected it directly after testing: Preview must
+never allow editing in either view, full stop. "Edit" needs to stay a
+clearly separate, deliberate action, not something that happens by
+accident while reviewing. Reverted `/schedule/plan/preview` to render
+`WeeklyPlanGrid` with `readOnly` unconditionally true again (both
+Manager and Staff views). To make the "how do I get back to editing"
+problem this was originally trying to solve actually easy, replaced
+the small top-left "← Back to edit" text link with a proper visible
+button ("Edit this week →") next to the view toggle — same
+destination (`/schedule/plan?week=...`), just impossible to miss this
+time. No schema changes. All 71 tests pass, `next build` clean (23
+routes, unchanged).
+
+## Three follow-up fixes from live testing (2026-08-11)
+
+Oliver tested the previous round live and reported three issues, all
+fixed:
+
+- **Vacancy ring wasn't showing.** `loadWeeklyPlan` compared
+  `assignment.date < vacancy.startsOn` (strict less-than) to decide
+  whether an assignment is in the grace period. Oliver had set
+  `vacancyStartsOn` to the exact Monday the already-generated
+  assignment fell on, so `date < startsOn` was false (equal, not
+  less) and the ring never rendered — even though the assignment was
+  still sitting right there on the grid. Changed to `<=`: an
+  already-scheduled assignment now shows the warning through and
+  including the vacancy date itself. (Doesn't affect
+  `generateWeekFromTemplate`'s `date >= vacancyStartsOn` skip rule for
+  *new* weeks — that's intentionally forward-looking and unchanged.)
+- **Couldn't edit from the Preview page.** Manager view was rendered
+  fully read-only, same as Staff view — meaning reviewing the preview
+  and noticing a problem meant a round trip back to `/schedule/plan`
+  to fix it, then back to Preview to re-check. Manager view is now
+  fully editable (same quick-add/remove as the real grid, same
+  warnings); Staff view stays read-only since it's meant to mirror
+  exactly what employees will see, not a second editing surface.
+- **Weeks list only linked to Preview for draft weeks.** Published
+  weeks jumped straight to the editable grid with no preview option at
+  all. Every planned week (draft or published) now shows both
+  "Preview →" and "Edit →"; only "Not planned" weeks show a single
+  "Plan this week →" action, since there's nothing to preview yet.
+
+No schema changes. Verified: all 71 tests pass, `next build` clean (23
+routes, same as before — these were all fixes to existing pages).
+
+## Vacancy indicator, roster grid redesign, weeks list (2026-08-11)
+
+Three more Oliver-requested additions on top of the preview/month/
+person views. No schema changes.
+
+- **Red vacancy-soon indicator on weekly plan pills:** when an
+  assignment's employee is in the grace period before their template
+  slot's vacancy date (resignation/promotion, set on
+  `/schedule/templates`), their pill on `/schedule/plan` now gets a
+  red ring + dot + tooltip ("Oliver is resigning as of 2026-08-12 —
+  this slot will need a replacement"). `loadWeeklyPlan` now cross-
+  references `employeeScheduleTemplates`' vacancy fields per
+  assignment (`vacatingSoon`, keyed by employeeId+positionId+
+  dayOfWeek+period, only set if the assignment's date is still before
+  `vacancyStartsOn`). Deliberately shown in BOTH the manager grid and
+  the staff preview view — unlike the other diagnostics (understaffed,
+  double-booked), which stay manager-only — because red was designed
+  from the start to double as an internal "open shift, come talk to
+  me" signal staff should see too.
+- **Roster page redesigned as a position grid:** `/shifts/[id]/roster`
+  used to be a flat employee list plus a separate "Add someone" form
+  below it. Now it's a Position-per-row grid (new `RosterGrid.tsx`),
+  matching the Schedule Planner's visual language: each position shows
+  who's assigned as pills, a "N/target" count against
+  `positionStaffingTargets` for that exact day-of-week+period (red
+  background if short), and an inline "+ Add" dropdown right in the
+  row — the same last-minute, day-of adjustment surface as before, now
+  laid out like the weekly grid it usually gets auto-seeded from.
+  Carries over both guards the old form had: the multi-role confirm
+  dialog (window.confirm before double-adding someone) and the
+  assigned-vs-other position grouping in the picker. `loadRosterPageData`
+  gained a `targets: Record<positionId, number>` field (resolved down
+  to this shift's specific day+period) and sorts positions FOH-then-
+  BOH to match. The old `AddRosterEntryForm.tsx` is superseded — see
+  sandbox note below on why it's not actually gone from the filesystem.
+- **New `/schedule/weeks` list page:** a flat, scannable list of weeks
+  (12 at a time, prev/later navigation) each showing Published/Draft/
+  Not planned, with a direct action link (View / Review & publish /
+  Plan this week). Complements the month calendar rather than
+  replacing it — faster to scan when you just want to know "what's
+  left to publish" without reading day-level detail.
+
+**Sandbox note:** this sandbox's FUSE-mounted outputs directory
+wouldn't allow deleting `AddRosterEntryForm.tsx` even via `mv` out of
+the directory (same class of EPERM issue as the recurring `.next`/git-
+lock problems already documented below) — worked around by renaming it
+to `AddRosterEntryForm.tsx.stale` in place and adding `*.stale` to
+`.gitignore`, and excluding that pattern from the delivery zip's rsync
+so it never actually reaches the real repo. If you ever see a stray
+`.stale` file in a future handoff, it's dead code that safely deletes.
+
+Verified: all 71 existing unit tests pass unchanged, `next build`
+clean — 23 routes including `/schedule/weeks`.
+
+## Schedule Planner: publish preview + month/person zoom views (2026-08-11)
+
+Three more pieces on top of the shipped weekly plan grid, all requested
+in one go by Oliver ("I want schedule preview before publishing" +
+"can we see it as monthly as well... zoom out to oversee the future,
+then zoom in to a week, and check each person's shifts"). No schema
+changes for any of these — all three read existing tables in new
+shapes.
+
+- **Publish preview gate (`/schedule/plan/preview`):** the draft
+  banner's Publish button now links here first instead of publishing
+  directly. Two views, toggled by `?view=`: "Manager view" (read-only
+  grid, keeps the red/orange warnings) and "Staff view" (same grid,
+  warnings hidden — what employees will actually see once it's live).
+  Both reuse `WeeklyPlanGrid` itself via new `readOnly`/`hideDiagnostics`
+  props rather than a second component, so the preview can never drift
+  from the real editable grid's data or layout. "Confirm & Publish"
+  sits at the bottom of this page.
+- **Month zoom-out (`/schedule/plan/month`):** a calendar covering the
+  whole month, one cell per day, showing a shortfall count ("3 short" /
+  "Covered") and a status dot (green=published, gray=draft,
+  blue=projected). Key design call, confirmed with Oliver: most future
+  weeks won't have been "Generated" yet, so showing only actual data
+  would leave most of the month blank — not much of an "oversee the
+  future" tool. Instead, weeks that don't exist yet are PROJECTED live
+  from the recurring templates using the same rules
+  `generateWeekFromTemplate` uses (now factored out into
+  `lib/schedule/projectTemplate.ts`'s `projectAssignmentsForWeek`, a
+  pure function shared by both the real generate action and this
+  read-only projection, so they can't drift apart). Click any day to
+  jump into that week's real grid.
+- **Person zoom-in (`/schedule/plan/person`):** pick an employee, see
+  their shifts across a month, calendar-style, same
+  projected/draft/published blending as the month view. Built as
+  reusable infrastructure on purpose — this is the same shape staff
+  will want for their own "My Schedule" page later (a later phase),
+  just pre-selected to the logged-in employee instead of a manager's
+  pick.
+
+All three link to each other and back to the weekly grid ("Zoom out to
+month view" / "Zoom in to weekly view" / "View by person"), plus cards
+on the `/schedule` landing page. Verified: all 71 existing unit tests
+pass unchanged, `next build` clean — 22 routes including the three new
+pages. No new unit tests (presentational + read-only query composition,
+no new calculation logic); no real-DB smoke test possible from this
+sandbox since it has no Turso credentials (only Oliver's machine does)
+— relying on the build/typecheck pass plus careful review of the
+query logic for this round.
+
+## Weekly plan inline quick-add + staffing target stepper (2026-08-11)
+
+Two related UI improvements Oliver asked for after using the shipped
+Phase 2 grid live:
+
+- **Inline quick-add on `/schedule/plan`:** every grid cell (not just
+  under-target/red ones — confirmed with Oliver, he wants to be able
+  to add extra people to already-full cells too) now has a small
+  dropdown right in the cell, grouped "usually works this role" vs
+  "other," calling the existing `addPlannedAssignment` action directly
+  (same pattern as `GenerateWeekButton`/`PublishWeekButton` — a plain
+  function call inside `startTransition`, not a `<form>`, since this
+  lives inside a table cell). No more needing the separate form below
+  the grid for the common case. The "extra coverage" (yellow)
+  checkbox only appears once a name is picked, and is always a manual
+  toggle — explicitly NOT auto-set based on whether the add pushes the
+  cell over target. Oliver's reasoning: the app can't tell "covering a
+  known gap" from "anticipating a busy day," and those mean different
+  things to him, so he wants to say which one it is rather than have
+  it guessed.
+- **Staffing target stepper on `/schedule/targets`:** replaced the
+  plain number input in each grid cell with a `[-] [count] [+]`
+  control (Oliver's words: wanted it to feel like a "game UI" quantity
+  picker). Purely presentational — still the same underlying
+  `<input type="number" name="target_...">` under the hood, so the
+  existing full-grid submit + server-side resync in
+  `updateStaffingTargets` didn't need to change at all.
+
+Presentational/UI-only, no schema or action changes. All 71 tests
+pass, `next build` clean.
+
+## Weekly plan: double-booking warning badge (2026-08-11, Oliver-reported)
+
+Oliver spotted it live on the deployed `/schedule/plan` page (himself
+listed as both Bartender and Busser on the same Monday Dinner slot) —
+nothing in the schema stops a manager from assigning the same person
+to two different positions in the same date+period, but a person
+obviously can't work both at once. Not blocking it outright (a manager
+might occasionally mean it, e.g. a genuinely dual-role person), just
+surfacing it: `WeeklyPlanGrid.tsx` now computes, per employee per
+date+period slot, every position they're assigned across the whole
+grid, and renders a small orange "!" badge next to their name pill
+when that's more than one, with a hover tooltip naming the conflicting
+position(s). Pure client-side computed from data already loaded, no
+schema/action changes. No new tests (presentational only); verified
+via build + all 71 existing unit tests passing unchanged.
+
+## Schedule Planner — Phase 2 shipped: weekly plan grid + publish + auto-seed (2026-08-11)
+
+Second piece, built directly on top of Phase 1's staffing targets and
+template assignments. Two new tables (migration `0006`, purely
+additive):
+
+- `scheduleWeeks` — one row per Monday-starting week, `status`
+  (`draft`/`published`) + `publishedAt`. A week only exists once
+  someone generates it.
+- `plannedShiftAssignments` — the actual grid cells: employee ×
+  position × date × period, `sourceType` (`FROM_TEMPLATE` vs
+  `MANUAL_ADD`) and `isExtraCoverage` (the YELLOW flag — confirmed
+  standalone from the RED vacancy flag, a manager marking a slot as
+  extra headcount for an anticipated busy day, independent of the
+  template).
+
+**New page `/schedule/plan`:** week-nav (prev/next Monday), a
+"Generate from template" button when that week hasn't been built yet
+(seeds `plannedShiftAssignments` from active `employeeScheduleTemplates`
+rows, skipping anyone not yet effective or already vacated by that
+date), then a Position × Date grid per Lunch/Dinner — same visual
+shape as the Staffing Targets grid on purpose. Cells under their
+staffing target get a red-tinted background + "N/target" badge (an
+at-a-glance short-staffed signal, distinct from the RED
+vacancy-on-template flag — this is a live count-vs-target comparison,
+not a stored flag). Manual add-to-slot form reuses the roster's
+employee-picks-defaults-position UX, with an "Extra coverage" checkbox
+for the YELLOW case. "Publish" button (confirm dialog) flips
+`status` to `published` and stamps `publishedAt`.
+
+**Auto-seed on publish:** once a week is published, creating a brand
+new shift for a date inside that week (via the existing `createShift`
+action) now automatically bulk-inserts `shiftRosterEntries` from the
+matching `plannedShiftAssignments` — the "the plan becomes the actual
+roster" behavior Oliver wants. Deliberately scoped to NEW shifts only;
+reusing an existing draft shift is untouched, so the existing manual
+"Add someone" flow still works for day-of fixes without fighting the
+auto-seed.
+
+**What's explicitly still not built:** staff-facing "My Schedule" view
+on `/me`, leave requests + Manager request log, and the swap-request
+portal (green state). All noted in the schema doc and memory, none
+started.
+
+**Verified:** all 71 existing unit tests still pass unchanged (no
+calc-engine or existing-table changes). `next build` clean — compiled,
+typechecked, and generated all 20 routes including the two new
+`/schedule/plan` pages with zero errors (same rsync'd-copy workaround
+for the outputs-mount FUSE build quirk). No new unit tests — like
+Phase 1, this is CRUD + a straightforward seed/publish flow, no new
+calculation logic. Migration `0006_minor_thunderbolt_ross.sql` NOT yet
+applied to the production Turso DB — run `npm run db:migrate` to apply,
+then `git push`.
+
+## Template Assignments page redesign: Position -> person -> checkbox grid (2026-08-12)
+
+Oliver asked for this one explicitly ("let's talk before you build") and
+we discussed the design before any code: the old `/schedule/templates`
+page was a flat list of every (employee, position, day, period) row plus
+a one-slot-at-a-time add form. Slow to use — a position like Server
+normally has 3+ people, each with their own multi-day pattern, so adding
+each day/period as a separate form submission took many clicks, and the
+growing flat list was hard to scan ("I really hate the long list").
+
+New shape, confirmed with Oliver point by point before building:
+
+1. **Layout** — Position rows first. Each position card shows who's
+   currently assigned (name + their pattern, e.g. "Chui — Mon L, Wed D"),
+   plus a dropdown of people ELIGIBLE for that position (same "assigned
+   in Employee admin" list AddTemplateForm used to grey-in) to pick who
+   to add or edit. Picking a name opens a Monday-Sunday x Lunch/Dinner
+   checkbox grid for just that person in that position.
+2. **Editing an existing person pre-checks their current pattern**
+   (confirmed — not a blank grid every time). Saving diffs what's
+   checked against what's stored: newly-checked boxes create (or
+   reactivate a previously-retired) row, unchecked boxes retire that row
+   immediately, no vacancy warning. This is also the new home for the
+   "employee wants to drop just one recurring day" case from the
+   previous entry below — no separate reason/UI needed for it anymore,
+   just uncheck the box.
+3. **effectiveFrom stays in the schema, not in this UI.** Oliver: hasn't
+   used it yet with real data, unsure how it should work, doesn't want
+   to design it blind — keep the column and the DB support, just don't
+   expose a field for it right now so it's there to pick back up later.
+   New rows created by the grid save with `effectiveFrom: null` (takes
+   effect immediately), same as most existing rows already had.
+4. **Kebab menu (⋮) per assigned person** replaces the old inline
+   Mark-vacating/Retire buttons — opens a small popup with "Mark
+   vacating…" (reason + start date, same red-flag mechanic as before),
+   "Clear vacancy", and "Retire from this position" (immediate, no
+   warning). Scope note: since the smallest unit this UI edits is now
+   "this person, in this position" (not a single day/period row),
+   PROMOTION and OTHER now share that same cascade scope in
+   `setTemplateVacancy`/`clearTemplateVacancy` (every active row for
+   that employeeId + positionId) — RESIGNATION is unchanged (every row
+   for the employeeId, any position). They stay separate reasons for
+   labeling purposes even though the blast radius is now identical.
+
+New: `lib/schedule/loadTemplatesByPosition.ts` (position -> eligible
+employees + assigned employees w/ pattern + vacancy status),
+`lib/actions/schedule.ts`'s `syncEmployeePositionTemplate` (diff-and-sync
+one employee+position pair's checked cells) and
+`retireEmployeeFromPosition`, `app/schedule/templates/PositionTemplateGrid.tsx`
+(all the new UI). Removed `createTemplateAssignment`/
+`retireTemplateAssignment` (superseded, nothing else referenced them).
+Retired `AddTemplateForm.tsx`, `TemplatesTable.tsx`,
+`loadScheduleTemplates.ts` to `.stale` (sandbox can't hard-delete files —
+see `.gitignore`'s note).
+
+Verified: all 71 tests pass (no test coverage for this page — UI-only
+change, same as before), `next build` clean, 27 routes unchanged.
+
+## Manager auth — first cut (2026-08-14)
+
+Zero auth existed on any manager page (`/shifts`, `/employees`,
+`/positions`, `/settings`, `/reports`, `/schedule/**`) until now — a
+real gap given Youk Thai (Aey's restaurant, opening October 2026) is
+Atlas's actual upcoming deployment, not just a sandbox. Built fast
+(inside a ~43-minute session budget), deliberately reusing the
+existing staff PIN session system as-is rather than inventing a new
+mechanism: `app/(protected)/layout.tsx` (a Next.js route group — the
+`(protected)` segment is invisible in the URL, so every route keeps
+its exact same path) calls `lib/auth/guard.ts`'s new `requireManager()`,
+which calls the existing `getCurrentStaffSession()` and requires
+standing `employees.systemRole` MANAGER or ADMIN, redirecting to
+`/login` otherwise.
+
+Known v1 gap, documented not hidden: does not consider the
+shift-scoped `positions.grantsManagerAccess` elevation (someone
+covering a manager shift without a standing MANAGER/ADMIN account),
+only the standing role. Extend `requireManager()` if that case comes
+up for real.
+
+No schema change, no migration. All 71 tests pass unchanged (routing
+change only), `next build` clean, all 27 routes resolve at the same
+URLs as before.
+
+## Staff-facing My Schedule + role-aware nav (2026-08-14, same day)
+
+Oliver: "set non-manager to see only publish schedule in schedule
+menu as 'my schedule' and 'my pay'" — direct follow-up to the manager
+auth cut above, since the nav bar was still showing every STAFF
+account the full manager item list even though clicking through now
+bounces them to `/login`.
+
+New `app/me/schedule/page.tsx` — reuses `loadEmployeeSchedule`
+(already built reusable for exactly this per its own 2026-08-11 doc
+comment: "same loader, just pre-selected to the logged-in employee
+instead of a manager's pick"). Locked to the logged-in employee's own
+id, no employeeId picker. Only renders shifts from PUBLISHED weeks —
+draft/projected days render blank rather than leaking a manager's
+still-editable plan.
+
+`NavBar.tsx`/`NavBarClient.tsx` now role-aware: MANAGER/ADMIN
+accounts see the full nav unchanged; STAFF accounts see just "My
+Schedule" in the nav bar (My Pay was already a separate always-shown
+link on the right, unchanged).
+
+Verified: `loadEmployeeSchedule`'s own query already scopes both
+`plannedShiftAssignments` and `employeeScheduleTemplates` by
+`employeeId`, confirmed no cross-employee data leak before shipping
+this to a staff-facing page. All 71 tests pass unchanged, `next
+build` clean, `/me/schedule` resolves alongside the existing routes.
+
+## My Schedule: Day off tile vs not-published-yet shading (2026-08-14, same day)
+
+Follow-up from Oliver on the staff My Schedule view shipped earlier
+today: "the day that they no schedule shows day off tile in published
+week. and the week that not publish yet chang calendar a shade of
+grey." Previously both states rendered as an identical blank cell,
+which could read as "you're off" when it actually meant "not
+published yet." Now: published + nothing scheduled -> a bordered
+"Day off" tile; not published yet (draft/projected) -> the whole cell
+shaded grey, no tile, with a legend explaining both states.
+Presentational only, no loader change. All 71 tests pass, build clean.
+
+## Danger zone: clear a draft day / delete a whole week (2026-08-14, same day)
+
+Oliver: "i would like to be able to delete draft day and draft week
+schedule and start over again." Clarified scope with him before
+building (per standing never-assume rule) across three questions:
+what "delete draft day" means (clear every assignment for one date,
+whole week untouched), what "delete draft week" means (full reset --
+delete the week row and all its assignments, back to "Not planned"),
+and whether either should be allowed on an already-PUBLISHED week.
+His answer to the third: "can do but need more badge alert what you
+are going to do. with manager pin require."
+
+Shipped as two new actions in `lib/actions/schedule.ts` --
+`clearDay(weekId, date, pin)` and `deleteWeek(weekId, pin)` -- both
+gated by a second, narrower PIN re-check (`verifyCurrentManagerPin`)
+on top of the page-level `requireManager()` guard, so a manager has to
+actively re-confirm their own identity for this specific destructive
+action, not just have an active session. New `DangerZone.tsx` (a
+collapsed `<details>` disclosure at the bottom of the Weekly Plan
+page) shows a louder red warning banner when the week is published,
+since staff may already be seeing it on My Schedule.
+
+Verified FK delete order (assignments before the week row, matching
+the `weekId -> scheduleWeeks.id` reference). No schema/migration
+change, no new route. 71 tests pass unchanged, build clean. No new
+unit tests -- consistent with this file's other CRUD actions
+(`removePlannedAssignment`, `publishWeek`), which are likewise
+untested; only the calc engine has unit coverage in this project.
+
+## Danger zone v2: drop PIN, typed confirm word, required reason, change log (2026-08-14, same day)
+
+Follow-up to the danger zone shipped earlier today. Oliver, after being
+asked to think through a Floor-Manager-approval design (deferred to
+backlog, see PROGRESS/memory note below): "let's save it to the
+backlog for now... small restaurant might have one manager do a lot
+of things and pin might not be the answer... but changelog is one
+thing we should do... and the idea of long type 'i'm sure to nuke it'
+phase kinda thing works to as a friction but not catching cheat."
+Then, when asked to confirm dropping PIN for a typed word instead:
+"drop the pin but make a log and also ask for a reason for delete
+what is already published."
+
+Shipped exactly that:
+- `clearDay`/`deleteWeek` (`lib/actions/schedule.ts`) no longer check
+  a PIN. Instead require typing the literal word CLEAR / DELETE
+  (case-insensitive) to submit -- friction against a misclick,
+  explicitly not meant to authenticate identity.
+- A `reason` field is now REQUIRED only when the day/week being
+  touched was already published; optional (omitted) for drafts, since
+  nobody outside management has seen a draft yet.
+- New table `schedule_change_log` (migration `0007_married_marauders.sql`,
+  additive only, NOT yet applied to production Turso -- run
+  `npm run db:migrate`) -- append-only record of every clear/delete:
+  who, when, what was removed (JSON snapshot with readable names, not
+  just ids), whether it was published, and the reason if given.
+  Deliberately no FK from weekId to scheduleWeeks.id (a whole-week
+  delete removes that row in the same breath the log entry is
+  written -- a hard FK would cascade-delete the log too, defeating
+  the point).
+- New `lib/schedule/loadRecentScheduleChanges.ts` -- flattens the log
+  down to just the entries affecting one employee, defaults to
+  PUBLISHED-only (a caught-before-shipping bug: this filter originally
+  lived only in the page component, so a future caller could have
+  leaked draft changes to staff by forgetting to filter; moved into
+  the loader itself with an `includeDraftChanges` opt-in instead).
+- `/me/schedule` now has a "Recent changes to your schedule" section
+  showing shifts removed after publish, with who/when/why.
+
+**Verified:** direct-DB script (`verify_schedule_changelog.ts`,
+deleted after use per project convention) against a freshly-migrated
+throwaway SQLite file -- 6 checks: published clear logs + reaches the
+staff view; draft clear logs raw but does NOT leak to staff (this one
+failed on the first pass, caught the loader-vs-page filter bug above,
+fixed, re-ran, passed); whole-week delete removes the week row while
+the change-log row survives (no FK cascade); a whole-week delete
+correctly surfaces every affected shift (not just one) to the staff
+view. All 71 existing unit tests pass unchanged, `next build` clean.
+
+## Fix: danger zone crashed to a blank error page instead of showing a message (2026-08-14, same day)
+
+Oliver hit "This page couldn't load / A server error occurred" right
+after using "Delete this week" on the live deployed app. Root cause,
+almost certainly: v35 shipped a new `schedule_change_log` table via
+migration `0007`, and the delete action writes to it -- if
+`npm run db:migrate` hadn't been run yet on the production Turso DB
+before testing, that insert fails with "no such table," and neither
+`clearDay` nor `deleteWeek` had a try/catch around their body, so the
+thrown error crashed straight to Next.js's generic error screen
+instead of showing anything useful.
+
+Fixed defensively regardless of the exact cause: both actions are now
+wrapped in try/catch (matching `addPlannedAssignment`'s existing
+pattern elsewhere in this same file), returning `{ error: message }`
+into the form instead of throwing uncaught. Any future failure here
+(missing table, a dropped connection, anything) now shows an inline
+message instead of taking down the whole page.
+
+Also addressed Oliver's explicit UX ask -- "it should direct back to
+weekly view": `deleteWeek` now calls `redirect(`/schedule/plan?week=...`)`
+after a successful delete (same pattern as login/logout in
+lib/actions/auth.ts), rather than relying on the implicit client
+refresh a plain useActionState return triggers. Deliberately placed
+OUTSIDE the try/catch, since `redirect()` throws internally by design
+and must never be swallowed by the new error handling.
+
+**Before testing this again: run `npm run db:migrate` first if you
+haven't.** All 71 tests pass, `next build` clean.
+
+## Better error diagnostics + delete-week redirect target fixed (2026-08-14, same day)
+
+Two follow-ups after the crash fix above. First, Oliver's next attempt
+surfaced a caught-but-unhelpful error (`Failed query: insert into
+"schedule_change_log"...` with no actual reason) -- a known lossy-detail
+pattern with `@libsql/client` over Turso's HTTP protocol, where `.message`
+alone omits the real cause. `describeScheduleActionError()` now also
+pulls `.code` and `.cause`. Also delivered `verify_schedule_change_log_table.ts`
+in the repo root for Oliver to run himself against his own production DB
+(introspects the table via `PRAGMA table_info`, attempts a test insert
+with full error detail, cleans up after itself) -- Claude has no
+production DB access and must not have any.
+
+Second, Oliver asked to change the post-delete redirect target: "let's
+change redirect page after delete from weekly plan to weeks page."
+`deleteWeek` now calls `redirect("/schedule/weeks")` instead of
+redirecting back to the just-deleted week's own (now-empty) plan page.
+
+## Change-log gap closed + published-week edit gate + My Schedule reorder (2026-08-14, same day)
+
+Three fixes from Oliver's live-testing follow-up, after he confirmed via
+screenshot that the change-log feature itself was working correctly on
+Nancy's My Schedule:
+
+1. **My Schedule reorder**: "Recent changes to your schedule" moved above
+   the calendar, with a "No changes to schedule" empty state instead of
+   the section just disappearing when there's nothing to show.
+
+2. **Logging gap**: "why i manually delete schedule of nancy on tuesday
+   but no log sent to nancy" -- diagnosed as the ordinary grid "x" remove
+   button (`removePlannedAssignment`) predating the whole change-log
+   system and never being wired into it, unlike the newer bulk
+   `clearDay`/`deleteWeek` danger-zone actions. Fixed: `removePlannedAssignment`
+   now fetches the assignment before deleting it and, if its week is
+   already published, writes a `REMOVED_ASSIGNMENT` log entry
+   automatically -- no PIN/typed-confirm/reason, since this is a routine
+   single-person edit, not a bulk destructive one. Extended
+   `scheduleChangeLog.action`'s enum (no new migration needed, the column
+   is unconstrained TEXT). Verified against a fresh local DB: published-
+   week removal logs and shows up via `loadRecentScheduleChanges`; draft-
+   week removal does not log at all (4/4 checks).
+
+3. **Published-week edit gate**: new `PublishedEditGate.tsx` hides the
+   ordinary add/remove grid controls behind an explicit "Edit published
+   schedule" button once a week is published -- staff can already see
+   that week on My Schedule, so editing it should be a deliberate act.
+   Draft weeks skip the gate entirely. Client-side toggle, resets on page
+   load -- friction, not a hard security lock, matching the danger zone's
+   typed-word-confirmation philosophy rather than adding another PIN gate.
+
+`npx tsc --noEmit` clean, `npm run build` clean, all 71 tests pass.
+
+## Nav: circular initials avatar "me menu" (2026-08-14, same day)
+
+Oliver's ask: "circle shape like with initial of each staff as me menu
+and has my pay and my schedule show as option after click." Replaced
+the plain name text + separate "My Pay" link + "Sign out" button on the
+right of the nav bar with one circular avatar (employee's initials),
+click opens a dropdown: name/role header, My Schedule, My Pay, Sign
+out. Closes on outside click or route change. Also removed the old
+STAFF-only "My Schedule" link from the left nav -- it now lives in this
+same menu instead of being split across two spots. MANAGER/ADMIN's
+left nav (Shifts/Employees/etc) is unchanged; only the right-side
+personal menu changed, for everyone. `npx tsc --noEmit` clean,
+`npm run build` clean, 71/71 tests pass.
+
+## Staff day-preview (click calendar) + Template Assignments inline grid (2026-08-14, same day)
+
+Two features from Oliver's follow-up ask.
+
+**Staff calendar day-preview.** "each staff should be able to click
+calendar to see staff view like in a preview stage who work on that
+day. but option on setting to allow who see who is for admin to
+override permission as usual. foh see foh or see all." Any published
+day on My Schedule's calendar is now clickable -> `/me/schedule/day?date=...`,
+a Lunch/Dinner list of who's scheduled. New loader
+`lib/schedule/loadScheduleDayPreview.ts` reuses the existing
+`getVisibleRosterEntries` (lib/roster/visibility.ts) + the
+`rosterRestrictFOHToOwnCategory`/`BOH` and
+`rosterShowCoworkerListFOH`/`BOH` restaurant settings, rather than a
+second parallel permission system -- those category-restriction
+settings were literally built ahead of time for this ("Not yet used by
+a live staff view" was the old settings-page copy). Reads from
+`plannedShiftAssignments` (the plan), not `shiftRosterEntries` (day-of
+actuals) -- previewing a future day needs the plan, which exists long
+before any real Shift row for that date. Draft weeks return null, same
+rule as My Schedule. No money fields included, ever. Settings page copy
+updated to note both toggles now also gate this preview. Verified
+against a fresh DB: 6/6 checks (draft->null, FOH restriction, MANAGER
+sees all, coworker-list-off leaves only self).
+
+**Template Assignments inline grid.** "in template assignment worth ui
+upgrade to work easier. please display day in a week start with mon -
+sun. each day has 2 rows. first is checkbox for lunch. another row for
+dinner inline with first column which is name on the left. the most
+right is edit button." Redesigned `PositionTemplateGrid.tsx`: Mon-Sun
+columns, two rows per assigned person (Lunch then Dinner), name in a
+rowSpan'd left column, an "Edit" button (replacing the old "⋮" icon,
+same Mark-vacating/Retire menu underneath) in a rowSpan'd right column.
+Checkboxes are live/inline now and auto-save via the existing
+`syncEmployeePositionTemplate` action on each click -- no more click-a-
+name-to-open-a-separate-editor-below step from the 2026-08-12 version.
+Adding a brand-new person still goes through the "+ Add" picker, shown
+immediately as a blank editable row; their first checkbox click is what
+actually persists them (the table only ever stores checked cells, so
+there's no "empty" row to load on refresh until then).
+
+`npx tsc --noEmit` clean, `npm run build` clean, 71/71 tests pass.
+
+## Template Assignments: checkboxes disabled by default, unlock via Edit (2026-08-14, same day)
+
+Oliver's follow-up on the inline grid shipped earlier today: "i would
+like template assignment checkbox on each day to be disable state
+first. and be able to edit via edit button." Checkboxes now render
+`disabled` by default; clicking a row's Edit button (label flips to
+"Done") unlocks that person's checkboxes for the rest of the page
+session. Mark vacating/Clear vacancy/Retire folded into the same
+`editing` state -- previously a dropdown behind an always-clickable
+button independent of checkbox lock state, now shown as small inline
+links under Edit/Done only while that row is unlocked. `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 tests pass.
+
+## Ledger v1: vendor directory + Petty Cash with auto-pulled reconciliation (2026-08-14)
+
+First round of the new Ledger feature. Design conversation with Oliver
+(picked over building the shift-swap system next, see project memory)
+confirmed scope: v1 = vendor directory + Petty Cash only (Supplier Check,
+photo attachment, PDF export, and Card's weekly-batch-against-statement
+flow are later rounds). Built from re-studying Soothr's real
+" 2026 - C.xlsx" DNA file (Petty Cash Soothr / Supplier Check / Card /
+Dropdown / Supplier Address / Export sheets) with fresh eyes rather than
+trusting a 2-day-old memory summary.
+
+Schema (migration 0008, additive): `ledgerVendors`, `ledgerCategories`
+(both admin-managed, retire-not-delete, restaurant-configurable --
+Bar/Food/Mis/PAYROLL BOH/PAYROLL FOH/Fixed expenses/Car/SHM seeded as a
+starting point, not hardcoded), `pettyCashEntries` (vendorId nullable --
+Soothr's real data has plenty of vendor-less cash handoffs like "Pay out
+to Tommy: flowers"), `dailyCashReconciliations` (one row per date:
+beginning balance, other cash, the manager's physical count, draft/
+finalized status). Sales cash and Tip cash are deliberately NOT stored
+columns -- `lib/ledger/loadPettyCashDay.ts` computes them live from that
+date's `shiftSales` rows (finalized shifts only), so the number can never
+independently drift from the Closing Report's own figures. Oliver's own
+reasoning for the dependency: "you supposed not to close daily expenses
+without knowing what cash we would get from register anyway" --
+`finalizePettyCashDay` in `lib/actions/ledger.ts` enforces this by
+refusing to finalize while any Shift for that date is still draft.
+
+UI is mobile-first per an explicit Oliver requirement ("this back office
+must be able to use with mobile") -- `/ledger` is a single day's petty
+cash view: quick-add form, card list of entries (not a table), and a
+reconciliation panel with the auto-pulled Sales/Tip cash shown read-only
+next to editable Beginning Balance/Other/Counted Amount, plus a live
+match/mismatch indicator against the computed expected total.
+`/ledger/vendors` and `/ledger/categories` are simple retire-not-delete
+admin lists, same shape as Positions.
+
+Seeded 8 categories + 27 real vendor names from Soothr's actual
+spreadsheet data -- Oliver confirmed seeding from Soothr "for testing
+sake," with the expectation Youk Thai replaces these with its own real
+vendors before going live.
+
+Explicitly deferred, not forgotten: Supplier Check (next natural
+extension of this same vendor/category infra), receipt/invoice photo
+attachment (`photoUrl` column already reserved on `pettyCashEntries` so
+this doesn't need a later migration -- needs Oliver to provision storage
+credentials, e.g. Vercel Blob, before it can be built), a consolidated
+daily PDF/image report for the on-duty manager to send to Aey/Oliver
+(replaces the LINE-group report habit for now, in-app owner notification
+is a further-future step), invoice/receipt generation for no-receipt
+expenses like buying flowers from a local florist (explicitly a "future"
+ask, not v1), and the cam-scanner/OCR auto-read of a receipt photo
+(explicitly skipped for now, but the schema doesn't close the door on it
+-- see [[project-atlas-ledger]] memory for the full reasoning on why
+each of these was sequenced where it was).
+
+Verified: `npx tsc --noEmit` clean, `npm run build` clean, all 71
+existing tests pass unchanged, plus a new 8/8-check direct-DB
+verification against the real seeded shift data (auto-pull sums match a
+direct query over shiftSales, finalize is blocked while a shift is
+unfinalized, a zero-shift day is still finalizable, the expected-balance
+formula matches the loader's own math).
+
+## Petty Cash week/month report, folded into the existing /reports page (2026-08-14)
+
+Oliver's ask: "i would like to get weekly view and monthly view on
+petty cash page, then we can click on date to see report detail of
+that day. and we already got report page, we should utilize that page
+to show different report." Rather than a second calendar UI under
+`/ledger`, `/reports` now has a report-type tab (Sales & Tax / Petty
+Cash) sharing the page's existing date-range picker (This week/month/
+year presets + custom range) via a `?report=` query param -- both
+report types live on the same page/picker, Sales & Tax's own behavior
+and .xlsx export untouched. New `lib/reports/loadPettyCashReport.ts`
+bulk-fetches entries/reconciliation/finalized-shiftSales for the whole
+range in three queries (not a per-day loop) and computes each day's
+status (no data/draft/finalized) plus, for finalized days, whether the
+counted amount matched the expected total -- same formula
+`loadPettyCashDay.ts` uses for one day, applied across a range. Each
+date links to `/ledger?date=...`. `npx tsc --noEmit` clean, `npm run
+build` clean, 71/71 tests pass, plus a new 9/9-check direct-DB
+verification.
+
+## Supplier Check: invoice-based vendor payments (2026-08-14)
+
+Oliver clarified the real workflow mid-conversation: most vendors are
+NOT cash-on-delivery (that stays in Petty Cash, unchanged) -- they drop
+an invoice at delivery and get paid later by check, often at their next
+delivery, when a new invoice arrives just as the previous one gets
+settled. His words: "supplier that need cash on delivery will be in
+petty cash categories. but most of the time supplier/vendor just drop
+invoices and wait for check next time they come." Confirmed no due-date
+field is needed, and that one printed check can reconcile multiple
+pending invoices from the same vendor at once (matches the real DNA
+export sheet's own K.D. Market example, two invoice numbers batched
+under one check).
+
+Two-stage lifecycle: `logSupplierInvoice` logs an invoice as "pending"
+when it arrives (vendor, category, invoice number, description/nature,
+amount, date received). `recordSupplierPayment` lets a manager select
+one or more pending invoices from the SAME vendor and settle them
+together under one check payment (paid date, optional check number) --
+validates every selected invoice still belongs to that vendor and is
+still pending before committing, so a stale form can't double-pay or
+cross-vendor-pay. `deletePendingInvoice` removes an invoice logged in
+error; blocked once paid.
+
+Schema (migration 0009, additive): `supplier_invoices`,
+`supplier_check_payments`. UI at `/ledger/supplier-check`: invoice-
+logging form, pending invoices grouped by vendor with checkbox
+multi-select feeding a per-vendor payment form (shows a running
+selected-total), and recent payment history showing which invoice
+numbers each check settled. Linked from the main `/ledger` page's nav
+row alongside Vendors/Categories.
+
+Verified with a new 14-check direct-DB script: vendor grouping and
+pending totals, batch-paying multiple invoices under one payment with
+the correct summed total, rejecting a re-paid invoice, rejecting an
+invoice submitted under the wrong vendor's id, payment-history invoice-
+number attachment, delete blocked on paid/succeeding on pending.
+`npx tsc --noEmit` clean, `npm run build` clean, 71/71 existing tests
+pass unchanged.
+
+## Supplier Check follow-ups + Petty Cash floor manager column (2026-08-14)
+
+Three quick follow-ups from Oliver after the Supplier Check round shipped:
+
+1. **Recent payments are now click-to-expand.** `/ledger/supplier-check`'s
+   payment history was a flat list showing just a joined invoice-number
+   string; `loadRecentSupplierPayments` now returns full per-invoice line
+   items (category, description, amount, received date) and
+   `PaymentHistory.tsx` is a client component -- click a payment row to
+   expand its settled invoices.
+
+2. **New "Supplier Check" report tab + .xlsx export.** Third tab on
+   `/reports` (Sales & Tax / Petty Cash / Supplier Check), sharing the
+   same date-range picker. Before building, re-opened the real DNA
+   source file (`" 2026 - C.xlsx"`'s "Export" sheet) directly rather than
+   trusting the 2-day-old memory summary -- confirmed its exact columns:
+   Pay / Amount / Memo / PayeeName / PayeeAddress (street + city/state/
+   zip on separate lines), with Memo holding the comma-joined invoice
+   numbers one check settled (matches K.D. Market's real
+   "142675, 142676" example). New `lib/reports/loadSupplierCheckReport.ts`
+   (one row per check payment in range) and
+   `lib/reports/buildSupplierCheckWorkbook.ts` (same ExcelJS pattern as
+   the Sales & Tax export, two extra columns prepended -- Paid Date,
+   Check # -- for an audit trail the original pre-check DNA sheet didn't
+   need). Also backfilled real payee addresses for 4 more seeded vendors
+   (Asia Market Corp, Best Metropolitan, K.D. Market, The Haisein
+   Company) straight from that same Export sheet, so the exported
+   check-print columns have real data for the vendors most likely to
+   actually get paid by check.
+
+3. **Petty Cash report: added a Floor Manager column.** Shows who
+   finalized each day's cash reconciliation
+   (`dailyCashReconciliations.finalizedByEmployeeId`, left-joined to
+   `employees`) -- null for draft/no-data days, not a stale leftover
+   name.
+
+Verified with a new 11-check direct-DB script (payment detail line items
+sum to the payment total, report aggregation and date-range filtering,
+DNA-sourced vendor address flows through to the report row, finalized
+day shows the correct manager name, draft day shows null). `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 existing tests pass
+unchanged. No schema change, no new migration.
+
+## Ledger restructure: month-list landing, /ledger/day, admin edit override (2026-08-14)
+
+Oliver's ask: "after enter ledger page shows petty cash and supplier
+tabs. then when click petty cash show list of date in month first. then
+you can click each day to work on." Follow-up clarified the edit rule:
+"no after it finalized only. and let use admin as authorized to edit
+passed day or finalized item."
+
+`/ledger` is now a landing page with two tabs -- Petty Cash and Supplier
+(new `LedgerTabs.tsx`, same "separate routes, not client tab state"
+pattern as `/reports`' own tabs). Petty Cash shows a month calendar of
+days (new `MonthList.tsx`, reusing `loadPettyCashReport` -- the exact
+same loader already powering the `/reports` Petty Cash tab) with
+prev/next month navigation. The day-level work that used to live
+directly on `/ledger` -- add expense, entries list, cash-drawer
+reconciliation -- moved to `/ledger/day?date=...`, reached by clicking a
+date in the month list. Supplier tab is the existing
+`/ledger/supplier-check` route, now sharing the same tab header.
+
+Two rules confirmed and enforced: a day in the future can't be logged or
+reconciled at all (shown but not clickable in the month list; `/ledger/day`
+itself shows a "hasn't happened yet" placeholder if landed on directly) --
+and a FINALIZED day is locked for ordinary MANAGER accounts exactly as
+before, but an ADMIN-role account can still edit its entries and
+reconciliation directly. Admin edits do NOT unfinalize the day -- the
+record stays `status: "finalized"`, this is a direct correction, not a
+reopen-then-refinalize flow, with a blue "Editing as admin" banner in the
+UI. Both rules are enforced in `lib/actions/ledger.ts` (the real guard),
+not just hidden in the UI.
+
+Updated the one cross-link that needed it: `/reports`' Petty Cash table
+now links each day to `/ledger/day?date=...` instead of the old bare
+`/ledger?date=...`. The NavBar's "Ledger" link needed no change --
+already points at bare `/ledger`, which is now the tab landing.
+
+Verified with a new 10-check direct-DB script mirroring the exact
+validation logic in `addPettyCashEntry`/`saveDailyReconciliationDraft`
+(those call `getCurrentStaffSession()`, which needs real request
+context unavailable in a standalone script -- same limitation hit
+earlier for `finalizePettyCashDay`/`deletePendingInvoice`): future-day
+blocked for everyone including admin, MANAGER blocked from editing a
+finalized day, ADMIN can edit a finalized day's entries and
+reconciliation without unfinalizing it, month report data still
+correct. `npx tsc --noEmit` clean, `npm run build` clean (new
+`/ledger/day` route present), 71/71 tests pass. No schema change, no
+new migration.
+
+## Supplier Check: Printed/Paid check lifecycle, always-combine-by-vendor, holistic table (2026-08-14)
+
+Oliver talked to Aey about the real workflow and came back with two
+concrete facts that changed the design: "all invoices always get export
+to check format at the end of the week. but we also got supplier like
+maintenance that instantly need a check after service. so i think we
+should be able to group and combine check for the same supplier who
+always come as routine. and also be able to 'export this invoice to
+print check' instantly." Confirmed: combining is now automatic (not a
+manual checkbox choice), and a check has its own lifecycle separate from
+the invoices it settles -- Printed (the check has been generated) then
+Paid (it's actually been handed to the supplier).
+
+Schema (migration 0010, additive): `supplier_check_payments` gained
+`status` (printed/paid, default printed), `delivered_at`,
+`delivered_by_employee_id`. `supplier_invoices.status` widened to
+pending -> printed -> paid (a plain TEXT column with no CHECK
+constraint, confirmed by inspecting migration 0009's SQL -- no migration
+needed for the widening itself).
+
+`lib/actions/supplierCheck.ts` replaced the old checkbox-driven
+`recordSupplierPayment` with three actions: `printSupplierCheck(vendorId,
+checkNumber)` always combines every currently-pending invoice for that
+vendor into one check (captures the exact invoice ids before the update,
+so a brand-new invoice logged in the split second between the select and
+the update can't sneak into the total); `printAllPendingChecks()` is the
+weekly batch -- finds every vendor with something pending and prints one
+check each; `markSupplierCheckPaid(paymentId)` moves Printed -> Paid and
+cascades the check's invoices to `status: "paid"` too. `logSupplierInvoice`
+now redirects to `/ledger/supplier-check` on success, matching its own
+new dedicated `/ledger/supplier-check/new` page (same pattern as
+Vendors/Positions).
+
+UI restructure: "+ Add item" link replaces the old always-open logging
+form; an "Export week's checks" button runs the weekly batch and
+auto-downloads the combined .xlsx; a "Not yet checked" section groups
+pending invoices by vendor with a "Print check now" button per vendor
+(the instant/urgent path -- e.g. a maintenance vendor -- downloads that
+one check immediately); and a holistic `ChecksTable` (replaces
+"Recent payments") lists every check ever printed with a status badge,
+expandable invoice detail, and a "Mark as paid / delivered" action for
+Printed checks. New `lib/reports/loadSupplierCheckReportByIds` (shares
+an invoice-attach helper with the existing date-range loader) powers a
+new `/ledger/supplier-check/export?paymentIds=...` route for the
+instant/batch download, reusing `buildSupplierCheckWorkbook` (now with a
+Status column). The `/reports` Supplier Check tab also gained a Status
+column.
+
+Verified with a new 18-check direct-DB script: same-vendor invoices
+combine into one check with the correct summed total, printing a check
+for a vendor with nothing pending is rejected, a new invoice logged
+right after printing does NOT get swept into the already-created check,
+the weekly batch prints exactly one check per vendor with pending
+invoices, marking paid cascades to invoices and is a safe no-op on a
+second call, and both loaders return correct status/detail. `npx tsc
+--noEmit` clean, `npm run build` clean (both new routes present), 71/71
+tests pass.
+
+## Supplier Check: reprint, flexible multi-vendor Print Checks popup (2026-08-14)
+
+Two follow-ups from Oliver right after the Printed/Paid restructure:
+
+1. "even i hit print check now or not it does not mean i actually print
+   it. so the button should be remained. or should change to 'reprint'."
+   Every check row in the holistic table (Printed OR Paid) now has a
+   Reprint link that re-downloads that exact check's .xlsx via the
+   existing `/ledger/supplier-check/export` route -- no mutation, safe
+   to click any number of times, so a failed physical print or a lost
+   file is never a dead end.
+
+2. "when i wanna print, should show popup and allow me to choose which
+   vendor i need to print as well because i want a flexibility to print
+   some but not all or print all." Replaced the separate per-vendor
+   "Print check now" buttons and the all-or-nothing "Export week's
+   checks" button with one "Print Checks" button (`PrintChecksButton.tsx`)
+   that opens a popup listing every vendor with pending invoices as
+   checkboxes (plus an optional check # per selected vendor), with
+   Select all/Clear shortcuts. Confirming prints a check for exactly the
+   selected vendors -- each still auto-combines all of that vendor's
+   pending invoices -- and downloads one combined .xlsx of what was just
+   printed. Checking exactly one vendor covers the urgent/instant case
+   (a maintenance vendor needing a check right after service); checking
+   all of them covers the weekly batch. Same popup, same action either
+   way -- `lib/actions/supplierCheck.ts`'s `printAllPendingChecks` was
+   replaced by `printChecksForVendors(selections)`, an explicit
+   vendor+checkNumber list instead of unconditionally sweeping every
+   pending vendor. `PendingByVendor.tsx` is now read-only (view + delete
+   a mis-logged invoice) since printing is centralized in the popup.
+
+Verified with a new 9-check direct-DB script: empty selection rejected,
+a partial selection (2 of 3 vendors) leaves the unselected vendor's
+invoices untouched and still pending, each selected vendor keeps its own
+independent check number, selecting the last remaining pending vendor
+clears the rest, and reprinting (re-loading the same payment ids twice)
+is confirmed idempotent -- identical totals, status unchanged. `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 tests pass. No schema
+change, no new migration.
+
+## Accessibility fix: hamburger nav + scrollable weekly plan grid (2026-08-15)
+
+Fixed the two "easy" gaps flagged by X's UI/UX accessibility audit that
+don't require the full Monday design pass (flags #2 and #5 of 6 in
+`project_atlas_target_users_accessibility` memory):
+
+1. **`NavBarClient.tsx`** -- the manager nav (`MANAGER_NAV_ITEMS`, 7 text
+   links: Shifts/Employees/Positions/Schedule/Ledger/Reports/Settings)
+   was a flat unwrapped `flex gap-4` row with no wrap or scroll
+   fallback -- would overflow off-screen unreachably on a phone. Below
+   the `sm` breakpoint the inline row is now hidden and replaced with a
+   hamburger button (left of the "Atlas" logo) that toggles a stacked,
+   full-width link list below the header bar. `sm:` and above is
+   unchanged -- same inline row as before. Both the account menu and the
+   new mobile nav close automatically on navigation.
+
+2. **`WeeklyPlanGrid.tsx`** -- each period's Position x 7-day-x-2-slot
+   table had no `overflow-x-auto` wrapper and would squeeze unreadably
+   on a narrow screen. Wrapped each `<table>` in a horizontally
+   scrollable container with a `min-w-[640px]` floor, so the table
+   scrolls instead of squishing -- matches the existing pattern used
+   elsewhere for wide tabular content rather than inventing a new one.
+
+Neither fix touches the two remaining audit flags that need the full
+design pass (#1 decimal-rate inputs, #3 Schedule landing hierarchy,
+#4 dup Sign-out buttons -- flag #2 renumbered here, see memory for exact
+numbering -- and #6 no shared design system).
+
+Verified: `next build` clean, 71/71 unit tests pass. `tsc --noEmit` and
+`eslint` both show one pre-existing unrelated finding each
+(`app/layout.tsx` LayoutProps type-gen artifact, and a pre-existing
+`react-hooks/set-state-in-effect` lint warning on `NavBarClient.tsx`'s
+close-on-navigate effect) -- confirmed via `git stash` that both exist
+identically on the pre-change file, so neither was introduced by this
+round. No schema change, no migration, no new dependencies.
+
+## Settings: sales tax rate now takes/shows a percent, not a raw fraction (2026-08-15)
+
+Fixed flag #1 from X's UI/UX accessibility audit (the highest-stakes item
+on the list -- it silently affects every computed dollar figure). Oliver's
+own ask: "i want it to be input as 8.875% by default but can be changed
+later as nyc tax right now."
+
+- `SettingsForm.tsx`'s "Default sales tax rate" field now shows a `%`
+  suffix and takes/displays the value as a percent (`8.875`) instead of a
+  raw fraction (`0.08875`) -- typing "8.5" instead of "0.085" was a
+  completely natural mistake with nothing to catch it before.
+- `lib/actions/settings.ts` converts the percent input to a fraction
+  (`/100`) before storing, validated 0-100 on the way in. Every downstream
+  consumer (Closing Report auto-fill, Sales Tax report) still reads/writes
+  the fraction exactly as before -- the conversion is contained entirely
+  to the Settings form/action, nothing else changed.
+- The seeded restaurant row already has the real NYC rate (`0.08875` --
+  `db/seed.ts`), so the field now shows `8.875` out of the box, matching
+  Oliver's ask, with no schema change needed for that. `loadRestaurantSettings
+  .ts`'s "row somehow doesn't exist" fallback (should never happen
+  post-seed) was also bumped from `0` to `0.08875` for the same reason.
+  Deliberately did NOT change the `restaurant_settings.default_sales_tax_rate`
+  DB column default -- `drizzle-kit generate` wanted to emit a libSQL
+  `ALTER COLUMN` plus an unrelated drop/recreate of 16 indexes across other
+  tables to do it, which is exactly the kind of hosted-DB migration risk
+  worth avoiding for a default that's never actually hit in practice (a
+  restaurant_settings row always exists post-seed).
+
+The CC tip deduction rate field has the identical underlying issue (also
+flagged in the audit) but wasn't touched this round -- Oliver's ask was
+specifically about the tax rate.
+
+Verified with a 7-check direct-DB script: seeded rate surfaces correctly,
+percent-to-fraction conversion is exact both directions, an out-of-range
+percent (>100) is rejected, round-trips cleanly through the loader.
+`eslint` clean on all 4 touched files, `next build` clean, 71/71 tests
+pass. No schema change, no migration.
+
+## Staffing Targets rework: combined Lunch/Dinner grid + master row stepper (2026-08-15)
+
+Oliver's ask: "each position has 2 rows one is lunch another is dinner"
+plus "a -/+ button that change the whole row like a master button so you
+dont have to manaually change each and every single one. more like game
+ui." Confirmed via AskUserQuestion before building: the master button
+bumps every day in a row by 1 relative to whatever's already there
+(not a reset-all-to-the-same-number), so any day-to-day variation
+already set (e.g. Friday dinner staffed higher than Monday) survives a
+click.
+
+- `TargetsForm.tsx` rebuilt from two entirely separate Lunch/Dinner
+  tables into ONE table -- every position now gets exactly two rows
+  (Lunch, Dinner) next to each other, with the position name/category
+  spanning both via `rowSpan`. Category breaks (FOH/BOH divider) still
+  apply the same border treatment as before.
+- New "All days" column: a chunky rounded +/- pair (`MasterStepper`) per
+  row that bumps every one of that row's 7 day values by 1, clamped at
+  0. The existing per-day steppers are unchanged and still work for
+  fine-tuning a single cell -- the master control is purely additive.
+- `TargetStepper` changed from owning its own local state to being
+  controlled by the parent (`PositionTargetRows`), which now holds each
+  position's Lunch/Dinner 7-value arrays -- necessary so the master
+  button can update every cell in a row in one state change.
+- Field names (`target_<positionId>_<day>_<period>`) and the whole-grid
+  resubmit-and-resync server action (`updateStaffingTargets`) are
+  completely unchanged -- this was a client-side layout/state rework
+  only, zero backend changes.
+- Table wrapped in `overflow-x-auto` (matches the WeeklyPlanGrid/v50
+  pattern) since it's now wider (added Period + All-days columns).
+
+Verified with a 9-check static-render script (`renderToStaticMarkup`)
+confirming both rows render per position, master stepper count and
+per-day input count are correct, and seeded values land in the right
+cells. `eslint` clean, `next build` clean, 71/71 tests pass.
+
+## Weekly Plan: "Auto-fill understaffed slots" button (2026-08-15)
+
+Oliver's ask: "auto fill button on to fill up understaff positions on
+weekly plan. now no criteria or rules but i will add it up later after
+i sure how to do it we will disscuss about that later. only one rule
+right now is it cannot be same person in a day." Confirmed 4 design
+decisions via AskUserQuestion before building (eligible pool, scope,
+tie-break order, how to report unfillable slots) -- all recommended
+options accepted.
+
+- New server action `autoFillWeek(weekId)` in `lib/actions/schedule.ts`.
+  For every position/date/period slot in the week below its staffing
+  target, picks people to fill the shortfall:
+  - **Eligible pool first** (employees linked to that position via
+    Employee admin / primaryPositionId -- same group the manual
+    quick-add dropdown treats as "usually works this role"), **falls
+    back to any other active employee** not already used that day if
+    eligible is exhausted, rather than leaving a slot empty.
+  - **Never the same person twice in one calendar day** -- across BOTH
+    periods and every position, counting existing assignments AND
+    whatever auto-fill has already placed earlier in the same run.
+  - Among multiple free/eligible candidates, **picks whoever has the
+    fewest shifts so far this week** (ties broken alphabetically) so
+    hours spread out reasonably with zero real rules yet.
+  - Never touches an existing assignment, only adds new rows for the
+    shortfall. A slot that still can't be fully filled is left under
+    target and reported back rather than silently dropped.
+  - New rows tagged `sourceType: "AUTO_FILL"` (schema enum widened from
+    2 to 3 values -- plain TEXT column, no CHECK constraint, confirmed
+    via `drizzle-kit generate` -> "No schema changes, nothing to
+    migrate" -- no migration needed).
+- New `AutoFillWeekButton.tsx`, one button + result banner ("Filled 11
+  slots. 3 slots still need someone" + a per-slot breakdown when
+  something couldn't be filled). Lives inside `PublishedEditGate`'s
+  unlocked view, next to "Add to a slot" -- it's another way of adding
+  assignments, so it sits behind the same "you're editing a published
+  schedule" awareness rather than bypassing it.
+
+Verified with a 12-check direct-DB script against fresh seeded data:
+confirms no employee is ever double-booked the same date, eligible pool
+is preferred over fallback, the fewest-shifts tie-break actually skips
+someone with a head-start, an intentionally impossible target is
+reported in the skip summary instead of silently dropped, re-running
+auto-fill on an already-filled week adds nothing extra (idempotent), and
+every new row is tagged AUTO_FILL. `eslint` clean, `next build` clean,
+71/71 tests pass. No migration.
+
+## Auto-fill fix: primary position first, then multi-position, never an unsuitable person (2026-08-15)
+
+Oliver caught a real bug from live testing: "i saw gunner as a head
+chef which it is not possible. gunner can do a packer not chef." His
+rule for the fix: "fill only primary position first and then fill with
+people who can do multi position. never add a person auto fill person
+who is not suitable to positions."
+
+Root cause: v53's `autoFillWeek` had a single merged "eligible" pool
+(primary + cross-trained) and, when even that was exhausted, fell back
+to ANY active employee not already used that day -- which is exactly
+how Gunner (primary Bag Handler, zero link to Head Chef at all) ended
+up filled into a Head Chef slot once Bomb (the only real Head Chef)
+was already used elsewhere that date.
+
+Fixed in `lib/actions/schedule.ts`: replaced the single eligible set
+with two ordered, non-overlapping tiers, tried in order per slot --
+  1. Primary -- employees whose `primaryPositionId` is this position.
+  2. Multi-position -- employees cross-trained for it via Employee
+     admin (`employeePositions`) but it isn't their primary.
+There is no third tier anymore. If neither has anyone free that date,
+the slot is left unfilled and reported in the skip summary -- it will
+never place someone with zero link to that position, no matter how
+short-staffed the day is. The fewest-shifts-this-week tie-break still
+applies WITHIN a tier, but tier order now always wins over it (a
+primary match with more hours already still gets picked before a
+0-hour secondary match, matching Oliver's "primary first" wording
+literally).
+
+`AutoFillWeekButton.tsx`'s on-screen description updated to match.
+
+Verified with a 10-check direct-DB script: an unfillable Head Chef slot
+(sole primary person already used, no secondary at all) is left empty
+and reported, never handed to an unrelated person like Gunner; Bag
+Handler correctly prefers Gunner (primary) the moment he's free; a
+primary match with a pre-existing shift still gets used before an
+otherwise-idle secondary match, once primary options run out;
+same-day exclusion and skip-reporting from v53 both still hold.
+`eslint` clean, `next build` clean, 71/71 tests pass. No schema change,
+no migration.
+
+## Supplier Check invoice editing + Financial auditor code (2026-08-15)
+
+Oliver: "i want to be able to edit the check in case of typo of put
+wrong amount." Real-world security model, confirmed: "in real senario
+it is admin and Aey. after hit edit might need a prompt to enter aey
+secret code for security. like manager code in bank. as Aey will be a
+financial audit for Youk."
+
+Previously there was no way to fix a typo or wrong amount once an
+invoice existed -- a Pending one could only be deleted and re-entered
+from scratch, and a Printed/Paid one couldn't be touched at all.
+
+- New `employees.isFinancialAuditor` boolean (schema + additive
+  migration, no data loss) -- who's allowed to edit an already Printed/
+  Paid invoice, and whose existing staff-login PIN doubles as the
+  confirmation code required on every such edit. Independent of
+  systemRole on purpose: Aey is seeded as MANAGER, not ADMIN, but still
+  needs this specific power. Toggle lives on the Employee admin form
+  ("Financial auditor" checkbox) -- **Oliver still needs to check this
+  box on his REAL Aey employee record via /employees**, since seed data
+  only sets it locally for testing, never touches production.
+- `StaffSessionEmployee` (lib/auth/session.ts) extended with this flag
+  so pages can gate UI visibility without an extra query.
+- New `editSupplierInvoice` action (lib/actions/supplierCheck.ts):
+  invoice number / description / amount are editable (vendor/category
+  are not -- out of scope for "typo or wrong amount"). Two gates by
+  status:
+    - PENDING: open to any manager who reached the page, no code --
+      nothing's locked in yet.
+    - PRINTED or PAID: only an ADMIN account or the flagged auditor may
+      even attempt it, AND -- regardless of who's editing, even Aey
+      herself -- the flagged auditor's own PIN must be re-entered and
+      verified. This is deliberately "the auditor approved this
+      specific change," not just "prove you're an admin," matching "a
+      prompt to enter aey secret code ... like manager code in bank."
+  Editing an invoice on an already-printed check also recomputes the
+  parent check's denormalized `totalAmount` immediately. No new export
+  logic needed -- the existing Reprint link already regenerates the
+  .xlsx from current data on demand, so it naturally reflects the fix.
+- New shared `EditInvoiceForm.tsx`, used by both `PendingByVendor.tsx`
+  (no code field) and `ChecksTable.tsx` (code field, Edit only shown to
+  Admin/auditor sessions).
+
+Verified with a 13-check direct-DB script: pending edits open to any
+manager; a plain manager is blocked outright on a printed invoice
+(never even reaches the code prompt); an Admin without a code, or with
+the WRONG code, is rejected and nothing changes; an Admin WITH Aey's
+correct code succeeds; the parent check's total recomputes correctly;
+Aey herself (flagged auditor, not Admin) can also confirm with her own
+code. `eslint`/`next build` clean, 71/71 tests pass.
+
+## Supplier Check: audit log (who/what/when/why) + print-vs-audit export split (2026-08-15)
+
+Two follow-ups from Oliver:
+
+1. "as it concern money it should have a log who do what when with the
+   check and why edit print check." New append-only
+   `supplier_check_audit_log` table (additive migration), logging two
+   actions so far -- **EDITED_INVOICE** (always requires a reason now,
+   enforced in `editSupplierInvoice`; records before/after invoice #,
+   description, amount) and **PRINTED_CHECK** (who printed, when, check
+   #, total, which invoices -- no reason needed, it's a routine
+   workflow step not a correction). `ChecksTable.tsx`'s expanded detail
+   gained a collapsed "History" section listing every logged event for
+   that check, most recent first, showing only the fields that actually
+   changed on an edit plus the typed reason.
+2. "check export file .xlsx dont need any payee address status check
+   number because this file will be export to check printing software
+   ... in another way it should be different report that still show
+   check number and status for auditorial purposes." `buildSupplier
+   CheckWorkbook.ts` now takes a `variant: "print" | "audit"` param
+   instead of one fixed column set: **print** (used by
+   `/ledger/supplier-check/export`, the file fed straight into
+   check-printing software) is trimmed to Paid Date / Pay / Amount /
+   Memo / PayeeName only; **audit** (used by `/reports/export-supplier-
+   check`) keeps the full original layout plus Check #/Status for
+   bookkeeping. Deliberately reused the app's EXISTING two separate
+   export routes/buttons rather than building a column-picker UI --
+   simpler and more foolproof than a configurable control nobody but
+   Oliver would touch.
+
+Verified with a 15-check script: audit rows created correctly for both
+edit and print (who/reason/before-after captured), print variant has
+exactly 5 columns with no PayeeAddress/Status/Check#, audit variant has
+all 10 columns intact. `eslint`/`next build` clean, 71/71 tests pass.
+
+## Supplier Check: Week/Month picker on the Ledger tab (2026-08-16)
+
+Oliver: "supplier tab on ledger should be able to show by week or
+month." `/ledger/supplier-check`'s "Checks" list used to be a flat
+"most recent 200, ever" table with no way to scope it -- fine for a
+brand-new restaurant, not for browsing history once Youk Thai has
+months of checks. Added a Week/Month toggle with Prev/Next navigation,
+same interaction pattern as the Petty Cash tab's existing month-of-days
+picker on `/ledger` (Monday-start weeks, matching the rest of the app's
+week convention from Schedule/Reports). Defaults to Week, since that's
+the routine cadence Aey described ("all invoices always get export to
+check format at the end of the week"); Month is the zoom-out option.
+The list now also shows a period total ("N checks -- $X total").
+
+`loadSupplierChecks(limit)` changed to `loadSupplierChecks({ from, to
+})`, filtering by `paidDate` range instead of an arbitrary recent-N
+cap -- a period is now always well-defined. Reused `lib/schedule/
+weekMath.ts`'s existing week helpers (`weekStartFor`, `datesInWeek`,
+`shiftWeek`) rather than reinventing week math a third time; month
+helpers mirror `/ledger/page.tsx`'s own local ones (that file's
+established pattern of each page owning its small date math).
+
+This is scoped to the operational Ledger view specifically -- it's a
+different concern from the Reports page's existing week/month/year
+range picker for `supplier-check`, which is an accounting/export
+summary, not a day-to-day browsing tool. Both now exist, for different
+jobs.
+
+Verified with a 6-check script spanning a week boundary (Jul 31 / Aug
+3) and a month boundary (Jul/Aug): week view returns exactly the 3
+checks in that Mon-Sun range with the right $ total, prev/next week
+each isolate their single check correctly, month view returns all 5
+August checks ($500) vs. July's 1 ($100), and an empty month (January)
+correctly returns zero. `tsc --noEmit` clean, 71/71 tests pass. No
+schema change, no migration needed.
+
+## Tile home page (2026-08-16)
+
+Oliver: "build home page as tiles contain a feature." The old "/" was a
+leftover from the very first prototype -- three text-link buttons
+(Shifts/Positions/Settings) plus a "playground calculator" link -- that
+had drifted badly out of sync with the real feature set (missing
+Employees, Schedule, Ledger, Reports entirely) and wasn't gated by
+login at all.
+
+Confirmed three scope questions with Oliver before building: (1) "/"
+becomes where everyone lands after login (both `login()` in
+`lib/actions/auth.ts` and the login page's own "already signed in"
+check now redirect to "/" instead of "/me"), replacing the old
+always-"/me" redirect; (2) all 7 manager nav items get a tile --
+Shifts, Employees, Positions, Schedule, Ledger, Reports, Settings, not
+split further; (3) STAFF accounts get their own small tile page too
+(My Schedule, My Pay) rather than skipping straight to /me -- otherwise
+the tile page nobody but managers ever sees.
+
+`app/page.tsx` is now a server component: no session -> redirect to
+`/login` (nothing useful to show an anonymous visitor); otherwise reads
+`session.systemRole` and renders `MANAGER_TILES` (7) or `STAFF_TILES`
+(2). Each tile is one large tap target (icon + label + one-line
+description, not a bare text link) -- matches the phone+desktop,
+low-computer-literacy-friendly bar from the accessibility audit
+(`project_atlas_target_users_accessibility` memory) more closely than
+the plain link row it replaced. Icons are small inline SVGs, no new
+icon-library dependency.
+
+Verified: `npx tsc --noEmit` shows only the pre-existing unrelated
+`app/layout.tsx` LayoutProps finding (confirmed via `git stash` to
+predate this change), `eslint` clean on all three touched files,
+`next build` clean (`/` now correctly shows as a dynamic route, since
+it reads the session cookie), 71/71 tests pass. Manually verified both
+role views by creating a session directly via `createSession()` and
+hitting `/` with that cookie against a `next start` server: MANAGER
+(Aey) renders all 7 tiles, STAFF (Alesso) renders the 2 staff tiles,
+and a request with no cookie 307s to `/login`. No schema change, no
+migration.
+
+## Card — third Ledger channel (2026-08-16)
+
+Oliver: "let's start with card channel next." Card had been explicitly
+deferred since Ledger v1 (project_atlas_ledger memory: "Card explicitly
+NOT attempted yet -- Aey pulls Card transactions from the bank/credit-
+card statement in a batch, weekly or more often once charges settle,
+not in real time. That's a fundamentally different UI shape (reconcile
+a statement period, not log-as-you-go) -- don't just copy the Petty
+Cash pattern for it.") Re-opened the actual DNA file's "Card" sheet
+directly before designing anything: a template-only sheet (Date/Card/
+Pay/Memo/Amount columns) with zero real transaction rows -- no real
+data to validate against, same situation Supplier Check was in before
+its first build.
+
+Confirmed four scope questions with Oliver via AskUserQuestion before
+writing any code (all recommended options chosen): (1) manual entry,
+one line at a time -- no CSV/bank import in v1; (2) a target-total
+match IS required before a period can be marked reconciled, same
+discipline as Petty Cash's drawer count, not the looser just-a-log
+shape Supplier Check uses; (3) multiple named cards, admin-managed
+list, retire-not-delete; (4) Card reuses the existing shared
+ledgerCategories taxonomy, no separate category list.
+
+**Model:** a statement period belongs to exactly ONE card (mirrors how
+a real bank/card statement works) and carries its own `statementTotal`
+as the reconciliation target -- transactions don't need their own card
+field, it's implied by which period they're logged under. This is
+simpler than putting a `Card` column on every transaction row the way
+the DNA sheet's own layout suggested.
+
+Schema (migration 0013, purely additive): `ledger_cards` (retire-not-
+delete, same as ledger_vendors/ledger_categories), `card_statement_
+periods` (cardId, periodStart/End, statementTotal, status draft/
+reconciled, reconciledAt/reconciledByEmployeeId), `card_transactions`
+(statementPeriodId, date, categoryId, memo, signed amount -- negative
+for a credit/refund, unlike Petty Cash's always-positive payouts).
+`lib/actions/card.ts`: card CRUD, `createStatementPeriod`,
+`editStatementPeriod` (blocked once reconciled except for ADMIN, same
+exception pattern as Petty Cash's finalized-day override),
+`addCardTransaction`/`deleteCardTransaction` (same lock/admin-override
+rule), `reconcileStatementPeriod` (blocked unless logged transactions
+sum to the statement total within a cent, mirroring the Petty Cash
+epsilon-match check).
+
+UI: `/ledger/card` (flat list of every statement period across every
+card, most recent first, same "holistic table" shape as Supplier
+Check's Checks list rather than per-card sub-navigation -- most
+restaurants only have a handful of cards/periods), `/ledger/card/new`
+(pick card + statement dates + target total), `/ledger/card/period?id=`
+(the actual work: add/remove transactions, edit the period's own header
+fields, reconcile panel showing logged-vs-target with a live match/
+mismatch banner and a disabled-until-matching "Mark reconciled"
+button), `/ledger/cards` (card admin, mirrors the Categories page
+exactly -- inline add form + retire toggle). `LedgerTabs.tsx` gained a
+third "Card" tab alongside Petty Cash/Supplier, and a "Cards" link next
+to Vendors/Categories. `seedLedgerOnly.ts` extended to also seed one
+placeholder card ("House card (edit me)") so the flow is immediately
+testable -- flagged in its own log line to rename/replace before going
+live, same "DNA/seed data is a guideline" precedent as vendors.
+
+Verified: `eslint` clean, `npx tsc --noEmit` clean, `next build` clean
+(4 new routes: `/ledger/card`, `/ledger/card/new`, `/ledger/card/
+period`, `/ledger/cards`), 71/71 existing tests pass unchanged, plus a
+new 11-check direct-DB script (card creation, period creation as draft,
+partial-total correctly fails the match check, signed amounts including
+a refund landing exactly on the target, reconcile only succeeds once
+matched, a second mismatched period correctly stays blocked, retiring a
+card doesn't disturb its already-reconciled periods' history) --
+deleted after use per this project's sandbox convention. Also manually
+smoke-tested all four new routes against a running `next start` server
+with a real MANAGER session cookie (200 OK, real data rendered, no
+error content). No changes to Petty Cash or Supplier Check.
+
+**Not built, deliberately deferred, same as everywhere else in Ledger:**
+CSV/bank statement import (v1 is manual entry only, confirmed with
+Oliver), photo attachment of statement pages, an audit log for Card
+edits (Supplier Check's audit log came in a later round after being
+asked for, not on first build -- same pattern here).
+
+## Leave requests — Schedule Planner Phase D (2026-08-16)
+
+Oliver picked this as the next feature after Card shipped, from a
+menu of backlog options. Design for the core `leaveRequests` table was
+already resolved on 2026-08-11 (see project_atlas_schedule_planner
+memory); before building, confirmed with Oliver via AskUserQuestion
+that it should be self-service with no approval step -- his framing:
+by the time an employee logs one, they've usually already told the
+manager informally ("Manager คะ หนูไปเที่ยวแล้วค่ะ"), so this isn't a
+request that needs accept/deny, it's a way to push an already-agreed
+absence into a log/calendar so the manager doesn't forget.
+
+Schema (migration 0014, purely additive): `leave_requests`
+(employeeId, startDate, endDate, optional note, loggedAt) -- no status
+field, nothing to approve. Deliberately does NOT touch
+`employee_schedule_templates` at all: a leave period is a temporary
+interruption to someone's recurring pattern, not a change to it
+(unlike RESIGNATION/PROMOTION, which really do change the template).
+Instead, `loadWeeklyPlan.ts` now computes a DERIVED `onLeave` flag per
+assignment at read time -- if an assignment's date falls inside any
+leave request logged by that employee, it's flagged, with the leave's
+own note surfaced in the tooltip. Nothing is mutated in the template
+or the assignment row itself.
+
+`lib/actions/leave.ts`: `submitLeaveRequest` (any signed-in employee,
+for themselves only), `deleteLeaveRequest` (the owner, or any
+manager/admin -- e.g. correcting an entry). No edit action -- a leave
+whose dates changed gets cancelled and resubmitted, same lightweight
+spirit as the rest of this table.
+
+UI: `/me/schedule` gained a "My leave requests" section (collapsible
+submit form + a list of the employee's own upcoming leave with a
+Cancel button) -- placed above "Recent changes to your schedule".
+`/schedule/leave` is the manager-facing inbox/log Oliver asked for
+("a Notification / Log Box that tells the Manager a change is coming")
+-- every leave request whose end date hasn't passed, soonest first, no
+approve/deny controls since there's nothing to approve. Linked from
+the Schedule hub. The Weekly Plan grid (`WeeklyPlanGrid.tsx`) gained a
+purple ring + dot on any assignment pill that overlaps a logged leave
+(same visual pattern as the existing red vacancy-soon ring, distinct
+color so the two don't get confused -- a leave is temporary, a vacancy
+is permanent) -- shown in both manager and read-only/staff preview
+modes, same "not gated by hideDiagnostics" treatment vacatingSoon
+already gets, since Oliver's original intent for that signal was that
+staff should see it too, not just managers.
+
+Verified: `eslint`/`tsc --noEmit` clean on every touched file (the
+7 pre-existing findings in `schedule/page.tsx`, `me/schedule/page.tsx`,
+and `PositionTemplateGrid.tsx` were confirmed via `git stash` to
+predate this change, not introduced by it), `next build` clean (new
+route `/schedule/leave`), 71/71 tests pass, plus a new 10-check
+direct-DB script (submit, per-employee isolation between
+loadMyLeaveRequests calls, the manager inbox correctly drops a request
+once its end date has passed, the Weekly Plan overlap flag fires only
+for the employee who's on leave and only for dates actually inside the
+range -- confirmed a same-week assignment just outside the leave's end
+date is correctly NOT flagged, deleting a request removes it from both
+loaders) -- deleted after use. Also manually smoke-tested `/schedule/
+leave`, the Schedule hub's new tile, and `/me/schedule`'s new panel
+against a real `next start` server with both a MANAGER and a STAFF
+session cookie.
+
+**Not built:** the shift-swap portal (Phase E) -- Oliver wants a
+dedicated design conversation on that before any code, same discipline
+this whole feature area has followed from the start. Month overview
+and Person schedule (the other two schedule views) don't show the
+leave flag yet -- scoped out of this round to keep it shippable; only
+the Weekly Plan grid (the view a manager actually builds/adjusts a
+week from) got it.
+
+## Red-pill notification badge — leave requests inbox (2026-08-16)
+
+Oliver: "i want a red pill show as notification. we might need to
+create inbox feature. for leave request, shift swapping, etc. please
+review and tell me." Reviewed first (per the standing "never assume"
+rule) rather than building straight away -- confirmed neither
+`/schedule/leave` (manager leave inbox) nor `/me/schedule`'s "Recent
+changes" log had any read/unread tracking anywhere in the schema, and
+the shift-swap portal doesn't exist yet (still deferred to its own
+design conversation). Presented the gap plus four design questions via
+AskUserQuestion; Oliver picked the Recommended option on all four:
+manager-only scope for now, real read-tracking (not a time-window
+heuristic), badge on the existing "Schedule" nav item (no new nav
+entry), build the leave-only pill now rather than waiting on the swap
+design.
+
+**Schema:** new `notificationSeen` table -- `employeeId` + `section`
+(string key, e.g. `"leave_requests"`) + `lastSeenAt`, unique on
+(employeeId, section). Deliberately generic/keyed by a string section
+rather than leave-specific columns, so the shift-swap inbox can reuse
+this same table later with a new section key and no further migration.
+No row for an employee+section means "never visited" -- the loader
+treats that as everything in that section being unseen, not zero.
+
+**Read side:** `loadUnseenLeaveRequestCount(managerEmployeeId, todayIso)`
+in `lib/schedule/loadLeaveRequests.ts` -- mirrors
+`loadUpcomingLeaveRequests`'s own `endDate >= today` filter so the
+badge count always matches what's actually visible on the page, then
+compares each request's `loggedAt` against the manager's `lastSeenAt`
+for the `"leave_requests"` section.
+
+**Write side:** `markNotificationSeen(section)` in the new
+`lib/actions/notifications.ts` -- upserts `lastSeenAt` for the
+signed-in manager. Fired from a new client component,
+`MarkSeenOnMount.tsx`, on mount when `/schedule/leave` renders, then
+calls `router.refresh()` so the server-resolved nav badge (computed in
+`NavBar.tsx`, passed down to `NavBarClient.tsx` as `unseenLeaveCount`)
+updates without a full reload. Deliberately not done as a side effect
+of the page's own server render -- a GET shouldn't mutate, and the
+page component may be reused/cached.
+
+**Nav:** `NavBarClient.tsx` renders a small red `UnseenBadge` (bare dot
+with a number, "9+" past that) next to the "Schedule" label in both the
+desktop nav row and the phone-width hamburger list. Staff sessions
+never see it (`unseenLeaveCount` is only computed for MANAGER/ADMIN in
+`NavBar.tsx`).
+
+**Bug caught during verification, fixed before shipping:** first pass
+wrote `lastSeenAt` with JS `new Date().toISOString()`
+("2026-08-16T12:00:00.000Z"), but `leaveRequests.loggedAt` is written
+by SQLite's own `current_timestamp` default ("2026-08-16 12:00:00") --
+two different string shapes that don't compare correctly against each
+other with a plain `>`, because `' '` sorts below `'T'` character-by-
+character regardless of actual chronological order. This silently made
+every leave request look "already seen." A 7-check direct-DB verify
+script caught it (the "unseen=1 after a new request logged post-visit"
+case failed); fixed by writing `lastSeenAt` via `sql\`(current_timestamp)\``
+in the action instead of a JS-side date, so both columns share the
+same clock/format. Worth remembering for any future column that gets
+string-compared against an existing `current_timestamp`-default column
+elsewhere in this codebase (a few other actions already write
+`new Date().toISOString()` into their own timestamp columns, but none
+of those are compared against a `current_timestamp`-default column
+today, so this is the first time the mismatch actually mattered).
+
+Verified: `eslint`/`tsc --noEmit` clean on every touched file (the
+1 pre-existing `NavBarClient.tsx` finding -- `set-state-in-effect` on
+the unrelated menu-close effect -- confirmed via `git stash` to predate
+this change), `next build` clean, 71/71 tests pass, plus a 7-check
+direct-DB verify script (deleted after use) covering: zero unseen with
+nothing logged, unseen=1 on first request before any visit, unseen=0
+right after a visit, a new request logged after a visit correctly
+bumps back to 1 (not 2 -- the earlier one stays seen), the upsert never
+creates a second row for the same employee+section, re-visiting
+re-clears the count, and an already-expired request is excluded from
+the count (matching what the inbox page itself shows). Also manually
+smoke-tested against a real `next start` server: a MANAGER session
+cookie with one upcoming leave request shows "1" on the Schedule nav
+item on `/`, and a STAFF session cookie shows no badge at all.
+
+**Not built / open for later:** shift-swap's own section
+(`"swap_requests"` or similar) on the same `notificationSeen` table --
+straightforward to add once the swap portal itself is designed, no
+schema change needed. The staff-facing "Recent changes to your
+schedule" log still has no badge (explicitly out of scope per Oliver's
+"manager only" answer) -- would need its own decision if he wants to
+revisit that later.
+
+## Shift-swap portal — Schedule Planner Phase E (2026-08-16, same session)
+
+Oliver's follow-up after the leave-requests red pill: "leave request
+card show red pill noti as well. no need to ship right now. ship it
+with what we gonna do next." Queued rather than shipped standalone (see
+memory's schedule-planner topic file); then asked "what to build next,"
+picked the shift-swap portal -- the one piece of the original
+2026-08-11 Schedule Planner vision (flight-crew-style swaps: Employee A
+requests -> B accepts/declines -> manager notified) that had stayed
+undesigned this whole time, explicitly deferred by Oliver's own request
+to a dedicated design conversation before any code.
+
+**Design confirmed via two AskUserQuestion rounds before writing
+anything**, all Recommended options except one custom answer:
+- Open to any qualified coworker (not a named-only request).
+- **Approval rule (Oliver's own words, not the suggested option):**
+  "if it equal or less than 3 days before shift occur ... before that
+  manager just got notified but no need approval." So a swap due more
+  than 3 days out finalizes the instant a coworker accepts (manager
+  just notified after the fact); a swap due 3 days or less out goes to
+  `pending_manager_approval` and needs an explicit Approve/Decline.
+- Eligibility system-enforced by position (via `employeePositions`,
+  active only) -- not just self-selected like the paper process it
+  replaces.
+- Only published-week shifts are swappable (draft weeks aren't real
+  commitments).
+- A manager declining a pending swap reverts it to the original
+  requester (nothing to undo -- the assignment was never actually
+  reassigned during the pending state).
+- The requester can cancel their own request while it's still `open`.
+- The Weekly Plan grid shows a NEW distinct blue ring for
+  `pending_manager_approval`, separate from the existing GREEN
+  (completed swap) and unrelated YELLOW (extra-coverage-needed).
+
+**Architecture finding surfaced before building, not asked as a
+question (a correctness detail, not a product decision):**
+`plannedShiftAssignments` (the plan) and `shiftRosterEntries` (the real
+payroll/tip-affecting roster on an actual `shifts` row) are separate --
+the roster only gets copied from the plan ONCE, at the moment a manager
+creates the real shift for that date (`seedRosterFromPublishedPlan` in
+`lib/actions/shift.ts`). So a swap completing after that point needs to
+update BOTH rows to keep payroll correct, and must refuse entirely if
+that real shift has already been finalized (payroll-locked) -- same
+"finalize closes the door" rule as Card statement periods and the
+Closing Report. Handled by `completeSwap()`, see below.
+
+**Schema:** new `swapRequests` table (migration `0016`) --
+`assignmentId` (FK to one specific `plannedShiftAssignments` row, not
+the recurring template -- temporary like leave, not permanent),
+`requestingEmployeeId`, `acceptingEmployeeId`, `status` enum (`open` ->
+`completed` OR `pending_manager_approval` -> `completed`/`declined`;
+`open` -> `cancelled`), `note`, `createdAt`, `respondedAt` (when
+someone accepts), `decidedAt`/`decidedByEmployeeId` (only set if a
+manager actually approved/declined).
+
+**Read side (`lib/schedule/loadSwapRequests.ts`):**
+`loadMySwappableAssignments` (own upcoming published shifts with no
+live swap already on them -- the offer picklist), `loadAcceptableSwapRequests`
+(open requests a given employee is eligible for: right position,
+not their own, not yet passed), `loadMySwapRequests` (full history,
+any status), `loadSwapRequestsForManager` (pending-approval first, then
+open, then completed/declined, cancelled excluded), `loadUnseenSwapCount`
+(same "no notificationSeen row = never visited = everything unseen"
+convention as the leave badge, sharing that table's new `"swap_requests"`
+section -- only counts requests that have been RESPONDED to, since an
+untouched `open` request doesn't need a manager's attention yet),
+`loadSwapStatusByAssignmentForWeek` (feeds the grid's blue/green ring,
+same derived-at-read-time pattern as `onLeave`/`vacatingSoon` in
+`loadWeeklyPlan.ts`).
+
+**Write side (`lib/actions/swap.ts`):** `createSwapRequest`
+(useActionState shape, re-validates ownership/publish-status/date
+server-side rather than trusting the picklist), `cancelSwapRequest`,
+`acceptSwapRequest` (re-checks position eligibility, same-day/period
+double-booking, and leave overlap server-side; branches on the 3-day
+threshold via a new `daysBetween()` helper in `weekMath.ts`),
+`approveSwapRequest`/`declineSwapRequest` (managers only).
+`completeSwap()` -- the actual plan+roster reassignment plus the
+finalized-shift refusal -- lives in a separate, plain (non-`"use
+server"`) module, `lib/schedule/completeSwap.ts`: exporting it from the
+`"use server"` actions file would have made it a client-callable Server
+Action with none of the authorization checks its callers do, so it's
+kept as an ordinary importable function instead, reachable only through
+`acceptSwapRequest`/`approveSwapRequest`.
+
+**UI:** `/schedule/swaps` (manager inbox, mirrors `/schedule/leave`'s
+shape, Approve/Decline buttons only on `pending_manager_approval` rows)
+plus a new shared `MarkSeenOnMount.tsx` moved up to the `/schedule`
+level (now used by both `/schedule/leave` and `/schedule/swaps`,
+previously lived under `leave/` only). `/me/schedule` gained a "Shift
+swaps" panel (offer form + open-requests-you-can-accept + your own
+request history with Cancel). The Schedule hub picked up a "Shift
+swaps" tile, and -- fulfilling the queued leave-card-badge ask from
+earlier -- both the "Leave requests" and "Shift swaps" tiles now show
+their own unseen-count badge, reusing the exact counts that already
+power the nav pill. The nav's single red pill on "Schedule" now sums
+leave + swap unseen counts (`unseenScheduleCount`, renamed from
+`unseenLeaveCount`) rather than adding a second badge -- confirmed:
+no new nav entry.
+
+**Bug caught during verification, fixed before shipping (same bug
+class as the leave-requests badge, in a new place):** `respondedAt`/
+`decidedAt` were first written via JS `new Date().toISOString()`, but
+`notificationSeen.lastSeenAt` is written via SQLite's own
+`current_timestamp` (see `notifications.ts`). Comparing those two
+string formats with `>` doesn't sort correctly -- this time in the
+OTHER direction from the leave bug: since ISO always sorts above SQL
+format lexicographically, the swap badge would never have cleared at
+all, regardless of whether a manager visited. Fixed by writing
+`respondedAt`/`decidedAt` via `sql\`(current_timestamp)\`` too, matching
+`lastSeenAt`'s format.
+
+Verified: `eslint`/`tsc --noEmit` clean (the same pre-existing findings
+confirmed via `git stash` -- `NavBarClient.tsx`'s unrelated
+`set-state-in-effect`, two unescaped-apostrophe findings that predate
+this change), `next build` clean (new route `/schedule/swaps`), 71/71
+tests pass, and a 22-check direct-DB verify script (deleted after use,
+confirmed idempotent by re-running it) covering: the day-threshold math,
+the swappable/acceptable eligibility filters (including the
+position-mismatch and self-request exclusions), `completeSwap`'s
+reassignment logic with and without a real shift present, the
+finalized-shift refusal (and that it leaves `shiftRosterEntries`
+untouched), the grid loader's pending/completed status + requester name,
+decline-reverts-to-requester, the unseen-count round trip (unseen ->
+visit clears it -> a new response after the visit brings it back), the
+manager list's sort order and cancelled-exclusion, and full-history
+retrieval for the requester. Also manually smoke-tested against a real
+`next start` server: the Schedule hub showed both tiles' badges with
+the right counts, the nav pill showed the correct combined total,
+`/schedule/swaps` rendered the open request, and `/me/schedule` (staff
+session) rendered its own posted request in the Shift swaps panel.
+
+**Not built:** the manager-approval decision itself isn't tested via a
+real signed-in POST to the server action in this round (Next.js Server
+Actions aren't easily invokable from a plain script the way a page GET
+is) -- covered instead by direct-DB tests of the exact same logic
+`approveSwapRequest`/`declineSwapRequest` execute, plus rendering
+smoke-tests. Photo/attachment support, a swap history report, and any
+kind of "who swaps the most" stat (mentioned as a future idea in
+[[project-atlas-future-features-backlog]] item 6) are all out of scope
+for this round.
+
+## Month Overview: click-a-date now goes to Preview, not straight into Edit (2026-08-16, same session)
+
+Oliver's ask was terse -- "calendar in monthly overview card after click
+date redirect to preview" -- so before touching anything I traced it to
+the Schedule Planner's manager-facing "zoom out" calendar
+(`/schedule/plan/month`, built 2026-08-11) and confirmed the read with
+two quick `AskUserQuestion` checks rather than guessing at the edge
+cases:
+
+- A day whose week has already been generated (draft or published) now
+  links to the existing read-only Preview page
+  (`/schedule/plan/preview?week=...&view=manager`) instead of straight
+  into the editable Weekly Plan grid. This matches a rule Oliver already
+  set for the weekly grid's own Preview page on 2026-08-11: editing has
+  to stay a clearly separate, deliberate action, never something that
+  happens by accident while just looking around.
+- A day that's still only "projected" (blue dot -- estimated live from
+  the recurring template, nobody has clicked Generate on that week yet)
+  keeps going straight to Weekly Plan, which shows the "Generate this
+  week" button. Confirmed with Oliver: Preview has nothing real to show
+  for a week that doesn't exist yet, so routing there first would just
+  be a dead-end extra click back to the same place.
+- Preview opens to Manager view by default when reached from the
+  calendar (confirmed with Oliver) -- Month Overview is manager-only, so
+  the diagnostics (understaffed/double-booked/vacancy warnings) are the
+  useful default rather than the staff-facing view.
+
+One file changed: `app/(protected)/schedule/plan/month/page.tsx` --
+the day cell's `href` now branches on `day.weekStatus` instead of
+always pointing at `/schedule/plan`.
+
+Verified: `eslint`/`tsc --noEmit` clean, 71/71 tests pass, `next build`
+clean, and a real `next start` smoke test (manager session) confirming
+the rendered HTML links generated weeks to
+`/schedule/plan/preview?week=...&view=manager` and projected weeks to
+`/schedule/plan?week=...`, and that the Preview page itself renders
+correctly when reached that way.
+
+## Staff full-week schedule view (2026-08-16, same session)
+
+Oliver: "staff should see all day in a week schedule view as well like
+manager diagnose view. but no edit and no understaff sign and other but
+can see ring color status so they know someone swap in to their week
+and such." Confirmed scope via two quick `AskUserQuestion` checks:
+reachable from a new "View full week" link on My Schedule (additive,
+alongside the existing single-day click-through, not replacing it), and
+following the same roster-visibility restriction already used by the
+single-day preview (not a looser rule just because no money is ever
+shown on a schedule grid).
+
+New route `/me/schedule/week?week=YYYY-MM-DD` (defaults to the week
+containing today, own prev/next-week nav). Renders the exact same
+`WeeklyPlanGrid` component the manager's Weekly Plan and Preview pages
+use, in `readOnly hideDiagnostics` mode -- the same mode Preview's own
+"Staff view" toggle already uses. That mode hides the quick-add/remove
+controls and the red under-target background + orange double-booking
+badge, but the vacancy (red ring), leave (purple ring), and swap
+(blue/green ring) indicators still render, since those were already
+designed to be visible to staff, not manager-only diagnostics.
+
+`WeeklyPlanGrid.tsx` moved from `app/(protected)/schedule/plan/` up to
+`app/schedule/` (a plain folder, no `page.tsx`, so it adds no route) so
+both the manager routes and this new staff route can import the same
+component -- same "move it up when a second consumer needs it" pattern
+already used for `MarkSeenOnMount.tsx` during the swap-portal work.
+
+New loader `lib/schedule/loadStaffWeeklyPlan.ts` wraps `loadWeeklyPlan`
+and filters its `assignments` through `getVisibleRosterEntries`
+(`lib/roster/visibility.ts`) -- the same machinery the single-day
+preview and My Pay's coworker list already use -- applied ONE DAY AT A
+TIME so the existing shift-scoped `grantsManagerAccess` elevation rule
+(a staff member covering Floor Manager gets elevated visibility only
+for the day(s) they're actually working that position) still holds
+correctly across a whole week instead of being computed once. A
+standing MANAGER/ADMIN viewing their own `/me/schedule/week` sees
+everything unfiltered, same as `getVisibleRosterEntries` itself. Only
+published weeks are viewable -- same rule as every other staff-facing
+schedule surface.
+
+Position ROWS use a simpler rule than the strict per-day entry filter,
+documented as a deliberate simplification in the loader's own comment:
+a position stays visible as a grid row all week if it's the viewer's
+own primary category, is flagged `alwaysVisibleInRoster`, or has at
+least one assignment that survived the per-day filter on any day. No
+individual entry is ever shown unless it passed the real per-day check.
+
+Verified: eslint/tsc clean (only the two pre-existing unescaped-
+apostrophe findings in `app/me/schedule/page.tsx`, confirmed via `git
+stash`), `next build` clean (new route `/me/schedule/week`), 71/71
+tests pass, a 19-check direct-DB verify script (deleted after use,
+confirmed idempotent by running it twice) covering: null for a
+nonexistent/draft week, default-settings category restriction (FOH
+staff can't see a BOH-only Monday assignment), the swap ring surviving
+the visibility filter on the viewer's own row, the per-day
+`grantsManagerAccess` elevation (FOH staff covering Floor Manager on
+Tuesday sees BOH that day but still not Monday), a standing MANAGER
+seeing everything unfiltered, `showCoworkerListFOH` off restricting
+Monday to the viewer's own row while Tuesday's elevation still
+overrides it, and `restrictFOHToOwnCategory` off opening the whole
+week up. Also a real `next start` smoke test (staff session) confirming
+the rendered page has no quick-add/remove controls, no under-target
+ratio badges, the ring-color legend, and that the "View full week" link
+renders correctly on My Schedule. Commit `30a7496`.
+
+**Not built:** no attempt to surface this same week grid inside the
+existing single-day preview page or vice versa -- they stay two
+separate, purpose-built views per Oliver's confirmed answer.
+
+## Analytics / P&L, Phase 1 (2026-08-16/17, same session)
+
+Oliver: "i want analytic feature and P&L feature. as you can see in
+2026 - c.xlsx. it has chart page and report that summarize expenses and
+revenue. like i said before after Youk open we might get basic api key
+from toast to link real data. but now i want something that can pull
+data on our app and process it." Inspected the referenced reference
+workbook (`Atlas/DNA Closing report/2026 - C.xlsx`) via openpyxl -- its
+"Chart" sheet shows revenue split Toast vs Online (doughnut) and
+expense categories as a % of revenue (Bar/Food/Payroll BOH/Payroll
+FOH); its "Report" sheet is a pivot-style category-totals table.
+Confirmed scope via two `AskUserQuestion` rounds:
+
+- Nav placement: a new top-level `/analytics` page (not a Reports tab).
+- Payroll source: Atlas's own computed shift-wage data, not manual
+  ledger entries -- avoids relying on someone re-typing payroll by hand
+  and avoids drifting out of sync with what Shifts/Payroll already
+  compute.
+- Food cost basis: Oliver's answer rejected the two options actually
+  offered and specified a three-way split instead, per Aey's explicit
+  ask: "Aey want food to separate Food, drinks(soda, soft drink,
+  regular drinks at every restaurant has) and bar programs(alcoholic,
+  mocktail, bar work related)." Built as three-way, not the two
+  originally-offered options.
+- Labor cost basis: full employer cost -- base wage + extra pay +
+  incentives - deductions, excluding tips (tips are customer
+  pass-through, not restaurant spend).
+- Phasing: single-period P&L + Analytics snapshot first (this round).
+  Oliver's own framing ("at the end it will include year to date, month
+  to date. compare month to month, year to year... like charts in
+  stocks. have something like payroll vs sales. to find sweet spot...
+  online order vs dine in vs takeout") is logged here as the explicitly
+  deferred next round, not built now.
+- Researched (Oliver's own ask -- "you can do research which metric or
+  indicator impact or affect restaurant") industry KPI benchmarks via
+  WebSearch/WebFetch to ground this round's "sweet spot" indicators:
+  food cost 28-35%, labor cost 25-36%, prime cost 55-65%, net margin
+  3-8%, delivery commission 15-30% (source: WhippleWood CPAs Restaurant
+  Financial Benchmarks 2026, cross-checked against NOVA Platform, Rezku,
+  and owner.com). Bar/alcohol cost is shown as its own line but
+  deliberately WITHOUT a benchmark band -- no liquor-specific range was
+  part of this round's research, and showing a fabricated band would be
+  worse than showing none.
+
+**Schema**: `ledgerCategories.pnlGroup` (new column, enum FOOD /
+BEVERAGE_NONALC / BEVERAGE_ALC / OTHER_EXPENSE / EXCLUDED, default
+OTHER_EXPENSE) -- a restaurant-configurable classification tag on
+categories, following the same design precedent as
+`positions.category`/`alwaysVisibleInRoster`/`grantsManagerAccess`,
+rather than code that pattern-matches on category name strings (robust
+to renaming). The existing PAYROLL BOH/PAYROLL FOH ledger categories
+are tagged EXCLUDED -- they're legacy manual entries that would
+double-count against the computed shift-wage payroll line, so they're
+kept out of the P&L total but their sum still surfaces as
+`excludedTotal` on the Analytics page (linking to Expense categories to
+re-tag), rather than silently vanishing. A new "Drinks" category was
+added (BEVERAGE_NONALC) to support the three-way split. Migration
+`0017_unknown_prodigy.sql` (drizzle-kit generate + hand-added backfill
+UPDATEs/INSERT, same pattern as `0015_massive_guardian.sql`) --
+verified the backfill via a temporary script before deleting it. New
+server action `setLedgerCategoryPnlGroup` (`lib/actions/ledger.ts`) plus
+a `<select>` per row on `/ledger/categories`
+(`SetCategoryPnlGroupSelect.tsx`) and on the add-category form.
+
+**Loaders** (`lib/analytics/`): `loadRevenueBreakdown.ts` is a thin
+reshape of the existing `loadSalesTaxReport` (net sales by channel,
+Toast + each online platform) rather than a second query, so the two
+reports can't drift apart. `loadExpenseBreakdown.ts` is the first
+loader in the codebase to sum Petty Cash + Supplier Check + Card
+together by category for a date range (each channel's own report only
+ever summed by date/payment before this) -- reuses each channel's own
+established date-range rule (Petty Cash: logged date; Supplier Check:
+payment's `paidDate`, cash basis; Card: statement charge date).
+`loadPayrollCost.ts` sums `employeePayouts` (flatWageAmount +
+extraPayAmount + incentiveAmount - deductionAmount, excluding
+tipPoolShare/hostUpsellTipShare) for finalized shifts in range, split
+FOH/BOH via the same "representative position per (shift, employee)"
+heuristic `loadSummaryData.ts` already uses. `loadPnL.ts` composes all
+three into a full Revenue -> COGS (Food/Drinks/Bar) -> Gross profit ->
+Payroll -> Other opex -> Net profit statement, plus 5 benchmarked KPIs
+(food cost %, labor cost %, prime cost %, net margin %, bar cost % --
+the last unbenchmarked, `status: "not_applicable"`).
+
+**UI** (`app/(protected)/analytics/`): consulted the `dataviz` skill
+before writing any chart code, which was explicit that a horizontal bar
+(not a donut) is the right form for named-category part-to-whole data
+-- a disclosed, deliberate deviation from the reference workbook's
+donut style, documented in `BreakdownBarChart.tsx`'s own header. Every
+bar carries a direct text label (name + $ + %) rather than relying on
+color alone (also mitigates the palette validator's contrast WARN on 3
+slots), plus a `<details>` "View as table" fallback, no client JS
+needed. `KpiMeterCard.tsx` renders each benchmark as a Meter (skill
+guidance: "a single ratio against a limit" is a meter, not a chart) --
+a faint band marks the healthy range on the track, status ships as
+icon + label + color together, never color alone. `palette.ts` uses the
+dataviz skill's documented default palette, colors assigned in fixed
+order (never cycled/reassigned by value) so a channel/category means
+the same color across page loads; validated via
+`scripts/validate_palette.js`. The page itself
+(`app/(protected)/analytics/page.tsx`) has This week/month/year presets
+plus a custom date range, the 5 KPI meter cards, the two breakdown
+charts side by side, the excluded-payroll note, and the full P&L
+statement table. Nav entry added to `MANAGER_NAV_ITEMS`
+(`NavBarClient.tsx`, between Reports and Settings) and a matching 8th
+tile on the role-aware home page (`app/page.tsx`).
+
+Verified: `eslint`/`tsc --noEmit` clean project-wide (fixed two
+unescaped-quote findings introduced by this round's own new JSX; the
+one pre-existing `NavBarClient.tsx` setState-in-effect warning and the
+pre-existing `db/seed.ts` unused-var warning both predate this round,
+confirmed via `git diff`), 71/71 tests pass (unchanged), `next build`
+clean with `/analytics` registered as a route. A 16-check direct-DB
+verify script (deleted after use) confirmed: `loadRevenueBreakdown`'s
+total matches `loadSalesTaxReport`'s own net total for the same range;
+EXCLUDED categories never appear in the expense breakdown and
+`total + excludedTotal` accounts for the full raw sum across all three
+channels; expense category shares sum to ~1; payroll FOH + BOH equals
+payroll total and matches an independent direct-SQL recomputation;
+the full P&L arithmetic (cogs total, gross profit, net profit) holds
+exactly; `barCostPct` always reads `not_applicable`; and the KPI
+status-band boundary logic (below/at-low-edge/at-high-edge/above)
+classifies correctly. Also a real `next start` smoke test using a
+session token minted directly for a seeded manager account (deleted
+after use): `/analytics` returns 200 and its HTML contains all 5 KPI
+cards and both breakdown charts, `/ledger/categories` returns 200 and
+shows the new P&L dropdown with Drinks/FOOD/BEVERAGE_NONALC/
+BEVERAGE_ALC/EXCLUDED all present, and the home page's rendered HTML
+contains the new `/analytics` tile and nav link. Commit `eb7d895`.
+
+**Not built (explicitly deferred, per Oliver's own framing):**
+month-to-date/year-to-date figures, period-over-period (MoM/YoY)
+trend charts "like stock charts," a payroll-vs-sales "sweet spot"
+indicator, and channel-level profitability (online order vs dine-in vs
+takeout). Also not built: any Toast/POS API integration -- this phase
+is 100% Atlas's own already-captured data, matching what Oliver said
+("now i want something that can pull data on our app and process it,"
+with the Toast API link explicitly framed as a later step).
+
+## Settings — CC tip deduction rate now a percent, drink bonus gets a $ sign (2026-08-17)
+
+Oliver: "in setting, change cc tip deduction to match tax style. allow
+input it as actual %. not as a fraction and also add % sign and drink
+tip add $ sign." This was the exact gap v51 (2026-08-15) flagged and
+deliberately left untouched ("CC tip deduction rate has the identical
+issue but wasn't touched — Oliver's ask was specifically the tax
+rate"). Applied the same fix now, plus the drink bonus's $ affordance.
+
+`SettingsForm.tsx`: "CC tip deduction rate" input now takes/shows a
+percent (e.g. `4.5`) with a trailing `%` suffix inside the field,
+mirroring "Default sales tax rate"'s existing pattern exactly (same
+`relative` wrapper, same `pl-3 pr-6`/absolute-positioned unit span).
+"Host drink bonus, $/drink" gets a leading `$` inside the field the
+same way. `lib/actions/settings.ts`: reads the new
+`ccTipDeductionRatePercent` form field, validates it's 0-100, divides
+by 100 before writing to `restaurantSettings.ccTipDeductionRate` —
+storage/schema and every downstream consumer (`finalizeShift.ts`,
+`computeFinalizationPreview.ts`) untouched, they still read the
+fraction. Host drink bonus is unchanged numerically (still stored/read
+as a raw dollar amount), only the input's visual $ prefix changed.
+
+No schema change, no migration. Verified: `eslint`/`tsc --noEmit`
+clean (only the pre-existing unrelated `app/layout.tsx` `LayoutProps`
+finding, predates this change), `next build` clean, 71/71 tests pass
+(unchanged — no test covered this form's specific field names).
+
+## Payroll — weekly payroll register, export, and sign-off (2026-08-17)
+
+Oliver: "i wanna built staff payroll." Scoped via 3 rounds of
+AskUserQuestion before building (per this project's "never assume"
+rule, doubly so for anything money-related): a pay-period register +
+export (not tax/withholding calc, which is a payroll-processor job, not
+Atlas's), weekly cadence reusing Atlas's own already-computed wage/tip
+numbers, finalized-shifts-only data source, a lock/mark-as-paid step,
+and a 3-sheet export. Opened the real payroll DNA file (" 2026.xlsx",
+in Atlas's DNA Closing report folder) directly rather than trusting the
+2-day-old memory summary — confirmed its PAYROLL/OUTSIDE/Export/
+MyExport/SIGN FORM sheets are exactly a weekly Payee/Amount/Memo
+register plus a bilingual wage-acknowledgment form.
+
+**One flag raised and resolved before building:** Oliver's first answer
+described the acknowledgment form's original purpose as being "to
+trick" undocumented workers — paused and asked for clarification rather
+than building that. Turned out to be a typo for "to prevent [the]
+restaurant [from] be[ing] tricked" (i.e. a standard wage-receipt,
+protecting the employer from later false wage-theft claims) — confirmed
+and proceeded. See project_atlas_payroll memory for the full exchange;
+worth remembering this kind of ambiguity is worth a pause, not an
+assumption in either direction.
+
+**Data model** (migration `0018_mean_expediter.sql`, purely additive):
+`payrollPeriods` (weekStartDate/weekEndDate, status draft/paid, paidAt/
+paidByEmployeeId, unique on weekStartDate) + `payrollPeriodEmployeeTotals`
+(the locked snapshot — one row per employee per paid week, mirrors
+employeePayouts' own column shape). A DRAFT week is always computed live
+from `employeePayouts` (never stale while still being decided); marking
+a week PAID snapshots the exact live numbers at that moment — the same
+"compute vs. write" separation as `computeFinalizationPreview.ts`, so
+the preview and the locked record can never drift apart. Blocked
+entirely unless every shift that exists that week is already finalized
+(same rule Ledger/Card already enforce) and there's at least one
+employee to pay. An ADMIN can revert a paid week back to draft to
+correct it (same override exception as Ledger/Card/Supplier Check),
+which deletes the snapshot rows.
+
+**What "payroll" actually is, deliberately**: no new payroll math
+anywhere — every dollar comes from `employeePayouts.totalCorePayout`
+(wage + extra + incentive − deduction + tip), summed per employee across
+a Monday-Sunday week of *finalized* shifts only. Same "don't duplicate
+the source of truth" precedent as `loadPayrollCost.ts` (Analytics) and
+My Pay — Payroll and Analytics now read the same underlying numbers
+through two different lenses (Analytics: FOH/BOH cost, excludes tips;
+Payroll: per-employee total including tips, since that's what's actually
+paid to the person).
+
+**UI**: `/payroll?week=YYYY-MM-DD` — one page, Prev/Next week nav (same
+`weekMath.ts` helpers as Supplier Check's picker), a status pill (Draft
+— live numbers / Paid — by X on date), an amber banner naming exactly
+how many shifts still need finalizing if the week isn't fully locked
+yet, the per-employee table (Wage/Extra/Incentive/Deduction/Tip/Total),
+"Mark this week paid" (disabled until every shift is finalized), Admin-
+only "Revert to draft" on a paid week, and a Download .xlsx link. Nav
+entry added to `MANAGER_NAV_ITEMS` (between Analytics and Settings) and
+a matching 9th tile on the home page.
+
+**Export** (`lib/payroll/buildPayrollWorkbook.ts`, ExcelJS, one .xlsx,
+3 sheets): "Check Export" (plain Payee/Amount/Memo, one row per
+employee, ready for check-printing software — matches the DNA file's
+own Export/MyExport shape); "Pay Stub Detail" (one block per employee:
+wage/extra/incentive/deduction/tip pool share/host drink bonus/total,
+meant to be printed and clipped to the physical check); "Wage
+Acknowledgment" (bilingual English/Spanish receipt per employee,
+reflecting the real computed amount and week-ending date, with a
+signature line). Deliberately dropped the DNA form's meal-break
+certification clause — Atlas doesn't track breaks at all, so having
+someone sign a certification about something the system never observed
+would be putting an unverifiable claim in writing; only the
+wage-received certification (which Atlas *can* back with real numbers)
+made it in.
+
+**Verified**: `eslint`/`tsc --noEmit`/`next build` all clean on every
+new/touched file (the pre-existing NavBarClient.tsx setState-in-effect
+warning and 7 other pre-existing findings elsewhere confirmed via `git
+stash` to predate this change), 71/71 existing tests pass unchanged
+(none of this feature's logic was a good fit for the existing pure-
+function test file — it's inherently DB-shaped). Two-part verification
+instead: a 9-check pure-DB script (deleted after use) confirmed the live
+register total matches an independent SQL sum, an empty week is
+correctly empty/unpayable, and a week with an unfinalized shift reports
+the right blocking count — and, since `markPayrollPeriodPaid`/
+`revertPayrollPeriodToDraft` need a real request-scoped session
+(`next/headers`' `cookies()` doesn't work in a standalone script), a
+13-check real `next start` smoke test using session tokens minted
+directly for a seeded MANAGER (Aey) and ADMIN (Oliver) account (temp
+verification route deleted after use) confirmed: blocked-when-
+unfinalized, successful mark-paid, snapshot-matches-live-at-lock-time,
+blocked double-pay, a non-Admin can't revert, Admin revert clears the
+snapshot, and the export workbook builds. Also manually confirmed the
+real `/payroll` page renders (status pill, table, Mark paid button,
+Download link) against the seeded week.
+
+**Not built (explicitly out of scope this round, per Oliver's own
+answer)**: tax/withholding calculation — that's a payroll-processor job
+(Gusto/ADP/etc.), not something to build in-house. Also not built:
+biweekly/semi-monthly cadence (weekly only, matching the real DNA
+process), CSV/direct-deposit-file export (the .xlsx is meant for
+check-printing software or a bookkeeper, same as Supplier Check's own
+export), and any UI for correcting an individual employee's numbers
+within a payroll week (a correction goes through fixing the underlying
+shift, then re-finalizing, same as everywhere else money is computed
+in this app).
+
+## Tip Pool Assignment — visual position↔pool board (2026-08-17)
+
+Oliver wanted a second, more visual way to manage which position is in
+which tip pool — described it as "game UI": unassigned positions on the
+left, one window per pool on the right, arrows or drag-and-drop to
+assign. Before building, walked through the concept as a clickable
+mockup (real position names, no backend) and flagged one real wrinkle:
+a position isn't always in exactly one pool — Host is deliberately in
+BOTH Pool 1 and Pool 2 at once (see `positionTipPools`' schema comment,
+a corrected bug from earlier in the project). A strict "move from
+unassigned into a pool" interaction can't represent that, so the
+mockup — and now the real feature — is a TOGGLE board instead: the left
+list is a permanent master list of every position, arrows/drag
+add-or-remove one pool membership at a time, nothing "moves away" from
+anywhere. Also flagged that drag-and-drop alone doesn't fit this app's
+own accessibility bar (phone-first, low-computer-literacy-friendly) —
+arrow/tap buttons are the primary interaction, drag is a bonus for a
+mouse.
+
+Oliver's follow-up, confirmed before building: (1) it writes the SAME
+`positionTipPools` data the Positions page's per-position checkboxes
+already write — not a fork; (2) it gets its own Settings section, not a
+tab under Positions; (3) the pool split-method control (point-weighted
+vs. equal split) moves OFF the main Settings page entirely and now
+lives ONLY in this new section, alongside the board.
+
+**What shipped** (no schema change, no migration): new page
+`/settings/tip-pools` — a filterable master list of every position
+(All / Unassigned only / FOH / BOH) plus one window per pool, each
+showing its members, a split-method dropdown, and an arrow/drag drop
+target. `lib/actions/tipPools.ts`: `toggleTipPoolMembership` (adds/
+removes exactly one `positionTipPools` row, idempotent, doesn't touch a
+position's other memberships — unlike the Positions edit page's
+existing `syncPositionChildRows`, which replaces a position's whole
+set) and `updatePoolSplitMethod` (updates one pool's column on
+`restaurantSettings`). Both save immediately on click/change, no
+separate "Save" button — the client board (`PoolBoard.tsx`) updates
+optimistically for a snappy feel and reverts with an error message if
+the server call fails, so the UI can't silently drift from the DB.
+`SettingsForm.tsx` lost its "Tip pool split method" fieldset entirely,
+replaced with a link card to the new page; `lib/actions/settings.ts`'s
+`updateRestaurantSettings` no longer reads/writes pool1/2/3SplitMethod.
+Cross-links added both ways: Settings → Tip Pool Assignment, and
+Positions list → "Bulk-manage tip pool assignment for every position."
+
+**Verified**: `eslint`/`tsc --noEmit`/`next build` clean on every new/
+touched file. 71/71 existing tests unchanged. Direct verification via a
+temporary API route (deleted after use, same technique as Payroll's —
+`revalidatePath()` needs a real Next.js request context, doesn't work
+in a standalone script) confirmed: toggling a membership on/off works
+and is idempotent (no duplicate row), toggling one pool never touches a
+position's OTHER pool memberships (Host ending up correctly in all 3
+pools when added to the 3rd, then back to exactly Pool 1 + Pool 2 when
+removed), an unrelated position (Bartender) is untouched throughout,
+each pool's split method updates independently without affecting the
+other two, and unrelated `restaurantSettings` fields (e.g.
+`ccTipDeductionRate`) are never touched. Also a real `next start` smoke
+test confirmed `/settings/tip-pools` renders with real position data
+(Host correctly shows both Pool 1 and Pool 2 chips) and `/settings`
+correctly no longer shows the split-method UI while everything else on
+that page is unaffected.
+
+## Security audit fix — server-action auth gap in tip-pool + payroll actions (2026-08-17)
+
+Fixes findings #1-#3 from the 2026-08-17 `/scrutinize` codebase audit
+(`project_atlas_security_audit_2026_08_17` memory). Root cause: Server
+Actions (`"use server"` functions) are independently callable POST
+endpoints — calling one directly (e.g. replaying its request once the
+action ID is known, no login required) bypasses `app/(protected)/
+layout.tsx`'s `requireManager()` page gate entirely, since that only
+runs when a *page* renders. Most actions files already guard themselves
+correctly (`ledger.ts`, `card.ts`, `supplierCheck.ts`, `swap.ts`); these
+two didn't.
+
+- **`lib/actions/tipPools.ts`** — `toggleTipPoolMembership` and
+  `updatePoolSplitMethod` had no session check at all (audit finding #1,
+  BLOCKER). Added a local `requireManagerAction()` helper (session must
+  exist and be MANAGER/ADMIN, same check `swap.ts` already uses) as the
+  first line of both functions. Also gave `updatePoolSplitMethod`'s
+  `switch` a `default` case that throws on an unrecognized pool instead
+  of silently no-op'ing (finding #3, minor).
+- **`lib/actions/payroll.ts`** — `markPayrollPeriodPaid` only checked
+  "is anyone logged in" (`if (!session) throw`), not "is this a
+  manager," unlike its sibling `revertPayrollPeriodToDraft` three lines
+  down which correctly requires ADMIN (finding #2, MAJOR). Changed the
+  check to require MANAGER or ADMIN, matching the sibling.
+
+No schema change, no migration. `eslint`/`tsc --noEmit`/`next build` all
+clean; 71/71 existing tests pass. Verified the actual vulnerability is
+closed, not just the type signature: used Playwright against a real
+`next start` server to log in as ADMIN and capture the literal POST
+request (URL, `next-action` header, body) each button's click sends for
+both `toggleTipPoolMembership` and `markPayrollPeriodPaid`, then
+replayed those exact requests via `curl` twice each — once with no
+session cookie at all, once with a real STAFF (non-manager) session
+cookie — confirming both endpoints now reject with the intended error
+("Not authorized." / "Only a manager can mark payroll as paid.") and
+leave the DB unchanged, instead of silently succeeding.
+---
+
+## UI/UX design system, v2 — full rebuild against current `main` (2026-08-16, branch `design-system-v2`)
+
+Supersedes the 2026-08-09 `ui-design` branch design pass (`atlas-ui-design-v1.zip`), which drifted ~40 commits behind `main` and was never merged — see `project_atlas_ui_design` memory for the full corrective history. This round was built directly against current `main` (`00a5c29`) after a dedicated planning phase: an evidence-based palette/type/spacing system, a 5-gap verification pass against the live code (not just internal review), and an explicit go-ahead from Oliver before any code was touched.
+
+**Design tokens (`app/globals.css`):** slate-gray neutral scale, functional primary blue (`#1D4ED8`), brand mor hom indigo (`#2E3B7A`, chosen by Aey after a 4-option comparison — logo + the single most consequential action per flow only, e.g. Confirm & Finalize), green/amber/red semantic status colors, full type scale (32/24/19/16/14/13px), 8pt spacing, radius scale, 3-level elevation. Dark mode values defined and WCAG-AA verified for every token (including a lightened `--brand: #7C8FE0` dark-mode-only variant — the light-mode brand hex fails contrast on a dark card, same fix already applied to primary) but not activated anywhere yet — `.dark` class exists, isn't applied on any page, by design (this app was burned once by a half-dark page in 2026-08-10).
+
+**Fonts:** self-hosted via `@fontsource/noto-sans` + `@fontsource/noto-sans-thai` (all 4 weights each), imported directly in `app/layout.tsx` — avoids the known `next/font/google` sandbox network block from day one of this project.
+
+**Component library (`components/ui/`):** Button (6 variants incl. brand + two destructive weights, 6 interactive states), Field (TextInput/Select, shared shell, blur-validation-ready), Card/Section/PageHeader/EmptyState, Badge/StatusBadge, Banner (success/danger/warning/info, stays on-screen rather than auto-dismissing), Avatar, Tabs (primary-blue active state, not brand), Modal (shared shell — backdrop, Esc/click-to-close, 3 elevation), ConfirmDialog (lightweight, primary-blue), DangerConfirmDialog (typed-word, red), DangerZoneSection, and an outline icon set (1.75px stroke, 24px, always paired with text).
+
+**Screens covered (Phase 1 — login/nav + the Roster→Preview→Summary flow):** `/`, `/login`, `/shifts`, `/shifts/new`, `/shifts/[id]/roster`, `/shifts/[id]/preview`, `/shifts/[id]/summary`, the persistent NavBar. **Deliberately not touched:** Closing Report (off-limits this round per Oliver), Schedule Planner, Ledger, Employees/Positions/Settings admin — later phases.
+
+**Real bugs fixed along the way, not just restyled:**
+- `RosterGrid.tsx`'s raw `window.confirm()` (multi-role guard) replaced with the styled `ConfirmDialog` — was an unstyled OS popup breaking out of the app UI entirely.
+- The 2 leftover redundant "Sign out" buttons on `/me` and `/me/schedule` removed (the nav avatar menu already covers this since 2026-08-14; this was flag 2 from the 2026-08-15 UX audit).
+- Nav avatar circle and Ledger's tab active-state (`bg-black` hardcoded) reconciled to tokens — not touched in Ledger itself this round (out of Phase 1 scope), but `Tabs.tsx` component is now correct for whenever Ledger gets its pass.
+- Dense-data screens (Shifts list, Preview/Summary payout tables) now render as stacked cards on phone, a real table on desktop — the standard decided in the 2026-08-16 planning session, not the ad hoc horizontal-scroll-table fix from 2026-08-15.
+
+**Verification:** `tsc --noEmit` clean, `next build` clean (34 routes), all 71 existing tests still pass unchanged, `eslint` clean on every file this round touched (7 pre-existing errors confirmed via `git stash` diff to already exist on `main` untouched — in Schedule Planner/Closing Report/NavBarClient's pre-existing effect pattern, not introduced here). Spot-checked all 7 touched routes against a live dev server using a real session token (both unauthenticated-redirect and authenticated-as-manager cases), confirmed rendered CSS actually contains the brand hex, primary hex, and both font families' `@font-face` rules.
+
+**Delivery:** committed locally on branch `design-system-v2` off `main` `00a5c29` (no push credentials in this sandbox, same as always) — zipped with full `.git` history for Oliver to unzip and push from his own machine.
+
+---
+
+## Merged `design-system-v2` into `main` (2026-08-17)
+
+Merged same-day rather than letting the branch drift further — it had already moved 20 commits behind `main` by the time of this merge (Schedule Planner Phase D/E, the Card ledger channel, the Payroll register, Analytics/P&L Phase 1, the tile home dashboard, the Tip Pool Assignment UI, and the security audit fix all shipped on `main` after the branch point). Caught and resolved same-day instead of repeating the `ui-design` branch's ~40-commit unmergeable drift from earlier in the project.
+
+Four real conflicts, all resolved by hand rather than blindly picking a side:
+- **`app/page.tsx`** — `main` had completely replaced the old static home page with a real role-aware tile dashboard (2026-08-16, 9 manager tiles + 2 staff tiles) after the design branch forked. Kept `main`'s dashboard logic entirely and re-skinned `TileLink` onto design tokens, rather than regressing to the design branch's older placeholder content.
+- **`app/NavBarClient.tsx`** — `main` had added the red-pill unseen-count badge (leave + swap requests) after the fork. Preserved that feature, restyled onto the `--danger` token instead of raw `bg-red-500`.
+- **`app/me/schedule/page.tsx`** — `main` had added the Leave Requests panel, Swap Board panel, and full-week view link after the fork, but its independent development also **silently reintroduced the redundant "Sign out" button** that had already been fixed on the design branch (flag 2 from the 2026-08-15 audit). Caught this during the merge review rather than taking `main`'s version wholesale — removed the button again, kept all the new panels.
+- **`PROGRESS.md`** — pure append-order conflict, both sides' changelog entries kept.
+
+Verified post-merge: `tsc --noEmit` clean, `next build` clean, all 71 tests pass, `eslint` clean.
+
+---
+
+## Backfilled tests: Payroll register + Analytics/P&L (2026-08-17)
+
+Closed the test-coverage gap flagged in the 2026-08-17 project review — Payroll and Analytics/P&L were the two newest money-facing features and had zero automated tests, unlike the well-covered tip-pool/wage engine.
+
+Both files mixed DB fetching directly into the money math, unlike `lib/calc`'s framework-free pure functions (this project's own stated convention for testability). Extracted the actual math out of each, matching that convention rather than reaching for a different testing style:
+
+- **`lib/payroll/loadPayrollRegister.ts`** — pulled the per-shift-payout -> per-employee-per-week aggregation (sum across shifts, round every field independently, sort by name) into a new exported pure function `aggregatePayrollRows`. `computeLivePayrollRegister` is now a thin DB-fetch-then-delegate wrapper. 7 new tests: multi-shift summing (not overwriting), independent-employee separation, null `hostUpsellTipShare` defaulting safely to 0, per-field rounding, alphabetical sort, empty-week case.
+- **`lib/analytics/loadPnL.ts`** — pulled the COGS/gross-profit/net-profit composition and all 5 benchmarked KPI ratios + range classification into a new exported pure function `computePnL`. `loadPnL` is now a thin fetch-three-breakdowns-then-delegate wrapper. 7 new tests: gross/net profit math, food-cost-% correctly excluding bar (per Aey's request to track it separately), below/in/above-range classification against the cited benchmark bands, bar cost's deliberate `not_applicable` status, zero-revenue division safety, labor cost using Atlas's own computed payroll rather than the legacy EXCLUDED ledger category, prime cost composition.
+
+Both extractions are pure refactors — no behavior change, `loadPnL`/`computeLivePayrollRegister`'s public signatures and return values are identical to before.
+
+Verified: `tsc`/`eslint`/`build` all clean, test suite grew from 71 to 85 (all passing).
+
+---
+
+## Employees → People rename + YK login ID (2026-08-17)
+
+Oliver: "change employees page to People. and build ID and login. format
+YK with 2 digit yr 2 digit month 1 digit departmemt 0=admin 1=partner
+2=BOH 3=FOH and 3 digit running number" — refined via several rounds of
+AskUserQuestion into a final, confirmed spec before any code was touched
+(per this project's standing "never assume" rule):
+
+**Rename:** "Employees" → "People" everywhere — nav link, page heading,
+breadcrumbs, tile on the home dashboard. Route moved from `/employees` to
+`/people` (`app/(protected)/employees` → `app/(protected)/people`, plain
+`git mv`). The old `/employees` URL still resolves — a small redirect page
+now lives there so no existing bookmark/link 404s. The underlying data
+model (`employees` table, loaders, actions, "employee" in doc comments)
+deliberately keeps its existing name — this is a UI-facing rename only,
+same reasoning `nickname` used when it kept its DB column name after being
+aliased everywhere else (2026-08-17, earlier this same day).
+
+**YK login ID format:** `YK` + hire-year(2) + hire-month(2) +
+department(1) + running-number(3), e.g. `YK26081007`. Admin isn't a
+department digit — it's a login PERMISSION via the existing
+`employees.systemRole`, not part of this ID — so the final 3-way mapping
+is `0=Partner / 1=BOH / 2=FOH` (confirmed after Oliver's first message
+listed a 4-way 0=admin/1=partner/2=BOH/3=FOH scheme, corrected in
+conversation). The running number is ONE shared global counter across all
+three departments, never resets (`employees.loginSequence`, new column —
+stores the sequence value used rather than re-deriving it from the string
+so the generator never has to trust its own past formatting). Pure
+builder function in `lib/employees/loginId.ts` (`buildLoginId`,
+`guessLoginIdDepartment`), 9 new unit tests.
+
+**New `employees.isPartner` flag** (Oliver: "add PARTNER" — there was no
+partner concept in the schema yet). Independent of `systemRole`, same
+pattern as `isFinancialAuditor`. Drives the department pre-fill guess
+when generating a login ID (partner flag wins, otherwise the employee's
+primary position's FOH/BOH category) — but the department is always a
+**manual picker**, confirmed/overridden by whoever clicks "Generate login
+ID" on the People page, never silently auto-applied (Oliver's explicit
+ask).
+
+**Backfill:** Oliver chose to auto-generate IDs for every existing
+employee immediately rather than generate-on-demand only for new hires
+(`db/backfillLoginIds.ts`, one-time, idempotent — only touches rows where
+`login_id` is still null, safe to re-run). Ordered by hire date ascending
+(nulls last) per Oliver's stated basis for the yr/month portion; falls
+back to today's date for any employee with no recorded hire date (true of
+every currently-seeded employee — `db/seed.ts` never sets `hireDate`).
+**Run once after migrating:** `npx tsx db/backfillLoginIds.ts`.
+
+**Login flow:** `restaurantSettings.staffLoginMethod` (new column,
+`"NAME"` default / `"ID"`) — Oliver wants BOTH the original
+pick-your-name dropdown and the new ID field available, switchable per
+restaurant rather than one replacing the other ("here is test seed
+anyway I need easy way to login on each profile"). New "Staff login"
+section on `/settings`. `app/login/page.tsx` renders the matching form;
+`lib/actions/auth.ts`'s `login()` now accepts either an `employeeId` or a
+`loginId` field and resolves the employee accordingly.
+
+**People page additions:** new "Login ID" column. Shows the generated ID
+once set; before that, a "Generate login ID" link opens an inline
+department dropdown (pre-filled with the guessed department) + Confirm.
+A generated ID is normally stable/non-regenerable (a login credential
+changing under someone mid-use is a real problem) — `viewerIsAdmin`
+unlocks a "Reset" escape hatch (`resetLoginId`, Admin-only, stricter than
+the MANAGER-level guard the rest of this file uses) for fixing a wrong
+backfill guess, e.g. a real partner who wasn't flagged `isPartner` yet
+when the backfill ran.
+
+**⚠ MIGRATION** — `migration 0020` adds `employees.is_partner`,
+`employees.login_id` (unique), `employees.login_sequence`, and
+`restaurant_settings.staff_login_method`, all purely additive. **Run
+`npm run db:migrate` after unzipping, then `npx tsx db/backfillLoginIds.ts`
+once to generate IDs for all existing employees.**
+
+Verified: `tsc --noEmit`/`eslint`/`next build` all clean (7 pre-existing
+unrelated findings elsewhere confirmed via `git stash` to predate this
+round, byte-for-byte the same 17-problem/8-error eslint output before and
+after). Test suite grew from 85 to 94 (9 new `loginId.ts` unit tests, all
+passing). Migration + backfill script round-tested against a fresh local
+SQLite DB seeded with the normal 19 employees. Full real-browser
+(Playwright, against a `next start` server) smoke test covering: NAME-
+method login, `/people` heading + nav label, `/employees` redirecting to
+`/people` once authenticated, creating a new person and generating their
+login ID from the People table, flipping Settings to ID-method login and
+signing in with the freshly-generated ID + a newly-set PIN, and an
+Admin-only Reset clearing an ID so it can be regenerated.
+
+---
+
+## Dead-end prevention: can't remove the last active Manager/Admin (2026-08-17)
+
+Oliver: "then how admin login in case i'm not admin anymore. if i change
+my role to staff now. it means no dead end?" — a real gap, not just a
+hypothetical: every manager-facing page and every mutating action in this
+app (including the one that edits `systemRole` itself) is gated on "is
+this session MANAGER or ADMIN," with no separate recovery path if that
+population ever hits zero.
+
+Confirmed with Oliver via AskUserQuestion: block the save outright rather
+than just warn.
+
+- `lib/actions/employees.ts`'s new `hasOtherActiveManagerOrAdmin(excludeEmployeeId)` —
+  true if at least one OTHER active MANAGER/ADMIN exists.
+- `updateEmployee` now fetches the employee's current row before writing,
+  and if this save would drop them out of "active MANAGER/ADMIN" (role
+  changed away from MANAGER/ADMIN, or account retired via the same form)
+  while no other active MANAGER/ADMIN exists, rejects with a clear error
+  instead of saving.
+- `toggleEmployeeActive` (the People table's Retire button) gets the same
+  check for the retire path specifically — a retired account can't log
+  in at all, so retiring the last Manager/Admin is the same dead end as
+  demoting them. Its return type changed from `void` to `{error: string
+  | null}` so `EmployeeToggleActiveButton.tsx` can actually show the
+  rejection instead of failing silently.
+- Promoting someone else to Manager/Admin first re-opens the door — the
+  check is dynamic, not a one-time flag.
+
+No schema change, no migration. Verified: `tsc`/`eslint`/`next build`
+clean, 94/94 tests still passing. A throwaway direct-DB script (7 checks,
+deleted after use) exercised the guard logic itself. A full Playwright
+smoke test against a real `next start` server (with a fresh build —
+caught and corrected a first attempt that accidentally tested against a
+stale pre-guard build) confirmed both paths end to end: logged in as the
+database's sole active ADMIN, tried to demote himself to STAFF via the
+People edit form (blocked, DB unchanged) and tried to retire his own
+account from the People table (also blocked, DB unchanged).
+
+---
+
+## Account recovery code (2026-08-17)
+
+Oliver: "What should we do when the admin forgot his password?" — then,
+sharpened after a first answer offered a script only Oliver could run:
+"I ship this app to the customer, and I no longer have access to this
+product. How do they reset the admin password by themselves?" A genuine
+customer-facing gap: with the dead-end guard above already preventing
+the last Manager/Admin from being *removed*, the remaining hole was that
+same last account forgetting its PIN with no other Manager/Admin around
+to reset it — and no email/SMS infrastructure exists in this app to
+build the usual "reset link" flow.
+
+Confirmed via AskUserQuestion: a one-time recovery code, generated by an
+Admin from Settings and shown in plaintext exactly once (same pattern as
+a Bitwarden/AWS recovery key — the user is told to write it down and
+keep it somewhere safe). The code can reset ANY employee's PIN (not just
+Manager/Admin), redeemed from a new public `/login/recover` page linked
+via "Forgot PIN?" on the sign-in form. 5 wrong attempts locks recovery
+out for 15 minutes, confirmed with Oliver.
+
+- **`lib/auth/recoveryCode.ts`** — pure `generateRecoveryCodePlaintext()`
+  (4 groups of 4 chars from a 32-symbol alphabet excluding ambiguous
+  0/O/1/I/L — ~80 bits of entropy) and `normalizeRecoveryCodeInput()`
+  (uppercase + strip non-alphanumerics, so `kxqp-7rt4-...`, `KXQP 7RT4
+  ...`, and the canonical dashed form all verify identically). 5 new unit
+  tests.
+- **`lib/actions/recovery.ts`** — `generateRecoveryCode` (Admin-only,
+  hashes with the existing generic `hashPin`/`verifyPin` from
+  `lib/auth/pin.ts`, same scrypt scheme as employee PINs) and
+  `redeemRecoveryCode` (public — no session, this IS what you use when
+  you have none — verifies the code, checked against the lockout BEFORE
+  even looking at the submitted code, then in one submit also validates
+  and applies the new PIN for the chosen employee). No intermediate
+  "verified" session between entering the code and resetting the PIN —
+  fewer moving parts, smaller attack surface.
+- **`app/(protected)/settings/RecoveryCodeSection.tsx`** — Admin-only
+  Settings panel: current status (never set / set on ... / last used on
+  ... for whom), Generate/Regenerate button, one-time plaintext reveal.
+  Regenerating immediately invalidates the old code.
+- **`app/login/recover/`** — public page + form: code, employee picker
+  (every active employee), new PIN, confirm PIN, all in one submit.
+  Linked from the sign-in form's new "Forgot PIN?" link.
+- **`restaurantSettings`** gained `recoveryCodeHash`, `recoveryCodeSetAt`,
+  `recoveryFailedAttempts`, `recoveryLockedUntil`, `recoveryCodeLastUsedAt`,
+  `recoveryCodeLastUsedForEmployeeId` — migration 0021, purely additive.
+  Deliberately NOT a full audit-log table for now — just the single most
+  recent redemption, enough to notice misuse without building an
+  audit-log viewer nobody's asked for yet.
+
+**⚠ MIGRATION** — `migration 0021` adds 6 new columns to
+`restaurant_settings`, purely additive. **Run `npm run db:migrate` after
+unzipping.** No new seed step — every restaurant starts with no recovery
+code set (same "no self-service recovery" behavior as before this
+feature, until an Admin generates one from Settings).
+
+Verified: `tsc --noEmit`/`eslint`/`next build` all clean (same
+pre-existing 17-problem/8-error eslint baseline, confirmed unchanged).
+Test suite grew from 94 to 99 (5 new). Full real-browser (Playwright,
+`next start`) smoke test: generated a code as Admin, confirmed a wrong
+code is rejected, confirmed the correct code resets the target PIN,
+confirmed the OLD PIN stops working and the NEW one signs in. A separate
+throwaway direct-DB script (11 checks, deleted after use) exercised the
+lockout state machine precisely: 4 wrong attempts accumulate without
+locking, the 5th locks for 15 minutes, the CORRECT code is still
+rejected during that window, and it succeeds again once the window has
+passed, with attempt/lockout state cleared on any successful redemption.
+
+---
+
+## Design-system retrofit: Schedule Planner, Set 1 (2026-08-18)
+
+First subsystem-wide retrofit since the `design-system-v2` merge — Schedule
+Planner had zero design-system adoption (0/26 files importing
+`@/components/ui`), confirmed by repo-wide grep before starting. Scoped to
+Set 1 (the manager weekly-plan flow + the staff-facing `/me/schedule/*`
+views, 17 files) after Oliver deferred the choice of which subsystem to
+retrofit next to this session's judgment (Schedule Planner, over Payroll
+or Ledger — highest-frequency manager screen, and the one place a UI
+review + scrutinize pass this same session had already turned up real
+bugs). Set 2 (`targets/*`, `templates/*`, `weeks/`, `leave/`, `swaps/`) is
+explicitly **not** covered — proposed as its own follow-up pass, not yet
+confirmed with Oliver.
+
+**Files restyled (17):** the `/schedule` hub (rebuilt as a tiered layout —
+one prominent primary tile for Weekly Plan, then This week/Zoom
+views/Set up once groupings, replacing six equal-weight tiles with no
+hierarchy — closes flag 3 from the earlier accessibility audit), all of
+`plan/` (`page.tsx`, `preview/page.tsx`, `month/page.tsx`,
+`person/page.tsx`, `PublishWeekButton`, `GenerateWeekButton`,
+`AutoFillWeekButton`, `PublishedEditGate`, `AddPlannedAssignmentForm`,
+`DangerZone`), `app/schedule/WeeklyPlanGrid.tsx` (the shared grid used by
+both the manager and staff views), and all five `app/me/schedule/*` files
+(`page.tsx`, `day/page.tsx`, `week/page.tsx`, `SwapBoardPanel`,
+`LeaveRequestsPanel`). All now use `PageHeader`/`Card`/`Banner`/`Badge`/
+`Select`/`TextInput`/`Button`/`ConfirmDialog`/`EmptyState`/`Tabs` and CSS
+custom-property tokens in place of raw hardcoded Tailwind.
+
+**Real bug fixed along the way:** `PublishWeekButton.tsx`'s raw
+`window.confirm()` replaced with the styled `ConfirmDialog` — same
+anti-pattern as the `RosterGrid.tsx` fix from the `design-system-v2`
+round, found via a live-code reconciliation pass earlier this session
+(promoted into the `scrutinize` skill as a standing check: design/plan
+docs now get checked against actual repo code, not just internal
+consistency, before being marked confirmed).
+
+**Deliberately not touched, flagged as backlog:**
+- `PayrollActions.tsx` has the same raw-`window.confirm()` bug (in both
+  `MarkPaidButton` and `RevertToDraftButton`) — out of scope this pass
+  (Payroll wasn't the chosen subsystem), carried forward for Payroll's
+  own retrofit.
+- A 23-file repo-wide pattern of native `title=` used as the only hover
+  tooltip for a status signal (calendar day dots, assignment-pill ring
+  explanations) — doesn't work on touch/mobile at all, which matters
+  given this session's standing mobile-parity requirement. Two more
+  instances live inside this pass's own files
+  (`plan/month/page.tsx`, `plan/person/page.tsx`) — left as-is rather
+  than fixed ad hoc, since every one of those cells already has a
+  color-coded legend and (for the month grid) an inline "N short" label
+  as the mobile-visible primary signal; `title=` is supplementary, not
+  the sole channel. The full migration is too large and cross-cutting to
+  fold into a single subsystem's retrofit — it needs its own triage
+  pass across every subsystem it touches.
+- `WeeklyPlanGrid.tsx` got token-color restyling only, not a structural
+  stacked-card mobile conversion — the grid today gets horizontal-scroll
+  on phone, unchanged this pass. It's dense enough (vacancy/leave/swap
+  status rings, double-booking badges, inline quick-add dropdowns) that
+  restructuring it needs its own dedicated design reasoning pass, the
+  same treatment Danger Zone and dark mode each got before being coded,
+  rather than being decided inline during a token-restyle pass.
+- Two categorical ring/dot colors in `WeeklyPlanGrid.tsx` (purple =
+  on-leave, orange = double-booking conflict) have no design-system
+  token and were left as literal Tailwind colors rather than inventing
+  new tokens for a two-instance use case — the granularity/scope-creep
+  boundary this session's scrutinize pass also promoted into a standing
+  check.
+
+**Verification:** `tsc --noEmit` clean. `eslint` on the touched
+directories clean (the only errors/warnings found — 2 `set-state-in-effect`
+errors, 2 unused-var warnings — are pre-existing, confirmed inside
+`templates/PositionTemplateGrid.tsx`, a Set-2 file this pass never
+touched). `next build` succeeds (47 routes, all compile). Backgrounded
+`next dev` + curl smoke test against all 8 touched routes: no 500s: every
+route correctly 307-redirects to `/login` with no active session (this
+sandbox has no Turso credentials, so DB-backed pages can't be exercised
+authenticated here — same limitation as every prior session in this
+sandbox).
+
+**Delivery:** committed locally, zipped with full `.git` history (no push
+credentials in this sandbox, same as always).
+
+---
+
+## Fix: published-week grid was hidden behind the edit-lock (2026-08-18, same day)
+
+Oliver caught this from a live screenshot of the just-deployed Set-1
+retrofit: `PublishedEditGate.tsx`'s locked state returned early and
+rendered ONLY the "This week is published... Edit published schedule"
+notice card — the actual `WeeklyPlanGrid` never rendered at all until
+that button was clicked. His words: a published page should still show
+the table, with the notice floating above it, not instead of it
+("ก็ยังต้องโชว์ตารางโดยที่มีคำแจ้งเตือนลอยอยู่ข้างบน").
+
+Fixed: the grid now always renders — read-only (`readOnly` prop, same
+mode Preview's own "Staff view" toggle already uses) while locked, full
+quick-add/remove once unlocked. The warning notice + "Edit published
+schedule" button stay as a card above the grid instead of replacing it;
+`AutoFillWeekButton` and the "Add to a slot" form still only appear once
+unlocked, since those are edit actions. One file changed
+(`app/(protected)/schedule/plan/PublishedEditGate.tsx`).
+
+Verified: `tsc --noEmit`/`eslint`/`next build` all clean (47 routes).
+
+
+---
+
+## Left sidebar nav: top bar + hamburger retired, replaced with a persistent left rail/sidebar (2026-08-18)
+
+Oliver compared Atlas against a sibling app ("Track 1") that uses a
+persistent left sidebar, and asked to bring that layout to Atlas without
+touching the design system — nav position should stay consistent at
+every screen width instead of moving between a top bar and a slide-out
+drawer. Confirmed and mocked up (two rounds, HTML comparison files) before
+writing any real code — desktop sidebar vs. a mobile hamburger-unchanged
+option vs. a mobile icon-rail option, then a second round on exactly how
+far the mobile rail could collapse. Oliver picked desktop sidebar + mobile
+icon rail (nav stays in the same place at both sizes), then capped the
+rail's collapse at 48px/44×44 touch targets — Apple's comfortable-use
+minimum, no further trimming, no hidden/collapsible edge-tab variant.
+
+**What changed (3 files):**
+- `components/ui/icons.tsx` — 10 new icons (one per manager nav
+  destination, plus a login icon for the signed-out state), same outline
+  style as the existing set (1.75px stroke, 24px canvas, rounded joins).
+- `app/NavBarClient.tsx` — rebuilt from a horizontal top bar + hamburger
+  drawer into a fixed-position `<aside>`: 216px labeled sidebar at `sm`
+  and above, 48px icon-only rail below it. Every existing behavior
+  carried over: role-aware nav (staff sees no main list, just the account
+  menu), the Schedule unseen-count red-pill badge (now rendered twice —
+  inline next to the label on desktop, a small corner dot on the icon at
+  rail width), the avatar/account dropdown (My Schedule / My Pay / Sign
+  out) with its existing click-outside/Escape/backdrop dismissal, and the
+  unauthenticated "Staff Login" state. The account menu now opens
+  *upward* (`bottom-full`) instead of downward, since the avatar is
+  pinned at the bottom of a fixed-height rail with no room below it. The
+  hamburger button/state/mobile-drawer panel are gone entirely — the rail
+  has no open/closed state to manage anymore, it's just always there.
+- `app/layout.tsx` — body no longer flexes around an in-flow header; the
+  nav is `fixed`, so `{children}` just needs matching left padding
+  (`pl-12 sm:pl-[216px]`) to clear it. No changes needed to any
+  individual page's own content wrapper — each page's existing
+  `max-w-4xl mx-auto` (or similar) still centers correctly inside the
+  padded area, so this stayed a 3-file change rather than the ~35-file
+  page-by-page retrofit it could have been.
+
+Deliberate accessibility call, documented in the component's own comment:
+the mobile rail is icon-only with an `aria-label` per item rather than a
+visible text label, which is a confirmed exception to Atlas's standing
+"icon + visible label" rule — made directly with Oliver, since a
+persistent always-visible rail is a different risk profile than the
+hover-only `title=` tooltips that rule was written to catch (those are
+invisible on touch; this is visible and tappable at all times, just
+unlabeled until tapped).
+
+**Verification:** `tsc --noEmit` clean. `next build` clean, all 47 routes
+compile (unchanged route count — this is a shell-only change). `npm test`
+99/99 pass (backend/logic tests, untouched by a nav-only change, run
+anyway for a full regression check). `eslint` on all three touched files
+clean except one pre-existing `react-hooks/set-state-in-effect` finding
+on the pathname-close effect — confirmed via `git stash` to already exist
+on unmodified `main`, not introduced here, left as-is (same triage
+convention as prior passes: log pre-existing findings, don't scope-creep
+into fixing unrelated ones). Rendered the real component through Next's
+own dev server via a temporary DB-free test route (deleted before
+delivery) since this sandbox has no local database and even `/login`
+500s here without one (confirmed pre-existing on unmodified `main` too,
+via the same stash-and-compare check) — confirmed in the actual served
+HTML: the sidebar/rail wrapper's fixed/width classes, all 9 nav
+labels+icons, both badge variants with the correct unseen count, the
+avatar/name/role account block, and the brand mark all render as
+intended.
+
+**Not yet checked:** an actual live-viewport visual audit (this sandbox
+has no browser) — flagged for a `visual-audit` pass once Oliver confirms
+this is pushed and deployed, same as every prior UI change.
+
+**Delivery:** committed locally, zipped with full `.git` history (no push
+credentials in this sandbox, same as always).
+
+## Collapsible desktop sidebar + day-primary mobile weekly schedule (2026-08-19)
+
+Two small, independent asks from Oliver, both built and shipped together:
+
+**1. Collapsible desktop sidebar.** The 216px labeled sidebar (sm+) now
+collapses to the same 48px icon-only rail the mobile breakpoint already
+uses, via a toggle button under the brand header (`app/NavBarClient.tsx`).
+State lives in a new `NavCollapseContext` (`app/NavCollapseContext.tsx`),
+shared between the sidebar and a new `NavContentWrapper`
+(`app/NavContentWrapper.tsx`) that applies the page content's left
+padding — both resize together instantly on toggle, instead of the
+content padding staying stale until the next navigation. Persisted via a
+plain (non-httpOnly) cookie, read server-side in `app/layout.tsx` so the
+very first paint already has the correct sidebar width/content padding —
+no flash, no hydration mismatch. The mobile rail itself is untouched and
+has no toggle — it's still fixed at 48px/44x44 per Oliver's 2026-08-18
+"no more collapse or trims" call.
+
+**2. Day-primary mobile view for published/read-only weekly schedules.**
+`WeeklyPlanGrid.tsx`'s `readOnly` views (Preview, the locked/published
+view in `PublishedEditGate.tsx`, and staff's `/me/schedule/week`) now
+render a vertical list of days on mobile — first "column" is the day of
+week, each day showing every position that has either an assignment or
+(when diagnostics aren't hidden) an unmet staffing target — instead of
+the existing position-rows/horizontal-scroll-days table. This closes the
+"day-primary vs. position-primary" scoping question the 2026-08-18
+visual-audit follow-up explicitly left open for Oliver to decide; his
+answer was day-primary, and only for read-only views — the editable
+pre-publish planning grid (quick-add-per-cell) is deliberately unchanged,
+since flipping its axes would break that per-cell editing UX and wasn't
+what was asked for. Desktop is also unchanged, both modes.
+
+**Verification:** `tsc --noEmit` clean. `eslint` clean except the one
+pre-existing `react-hooks/set-state-in-effect` finding on the
+pathname-close effect (confirmed via prior sessions' `git stash` checks
+to already exist on unmodified `main`). `next build` clean, 47 routes
+(unchanged — no new routes added). `npm test` 99/99 pass. Rendered
+output spot-checked via a temporary DB-free test route (deleted before
+this commit) since this sandbox still has no working database: confirmed
+in the real served HTML that the collapsed/expanded sidebar and content
+padding stay in sync at both states, and that the day-primary grid
+correctly includes an under-target gap row in diagnostics mode while
+omitting it entirely in `hideDiagnostics` (staff) mode.
+
+**Not yet checked:** a live-viewport visual audit (this sandbox has no
+browser) — flagged for a `visual-audit` pass once Oliver confirms this
+is pushed and deployed, same as every prior UI change. Also worth a
+real-data check of the day-primary mobile view once it's live, since the
+only representative data available this session was hand-authored.
+
+**Delivery:** committed locally (commit `fc8346c`, off `dae1e78`), zipped
+with full `.git` history (no push credentials in this sandbox, same as
+always).
