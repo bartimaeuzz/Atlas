@@ -2,6 +2,9 @@
 
 import { useActionState } from "react";
 import { createLedgerCard, type CardActionState } from "@/lib/actions/card";
+import { TextInput } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
 
 const initialState: CardActionState = { error: null };
 
@@ -9,24 +12,16 @@ export function CardForm() {
   const [state, formAction, isPending] = useActionState(createLedgerCard, initialState);
 
   return (
-    <form action={formAction}>
-      <div className="flex items-center gap-2">
-        <input
-          type="text"
-          name="name"
-          placeholder='New card name, e.g. "Amex ...1234"'
-          required
-          className="border rounded px-3 py-2 text-sm flex-1"
-        />
-        <button
-          type="submit"
-          disabled={isPending}
-          className="bg-black text-white px-4 py-2 rounded text-sm hover:bg-neutral-800 disabled:opacity-50 shrink-0"
-        >
+    <form action={formAction} className="space-y-2">
+      {state.error && <Banner tone="danger" title="Couldn't add card" description={state.error} />}
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
+          <TextInput type="text" name="name" placeholder='New card name, e.g. "Amex ...1234"' required />
+        </div>
+        <Button type="submit" loading={isPending} className="shrink-0">
           {isPending ? "Adding…" : "+ Add"}
-        </button>
+        </Button>
       </div>
-      {state.error && <p className="text-xs text-red-600 mt-1">{state.error}</p>}
     </form>
   );
 }

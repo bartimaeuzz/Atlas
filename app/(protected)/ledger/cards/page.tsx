@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadLedgerCards } from "@/lib/ledger/loadCard";
 import { CardForm } from "./CardForm";
 import { ToggleCardActiveButton } from "./ToggleCardActiveButton";
+import { EmptyState } from "@/components/ui/Card";
 
 /** Card admin (2026-08-16, Card v1) -- same retire-not-delete pattern as
  * Vendors/Categories. Youk Thai may have more than one card, each with
@@ -10,25 +11,27 @@ export default async function LedgerCardsPage() {
   const cards = await loadLedgerCards();
 
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
-      <Link href="/ledger/card" className="text-sm text-neutral-500 hover:text-black">
+    <main className="max-w-2xl mx-auto p-6 sm:p-8">
+      <Link href="/ledger/card" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Ledger
       </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-1">Cards</h1>
-      <p className="text-neutral-500 text-sm mb-6">
+      <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-1">Cards</h1>
+      <p className="text-sm text-[var(--ink-500)] mb-6">
         Every card whose statement gets reconciled here. Retiring a card keeps its past statement
         periods intact; it just stops being offered for new ones.
       </p>
 
       {cards.length === 0 ? (
-        <p className="text-neutral-500 text-sm mb-4">No cards yet.</p>
+        <div className="mb-6">
+          <EmptyState message="No cards yet." />
+        </div>
       ) : (
-        <ul className="divide-y border rounded mb-6 text-sm">
+        <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-lg)] mb-6 text-sm bg-[var(--card)]">
           {cards.map((c) => (
-            <li key={c.id} className={"px-3 py-2 flex items-center justify-between" + (c.active ? "" : " opacity-50")}>
-              <span>
+            <li key={c.id} className={"px-3 py-2.5 flex items-center justify-between" + (c.active ? "" : " opacity-50")}>
+              <span className="text-[var(--ink-900)]">
                 {c.name}
-                {!c.active && <span className="ml-2 text-xs text-neutral-400">(retired)</span>}
+                {!c.active && <span className="ml-2 text-xs text-[var(--ink-500)]">(retired)</span>}
               </span>
               <ToggleCardActiveButton cardId={c.id} nextActive={!c.active} />
             </li>
