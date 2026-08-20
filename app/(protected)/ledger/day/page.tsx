@@ -5,6 +5,8 @@ import { addDays, toIso } from "@/lib/schedule/weekMath";
 import { AddEntryForm } from "../AddEntryForm";
 import { EntriesList } from "../EntriesList";
 import { ReconciliationPanel } from "../ReconciliationPanel";
+import { Badge } from "@/components/ui/Badge";
+import { Banner } from "@/components/ui/Banner";
 
 /** The actual day-level Petty Cash work -- add expenses, review entries,
  * reconcile the drawer. Moved here from the bare /ledger route in the
@@ -30,15 +32,16 @@ export default async function LedgerDayPage({ searchParams }: { searchParams: Pr
 
   if (isFuture) {
     return (
-      <main className="max-w-lg mx-auto p-4 sm:p-8 font-sans">
-        <Link href={`/ledger?month=${monthOfDate}`} className="text-sm text-neutral-500 hover:text-black">
+      <main className="max-w-lg mx-auto p-4 sm:p-8">
+        <Link href={`/ledger?month=${monthOfDate}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
           &larr; Back to {monthOfDate}
         </Link>
-        <h1 className="text-2xl font-semibold mt-2 mb-4">{date}</h1>
-        <p className="text-sm text-neutral-500 border rounded p-4 bg-neutral-50">
-          This day hasn&apos;t happened yet — come back on {date} to log petty cash and reconcile the
-          drawer.
-        </p>
+        <h1 className="text-2xl font-bold text-[var(--ink-900)] mt-2 mb-4">{date}</h1>
+        <Banner
+          tone="info"
+          title="This day hasn't happened yet"
+          description={`Come back on ${date} to log petty cash and reconcile the drawer.`}
+        />
       </main>
     );
   }
@@ -54,35 +57,32 @@ export default async function LedgerDayPage({ searchParams }: { searchParams: Pr
   const nextDate = addDays(date, 1);
 
   return (
-    <main className="max-w-lg mx-auto p-4 sm:p-8 font-sans">
-      <Link href={`/ledger?month=${monthOfDate}`} className="text-sm text-neutral-500 hover:text-black">
+    <main className="max-w-lg mx-auto p-4 sm:p-8">
+      <Link href={`/ledger?month=${monthOfDate}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Back to {monthOfDate}
       </Link>
 
       <div className="flex items-center justify-between mb-1 mt-2">
-        <h1 className="text-2xl font-semibold">Petty Cash</h1>
-        <span
-          className={
-            "text-xs px-2 py-1 rounded font-medium " +
-            (finalized ? "bg-green-100 text-green-800" : "bg-neutral-100 text-neutral-600")
-          }
-        >
-          {finalized ? "Finalized" : "Draft"}
-        </span>
+        <h1 className="text-2xl font-bold text-[var(--ink-900)]">Petty Cash</h1>
+        <Badge tone={finalized ? "success" : "neutral"}>{finalized ? "Finalized" : "Draft"}</Badge>
       </div>
       <div className="flex items-center gap-3 text-sm mb-4">
-        <Link href={`/ledger/day?date=${prevDate}`} className="text-neutral-500 hover:text-black underline">
+        <Link href={`/ledger/day?date=${prevDate}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &larr;
         </Link>
-        <span className="font-medium">{date}</span>
-        <Link href={`/ledger/day?date=${nextDate}`} className="text-neutral-500 hover:text-black underline">
+        <span className="font-medium text-[var(--ink-900)]">{date}</span>
+        <Link href={`/ledger/day?date=${nextDate}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &rarr;
         </Link>
       </div>
 
       {finalized && isAdmin && (
-        <div className="mb-4 text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded p-2">
-          Editing as admin — this day is already finalized. Changes save directly without re-opening it.
+        <div className="mb-4">
+          <Banner
+            tone="info"
+            title="Editing as admin"
+            description="This day is already finalized. Changes save directly without re-opening it."
+          />
         </div>
       )}
 

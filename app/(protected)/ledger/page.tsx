@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
 import { LedgerTabs } from "./LedgerTabs";
 import { MonthList } from "./MonthList";
+import { PageHeader } from "@/components/ui/Card";
 
 /** Ledger landing page (2026-08-14 restructure) -- Oliver's ask: "after
  * enter ledger page shows petty cash and supplier tabs. then when click
@@ -42,18 +43,17 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   const data = await loadPettyCashReport(start, end);
 
   return (
-    <main className="max-w-lg mx-auto p-4 sm:p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-1">Ledger</h1>
-      <p className="text-neutral-500 text-sm mb-4">Pick a day below to log petty cash or review its reconciliation.</p>
+    <main className="max-w-lg mx-auto p-4 sm:p-8">
+      <PageHeader title="Ledger" description="Pick a day below to log petty cash or review its reconciliation." />
 
       <LedgerTabs active="petty-cash" />
 
       <div className="flex items-center justify-between mb-3">
-        <Link href={`/ledger?month=${shiftMonth(month, -1)}`} className="text-sm text-neutral-500 hover:text-black">
+        <Link href={`/ledger?month=${shiftMonth(month, -1)}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
           &larr; Prev
         </Link>
-        <span className="font-medium text-sm">{monthLabel(month)}</span>
-        <Link href={`/ledger?month=${shiftMonth(month, 1)}`} className="text-sm text-neutral-500 hover:text-black">
+        <span className="font-medium text-sm text-[var(--ink-900)]">{monthLabel(month)}</span>
+        <Link href={`/ledger?month=${shiftMonth(month, 1)}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
           Next &rarr;
         </Link>
       </div>
