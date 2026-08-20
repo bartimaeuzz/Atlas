@@ -1442,3 +1442,1021 @@ copy in the sandbox home directory instead — same class of limitation
 already documented for `npm install`/git in the ui-design session
 notes). Migration NOT yet applied to the production Turso DB — run
 `npm run db:migrate` to apply, then `git push`.
+
+## Schedule Planner — Phase 1 shipped: staffing targets + template assignments (2026-08-11)
+
+First piece of a much larger feature Oliver and I designed across several
+rounds of discussion, grounded in a real reference schedule from another
+NYC Thai restaurant (Soothr LIC, shared as a screenshot). Full design
+doc: `Atlas_Schedule_Planner_Schema_v1.md` (also saved to project
+memory as `project_atlas_schedule_planner`). Building it in phases on
+purpose — Oliver's own words: "คิด Schema ให้แตกก่อนที่จะเริ่มลงมือทำ"
+(think the schema all the way through before starting to build).
+
+**What Phase 1 is:** the foundation everything else sits on. Two new
+tables, both purely additive (migration `0005`, no changes to any
+existing table):
+
+- `positionStaffingTargets` — "how many of this Position do we need,
+  this day-of-week, this period?" Confirmed against the real Soothr
+  sheet: the numbered position rows (Runner 1/2/3/4, Bar 1/2/3, Host
+  1/2/3, etc.) are exactly this — a headcount target, not distinct job
+  titles. New page `/schedule/targets`: an editable grid (Position rows
+  × day-of-week columns, one grid per Lunch/Dinner), full-grid resync on
+  save (same delete-then-reinsert pattern as `syncPositionChildRows` in
+  `lib/actions/positions.ts`).
+- `employeeScheduleTemplates` — "Employee X normally works Position Y,
+  this day-of-week, this period," the recurring baseline a week's plan
+  (a later phase) will be pre-filled from. Confirmed with Oliver: this
+  is a deliberately FIXED baseline — it only changes when someone tells
+  the Manager to (a resignation, a promotion, a sales-driven staffing
+  need), not on an automatic weekly rebuild. New page
+  `/schedule/templates`: add-assignment form (reuses the same
+  employee-picks-defaults-position UX as the roster's "Add someone"
+  form), list of active assignments, retire button (same
+  retire-don't-delete convention as Positions/Employees).
+
+**The RED flag, corrected mid-design:** first guess was that red meant
+an open swap request — wrong. Oliver corrected it: red means a slot is
+KNOWN to be vacating — resignation notice given (two weeks is Thai
+restaurant custom) or a promotion/transfer to a different position.
+Doubles as an internal "open shift, come talk to me" signal for other
+staff and the Manager's own hiring/coverage tracker. Implemented as
+`vacancyReason` (`RESIGNATION`/`PROMOTION`/`OTHER`) +
+`vacancyStartsOn` on the template row — set via a "Mark vacating" inline
+form on `/schedule/templates`, cleared via "Clear vacancy." Deliberately
+does NOT cover approved LEAVE (a temporary absence shouldn't mutate the
+permanent recurring pattern) — that's a separate `leaveRequests` table
+in a later phase, cross-referenced at weekly-plan-build time instead.
+
+**What's explicitly NOT built yet** (see the schema doc's "proposed
+build order"): the actual weekly plan grid + publish + auto-seed into
+`shifts`/`shiftRosterEntries`, the staff-facing "My Schedule" view,
+leave requests + Manager request log, and the swap-request portal
+(yellow/green states). Also backlog, not started: KPI/performance-linked
+shift allocation, an AI ops dashboard, OpenTable/Resy integration, and a
+training/"restaurant bible" archive with AI chat — all noted in memory,
+none scoped.
+
+**Verified:** all 71 existing unit tests still pass unchanged (nothing
+in Phase 1 touches the calc engine or existing tables). `next build`
+clean — compiled, typechecked, and generated all 21 routes including the
+three new `/schedule*` pages with zero errors (again worked around the
+sandbox's outputs-mount FUSE quirk on the build's own finalize step by
+building a clean rsync'd copy in the sandbox home directory). No new
+unit tests added — Phase 1 is straightforward CRUD with no new
+calculation logic to unit-test, unlike e.g. `tipPool.ts`. Migration
+`0005_numerous_major_mapleleaf.sql` NOT yet applied to the production
+Turso DB — run `npm run db:migrate` to apply, then `git push`.
+
+## Vacancy marking now scoped by reason (2026-08-11, same day)
+
+Oliver spotted this testing on himself: he marked one of his template
+rows (Monday Dinner Bartender) as resigning, but his other recurring
+rows (Wed/Thu Lunch, Wed Dinner) didn't show the red warning at all.
+Not a bug — the vacancy lookup was working exactly as scoped, just
+scoped too narrowly. Confirmed with Oliver: "resigning" should mean
+the person is leaving entirely, so it should flag every shift they
+have, not just the one row clicked. That also raised a real second
+case he asked about: what if an employee just wants to permanently
+drop ONE recurring day (not resigning, not promoted)? That's exactly
+what the existing `OTHER` reason is for — it just needed the scope
+rule spelled out.
+
+`setTemplateVacancy`/`clearTemplateVacancy` (`lib/actions/schedule.ts`)
+now scope by reason instead of always touching just the clicked row:
+
+- **RESIGNATION** — every active template row for that `employeeId`,
+  any position/day/period.
+- **PROMOTION** — every active row for that `employeeId` +
+  `positionId` (other positions they hold stay untouched).
+- **OTHER** — just the single row clicked. Relabeled in the UI as
+  "Dropping this shift only" so the scope is obvious at the point of
+  choosing, not just in a tooltip. This is the "employee asked to
+  permanently drop this one recurring day" case.
+
+Clearing a vacancy reads the row's CURRENT reason first and clears
+using that same scope, so undoing a resignation clears every row it
+flagged rather than leaving the others stuck red. `TemplatesTable.tsx`
+now shows a one-line scope hint under the reason dropdown
+("Flags every shift this person has..." etc.) so the behavior isn't a
+surprise. No schema changes — this is entirely in the action layer;
+`db/schema.ts`'s comment on `employeeScheduleTemplates` updated to
+document the cascade rule for future reference.
+
+Verified: all 71 tests pass, `next build` clean (23 routes, unchanged
+— no new pages, just changed action/UI behavior).
+
+## Correction: Preview reverted to fully read-only (2026-08-11, same day)
+
+The "editable Manager view" change in the entry right below this one
+was wrong — Oliver corrected it directly after testing: Preview must
+never allow editing in either view, full stop. "Edit" needs to stay a
+clearly separate, deliberate action, not something that happens by
+accident while reviewing. Reverted `/schedule/plan/preview` to render
+`WeeklyPlanGrid` with `readOnly` unconditionally true again (both
+Manager and Staff views). To make the "how do I get back to editing"
+problem this was originally trying to solve actually easy, replaced
+the small top-left "← Back to edit" text link with a proper visible
+button ("Edit this week →") next to the view toggle — same
+destination (`/schedule/plan?week=...`), just impossible to miss this
+time. No schema changes. All 71 tests pass, `next build` clean (23
+routes, unchanged).
+
+## Three follow-up fixes from live testing (2026-08-11)
+
+Oliver tested the previous round live and reported three issues, all
+fixed:
+
+- **Vacancy ring wasn't showing.** `loadWeeklyPlan` compared
+  `assignment.date < vacancy.startsOn` (strict less-than) to decide
+  whether an assignment is in the grace period. Oliver had set
+  `vacancyStartsOn` to the exact Monday the already-generated
+  assignment fell on, so `date < startsOn` was false (equal, not
+  less) and the ring never rendered — even though the assignment was
+  still sitting right there on the grid. Changed to `<=`: an
+  already-scheduled assignment now shows the warning through and
+  including the vacancy date itself. (Doesn't affect
+  `generateWeekFromTemplate`'s `date >= vacancyStartsOn` skip rule for
+  *new* weeks — that's intentionally forward-looking and unchanged.)
+- **Couldn't edit from the Preview page.** Manager view was rendered
+  fully read-only, same as Staff view — meaning reviewing the preview
+  and noticing a problem meant a round trip back to `/schedule/plan`
+  to fix it, then back to Preview to re-check. Manager view is now
+  fully editable (same quick-add/remove as the real grid, same
+  warnings); Staff view stays read-only since it's meant to mirror
+  exactly what employees will see, not a second editing surface.
+- **Weeks list only linked to Preview for draft weeks.** Published
+  weeks jumped straight to the editable grid with no preview option at
+  all. Every planned week (draft or published) now shows both
+  "Preview →" and "Edit →"; only "Not planned" weeks show a single
+  "Plan this week →" action, since there's nothing to preview yet.
+
+No schema changes. Verified: all 71 tests pass, `next build` clean (23
+routes, same as before — these were all fixes to existing pages).
+
+## Vacancy indicator, roster grid redesign, weeks list (2026-08-11)
+
+Three more Oliver-requested additions on top of the preview/month/
+person views. No schema changes.
+
+- **Red vacancy-soon indicator on weekly plan pills:** when an
+  assignment's employee is in the grace period before their template
+  slot's vacancy date (resignation/promotion, set on
+  `/schedule/templates`), their pill on `/schedule/plan` now gets a
+  red ring + dot + tooltip ("Oliver is resigning as of 2026-08-12 —
+  this slot will need a replacement"). `loadWeeklyPlan` now cross-
+  references `employeeScheduleTemplates`' vacancy fields per
+  assignment (`vacatingSoon`, keyed by employeeId+positionId+
+  dayOfWeek+period, only set if the assignment's date is still before
+  `vacancyStartsOn`). Deliberately shown in BOTH the manager grid and
+  the staff preview view — unlike the other diagnostics (understaffed,
+  double-booked), which stay manager-only — because red was designed
+  from the start to double as an internal "open shift, come talk to
+  me" signal staff should see too.
+- **Roster page redesigned as a position grid:** `/shifts/[id]/roster`
+  used to be a flat employee list plus a separate "Add someone" form
+  below it. Now it's a Position-per-row grid (new `RosterGrid.tsx`),
+  matching the Schedule Planner's visual language: each position shows
+  who's assigned as pills, a "N/target" count against
+  `positionStaffingTargets` for that exact day-of-week+period (red
+  background if short), and an inline "+ Add" dropdown right in the
+  row — the same last-minute, day-of adjustment surface as before, now
+  laid out like the weekly grid it usually gets auto-seeded from.
+  Carries over both guards the old form had: the multi-role confirm
+  dialog (window.confirm before double-adding someone) and the
+  assigned-vs-other position grouping in the picker. `loadRosterPageData`
+  gained a `targets: Record<positionId, number>` field (resolved down
+  to this shift's specific day+period) and sorts positions FOH-then-
+  BOH to match. The old `AddRosterEntryForm.tsx` is superseded — see
+  sandbox note below on why it's not actually gone from the filesystem.
+- **New `/schedule/weeks` list page:** a flat, scannable list of weeks
+  (12 at a time, prev/later navigation) each showing Published/Draft/
+  Not planned, with a direct action link (View / Review & publish /
+  Plan this week). Complements the month calendar rather than
+  replacing it — faster to scan when you just want to know "what's
+  left to publish" without reading day-level detail.
+
+**Sandbox note:** this sandbox's FUSE-mounted outputs directory
+wouldn't allow deleting `AddRosterEntryForm.tsx` even via `mv` out of
+the directory (same class of EPERM issue as the recurring `.next`/git-
+lock problems already documented below) — worked around by renaming it
+to `AddRosterEntryForm.tsx.stale` in place and adding `*.stale` to
+`.gitignore`, and excluding that pattern from the delivery zip's rsync
+so it never actually reaches the real repo. If you ever see a stray
+`.stale` file in a future handoff, it's dead code that safely deletes.
+
+Verified: all 71 existing unit tests pass unchanged, `next build`
+clean — 23 routes including `/schedule/weeks`.
+
+## Schedule Planner: publish preview + month/person zoom views (2026-08-11)
+
+Three more pieces on top of the shipped weekly plan grid, all requested
+in one go by Oliver ("I want schedule preview before publishing" +
+"can we see it as monthly as well... zoom out to oversee the future,
+then zoom in to a week, and check each person's shifts"). No schema
+changes for any of these — all three read existing tables in new
+shapes.
+
+- **Publish preview gate (`/schedule/plan/preview`):** the draft
+  banner's Publish button now links here first instead of publishing
+  directly. Two views, toggled by `?view=`: "Manager view" (read-only
+  grid, keeps the red/orange warnings) and "Staff view" (same grid,
+  warnings hidden — what employees will actually see once it's live).
+  Both reuse `WeeklyPlanGrid` itself via new `readOnly`/`hideDiagnostics`
+  props rather than a second component, so the preview can never drift
+  from the real editable grid's data or layout. "Confirm & Publish"
+  sits at the bottom of this page.
+- **Month zoom-out (`/schedule/plan/month`):** a calendar covering the
+  whole month, one cell per day, showing a shortfall count ("3 short" /
+  "Covered") and a status dot (green=published, gray=draft,
+  blue=projected). Key design call, confirmed with Oliver: most future
+  weeks won't have been "Generated" yet, so showing only actual data
+  would leave most of the month blank — not much of an "oversee the
+  future" tool. Instead, weeks that don't exist yet are PROJECTED live
+  from the recurring templates using the same rules
+  `generateWeekFromTemplate` uses (now factored out into
+  `lib/schedule/projectTemplate.ts`'s `projectAssignmentsForWeek`, a
+  pure function shared by both the real generate action and this
+  read-only projection, so they can't drift apart). Click any day to
+  jump into that week's real grid.
+- **Person zoom-in (`/schedule/plan/person`):** pick an employee, see
+  their shifts across a month, calendar-style, same
+  projected/draft/published blending as the month view. Built as
+  reusable infrastructure on purpose — this is the same shape staff
+  will want for their own "My Schedule" page later (a later phase),
+  just pre-selected to the logged-in employee instead of a manager's
+  pick.
+
+All three link to each other and back to the weekly grid ("Zoom out to
+month view" / "Zoom in to weekly view" / "View by person"), plus cards
+on the `/schedule` landing page. Verified: all 71 existing unit tests
+pass unchanged, `next build` clean — 22 routes including the three new
+pages. No new unit tests (presentational + read-only query composition,
+no new calculation logic); no real-DB smoke test possible from this
+sandbox since it has no Turso credentials (only Oliver's machine does)
+— relying on the build/typecheck pass plus careful review of the
+query logic for this round.
+
+## Weekly plan inline quick-add + staffing target stepper (2026-08-11)
+
+Two related UI improvements Oliver asked for after using the shipped
+Phase 2 grid live:
+
+- **Inline quick-add on `/schedule/plan`:** every grid cell (not just
+  under-target/red ones — confirmed with Oliver, he wants to be able
+  to add extra people to already-full cells too) now has a small
+  dropdown right in the cell, grouped "usually works this role" vs
+  "other," calling the existing `addPlannedAssignment` action directly
+  (same pattern as `GenerateWeekButton`/`PublishWeekButton` — a plain
+  function call inside `startTransition`, not a `<form>`, since this
+  lives inside a table cell). No more needing the separate form below
+  the grid for the common case. The "extra coverage" (yellow)
+  checkbox only appears once a name is picked, and is always a manual
+  toggle — explicitly NOT auto-set based on whether the add pushes the
+  cell over target. Oliver's reasoning: the app can't tell "covering a
+  known gap" from "anticipating a busy day," and those mean different
+  things to him, so he wants to say which one it is rather than have
+  it guessed.
+- **Staffing target stepper on `/schedule/targets`:** replaced the
+  plain number input in each grid cell with a `[-] [count] [+]`
+  control (Oliver's words: wanted it to feel like a "game UI" quantity
+  picker). Purely presentational — still the same underlying
+  `<input type="number" name="target_...">` under the hood, so the
+  existing full-grid submit + server-side resync in
+  `updateStaffingTargets` didn't need to change at all.
+
+Presentational/UI-only, no schema or action changes. All 71 tests
+pass, `next build` clean.
+
+## Weekly plan: double-booking warning badge (2026-08-11, Oliver-reported)
+
+Oliver spotted it live on the deployed `/schedule/plan` page (himself
+listed as both Bartender and Busser on the same Monday Dinner slot) —
+nothing in the schema stops a manager from assigning the same person
+to two different positions in the same date+period, but a person
+obviously can't work both at once. Not blocking it outright (a manager
+might occasionally mean it, e.g. a genuinely dual-role person), just
+surfacing it: `WeeklyPlanGrid.tsx` now computes, per employee per
+date+period slot, every position they're assigned across the whole
+grid, and renders a small orange "!" badge next to their name pill
+when that's more than one, with a hover tooltip naming the conflicting
+position(s). Pure client-side computed from data already loaded, no
+schema/action changes. No new tests (presentational only); verified
+via build + all 71 existing unit tests passing unchanged.
+
+## Schedule Planner — Phase 2 shipped: weekly plan grid + publish + auto-seed (2026-08-11)
+
+Second piece, built directly on top of Phase 1's staffing targets and
+template assignments. Two new tables (migration `0006`, purely
+additive):
+
+- `scheduleWeeks` — one row per Monday-starting week, `status`
+  (`draft`/`published`) + `publishedAt`. A week only exists once
+  someone generates it.
+- `plannedShiftAssignments` — the actual grid cells: employee ×
+  position × date × period, `sourceType` (`FROM_TEMPLATE` vs
+  `MANUAL_ADD`) and `isExtraCoverage` (the YELLOW flag — confirmed
+  standalone from the RED vacancy flag, a manager marking a slot as
+  extra headcount for an anticipated busy day, independent of the
+  template).
+
+**New page `/schedule/plan`:** week-nav (prev/next Monday), a
+"Generate from template" button when that week hasn't been built yet
+(seeds `plannedShiftAssignments` from active `employeeScheduleTemplates`
+rows, skipping anyone not yet effective or already vacated by that
+date), then a Position × Date grid per Lunch/Dinner — same visual
+shape as the Staffing Targets grid on purpose. Cells under their
+staffing target get a red-tinted background + "N/target" badge (an
+at-a-glance short-staffed signal, distinct from the RED
+vacancy-on-template flag — this is a live count-vs-target comparison,
+not a stored flag). Manual add-to-slot form reuses the roster's
+employee-picks-defaults-position UX, with an "Extra coverage" checkbox
+for the YELLOW case. "Publish" button (confirm dialog) flips
+`status` to `published` and stamps `publishedAt`.
+
+**Auto-seed on publish:** once a week is published, creating a brand
+new shift for a date inside that week (via the existing `createShift`
+action) now automatically bulk-inserts `shiftRosterEntries` from the
+matching `plannedShiftAssignments` — the "the plan becomes the actual
+roster" behavior Oliver wants. Deliberately scoped to NEW shifts only;
+reusing an existing draft shift is untouched, so the existing manual
+"Add someone" flow still works for day-of fixes without fighting the
+auto-seed.
+
+**What's explicitly still not built:** staff-facing "My Schedule" view
+on `/me`, leave requests + Manager request log, and the swap-request
+portal (green state). All noted in the schema doc and memory, none
+started.
+
+**Verified:** all 71 existing unit tests still pass unchanged (no
+calc-engine or existing-table changes). `next build` clean — compiled,
+typechecked, and generated all 20 routes including the two new
+`/schedule/plan` pages with zero errors (same rsync'd-copy workaround
+for the outputs-mount FUSE build quirk). No new unit tests — like
+Phase 1, this is CRUD + a straightforward seed/publish flow, no new
+calculation logic. Migration `0006_minor_thunderbolt_ross.sql` NOT yet
+applied to the production Turso DB — run `npm run db:migrate` to apply,
+then `git push`.
+
+## Template Assignments page redesign: Position -> person -> checkbox grid (2026-08-12)
+
+Oliver asked for this one explicitly ("let's talk before you build") and
+we discussed the design before any code: the old `/schedule/templates`
+page was a flat list of every (employee, position, day, period) row plus
+a one-slot-at-a-time add form. Slow to use — a position like Server
+normally has 3+ people, each with their own multi-day pattern, so adding
+each day/period as a separate form submission took many clicks, and the
+growing flat list was hard to scan ("I really hate the long list").
+
+New shape, confirmed with Oliver point by point before building:
+
+1. **Layout** — Position rows first. Each position card shows who's
+   currently assigned (name + their pattern, e.g. "Chui — Mon L, Wed D"),
+   plus a dropdown of people ELIGIBLE for that position (same "assigned
+   in Employee admin" list AddTemplateForm used to grey-in) to pick who
+   to add or edit. Picking a name opens a Monday-Sunday x Lunch/Dinner
+   checkbox grid for just that person in that position.
+2. **Editing an existing person pre-checks their current pattern**
+   (confirmed — not a blank grid every time). Saving diffs what's
+   checked against what's stored: newly-checked boxes create (or
+   reactivate a previously-retired) row, unchecked boxes retire that row
+   immediately, no vacancy warning. This is also the new home for the
+   "employee wants to drop just one recurring day" case from the
+   previous entry below — no separate reason/UI needed for it anymore,
+   just uncheck the box.
+3. **effectiveFrom stays in the schema, not in this UI.** Oliver: hasn't
+   used it yet with real data, unsure how it should work, doesn't want
+   to design it blind — keep the column and the DB support, just don't
+   expose a field for it right now so it's there to pick back up later.
+   New rows created by the grid save with `effectiveFrom: null` (takes
+   effect immediately), same as most existing rows already had.
+4. **Kebab menu (⋮) per assigned person** replaces the old inline
+   Mark-vacating/Retire buttons — opens a small popup with "Mark
+   vacating…" (reason + start date, same red-flag mechanic as before),
+   "Clear vacancy", and "Retire from this position" (immediate, no
+   warning). Scope note: since the smallest unit this UI edits is now
+   "this person, in this position" (not a single day/period row),
+   PROMOTION and OTHER now share that same cascade scope in
+   `setTemplateVacancy`/`clearTemplateVacancy` (every active row for
+   that employeeId + positionId) — RESIGNATION is unchanged (every row
+   for the employeeId, any position). They stay separate reasons for
+   labeling purposes even though the blast radius is now identical.
+
+New: `lib/schedule/loadTemplatesByPosition.ts` (position -> eligible
+employees + assigned employees w/ pattern + vacancy status),
+`lib/actions/schedule.ts`'s `syncEmployeePositionTemplate` (diff-and-sync
+one employee+position pair's checked cells) and
+`retireEmployeeFromPosition`, `app/schedule/templates/PositionTemplateGrid.tsx`
+(all the new UI). Removed `createTemplateAssignment`/
+`retireTemplateAssignment` (superseded, nothing else referenced them).
+Retired `AddTemplateForm.tsx`, `TemplatesTable.tsx`,
+`loadScheduleTemplates.ts` to `.stale` (sandbox can't hard-delete files —
+see `.gitignore`'s note).
+
+Verified: all 71 tests pass (no test coverage for this page — UI-only
+change, same as before), `next build` clean, 27 routes unchanged.
+
+## Manager auth — first cut (2026-08-14)
+
+Zero auth existed on any manager page (`/shifts`, `/employees`,
+`/positions`, `/settings`, `/reports`, `/schedule/**`) until now — a
+real gap given Youk Thai (Aey's restaurant, opening October 2026) is
+Atlas's actual upcoming deployment, not just a sandbox. Built fast
+(inside a ~43-minute session budget), deliberately reusing the
+existing staff PIN session system as-is rather than inventing a new
+mechanism: `app/(protected)/layout.tsx` (a Next.js route group — the
+`(protected)` segment is invisible in the URL, so every route keeps
+its exact same path) calls `lib/auth/guard.ts`'s new `requireManager()`,
+which calls the existing `getCurrentStaffSession()` and requires
+standing `employees.systemRole` MANAGER or ADMIN, redirecting to
+`/login` otherwise.
+
+Known v1 gap, documented not hidden: does not consider the
+shift-scoped `positions.grantsManagerAccess` elevation (someone
+covering a manager shift without a standing MANAGER/ADMIN account),
+only the standing role. Extend `requireManager()` if that case comes
+up for real.
+
+No schema change, no migration. All 71 tests pass unchanged (routing
+change only), `next build` clean, all 27 routes resolve at the same
+URLs as before.
+
+## Staff-facing My Schedule + role-aware nav (2026-08-14, same day)
+
+Oliver: "set non-manager to see only publish schedule in schedule
+menu as 'my schedule' and 'my pay'" — direct follow-up to the manager
+auth cut above, since the nav bar was still showing every STAFF
+account the full manager item list even though clicking through now
+bounces them to `/login`.
+
+New `app/me/schedule/page.tsx` — reuses `loadEmployeeSchedule`
+(already built reusable for exactly this per its own 2026-08-11 doc
+comment: "same loader, just pre-selected to the logged-in employee
+instead of a manager's pick"). Locked to the logged-in employee's own
+id, no employeeId picker. Only renders shifts from PUBLISHED weeks —
+draft/projected days render blank rather than leaking a manager's
+still-editable plan.
+
+`NavBar.tsx`/`NavBarClient.tsx` now role-aware: MANAGER/ADMIN
+accounts see the full nav unchanged; STAFF accounts see just "My
+Schedule" in the nav bar (My Pay was already a separate always-shown
+link on the right, unchanged).
+
+Verified: `loadEmployeeSchedule`'s own query already scopes both
+`plannedShiftAssignments` and `employeeScheduleTemplates` by
+`employeeId`, confirmed no cross-employee data leak before shipping
+this to a staff-facing page. All 71 tests pass unchanged, `next
+build` clean, `/me/schedule` resolves alongside the existing routes.
+
+## My Schedule: Day off tile vs not-published-yet shading (2026-08-14, same day)
+
+Follow-up from Oliver on the staff My Schedule view shipped earlier
+today: "the day that they no schedule shows day off tile in published
+week. and the week that not publish yet chang calendar a shade of
+grey." Previously both states rendered as an identical blank cell,
+which could read as "you're off" when it actually meant "not
+published yet." Now: published + nothing scheduled -> a bordered
+"Day off" tile; not published yet (draft/projected) -> the whole cell
+shaded grey, no tile, with a legend explaining both states.
+Presentational only, no loader change. All 71 tests pass, build clean.
+
+## Danger zone: clear a draft day / delete a whole week (2026-08-14, same day)
+
+Oliver: "i would like to be able to delete draft day and draft week
+schedule and start over again." Clarified scope with him before
+building (per standing never-assume rule) across three questions:
+what "delete draft day" means (clear every assignment for one date,
+whole week untouched), what "delete draft week" means (full reset --
+delete the week row and all its assignments, back to "Not planned"),
+and whether either should be allowed on an already-PUBLISHED week.
+His answer to the third: "can do but need more badge alert what you
+are going to do. with manager pin require."
+
+Shipped as two new actions in `lib/actions/schedule.ts` --
+`clearDay(weekId, date, pin)` and `deleteWeek(weekId, pin)` -- both
+gated by a second, narrower PIN re-check (`verifyCurrentManagerPin`)
+on top of the page-level `requireManager()` guard, so a manager has to
+actively re-confirm their own identity for this specific destructive
+action, not just have an active session. New `DangerZone.tsx` (a
+collapsed `<details>` disclosure at the bottom of the Weekly Plan
+page) shows a louder red warning banner when the week is published,
+since staff may already be seeing it on My Schedule.
+
+Verified FK delete order (assignments before the week row, matching
+the `weekId -> scheduleWeeks.id` reference). No schema/migration
+change, no new route. 71 tests pass unchanged, build clean. No new
+unit tests -- consistent with this file's other CRUD actions
+(`removePlannedAssignment`, `publishWeek`), which are likewise
+untested; only the calc engine has unit coverage in this project.
+
+## Danger zone v2: drop PIN, typed confirm word, required reason, change log (2026-08-14, same day)
+
+Follow-up to the danger zone shipped earlier today. Oliver, after being
+asked to think through a Floor-Manager-approval design (deferred to
+backlog, see PROGRESS/memory note below): "let's save it to the
+backlog for now... small restaurant might have one manager do a lot
+of things and pin might not be the answer... but changelog is one
+thing we should do... and the idea of long type 'i'm sure to nuke it'
+phase kinda thing works to as a friction but not catching cheat."
+Then, when asked to confirm dropping PIN for a typed word instead:
+"drop the pin but make a log and also ask for a reason for delete
+what is already published."
+
+Shipped exactly that:
+- `clearDay`/`deleteWeek` (`lib/actions/schedule.ts`) no longer check
+  a PIN. Instead require typing the literal word CLEAR / DELETE
+  (case-insensitive) to submit -- friction against a misclick,
+  explicitly not meant to authenticate identity.
+- A `reason` field is now REQUIRED only when the day/week being
+  touched was already published; optional (omitted) for drafts, since
+  nobody outside management has seen a draft yet.
+- New table `schedule_change_log` (migration `0007_married_marauders.sql`,
+  additive only, NOT yet applied to production Turso -- run
+  `npm run db:migrate`) -- append-only record of every clear/delete:
+  who, when, what was removed (JSON snapshot with readable names, not
+  just ids), whether it was published, and the reason if given.
+  Deliberately no FK from weekId to scheduleWeeks.id (a whole-week
+  delete removes that row in the same breath the log entry is
+  written -- a hard FK would cascade-delete the log too, defeating
+  the point).
+- New `lib/schedule/loadRecentScheduleChanges.ts` -- flattens the log
+  down to just the entries affecting one employee, defaults to
+  PUBLISHED-only (a caught-before-shipping bug: this filter originally
+  lived only in the page component, so a future caller could have
+  leaked draft changes to staff by forgetting to filter; moved into
+  the loader itself with an `includeDraftChanges` opt-in instead).
+- `/me/schedule` now has a "Recent changes to your schedule" section
+  showing shifts removed after publish, with who/when/why.
+
+**Verified:** direct-DB script (`verify_schedule_changelog.ts`,
+deleted after use per project convention) against a freshly-migrated
+throwaway SQLite file -- 6 checks: published clear logs + reaches the
+staff view; draft clear logs raw but does NOT leak to staff (this one
+failed on the first pass, caught the loader-vs-page filter bug above,
+fixed, re-ran, passed); whole-week delete removes the week row while
+the change-log row survives (no FK cascade); a whole-week delete
+correctly surfaces every affected shift (not just one) to the staff
+view. All 71 existing unit tests pass unchanged, `next build` clean.
+
+## Fix: danger zone crashed to a blank error page instead of showing a message (2026-08-14, same day)
+
+Oliver hit "This page couldn't load / A server error occurred" right
+after using "Delete this week" on the live deployed app. Root cause,
+almost certainly: v35 shipped a new `schedule_change_log` table via
+migration `0007`, and the delete action writes to it -- if
+`npm run db:migrate` hadn't been run yet on the production Turso DB
+before testing, that insert fails with "no such table," and neither
+`clearDay` nor `deleteWeek` had a try/catch around their body, so the
+thrown error crashed straight to Next.js's generic error screen
+instead of showing anything useful.
+
+Fixed defensively regardless of the exact cause: both actions are now
+wrapped in try/catch (matching `addPlannedAssignment`'s existing
+pattern elsewhere in this same file), returning `{ error: message }`
+into the form instead of throwing uncaught. Any future failure here
+(missing table, a dropped connection, anything) now shows an inline
+message instead of taking down the whole page.
+
+Also addressed Oliver's explicit UX ask -- "it should direct back to
+weekly view": `deleteWeek` now calls `redirect(`/schedule/plan?week=...`)`
+after a successful delete (same pattern as login/logout in
+lib/actions/auth.ts), rather than relying on the implicit client
+refresh a plain useActionState return triggers. Deliberately placed
+OUTSIDE the try/catch, since `redirect()` throws internally by design
+and must never be swallowed by the new error handling.
+
+**Before testing this again: run `npm run db:migrate` first if you
+haven't.** All 71 tests pass, `next build` clean.
+
+## Better error diagnostics + delete-week redirect target fixed (2026-08-14, same day)
+
+Two follow-ups after the crash fix above. First, Oliver's next attempt
+surfaced a caught-but-unhelpful error (`Failed query: insert into
+"schedule_change_log"...` with no actual reason) -- a known lossy-detail
+pattern with `@libsql/client` over Turso's HTTP protocol, where `.message`
+alone omits the real cause. `describeScheduleActionError()` now also
+pulls `.code` and `.cause`. Also delivered `verify_schedule_change_log_table.ts`
+in the repo root for Oliver to run himself against his own production DB
+(introspects the table via `PRAGMA table_info`, attempts a test insert
+with full error detail, cleans up after itself) -- Claude has no
+production DB access and must not have any.
+
+Second, Oliver asked to change the post-delete redirect target: "let's
+change redirect page after delete from weekly plan to weeks page."
+`deleteWeek` now calls `redirect("/schedule/weeks")` instead of
+redirecting back to the just-deleted week's own (now-empty) plan page.
+
+## Change-log gap closed + published-week edit gate + My Schedule reorder (2026-08-14, same day)
+
+Three fixes from Oliver's live-testing follow-up, after he confirmed via
+screenshot that the change-log feature itself was working correctly on
+Nancy's My Schedule:
+
+1. **My Schedule reorder**: "Recent changes to your schedule" moved above
+   the calendar, with a "No changes to schedule" empty state instead of
+   the section just disappearing when there's nothing to show.
+
+2. **Logging gap**: "why i manually delete schedule of nancy on tuesday
+   but no log sent to nancy" -- diagnosed as the ordinary grid "x" remove
+   button (`removePlannedAssignment`) predating the whole change-log
+   system and never being wired into it, unlike the newer bulk
+   `clearDay`/`deleteWeek` danger-zone actions. Fixed: `removePlannedAssignment`
+   now fetches the assignment before deleting it and, if its week is
+   already published, writes a `REMOVED_ASSIGNMENT` log entry
+   automatically -- no PIN/typed-confirm/reason, since this is a routine
+   single-person edit, not a bulk destructive one. Extended
+   `scheduleChangeLog.action`'s enum (no new migration needed, the column
+   is unconstrained TEXT). Verified against a fresh local DB: published-
+   week removal logs and shows up via `loadRecentScheduleChanges`; draft-
+   week removal does not log at all (4/4 checks).
+
+3. **Published-week edit gate**: new `PublishedEditGate.tsx` hides the
+   ordinary add/remove grid controls behind an explicit "Edit published
+   schedule" button once a week is published -- staff can already see
+   that week on My Schedule, so editing it should be a deliberate act.
+   Draft weeks skip the gate entirely. Client-side toggle, resets on page
+   load -- friction, not a hard security lock, matching the danger zone's
+   typed-word-confirmation philosophy rather than adding another PIN gate.
+
+`npx tsc --noEmit` clean, `npm run build` clean, all 71 tests pass.
+
+## Nav: circular initials avatar "me menu" (2026-08-14, same day)
+
+Oliver's ask: "circle shape like with initial of each staff as me menu
+and has my pay and my schedule show as option after click." Replaced
+the plain name text + separate "My Pay" link + "Sign out" button on the
+right of the nav bar with one circular avatar (employee's initials),
+click opens a dropdown: name/role header, My Schedule, My Pay, Sign
+out. Closes on outside click or route change. Also removed the old
+STAFF-only "My Schedule" link from the left nav -- it now lives in this
+same menu instead of being split across two spots. MANAGER/ADMIN's
+left nav (Shifts/Employees/etc) is unchanged; only the right-side
+personal menu changed, for everyone. `npx tsc --noEmit` clean,
+`npm run build` clean, 71/71 tests pass.
+
+## Staff day-preview (click calendar) + Template Assignments inline grid (2026-08-14, same day)
+
+Two features from Oliver's follow-up ask.
+
+**Staff calendar day-preview.** "each staff should be able to click
+calendar to see staff view like in a preview stage who work on that
+day. but option on setting to allow who see who is for admin to
+override permission as usual. foh see foh or see all." Any published
+day on My Schedule's calendar is now clickable -> `/me/schedule/day?date=...`,
+a Lunch/Dinner list of who's scheduled. New loader
+`lib/schedule/loadScheduleDayPreview.ts` reuses the existing
+`getVisibleRosterEntries` (lib/roster/visibility.ts) + the
+`rosterRestrictFOHToOwnCategory`/`BOH` and
+`rosterShowCoworkerListFOH`/`BOH` restaurant settings, rather than a
+second parallel permission system -- those category-restriction
+settings were literally built ahead of time for this ("Not yet used by
+a live staff view" was the old settings-page copy). Reads from
+`plannedShiftAssignments` (the plan), not `shiftRosterEntries` (day-of
+actuals) -- previewing a future day needs the plan, which exists long
+before any real Shift row for that date. Draft weeks return null, same
+rule as My Schedule. No money fields included, ever. Settings page copy
+updated to note both toggles now also gate this preview. Verified
+against a fresh DB: 6/6 checks (draft->null, FOH restriction, MANAGER
+sees all, coworker-list-off leaves only self).
+
+**Template Assignments inline grid.** "in template assignment worth ui
+upgrade to work easier. please display day in a week start with mon -
+sun. each day has 2 rows. first is checkbox for lunch. another row for
+dinner inline with first column which is name on the left. the most
+right is edit button." Redesigned `PositionTemplateGrid.tsx`: Mon-Sun
+columns, two rows per assigned person (Lunch then Dinner), name in a
+rowSpan'd left column, an "Edit" button (replacing the old "⋮" icon,
+same Mark-vacating/Retire menu underneath) in a rowSpan'd right column.
+Checkboxes are live/inline now and auto-save via the existing
+`syncEmployeePositionTemplate` action on each click -- no more click-a-
+name-to-open-a-separate-editor-below step from the 2026-08-12 version.
+Adding a brand-new person still goes through the "+ Add" picker, shown
+immediately as a blank editable row; their first checkbox click is what
+actually persists them (the table only ever stores checked cells, so
+there's no "empty" row to load on refresh until then).
+
+`npx tsc --noEmit` clean, `npm run build` clean, 71/71 tests pass.
+
+## Template Assignments: checkboxes disabled by default, unlock via Edit (2026-08-14, same day)
+
+Oliver's follow-up on the inline grid shipped earlier today: "i would
+like template assignment checkbox on each day to be disable state
+first. and be able to edit via edit button." Checkboxes now render
+`disabled` by default; clicking a row's Edit button (label flips to
+"Done") unlocks that person's checkboxes for the rest of the page
+session. Mark vacating/Clear vacancy/Retire folded into the same
+`editing` state -- previously a dropdown behind an always-clickable
+button independent of checkbox lock state, now shown as small inline
+links under Edit/Done only while that row is unlocked. `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 tests pass.
+
+## Ledger v1: vendor directory + Petty Cash with auto-pulled reconciliation (2026-08-14)
+
+First round of the new Ledger feature. Design conversation with Oliver
+(picked over building the shift-swap system next, see project memory)
+confirmed scope: v1 = vendor directory + Petty Cash only (Supplier Check,
+photo attachment, PDF export, and Card's weekly-batch-against-statement
+flow are later rounds). Built from re-studying Soothr's real
+" 2026 - C.xlsx" DNA file (Petty Cash Soothr / Supplier Check / Card /
+Dropdown / Supplier Address / Export sheets) with fresh eyes rather than
+trusting a 2-day-old memory summary.
+
+Schema (migration 0008, additive): `ledgerVendors`, `ledgerCategories`
+(both admin-managed, retire-not-delete, restaurant-configurable --
+Bar/Food/Mis/PAYROLL BOH/PAYROLL FOH/Fixed expenses/Car/SHM seeded as a
+starting point, not hardcoded), `pettyCashEntries` (vendorId nullable --
+Soothr's real data has plenty of vendor-less cash handoffs like "Pay out
+to Tommy: flowers"), `dailyCashReconciliations` (one row per date:
+beginning balance, other cash, the manager's physical count, draft/
+finalized status). Sales cash and Tip cash are deliberately NOT stored
+columns -- `lib/ledger/loadPettyCashDay.ts` computes them live from that
+date's `shiftSales` rows (finalized shifts only), so the number can never
+independently drift from the Closing Report's own figures. Oliver's own
+reasoning for the dependency: "you supposed not to close daily expenses
+without knowing what cash we would get from register anyway" --
+`finalizePettyCashDay` in `lib/actions/ledger.ts` enforces this by
+refusing to finalize while any Shift for that date is still draft.
+
+UI is mobile-first per an explicit Oliver requirement ("this back office
+must be able to use with mobile") -- `/ledger` is a single day's petty
+cash view: quick-add form, card list of entries (not a table), and a
+reconciliation panel with the auto-pulled Sales/Tip cash shown read-only
+next to editable Beginning Balance/Other/Counted Amount, plus a live
+match/mismatch indicator against the computed expected total.
+`/ledger/vendors` and `/ledger/categories` are simple retire-not-delete
+admin lists, same shape as Positions.
+
+Seeded 8 categories + 27 real vendor names from Soothr's actual
+spreadsheet data -- Oliver confirmed seeding from Soothr "for testing
+sake," with the expectation Youk Thai replaces these with its own real
+vendors before going live.
+
+Explicitly deferred, not forgotten: Supplier Check (next natural
+extension of this same vendor/category infra), receipt/invoice photo
+attachment (`photoUrl` column already reserved on `pettyCashEntries` so
+this doesn't need a later migration -- needs Oliver to provision storage
+credentials, e.g. Vercel Blob, before it can be built), a consolidated
+daily PDF/image report for the on-duty manager to send to Aey/Oliver
+(replaces the LINE-group report habit for now, in-app owner notification
+is a further-future step), invoice/receipt generation for no-receipt
+expenses like buying flowers from a local florist (explicitly a "future"
+ask, not v1), and the cam-scanner/OCR auto-read of a receipt photo
+(explicitly skipped for now, but the schema doesn't close the door on it
+-- see [[project-atlas-ledger]] memory for the full reasoning on why
+each of these was sequenced where it was).
+
+Verified: `npx tsc --noEmit` clean, `npm run build` clean, all 71
+existing tests pass unchanged, plus a new 8/8-check direct-DB
+verification against the real seeded shift data (auto-pull sums match a
+direct query over shiftSales, finalize is blocked while a shift is
+unfinalized, a zero-shift day is still finalizable, the expected-balance
+formula matches the loader's own math).
+
+## Petty Cash week/month report, folded into the existing /reports page (2026-08-14)
+
+Oliver's ask: "i would like to get weekly view and monthly view on
+petty cash page, then we can click on date to see report detail of
+that day. and we already got report page, we should utilize that page
+to show different report." Rather than a second calendar UI under
+`/ledger`, `/reports` now has a report-type tab (Sales & Tax / Petty
+Cash) sharing the page's existing date-range picker (This week/month/
+year presets + custom range) via a `?report=` query param -- both
+report types live on the same page/picker, Sales & Tax's own behavior
+and .xlsx export untouched. New `lib/reports/loadPettyCashReport.ts`
+bulk-fetches entries/reconciliation/finalized-shiftSales for the whole
+range in three queries (not a per-day loop) and computes each day's
+status (no data/draft/finalized) plus, for finalized days, whether the
+counted amount matched the expected total -- same formula
+`loadPettyCashDay.ts` uses for one day, applied across a range. Each
+date links to `/ledger?date=...`. `npx tsc --noEmit` clean, `npm run
+build` clean, 71/71 tests pass, plus a new 9/9-check direct-DB
+verification.
+
+## Supplier Check: invoice-based vendor payments (2026-08-14)
+
+Oliver clarified the real workflow mid-conversation: most vendors are
+NOT cash-on-delivery (that stays in Petty Cash, unchanged) -- they drop
+an invoice at delivery and get paid later by check, often at their next
+delivery, when a new invoice arrives just as the previous one gets
+settled. His words: "supplier that need cash on delivery will be in
+petty cash categories. but most of the time supplier/vendor just drop
+invoices and wait for check next time they come." Confirmed no due-date
+field is needed, and that one printed check can reconcile multiple
+pending invoices from the same vendor at once (matches the real DNA
+export sheet's own K.D. Market example, two invoice numbers batched
+under one check).
+
+Two-stage lifecycle: `logSupplierInvoice` logs an invoice as "pending"
+when it arrives (vendor, category, invoice number, description/nature,
+amount, date received). `recordSupplierPayment` lets a manager select
+one or more pending invoices from the SAME vendor and settle them
+together under one check payment (paid date, optional check number) --
+validates every selected invoice still belongs to that vendor and is
+still pending before committing, so a stale form can't double-pay or
+cross-vendor-pay. `deletePendingInvoice` removes an invoice logged in
+error; blocked once paid.
+
+Schema (migration 0009, additive): `supplier_invoices`,
+`supplier_check_payments`. UI at `/ledger/supplier-check`: invoice-
+logging form, pending invoices grouped by vendor with checkbox
+multi-select feeding a per-vendor payment form (shows a running
+selected-total), and recent payment history showing which invoice
+numbers each check settled. Linked from the main `/ledger` page's nav
+row alongside Vendors/Categories.
+
+Verified with a new 14-check direct-DB script: vendor grouping and
+pending totals, batch-paying multiple invoices under one payment with
+the correct summed total, rejecting a re-paid invoice, rejecting an
+invoice submitted under the wrong vendor's id, payment-history invoice-
+number attachment, delete blocked on paid/succeeding on pending.
+`npx tsc --noEmit` clean, `npm run build` clean, 71/71 existing tests
+pass unchanged.
+
+## Supplier Check follow-ups + Petty Cash floor manager column (2026-08-14)
+
+Three quick follow-ups from Oliver after the Supplier Check round shipped:
+
+1. **Recent payments are now click-to-expand.** `/ledger/supplier-check`'s
+   payment history was a flat list showing just a joined invoice-number
+   string; `loadRecentSupplierPayments` now returns full per-invoice line
+   items (category, description, amount, received date) and
+   `PaymentHistory.tsx` is a client component -- click a payment row to
+   expand its settled invoices.
+
+2. **New "Supplier Check" report tab + .xlsx export.** Third tab on
+   `/reports` (Sales & Tax / Petty Cash / Supplier Check), sharing the
+   same date-range picker. Before building, re-opened the real DNA
+   source file (`" 2026 - C.xlsx"`'s "Export" sheet) directly rather than
+   trusting the 2-day-old memory summary -- confirmed its exact columns:
+   Pay / Amount / Memo / PayeeName / PayeeAddress (street + city/state/
+   zip on separate lines), with Memo holding the comma-joined invoice
+   numbers one check settled (matches K.D. Market's real
+   "142675, 142676" example). New `lib/reports/loadSupplierCheckReport.ts`
+   (one row per check payment in range) and
+   `lib/reports/buildSupplierCheckWorkbook.ts` (same ExcelJS pattern as
+   the Sales & Tax export, two extra columns prepended -- Paid Date,
+   Check # -- for an audit trail the original pre-check DNA sheet didn't
+   need). Also backfilled real payee addresses for 4 more seeded vendors
+   (Asia Market Corp, Best Metropolitan, K.D. Market, The Haisein
+   Company) straight from that same Export sheet, so the exported
+   check-print columns have real data for the vendors most likely to
+   actually get paid by check.
+
+3. **Petty Cash report: added a Floor Manager column.** Shows who
+   finalized each day's cash reconciliation
+   (`dailyCashReconciliations.finalizedByEmployeeId`, left-joined to
+   `employees`) -- null for draft/no-data days, not a stale leftover
+   name.
+
+Verified with a new 11-check direct-DB script (payment detail line items
+sum to the payment total, report aggregation and date-range filtering,
+DNA-sourced vendor address flows through to the report row, finalized
+day shows the correct manager name, draft day shows null). `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 existing tests pass
+unchanged. No schema change, no new migration.
+
+## Ledger restructure: month-list landing, /ledger/day, admin edit override (2026-08-14)
+
+Oliver's ask: "after enter ledger page shows petty cash and supplier
+tabs. then when click petty cash show list of date in month first. then
+you can click each day to work on." Follow-up clarified the edit rule:
+"no after it finalized only. and let use admin as authorized to edit
+passed day or finalized item."
+
+`/ledger` is now a landing page with two tabs -- Petty Cash and Supplier
+(new `LedgerTabs.tsx`, same "separate routes, not client tab state"
+pattern as `/reports`' own tabs). Petty Cash shows a month calendar of
+days (new `MonthList.tsx`, reusing `loadPettyCashReport` -- the exact
+same loader already powering the `/reports` Petty Cash tab) with
+prev/next month navigation. The day-level work that used to live
+directly on `/ledger` -- add expense, entries list, cash-drawer
+reconciliation -- moved to `/ledger/day?date=...`, reached by clicking a
+date in the month list. Supplier tab is the existing
+`/ledger/supplier-check` route, now sharing the same tab header.
+
+Two rules confirmed and enforced: a day in the future can't be logged or
+reconciled at all (shown but not clickable in the month list; `/ledger/day`
+itself shows a "hasn't happened yet" placeholder if landed on directly) --
+and a FINALIZED day is locked for ordinary MANAGER accounts exactly as
+before, but an ADMIN-role account can still edit its entries and
+reconciliation directly. Admin edits do NOT unfinalize the day -- the
+record stays `status: "finalized"`, this is a direct correction, not a
+reopen-then-refinalize flow, with a blue "Editing as admin" banner in the
+UI. Both rules are enforced in `lib/actions/ledger.ts` (the real guard),
+not just hidden in the UI.
+
+Updated the one cross-link that needed it: `/reports`' Petty Cash table
+now links each day to `/ledger/day?date=...` instead of the old bare
+`/ledger?date=...`. The NavBar's "Ledger" link needed no change --
+already points at bare `/ledger`, which is now the tab landing.
+
+Verified with a new 10-check direct-DB script mirroring the exact
+validation logic in `addPettyCashEntry`/`saveDailyReconciliationDraft`
+(those call `getCurrentStaffSession()`, which needs real request
+context unavailable in a standalone script -- same limitation hit
+earlier for `finalizePettyCashDay`/`deletePendingInvoice`): future-day
+blocked for everyone including admin, MANAGER blocked from editing a
+finalized day, ADMIN can edit a finalized day's entries and
+reconciliation without unfinalizing it, month report data still
+correct. `npx tsc --noEmit` clean, `npm run build` clean (new
+`/ledger/day` route present), 71/71 tests pass. No schema change, no
+new migration.
+
+## Supplier Check: Printed/Paid check lifecycle, always-combine-by-vendor, holistic table (2026-08-14)
+
+Oliver talked to Aey about the real workflow and came back with two
+concrete facts that changed the design: "all invoices always get export
+to check format at the end of the week. but we also got supplier like
+maintenance that instantly need a check after service. so i think we
+should be able to group and combine check for the same supplier who
+always come as routine. and also be able to 'export this invoice to
+print check' instantly." Confirmed: combining is now automatic (not a
+manual checkbox choice), and a check has its own lifecycle separate from
+the invoices it settles -- Printed (the check has been generated) then
+Paid (it's actually been handed to the supplier).
+
+Schema (migration 0010, additive): `supplier_check_payments` gained
+`status` (printed/paid, default printed), `delivered_at`,
+`delivered_by_employee_id`. `supplier_invoices.status` widened to
+pending -> printed -> paid (a plain TEXT column with no CHECK
+constraint, confirmed by inspecting migration 0009's SQL -- no migration
+needed for the widening itself).
+
+`lib/actions/supplierCheck.ts` replaced the old checkbox-driven
+`recordSupplierPayment` with three actions: `printSupplierCheck(vendorId,
+checkNumber)` always combines every currently-pending invoice for that
+vendor into one check (captures the exact invoice ids before the update,
+so a brand-new invoice logged in the split second between the select and
+the update can't sneak into the total); `printAllPendingChecks()` is the
+weekly batch -- finds every vendor with something pending and prints one
+check each; `markSupplierCheckPaid(paymentId)` moves Printed -> Paid and
+cascades the check's invoices to `status: "paid"` too. `logSupplierInvoice`
+now redirects to `/ledger/supplier-check` on success, matching its own
+new dedicated `/ledger/supplier-check/new` page (same pattern as
+Vendors/Positions).
+
+UI restructure: "+ Add item" link replaces the old always-open logging
+form; an "Export week's checks" button runs the weekly batch and
+auto-downloads the combined .xlsx; a "Not yet checked" section groups
+pending invoices by vendor with a "Print check now" button per vendor
+(the instant/urgent path -- e.g. a maintenance vendor -- downloads that
+one check immediately); and a holistic `ChecksTable` (replaces
+"Recent payments") lists every check ever printed with a status badge,
+expandable invoice detail, and a "Mark as paid / delivered" action for
+Printed checks. New `lib/reports/loadSupplierCheckReportByIds` (shares
+an invoice-attach helper with the existing date-range loader) powers a
+new `/ledger/supplier-check/export?paymentIds=...` route for the
+instant/batch download, reusing `buildSupplierCheckWorkbook` (now with a
+Status column). The `/reports` Supplier Check tab also gained a Status
+column.
+
+Verified with a new 18-check direct-DB script: same-vendor invoices
+combine into one check with the correct summed total, printing a check
+for a vendor with nothing pending is rejected, a new invoice logged
+right after printing does NOT get swept into the already-created check,
+the weekly batch prints exactly one check per vendor with pending
+invoices, marking paid cascades to invoices and is a safe no-op on a
+second call, and both loaders return correct status/detail. `npx tsc
+--noEmit` clean, `npm run build` clean (both new routes present), 71/71
+tests pass.
+
+## Supplier Check: reprint, flexible multi-vendor Print Checks popup (2026-08-14)
+
+Two follow-ups from Oliver right after the Printed/Paid restructure:
+
+1. "even i hit print check now or not it does not mean i actually print
+   it. so the button should be remained. or should change to 'reprint'."
+   Every check row in the holistic table (Printed OR Paid) now has a
+   Reprint link that re-downloads that exact check's .xlsx via the
+   existing `/ledger/supplier-check/export` route -- no mutation, safe
+   to click any number of times, so a failed physical print or a lost
+   file is never a dead end.
+
+2. "when i wanna print, should show popup and allow me to choose which
+   vendor i need to print as well because i want a flexibility to print
+   some but not all or print all." Replaced the separate per-vendor
+   "Print check now" buttons and the all-or-nothing "Export week's
+   checks" button with one "Print Checks" button (`PrintChecksButton.tsx`)
+   that opens a popup listing every vendor with pending invoices as
+   checkboxes (plus an optional check # per selected vendor), with
+   Select all/Clear shortcuts. Confirming prints a check for exactly the
+   selected vendors -- each still auto-combines all of that vendor's
+   pending invoices -- and downloads one combined .xlsx of what was just
+   printed. Checking exactly one vendor covers the urgent/instant case
+   (a maintenance vendor needing a check right after service); checking
+   all of them covers the weekly batch. Same popup, same action either
+   way -- `lib/actions/supplierCheck.ts`'s `printAllPendingChecks` was
+   replaced by `printChecksForVendors(selections)`, an explicit
+   vendor+checkNumber list instead of unconditionally sweeping every
+   pending vendor. `PendingByVendor.tsx` is now read-only (view + delete
+   a mis-logged invoice) since printing is centralized in the popup.
+
+Verified with a new 9-check direct-DB script: empty selection rejected,
+a partial selection (2 of 3 vendors) leaves the unselected vendor's
+invoices untouched and still pending, each selected vendor keeps its own
+independent check number, selecting the last remaining pending vendor
+clears the rest, and reprinting (re-loading the same payment ids twice)
+is confirmed idempotent -- identical totals, status unchanged. `npx tsc
+--noEmit` clean, `npm run build` clean, 71/71 tests pass. No schema
+change, no new migration.
