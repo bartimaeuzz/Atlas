@@ -100,4 +100,100 @@ roster, that person silently lost their Pool 2 tip share with no warning.
   many roster rows a person came from, just their pooled point value.
 - 27 tests total, all passing. Re-verified end-to-end against the real DB.
 
-TEST_STOP_HERE_2
+## Pool split method is now a per-restaurant setting (2026-08-08, later same day)
+
+Oliver asked whether it'd be fair for restaurants to choose point-weighted
+vs. equal split per pool (some restaurants want skill/seniority reflected,
+others want pools to reinforce "everyone's equal" and avoid friction). Built
+it as a real setting, not a hardcoded rule:
+
+- `RestaurantSettings.pool1SplitMethod` / `pool2SplitMethod` / `pool3SplitMethod`,
+  each `POINT_WEIGHTED` or `EQUAL_SPLIT`. Defaults match prior behavior
+  exactly (Pool 1 & 2 point-weighted, Pool 3 equal) — nothing changes for
+  Youk Thai unless someone flips a setting.
+- `lib/calc/tipPool.ts` generalized: `PoolRosterEntry[]` + a split-method
+  parameter for all three pools (previously Pool 3 only ever took a bare
+  `employeeId[]` with no point data at all — fixed that too, since it would
+  have silently ignored the new setting otherwise).
+- `finalizeShift.ts` and the closing-report save flow read the setting from
+  `RestaurantSettings` at finalize time and pass it through.
+- Playground calculator (`/shifts/[id]`) got three dropdowns to flip each
+  pool's split method live and see the effect — point-value inputs
+  grey out for any pool currently set to equal split.
+- Verified directly against the DB: gave two employees very different point
+  values (2.0 vs 0.1) with Pool 1 set to EQUAL_SPLIT, confirmed their shares
+  came out identical despite the point gap, confirmed the default
+  (POINT_WEIGHTED) still produces the expected unequal split.
+- 30 tests total, all passing.
+
+**Explicitly NOT done (deferred to backlog, confirmed with Oliver):** making
+the tip pools themselves — how many exist, who's a member, and what dollar
+figures fund each one — restaurant-configurable. Oliver raised this as a
+real concern (other restaurants may need more/different pools, e.g. tipping
+out to BOH, a bar-specific pool, no delivery pool at all). Only the pool
+count/membership rules/funding formulas are still hardcoded to Youk Thai's
+three pools; only the split METHOD within those three is now configurable.
+Revisit once there's a second real restaurant's requirements to design
+against instead of guessing — see the schema memory for the full reasoning.
+
+## Closing report error handling fixed (2026-08-08, later same day)
+
+Oliver hit this testing Pool 1/2: entered Takeout Tip = 20 but left Total CC
+Tip blank/0, which correctly failed validation — but the error would have
+shown as Next.js's generic/technical error page on the real Save flow, not
+a helpful inline message (the playground calculator already had a nicer
+error box; the real closing-report Save button didn't).
+
+- Validation messages in `tipPool.ts` rewritten to be specific and
+  actionable, with the actual numbers included (e.g. now says "Takeout tip
+  ($20) plus delivery tip ($0) adds up to more than the Total CC Tip you
+  entered ($0)... make sure you filled in Total CC Tip").
+- `saveClosingReportSales` / `saveClosingReportAndFinalize` converted to
+  React's `useActionState` pattern — they now catch errors and return
+  `{ error }` instead of throwing uncaught. `redirect()` is deliberately
+  called AFTER the try/catch (not inside it) since it works by throwing a
+  special internal signal that must not be swallowed by our own catch.
+- Closing report page split into a thin Server Component (`page.tsx`, loads
+  data) + a new Client Component (`ClosingReportForm.tsx`, holds the form +
+  `useActionState` + a red error banner matching the playground's style).
+- Verified directly: called the action with Oliver's exact bad input
+  (Takeout=20, Total CC Tip blank), confirmed it returns a friendly message
+  instead of throwing, confirmed the shift stays in `draft` status (not
+  silently finalized on a failed save).
+- 30 tests still passing (no calc logic changed, only error messages/wiring).
+
+## Preview-before-finalize safety step added (2026-08-08, later same day)
+
+Oliver flagged this looking at his own test Summary Report: "Save & Finalize"
+locked a shift immediately with no chance to review, so a data-entry mistake
+would get permanently baked into a locked payroll record with no UI path to
+undo it. Split the flow into three explicit steps:
+
+- **Closing Report** — "Save (draft)" persists without locking (unchanged);
+  the second button is now **"Save & Preview"** instead of finalizing
+  directly.
+- **Preview** (`/shifts/[id]/preview`, new) — computes the real payout live
+  from whatever's currently saved, using the exact same calc engine as the
+  real finalize step, but writes NOTHING to the database. Shows the same
+  breakdown as the Summary Report. Go back to Closing Report, change
+  anything, come back — it just recomputes fresh each time. Also where the
+  same friendly validation errors show up now (e.g. "Takeout tip + delivery
+  tip is more than Total CC Tip") if the numbers aren't ready yet.
+- **Confirm & Finalize** — a separate explicit button on the Preview page.
+  Only this step writes the locked snapshot and marks the shift finalized.
+  Recomputes fresh from the database at the moment it's clicked (not from
+  whatever the browser had cached), so it's always accurate.
+
+Implementation: extracted the "gather inputs + compute" half of finalizing
+into a shared `lib/shift/computeFinalizationPreview.ts`, used by both the
+Preview page (compute only) and the real finalize action (compute + write).
+Removed a small piece of now-dead duplicate code in the process.
+
+Verified directly against the DB: after Save & Preview, confirmed zero
+`TipPoolCalculation`/`EmployeePayout` rows exist and the shift is still
+`draft`; computed the preview and noted the numbers; then ran Confirm &
+Finalize and confirmed the shift became `finalized` with exactly 1
+calculation row + 8 payout rows, and the locked totals matched the preview
+exactly. 30 tests still passing (calc engine itself didn't change).
+
+END_OF_FIFTH_CHUNK_TEST
