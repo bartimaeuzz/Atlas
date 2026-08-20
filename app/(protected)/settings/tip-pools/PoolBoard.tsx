@@ -13,12 +13,58 @@
  * Every click saves immediately (no separate "Save" button) — optimistic
  * local update for a snappy feel, with the real server action firing in
  * the background; a failure reverts the optimistic change and shows an
- * error rather than leaving the UI silently out of sync with the DB. */
+ * error rather than leaving the UI silently out of sync with the DB.
+ *
+ * Restyled onto design-system-v2 2026-08-19 — pure visual/structural
+ * restyle, the toggle/drag interaction model above is untouched (same
+ * `toggle`/`changeSplitMethod` functions, same optimistic-update +
+ * revert-on-failure logic, same HTML5 drag handlers). Mobile layout was
+ * already "stack, don't squeeze": the `lg:grid-cols-[260px_1fr]` master/
+ * board split and the pool windows' `sm:grid-cols-3` both fall back to a
+ * single column below their breakpoint, so at 375-390px this was already
+ * master list, then Pool 1, then Pool 2, then Pool 3, each full-width and
+ * scrolled vertically — never 3 squeezed columns. Kept that structure
+ * rather than inventing a tab switcher: drag-and-drop is desktop-only
+ * anyway (HTML5 DnD doesn't fire on touch), so the phone workflow is
+ * "scroll master list, tap +, scroll to the pool to see it landed" either
+ * way, and a stacked list keeps all 3 pools reachable by scroll without
+ * an extra tap to switch tabs. Also fixed: the master card's per-pool
+ * toggle buttons carried their ONLY pool-identity signal in a hover-only
+ * `title=` (bare "+"/"✓" glyphs, indistinguishable from each other on
+ * touch) — flagged in project_atlas_pool_assignment_ui memory as a title=
+ * migration candidate. Converted to an always-visible signal instead:
+ * each inactive button now shows its pool's number ("1"/"2"/"3") in that
+ * pool's own color, so identity no longer depends on hover; title=/
+ * aria-label kept as a bonus desktop tooltip + screen-reader name. The
+ * pool-window remove button's title= was left as-is — it sits inside a
+ * window whose colored dot + full pool name are already visible right
+ * above it, so title= is genuinely supplementary there, not the only
+ * channel. Pool colors (blue/emerald/amber) stay literal Tailwind
+ * classes, not new CSS tokens — they're a categorical (not semantic)
+ * mapping specific to this one board, which is exactly the "one-off, no
+ * new token" case the retrofit rules call for.
+ *
+ * Touch-target fix 2026-08-19 (scrutinize catch): the toggle/remove
+ * buttons originally shipped as `w-7 h-7` (28×28) plus `TAP_TARGET_PAD`.
+ * That combination doesn't work -- TAP_TARGET_PAD's padding only grows a
+ * tap target on elements without an explicit size; on a fixed `w-7 h-7`
+ * box under Tailwind's border-box sizing, the padding is absorbed inside
+ * the box instead of growing it, so the real hit target stayed 28×28.
+ * Fixed by sizing the buttons with `min-h-11 min-w-11` directly instead
+ * (same technique already used correctly on People's mobile sort-
+ * direction button) -- a real 44×44 target, Oliver's explicit pick over
+ * the alternative (small glyph + invisibly-grown hit box, which would
+ * have left adjacent buttons' tap zones slightly overlapping at this
+ * board's 4px gap). */
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toggleTipPoolMembership, updatePoolSplitMethod, type TipPoolGroup, type PoolSplitMethod } from "@/lib/actions/tipPools";
 import type { PositionListRow } from "@/lib/positions/loadPositionsList";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Banner } from "@/components/ui/Banner";
+import { Select } from "@/components/ui/Field";
 
 const POOLS: { key: TipPoolGroup; label: string; title: string; hint: string; colorClass: string }[] = [
   { key: "POOL_1_DINE_IN", label: "Pool 1", title: "Pool 1 — Dine-in", hint: "Server, Runner, Bartender, Host, Busser", colorClass: "pool1" },
@@ -106,17 +152,23 @@ export function PoolBoard({ positions, splitMethods }: { positions: PositionList
 
   return (
     <div>
-      {error && <div className="border border-red-300 bg-red-50 text-red-700 rounded p-3 text-sm mb-4">{error}</div>}
+      {error && (
+        <div className="mb-4">
+          <Banner tone="danger" title={error} />
+        </div>
+      )}
 
-      <div className="flex items-center gap-2 mb-4 text-xs">
+      <div className="flex items-center gap-2 mb-4 text-xs flex-wrap">
         {(["all", "unassigned", "FOH", "BOH"] as const).map((f) => (
           <button
             key={f}
             type="button"
             onClick={() => setFilter(f)}
             className={
-              "px-3 py-1.5 rounded-full border font-medium " +
-              (filter === f ? "bg-black text-white border-black" : "bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50")
+              "px-3.5 py-2 rounded-[var(--radius-full)] border font-medium transition-colors " +
+              (filter === f
+                ? "bg-[var(--primary)] text-white border-transparent"
+                : "bg-[var(--card)] text-[var(--ink-500)] border-[var(--border)] hover:bg-[var(--paper)]")
             }
           >
             {f === "all" ? "All positions" : f === "unassigned" ? "Unassigned only" : f}
@@ -124,14 +176,18 @@ export function PoolBoard({ positions, splitMethods }: { positions: PositionList
         ))}
       </div>
 
+      {/* Below lg (and always on phone, ~375-390px), this falls back to a
+       * single stacked column: master list, then the 3 pool windows (each
+       * of which also stacks below sm) -- see the file-header note on why
+       * that beats a tab switcher here. */}
       <div className="grid lg:grid-cols-[260px_1fr] gap-4 items-start">
-        <div className="border rounded-xl p-4">
+        <Card className="p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-neutral-500">All positions</span>
-            <span className="text-xs bg-neutral-100 rounded-full px-2 py-0.5 font-medium">{filtered.length}</span>
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)]">All positions</span>
+            <Badge tone="neutral">{filtered.length}</Badge>
           </div>
           {filtered.length === 0 ? (
-            <p className="text-xs text-neutral-400">No positions match this filter.</p>
+            <p className="text-xs text-[var(--ink-500)]">No positions match this filter.</p>
           ) : (
             <div className="space-y-1.5">
               {filtered.map((p) => (
@@ -139,7 +195,7 @@ export function PoolBoard({ positions, splitMethods }: { positions: PositionList
               ))}
             </div>
           )}
-        </div>
+        </Card>
 
         <div className="grid sm:grid-cols-3 gap-3">
           {POOLS.map((pool) => (
@@ -157,8 +213,8 @@ export function PoolBoard({ positions, splitMethods }: { positions: PositionList
         </div>
       </div>
 
-      <p className="text-xs text-neutral-400 mt-4 text-center">
-        Every change saves immediately. Tap the +/✓ buttons (works on phone), or drag a card into a pool window on
+      <p className="text-xs text-[var(--ink-500)] mt-4 text-center">
+        Every change saves immediately. Tap the number buttons (works on phone), or drag a card into a pool window on
         desktop.
       </p>
     </div>
@@ -182,25 +238,25 @@ function MasterCard({
       onDragStart={() => setDragId(position.id)}
       onDragEnd={() => setDragId(null)}
       className={
-        "flex items-center justify-between gap-2 rounded-lg border bg-neutral-50 px-2.5 py-2 cursor-grab active:cursor-grabbing" +
+        "flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--paper)] px-2.5 py-2 cursor-grab active:cursor-grabbing" +
         (dragId === position.id ? " opacity-40" : "") +
         (!position.active ? " opacity-50" : "")
       }
     >
       <div className="min-w-0">
-        <div className="text-[13px] font-medium truncate">
+        <div className="text-[13px] font-medium truncate text-[var(--ink-900)]">
           {position.name}
-          {!position.active && <span className="text-neutral-400 font-normal"> (retired)</span>}
+          {!position.active && <span className="text-[var(--ink-400)] font-normal"> (retired)</span>}
         </div>
         <div className="flex gap-1 mt-0.5 flex-wrap">
           {position.tipPoolGroups.length === 0 ? (
-            <span className="text-[10px] text-neutral-400">Unassigned</span>
+            <span className="text-[10px] text-[var(--ink-400)]">Unassigned</span>
           ) : (
             position.tipPoolGroups.map((g) => {
               const pool = POOLS.find((p) => p.key === g)!;
               const c = COLOR[pool.colorClass as PoolColorKey];
               return (
-                <span key={g} className={`text-[9px] font-bold text-white rounded px-1.5 py-0.5 ${c.chip}`}>
+                <span key={g} className={`text-[9px] font-bold text-white rounded-[var(--radius-sm)] px-1.5 py-0.5 ${c.chip}`}>
                   {pool.label}
                 </span>
               );
@@ -212,18 +268,23 @@ function MasterCard({
         {POOLS.map((pool) => {
           const active = position.tipPoolGroups.includes(pool.key);
           const c = COLOR[pool.colorClass as PoolColorKey];
+          const actionLabel = `${active ? "Remove from" : "Add to"} ${pool.title}`;
           return (
             <button
               key={pool.key}
               type="button"
-              title={`${active ? "Remove from" : "Add to"} ${pool.title}`}
+              title={actionLabel}
+              aria-label={actionLabel}
+              aria-pressed={active}
               onClick={() => onToggle(position.id, pool.key, !active)}
               className={
-                "w-6 h-6 rounded border text-xs flex items-center justify-center font-semibold " +
-                (active ? `text-white border-transparent ${c.chip}` : "bg-white border-neutral-200 text-neutral-400 hover:bg-neutral-100")
+                "min-h-11 min-w-11 rounded-[var(--radius-sm)] text-[13px] flex items-center justify-center font-bold transition-colors " +
+                (active
+                  ? `text-white border border-transparent ${c.chip}`
+                  : `bg-[var(--card)] border ${c.border} ${c.text} hover:bg-[var(--paper)]`)
               }
             >
-              {active ? "✓" : "+"}
+              {active ? "✓" : pool.label.slice(-1)}
             </button>
           );
         })}
@@ -266,17 +327,20 @@ function PoolWindow({
         onToggle(dragId, pool.key, true);
         setDragId(null);
       }}
-      className={"rounded-xl border-2 border-dashed p-3 min-h-[220px] " + (dragOver ? `${c.ring} ring-2` : "border-neutral-200")}
+      className={
+        "rounded-[var(--radius-lg)] border-2 border-dashed p-3 min-h-[220px] bg-[var(--card)] transition-colors " +
+        (dragOver ? `${c.ring} ring-2` : "border-[var(--border-strong)]")
+      }
     >
       <div className="flex items-center gap-2 mb-0.5">
         <span className={`w-2.5 h-2.5 rounded-full ${c.dot}`} />
-        <span className="text-[13px] font-semibold">{pool.title}</span>
+        <span className="text-[13px] font-semibold text-[var(--ink-900)]">{pool.title}</span>
       </div>
-      <p className="text-[11px] text-neutral-400 mb-2">{pool.hint}</p>
+      <p className="text-[11px] text-[var(--ink-500)] mb-2">{pool.hint}</p>
 
       <div className="space-y-1.5 mb-3">
         {positions.length === 0 ? (
-          <div className="text-[11px] text-neutral-400 text-center border border-dashed rounded-lg py-5 px-2">
+          <div className="text-[11px] text-[var(--ink-500)] text-center border border-dashed border-[var(--border)] rounded-[var(--radius-md)] py-5 px-2">
             No positions in this pool yet.
             <br />
             Tap + on a position, or drag it here.
@@ -290,21 +354,31 @@ function PoolWindow({
                 draggable
                 onDragStart={() => setDragId(p.id)}
                 onDragEnd={() => setDragId(null)}
-                className={"flex items-center justify-between gap-2 rounded-lg border bg-white px-2.5 py-2 cursor-grab active:cursor-grabbing" + (dragId === p.id ? " opacity-40" : "")}
+                className={
+                  "flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 cursor-grab active:cursor-grabbing" +
+                  (dragId === p.id ? " opacity-40" : "")
+                }
               >
                 <div className="min-w-0">
-                  <div className="text-[13px] font-medium truncate">{p.name}</div>
+                  <div className="text-[13px] font-medium truncate text-[var(--ink-900)]">{p.name}</div>
                   {otherPools.length > 0 && (
-                    <div className="text-[10px] text-neutral-400">
+                    <div className="text-[10px] text-[var(--ink-500)]">
                       also in {otherPools.map((g) => POOLS.find((pl) => pl.key === g)!.label).join(", ")}
                     </div>
                   )}
                 </div>
+                {/* title= left in place here (not migrated to a visible
+                 * caption): this button sits directly under the pool's
+                 * colored dot + full name in the header above, so the
+                 * pool identity is already visible without hovering --
+                 * unlike the master card's toggle buttons, title= here is
+                 * genuinely supplementary, not the only channel. */}
                 <button
                   type="button"
                   title={`Remove from ${pool.title}`}
+                  aria-label={`Remove from ${pool.title}`}
                   onClick={() => onToggle(p.id, pool.key, false)}
-                  className="w-6 h-6 rounded border border-neutral-200 text-neutral-400 hover:bg-neutral-100 text-xs flex items-center justify-center shrink-0"
+                  className="min-h-11 min-w-11 rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--ink-500)] hover:bg-[var(--paper)] hover:text-[var(--ink-900)] text-sm flex items-center justify-center shrink-0 transition-colors"
                 >
                   ✕
                 </button>
@@ -314,17 +388,15 @@ function PoolWindow({
         )}
       </div>
 
-      <label className="block text-[11px] text-neutral-500">
-        Split method
-        <select
-          value={method}
-          onChange={(e) => onChangeMethod(e.target.value as PoolSplitMethod)}
-          className="block w-full mt-1 border rounded px-2 py-1 text-xs"
-        >
-          <option value="POINT_WEIGHTED">Point-weighted</option>
-          <option value="EQUAL_SPLIT">Equal split</option>
-        </select>
-      </label>
+      <Select
+        label="Split method"
+        value={method}
+        onChange={(e) => onChangeMethod(e.target.value as PoolSplitMethod)}
+        className="text-xs"
+      >
+        <option value="POINT_WEIGHTED">Point-weighted</option>
+        <option value="EQUAL_SPLIT">Equal split</option>
+      </Select>
     </div>
   );
 }
