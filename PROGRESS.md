@@ -252,3 +252,437 @@ existed in `lib/calc/tipPool.ts` and the playground calculator, but wasn't
 captured anywhere in the persisted closing-report flow — `finalizeShift`
 always passed an empty bonus list. No schema field held "qualifying drink
 count" for a real saved shift. Resolved above.
+
+## Corrected: host drink bonus is ONE shared count for the team, not per-host (2026-08-10)
+
+Oliver tested the version above himself and caught a real modeling error:
+it captured a drink count **per individual host**, but the actual business
+rule is one shared count for the whole host team's waiting-area drink
+sales, split **equally** among whoever worked Host that shift — not
+individually self-reported. Two hosts on one shift should split one pooled
+number, not each report their own.
+
+- **`host_qualifying_drink_count` metric changed from EMPLOYEE_SHIFT to
+  SHIFT scope** — one `MetricValue` row per shift (`employeeId: null`), not
+  one per host. `positionMetrics` still defines who's in the "host team"
+  that splits it, just reinterpreted (membership, not per-person input
+  eligibility).
+- **`tipPool.ts`'s `HostDrinkBonusEntry[]` (per-employee count) replaced
+  with `HostDrinkBonusInput`** — one `{ qualifyingDrinkCount, perDrinkAmount,
+  recipientEmployeeIds }`. The dollar total is still pulled off Pool 1's
+  top exactly as before; the split among `recipientEmployeeIds` is always
+  **equal** (reuses the existing exact-cent `splitByPointsExact` helper),
+  regardless of Pool 1's own split-method setting — this bonus is
+  deliberately never point-weighted.
+- **Closing Report** UI changed from a per-host table to ONE shared number
+  input (only shown if at least one Host is staffed). `loadClosingReportData`
+  now distinguishes SHIFT-scope metrics (one input) from EMPLOYEE_SHIFT-scope
+  metrics (one input per eligible person, still supported generically for a
+  future metric that's genuinely per-person). Form field naming split into
+  `metric_shift_<id>` vs `metric_emp_<id>_<employeeId>` so the two cases
+  can never be mixed up by the save action's parser.
+- Also flipped `total_sales`'s `MetricDefinition` row to `enabled: false` —
+  it was a vestigial seed-data placeholder from the original schema design,
+  never actually wired to anything (the real total sales figure is
+  `ShiftSales.totalSales`, entered via the Sales section). Left enabled it
+  would have started showing up as a confusing duplicate input once the
+  generic SHIFT-metric UI went live.
+- 34 tests total (was 32) — rewrote the host-bonus tests for the new shape,
+  added a dedicated test proving equal split across 3 people with uneven
+  point values (2.0/0.1/1.0) still divides the bonus within a cent of
+  equal, and a `finalizeShift` test with two hosts (1.0 and 0.5 point
+  values) splitting one shared count 50/50 despite their unequal Pool 1
+  point values.
+- Verified directly against the real DB, reproducing Oliver's exact test
+  case: staffed Erika AND Alesso as Host on one shift, saved a single
+  shared count of 5 drinks, confirmed both Preview and the finalized
+  Summary Report show $2.50 each (not $5 each, not one person getting all
+  of it).
+
+## Wage adjustments — override + extra pay for shift-coverage situations (2026-08-10)
+
+Oliver's real scenario (not multi-role staffing, which he confirmed doesn't
+happen at Youk Thai): Erika works as Host but is asked to cover Aey's
+Bartender role mid-shift after Aey calls in sick. She should keep her
+Host-side tip pool share and drink bonus (both already worked correctly —
+see the "false alarm" investigation below), but her **wage** needs
+restaurant-level flexibility, since only one roster row's wage auto-counts
+per person per shift.
+
+Oliver's explicit spec: two separate optional fields per employee, both
+shown as distinct lines in the finalized report, never merged into
+"Flat wage":
+
+- **Override** — replaces the auto-resolved wage entirely when set (e.g.
+  swap Erika's Host rate for the Bartender coverage rate).
+- **Extra pay** — always additive on top of whichever wage applies (auto or
+  overridden), for ad hoc bonuses/adjustments that aren't a wage swap.
+
+Implementation:
+
+- New `shiftWageAdjustments` table: `shiftId`, `employeeId`,
+  `wageOverrideAmount` (nullable — null means "use auto-resolved"),
+  `extraPayAmount` (defaults to 0), `reason` (optional free-text note).
+  Unique on `(shiftId, employeeId)` — one adjustment per person per shift.
+- `employeePayouts` gained an `extraPayAmount` column (mirrors the existing
+  `hostUpsellTipShare` pattern — a previously-nonexistent additive line,
+  now a first-class snapshot column).
+- `finalizeShift.ts`: `FinalizeShiftInput.wageAdjustments: Record<employeeId,
+  WageAdjustment>`. Resolution order per employee: auto-resolved wage from
+  the wage-bearing roster row, then `overrideAmount ?? autoResolvedWage`,
+  then `extraPayAmount` always added on top. `totalCorePayout` = tip pool
+  share + (override or auto wage) + host drink bonus share + extra pay.
+- `loadClosingReportData.ts` returns `wageAdjustmentRows` — one row per
+  unique employee on the roster, showing their auto-resolved wage for
+  reference alongside editable override/extra-pay/reason fields.
+- Closing Report UI: new "Wage adjustments" section, one row per employee,
+  optional override amount + optional extra pay + optional reason. Save
+  action parses `wageOverride_<employeeId>`, `extraPay_<employeeId>`,
+  `wageReason_<employeeId>` fields and upserts into `shiftWageAdjustments`.
+- Preview and Summary Report pages both render "Extra pay" as its own
+  column, separate from "Flat wage" and "Tip pool share" — matches the
+  house style established for the host drink bonus column.
+- 36 tests total (was 34) — added two `finalizeShift` tests: one proving
+  override replaces the auto wage while extra pay stays additive on top
+  (with an untouched coworker in the same shift as a control), one proving
+  extra pay alone (no override) adds on top of the normal auto-resolved
+  wage.
+- Verified directly against the real DB: staffed Erika as Host, entered a
+  $70 override (replacing her $55 auto Host wage) plus $15 extra pay with
+  a reason note, confirmed the closing-report loader reflects it, computed
+  a live Preview showing flatWageAmount=$70 and extraPayAmount=$15
+  separately, finalized (wrote `tipPoolCalculations` + `employeePayouts`),
+  and confirmed the Summary Report loader (`loadSummaryData`) shows both
+  fields correctly and separately — not merged, not lost.
+
+Also worth recording since it's what prompted this feature: Oliver reported
+what looked like a data-loss bug (adding Papi as Line Cook then again as
+Host appeared to silently overwrite the Line Cook row). Investigated
+directly against the real DB — confirmed no overwrite; all roster rows
+persist. The Preview/Summary payout table correctly consolidates one
+person's multiple roster rows into a single paycheck line (by design, one
+payout per person), which just wasn't visually legible as "all your roles
+are combined here." Multi-role staffing itself already works correctly
+(tip share sums across all pool-eligible rows, host bonus eligibility
+checks all of a person's rows) — wage was the only genuine gap, which this
+feature closes.
+
+## How to run
+
+**First time only:**
+```
+npm run setup     # installs dependencies + creates db/atlas.db + loads sample data
+npm run dev       # starts the app — open /shifts
+```
+
+**After that, day to day:** just `npm run dev` again. It keeps running and
+hot-reloads as files change — you do NOT need to redo install/db:push/db:seed
+every time. Only re-run `npm run setup` if this doc (or I) tells you the
+schema or sample data changed, or if you want to reset the sample data back
+to its starting point (safe to run repeatedly now — resets ids too).
+
+```
+npm test          # runs all calculation + permission tests, anytime
+```
+
+## Position admin UI (2026-08-10) — first master-data editing UI, no more seed-file surgery for positions
+
+Backlog item Oliver flagged earlier ("Position admin UI... be reminded about this later") — this round built it. Also closes the loop on a question Oliver asked directly: "if wage rates aren't on this page, where does someone go for a raise?" Answer, and the actual design split used:
+
+- **FOH wage (`positionShiftRates`) is a property of the POSITION** — one
+  shared Lunch/Dinner rate for everyone who works it. Belongs naturally on
+  the Position page, so it's included this round: raise the whole
+  position's rate in one place, applies to whoever's rostered next.
+- **BOH wage (`employeeWageRates`) is a property of the EMPLOYEE**, not the
+  position — a raise for one specific line cook can't be expressed at the
+  Position level at all. Still no UI for this; flagged as the very next
+  piece of master-data UI to build (Employee admin), not attempted this
+  round to keep this one shippable.
+
+What shipped:
+- `positions.active` column (boolean, default true) — retire, never hard
+  delete, matching the existing `employees.active` pattern. A retired
+  position stays fully valid for every historical shift that already
+  references it (roster entries, wage rates, tip pool calcs untouched); it
+  just stops being offered when staffing a NEW shift's roster
+  (`loadRosterPageData`'s `allPositions` query now filters `active: true`).
+- `/positions` — list page, all positions (active + retired, retired shown
+  greyed out), with pool membership and FOH rate shown inline.
+- `/positions/new` and `/positions/[id]/edit` — shared `PositionForm`
+  client component: name, category (FOH/BOH radio), tip pool membership
+  (checkboxes for Pool 1/2/3), the two visibility flags
+  (`alwaysVisibleInRoster`, `earningsHiddenFromStaff`), default tip point
+  value, and — only shown when category is FOH — Lunch/Dinner flat rate
+  inputs. Retire/Reactivate is a plain button (no form), calls
+  `togglePositionActive` directly via `useTransition`.
+- `lib/actions/positions.ts` — `createPosition`/`updatePosition` follow
+  the same `(prevState, formData) => {error}` + "redirect() outside the
+  try/catch" pattern as the shift actions, including a duplicate-name
+  check. Pool membership + FOH rates are synced via delete-then-reinsert
+  on the child tables (`positionTipPools`, `positionShiftRates`) — simple
+  and safe since nothing has a foreign key pointing INTO those two tables.
+- No new unit tests added — this is straightforward CRUD/wiring code, not
+  pure calculation logic, matching this project's existing testing
+  convention (`__tests__` dirs exist only under `lib/calc` and
+  `lib/roster`, reserved for pure functions and the privacy-sensitive
+  visibility logic). Verified instead with a direct-DB script exercising
+  the full loop: create a position with pool membership + rates → confirm
+  both list and edit loaders return it correctly → simulate a raise
+  (Dinner rate 60→70) → retire it → confirm it disappears from
+  `loadRosterPageData`'s roster dropdown while the seeded/existing Host
+  position stays untouched → reactivate → confirm it reappears. 36 tests
+  still passing (unchanged), full build clean.
+
+## Restaurant Settings page + configurable roster category visibility + multi-role UX polish (2026-08-10)
+
+Two things Oliver caught testing the Position admin UI himself:
+
+**1. Roster category visibility was hardcoded, not restaurant-configurable.**
+`lib/roster/visibility.ts` always restricted STAFF to their own category
+(FOH sees FOH, BOH sees BOH) — unlike the peer-earnings-money layer, which
+already was restaurant-configurable. Fixed: two new independent settings,
+`rosterRestrictFOHToOwnCategory` / `rosterRestrictBOHToOwnCategory`, both
+defaulting to `true` (today's behavior, nothing changes for Youk Thai
+unless flipped). `getVisibleRosterEntries` now applies the category filter
+conditionally per viewer's own category. Note: this module still isn't
+wired into any live page (no staff login/self-serve view exists yet — see
+Employee admin below), so the setting has no visible effect today; the
+design is just correct now for whenever that view ships. 38 tests total
+(was 36) — two new tests cover the flag off (opens the roster to the other
+category) and independence between the two flags.
+
+**Also surfaced: restaurantSettings had ZERO ui at all.** Every field on
+that table (`ccTipDeductionRate`, the peer-earnings flags, all three pool
+split methods, the host drink bonus rate) was seed-only — same class of
+gap Position admin closed for positions. Rather than build a settings page
+for just the two new visibility flags and leave the rest stranded, built
+one `/settings` page covering the whole table in this pass:
+`lib/settings/loadRestaurantSettings.ts`, `lib/actions/settings.ts`
+(`updateRestaurantSettings`, same server-action error pattern as
+everywhere else), `app/settings/page.tsx` + `SettingsForm.tsx`. Linked
+from both the root page and the Shifts list header.
+
+**2. Multi-role roster stress test — Aey as both Bartender (FOH) and Sous
+Chef (BOH), no warning shown.** Confirmed via AskUserQuestion: a
+confirmation prompt + a visual badge, not a hard block or an admin policy
+setting. Reasoning: the wage-adjustments round already proved multi-role
+payout math is correct (tip shares sum across pool-eligible rows, wage
+auto-resolves with an override available), and Oliver himself said other
+restaurants may genuinely use multi-role even though Youk Thai doesn't
+day-to-day — building a block/allow policy now would be solving a problem
+nobody's actually hit, the same trap this project has deliberately avoided
+elsewhere (e.g. the pool-funding-engine deferral). Shipped: the roster
+page's "Add someone" form is now a client component
+(`AddRosterEntryForm.tsx`) that checks — client-side, against the roster
+already loaded on the page, no extra round trip — whether the selected
+employee already has an entry this shift, and if so shows a
+`window.confirm()` naming their existing role(s) before submitting.
+Cancel aborts the add. Separately, the roster table now shows a small "N
+roles" badge next to anyone with more than one entry, so multi-role
+staffing is legible on the Roster page itself without needing to check
+Preview — directly closes the legibility gap from the earlier Papi
+false-alarm.
+
+Verified end-to-end against the real DB: flipped
+`rosterRestrictBOHToOwnCategory` off and confirmed `getVisibleRosterEntries`
+actually responds to the persisted setting (not just the pure-function
+unit tests); staffed Aey as both Bartender and Sous Chef and confirmed the
+roster loader returns exactly the two rows + role count the badge and
+confirm-dialog logic need. 38 tests passing, build clean.
+
+## Persistent nav bar + missing back-links filled in (2026-08-10)
+
+Oliver asked directly: several pages (New Shift, New/Edit Position,
+Settings, the playground calculator) had no way back except editing the
+URL bar by hand, and there was no way to see "where am I" while navigating
+into a shift. Root cause: navigation had been added ad hoc, per page, as
+each page shipped — no shared layout-level nav ever existed.
+
+Fixed with a persistent top nav bar in the root layout (`app/NavBar.tsx`),
+so it shows on every page without needing to touch each page individually:
+Atlas (home) / Shifts / Positions / Settings, with the current section
+highlighted (`usePathname`). This alone fixes the "stuck on a page" problem
+everywhere at once. Also added the specific contextual back-links that were
+missing: `/shifts/new` and the playground calculator (`/shifts/[id]`) now
+have "← All shifts"; `/positions/new` and `/positions/[id]/edit` now have
+"← Positions". No unit tests (pure navigation UI, not logic); verified by
+building, seeding, running the real dev server, and curling every affected
+route to confirm the nav bar and each new back-link actually render.
+
+## Employee admin UI (2026-08-10) — the per-employee BOH wage raise finally has a home
+
+Closes the gap named at the end of the Position admin round: FOH wage
+lives on the Position page (shared rate), but BOH wage is per-employee and
+had nowhere to go. Mirrors Position admin's shape: `/employees` list +
+`/employees/new` + `/employees/[id]/edit`, shared `EmployeeForm`. Fields:
+name, active (retire/reactivate, never hard-delete — same pattern as
+positions), hire date, system role, primary position, and a per-position
+checklist (assign + standing tip point value; BOH-assigned positions also
+get Lunch/Dinner wage rate inputs, shown conditionally). Primary position
+must be one of the assigned positions — validated server-side.
+`lib/actions/employees.ts` syncs `employeePositions` + `employeeWageRates`
+via delete-then-reinsert, same pattern as Position admin's child tables.
+
+**Caught a real pre-existing data-loss trap while verifying against the
+real DB, before shipping:** two seeded BOH employees (Bomb, Papi) had
+`employeeWageRates` history and a `primaryPositionId` but no matching
+`employeePositions` row — a latent gap from when that table was originally
+scoped "FOH only" (see its schema comment from 2026-08-08). Left alone,
+opening either of their Edit pages would render "Primary position: — none
+—" (the option wouldn't even be offered in the select) and hitting Save
+would silently wipe their wage rate — exactly the kind of trap this
+project has been careful to test for. Fixed two ways: `loadEmployeesList`
+/ `loadEmployeeForEdit` now defensively backfill — a `primaryPositionId`
+is always treated as assigned even without a real join-table row yet
+(synthesized with the position's default tip point value), so the form
+renders correctly and saving for real creates the missing row, closing
+the gap permanently for that employee. Also fixed `db/seed.ts` directly so
+fresh reseeds start consistent. This class of bug (defaulted/synthesized
+form state silently overwriting real data on save) is worth remembering
+as a recurring risk anywhere a form's initial state is assembled from
+more than one table — verify the round trip, not just the read.
+
+No new unit tests (CRUD, not pure calc logic — same convention as Position
+admin). 38 tests still passing. Verified end-to-end against the real DB:
+created an employee with an FOH position (tip point value) and a BOH
+position (wage rate), staffed them on the real dinner shift, confirmed the
+calc engine picked up their wage — then simulated a raise and confirmed
+the SAME shift recomputed with the new amount (the actual point of this
+feature). Separately reproduced the Papi trap by deleting his
+`employeePositions` row back out, confirmed the defensive backfill kept
+his wage rate visible and correct, and confirmed a simulated no-op Save
+no longer wipes it.
+
+## Cash tip field + per-pool tip columns + Total tip column (2026-08-10)
+
+Oliver flagged two real gaps while testing Employee admin: no way to enter
+cash tips at all, and the payout table only showed one combined "Tip pool
+share" figure with no way to see per-pool detail or a clean tip-only
+subtotal. Confirmed both via AskUserQuestion before touching money math.
+
+**Cash tip:** `ShiftSales.cashTip` (new column) — entered manually by the
+floor manager at close, pooled into Pool 1 exactly like CC tips but
+WITHOUT the deduction (no card-processing fee on cash). `tipPool.ts`'s
+`calculateTwoPoolTips` now takes `cashTip` as a Pool 1 input, added to the
+deducted CC portion before the host drink bonus is pulled off the top
+(`netPool1BeforeHostBonus = netDineInCcTip + cashTip`) — so a cash tip
+correctly reduces what's available for the drink bonus check too, same as
+the CC portion always did. New Closing Report field, new playground
+calculator field, new "Cash tip" line in Preview/Summary's Tip pools box
+(only shown when nonzero).
+
+**Per-pool + total tip columns:** `calculateTwoPoolTips` already computed
+`pool1.shareByEmployee` / `pool2.shareByEmployee` / `pool3.shareByEmployee`
+separately internally — `finalizeShift.ts` was just summing them into one
+`tipPoolShare` before this round, discarding the breakdown. Now tracked
+separately as `pool1Share`/`pool2Share`/`pool3Share` on
+`FinalizeEmployeePayout` (`tipPoolShare` kept as their sum, for anything
+that only needs the total), plus a new `totalTip` field
+(`tipPoolShare + hostUpsellTipShare` — every dollar that's a TIP, distinct
+from wage). `employeePayouts` gained matching snapshot columns. Preview +
+Summary payout tables now show Pool 1/Pool 2/Pool 3 as separate columns
+(dashed out when zero, to avoid a wall of zeros for single-pool staff) AND
+a bolded "Total tip" column — Oliver explicitly asked for both, not one or
+the other.
+
+6 new tests (42 total, was 38): cash tip pools into Pool 1 without
+deduction, cash tip can't be negative, host drink bonus correctly pulls
+off the top including the cash tip portion, and a finalizeShift test
+proving pool1Share/pool2Share/pool3Share sum to tipPoolShare and totalTip
+includes the drink bonus (using Host's real dual-pool membership as the
+test case). Verified end-to-end against the real DB: set a $75 cash tip
+on the seeded dinner shift, confirmed it flows undeducted through Preview,
+finalize, and the Summary Report, and confirmed every payout row's pool
+shares sum correctly to its total.
+
+## Roster "Add someone" position dropdown now reflects Employee admin assignments (2026-08-10)
+
+Oliver's other observation testing the roster: the Position dropdown
+showed every position flat, with no connection to what we'd just built in
+Employee admin (which positions a person is actually set up to work). New
+`loadEmployeeAssignedPositionIds()` in `lib/employees/loadEmployeesList.ts`
+returns an employeeId -> assigned positionId[] lookup, reusing the same
+defensive primaryPositionId backfill built for Employee admin (so someone
+like Papi, whose real `employeePositions` row may still be missing on an
+older DB, correctly shows their primary position as assigned). Threaded
+through `loadRosterPageData.ts` into a new `employeeAssignedPositionIds`
+field.
+
+`AddRosterEntryForm.tsx`'s Employee select is now controlled; the Position
+select re-groups live as the employee selection changes — assigned
+positions in an "Assigned to this person" group, everyone else in an
+"Other positions" group with greyed-out (but still fully selectable) text.
+Deliberately NOT a hard restriction — same flexibility reasoning as the
+duplicate-add confirm dialog shipped earlier this project: a restaurant
+may genuinely need someone to cover a position they're not formally set
+up for, so this only nudges, never blocks. If an employee has no
+assignments at all yet (brand new, never touched in Employee admin), the
+dropdown falls back to a flat unstyled list rather than showing everything
+greyed out, which would look broken.
+
+No new unit tests (pure UI wiring off already-tested loader logic).
+Verified against the real DB: Erika's lookup correctly shows only Host
+(her seeded position), Papi's lookup correctly shows Line Cook via the
+primaryPositionId backfill, and every active employee has an entry in the
+lookup (even if empty).
+
+## Incentive Rules engine — first real evaluation shipped (2026-08-10)
+
+Oliver's 4-point feedback round also asked for the previously-deferred
+generic Incentive Rules engine to finally be built out, scoped to one
+concrete test case: "if total sale hit $10,000 BOH should get $20 flat
+rate incentive... for test sake, real rule incentive amount should be
+flexible and each individual BOH staff would probably get different
+incentive amount." Confirmed via AskUserQuestion: flat rate for ALL BOH
+first (not per-employee weighting), SHIFT-period only — same "concrete
+first, generalize once a second real pattern emerges" sequencing already
+used for the host drink bonus and the pool-funding-engine deferral.
+
+The full schema (incentiveRules, incentiveRuleConditions,
+incentiveRuleTargets, employeeRuleWeights, incentivePayoutRecords) was
+already designed back on 2026-08-08 — this round wrote the evaluator.
+New `lib/calc/incentiveRules.ts` (pure, DB-free, 14 unit tests) —
+`evaluateShiftIncentiveRules(rules, shiftMetrics, roster)` — deliberately
+scoped this round to: evaluationPeriod=SHIFT, rewardType=FLAT,
+distributionMethod=PER_TARGET_FLAT, targets of type CATEGORY/POSITION/
+EMPLOYEE, condition operators >=/>/<=/</between. A rule using anything
+outside that scope (WEEK/MONTH period, PERCENT_OF_METRIC, ADJUST_TIP_POINT,
+WEIGHTED_POOL) is silently skipped, not an error — same "skip what's out
+of scope" approach used elsewhere. A rule with zero conditions never fires
+(treated as unconfigured, not "always true").
+
+Wired into `computeFinalizationPreview.ts`: loads enabled rules +
+conditions + targets from the DB, builds a `shiftMetrics` map (currently
+just `total_sales`, read directly off `ShiftSales.totalSales`, not the
+vestigial disabled `metric_definitions` row of the same key), evaluates
+against the roster's position category, and folds the result into
+`finalizeShift.ts`'s existing per-employee payout row as a new
+`incentiveAmount` field — additive on top of tip share/wage/extra pay,
+same house style as `extraPayAmount`/`hostUpsellTipShare`. `employeePayouts`
+gained an `incentiveAmount` column (snapshot). `runFinalize` (in
+`lib/actions/shift.ts`) also writes one `incentivePayoutRecords` row per
+(rule, employee) that actually fired — the audit trail table designed on
+2026-08-08 finally has its first real writer, capturing which rule fired,
+for how much, and a `metricSnapshot` of what it saw.
+
+Preview and Summary Report both gained an "Incentive" column (between
+Extra pay and Total). Summary's footnote updated to reflect what's
+actually wired in now vs. still deferred (Manager/Floor Manager weekly
+commission — needs per-employee weighting + WEEK-period evaluation, not
+built yet).
+
+Seeded the test rule itself: "BOH $10k Sales Bonus (test)" — SHIFT period,
+FLAT $20, PER_TARGET_FLAT, condition `total_sales >= 10000`, target
+CATEGORY:BOH. The seeded dinner shift's totalSales (4200) is well under
+the threshold, so a fresh reseed correctly shows NO bonus out of the box —
+bump Total Sales to $10,000+ on the closing report to see it fire for
+every BOH person on that shift's roster (Chef, Line Cook in the seeded
+data).
+
+57 tests passing (was 42). Verified against the real DB: below $10k → zero
+incentive for everyone; at exactly $10k → $20 each for Bomb (Chef) and
+Papi (Line Cook), $0 for FOH staff, `totalCorePayout` correctly includes
+it; and separately verified the actual finalize WRITE path — both the
+`employeePayouts.incentiveAmount` snapshot column and the
+`incentivePayoutRecords` audit-trail rows are written correctly with the
+right rule id, amount, and metric snapshot.
