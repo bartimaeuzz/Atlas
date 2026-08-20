@@ -3,6 +3,10 @@ import { loadPayrollRegister } from "@/lib/payroll/loadPayrollRegister";
 import { toIso, weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { MarkPaidButton, RevertToDraftButton } from "./PayrollActions";
+import { PageHeader, EmptyState } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Banner } from "@/components/ui/Banner";
+import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
 
 function weekLabel(weekStart: string): string {
   const days = datesInWeek(weekStart);
@@ -19,7 +23,16 @@ function weekLabel(weekStart: string): string {
  * real payroll DNA file uses. A week stays DRAFT (live numbers, can
  * change if shift data changes) until every shift that week is
  * finalized and a manager marks it PAID, which locks a snapshot. See
- * project_atlas_payroll memory for the full design conversation. */
+ * project_atlas_payroll memory for the full design conversation.
+ *
+ * Restyled onto the design system 2026-08-19 -- the 7-column register
+ * table gets the same stacked-cards-on-phone / table-on-desktop split
+ * just applied to MonthList.tsx (same reasoning: a horizontally-
+ * scrolling 7-column table at 375px is the exact anti-pattern that
+ * convention exists to avoid), and money formatting now goes through
+ * Ledger's shared formatMoney so it matches the rest of the app. The
+ * mark-paid/revert actions in PayrollActions.tsx were already
+ * retrofitted separately and aren't touched here. */
 export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const params = await searchParams;
   const todayIso = toIso(new Date());
@@ -32,91 +45,144 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   const nextWeek = shiftWeek(weekStart, 1);
 
   return (
-    <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-1">Payroll</h1>
-      <p className="text-neutral-500 text-sm mb-4">
-        What every employee is owed for the week, built from Atlas&apos;s own finalized shift payouts.
-      </p>
+    <main className="max-w-3xl mx-auto p-4 sm:p-8">
+      <PageHeader
+        title="Payroll"
+        description="What every employee is owed for the week, built from Atlas's own finalized shift payouts."
+      />
 
       <div className="flex items-center justify-between gap-3 mb-4">
-        <Link href={`/payroll?week=${prevWeek}`} className="text-sm px-3 py-1.5 rounded border hover:bg-neutral-50">
-          ← Prev week
+        <Link href={`/payroll?week=${prevWeek}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+          &larr; Prev week
         </Link>
-        <div className="text-sm font-medium">{weekLabel(weekStart)}</div>
-        <Link href={`/payroll?week=${nextWeek}`} className="text-sm px-3 py-1.5 rounded border hover:bg-neutral-50">
-          Next week →
+        <div className="text-sm font-medium text-[var(--ink-900)]">{weekLabel(weekStart)}</div>
+        <Link href={`/payroll?week=${nextWeek}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+          Next week &rarr;
         </Link>
       </div>
 
-      <div className="flex items-center gap-2 mb-4">
+      <div className="mb-4">
         {register.status === "paid" ? (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+          <Badge tone="success">
             Paid{register.paidByName ? ` — by ${register.paidByName}` : ""}
             {register.paidAt ? ` on ${new Date(register.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
-          </span>
+          </Badge>
         ) : (
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full bg-neutral-100 text-neutral-600">
-            Draft — live numbers
-          </span>
+          <Badge tone="neutral">Draft — live numbers</Badge>
         )}
       </div>
 
       {register.status === "draft" && register.unfinalizedShiftCount > 0 && (
-        <div className="border border-amber-300 bg-amber-50 text-amber-800 rounded p-3 text-sm mb-4">
-          {register.unfinalizedShiftCount} shift{register.unfinalizedShiftCount === 1 ? "" : "s"} this week{" "}
-          {register.unfinalizedShiftCount === 1 ? "isn't" : "aren't"} finalized yet — finalize every shift before this
-          week&apos;s payroll can be marked paid.
+        <div className="mb-4">
+          <Banner
+            tone="warning"
+            title={`${register.unfinalizedShiftCount} shift${register.unfinalizedShiftCount === 1 ? "" : "s"} not finalized yet`}
+            description={`Finalize every shift this week before this week's payroll can be marked paid.`}
+          />
         </div>
       )}
 
       {register.rows.length === 0 ? (
-        <p className="text-sm text-neutral-400 border rounded p-4">No finalized shift payouts for this week yet.</p>
-      ) : (
-        <div className="border rounded overflow-x-auto mb-4">
-          <table className="w-full text-sm min-w-[560px]">
-            <thead className="bg-neutral-50 text-neutral-500 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-left py-2 px-3">Employee</th>
-                <th className="text-right py-2 px-3">Wage</th>
-                <th className="text-right py-2 px-3">Extra</th>
-                <th className="text-right py-2 px-3">Incentive</th>
-                <th className="text-right py-2 px-3">Deduction</th>
-                <th className="text-right py-2 px-3">Tip</th>
-                <th className="text-right py-2 px-3 font-semibold">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {register.rows.map((row) => (
-                <tr key={row.employeeId} className="border-t">
-                  <td className="py-2 px-3">{row.employeeName}</td>
-                  <td className="py-2 px-3 text-right tabular-nums">${row.flatWageAmount.toFixed(2)}</td>
-                  <td className="py-2 px-3 text-right tabular-nums">${row.extraPayAmount.toFixed(2)}</td>
-                  <td className="py-2 px-3 text-right tabular-nums">${row.incentiveAmount.toFixed(2)}</td>
-                  <td className="py-2 px-3 text-right tabular-nums">
-                    {row.deductionAmount > 0 ? `-$${row.deductionAmount.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="py-2 px-3 text-right tabular-nums">${row.totalTip.toFixed(2)}</td>
-                  <td className="py-2 px-3 text-right tabular-nums font-semibold">${row.totalCorePayout.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t bg-neutral-50">
-                <td className="py-2 px-3 font-semibold" colSpan={6}>
-                  Total
-                </td>
-                <td className="py-2 px-3 text-right tabular-nums font-semibold">${register.total.toFixed(2)}</td>
-              </tr>
-            </tfoot>
-          </table>
+        <div className="mb-4">
+          <EmptyState message="No finalized shift payouts for this week yet." />
         </div>
+      ) : (
+        <>
+          {/* Phone: stacked cards */}
+          <div className="sm:hidden space-y-2 mb-4">
+            {register.rows.map((row) => (
+              <div key={row.employeeId} className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-[var(--ink-900)]">{row.employeeName}</span>
+                  <span className="font-semibold tabular-nums text-[var(--ink-900)]">{formatMoney(row.totalCorePayout)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ink-500)]">Wage</span>
+                    <span className="tabular-nums text-[var(--ink-700)]">{formatMoney(row.flatWageAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ink-500)]">Extra</span>
+                    <span className="tabular-nums text-[var(--ink-700)]">{formatMoney(row.extraPayAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ink-500)]">Incentive</span>
+                    <span className="tabular-nums text-[var(--ink-700)]">{formatMoney(row.incentiveAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ink-500)]">Deduction</span>
+                    <span className={"tabular-nums " + (row.deductionAmount > 0 ? "text-[var(--danger)]" : "text-[var(--ink-700)]")}>
+                      {row.deductionAmount > 0 ? formatMoney(-row.deductionAmount) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ink-500)]">Tip</span>
+                    <span className="tabular-nums text-[var(--ink-700)]">{formatMoney(row.totalTip)}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            <div className="bg-[var(--paper)] border border-[var(--border-strong)] rounded-[var(--radius-lg)] p-4 flex items-center justify-between">
+              <span className="font-semibold text-[var(--ink-900)]">Total</span>
+              <span className="font-semibold tabular-nums text-[var(--ink-900)]">{formatMoney(register.total)}</span>
+            </div>
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden sm:block border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-4">
+            <table className="w-full text-sm min-w-[560px]">
+              <thead className="bg-[var(--paper)] text-[var(--ink-500)] text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="text-left py-2 px-3 font-medium">Employee</th>
+                  <th className="text-right py-2 px-3 font-medium">Wage</th>
+                  <th className="text-right py-2 px-3 font-medium">Extra</th>
+                  <th className="text-right py-2 px-3 font-medium">Incentive</th>
+                  <th className="text-right py-2 px-3 font-medium">Deduction</th>
+                  <th className="text-right py-2 px-3 font-medium">Tip</th>
+                  <th className="text-right py-2 px-3 font-semibold">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {register.rows.map((row) => (
+                  <tr key={row.employeeId} className="border-t border-[var(--border)]">
+                    <td className="py-2 px-3 text-[var(--ink-900)]">{row.employeeName}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-[var(--ink-700)]">{formatMoney(row.flatWageAmount)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-[var(--ink-700)]">{formatMoney(row.extraPayAmount)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-[var(--ink-700)]">{formatMoney(row.incentiveAmount)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">
+                      {row.deductionAmount > 0 ? (
+                        <span className="text-[var(--danger)]">{formatMoney(-row.deductionAmount)}</span>
+                      ) : (
+                        <span className="text-[var(--ink-700)]">—</span>
+                      )}
+                    </td>
+                    <td className="py-2 px-3 text-right tabular-nums text-[var(--ink-700)]">{formatMoney(row.totalTip)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums font-semibold text-[var(--ink-900)]">
+                      {formatMoney(row.totalCorePayout)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-[var(--border)] bg-[var(--paper)]">
+                  <td className="py-2 px-3 font-semibold text-[var(--ink-900)]" colSpan={6}>
+                    Total
+                  </td>
+                  <td className="py-2 px-3 text-right tabular-nums font-semibold text-[var(--ink-900)]">
+                    {formatMoney(register.total)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </>
       )}
 
       {register.rows.length > 0 && (
         <div className="flex flex-wrap items-center gap-3">
           <a
             href={`/payroll/export?week=${weekStart}`}
-            className="px-4 py-2 rounded border text-sm hover:bg-neutral-50"
+            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold text-sm px-4 py-2.5 min-h-11 border border-[var(--border-strong)] text-[var(--ink-700)] hover:bg-[var(--paper)] transition-colors"
           >
             Download .xlsx (check export + pay stubs + acknowledgment)
           </a>
