@@ -11,6 +11,28 @@ export interface LedgerAdminActionState {
   error: string | null;
 }
 
+/** 2026-08-21 — server-action auth audit: this file had NO auth check at
+ * all on most exports (vendors/categories admin, plus the plain
+ * deletePettyCashEntry/saveDailyReconciliationDraft/finalizePettyCashDay
+ * functions, which only fetched a session to feed the existing
+ * finalized-day ADMIN-override check below — if the day wasn't already
+ * finalized, that check short-circuited false regardless of whether
+ * there even was a session, so an unauthenticated request could still
+ * write). Same established pattern as employees.ts/tipPools.ts/
+ * payroll.ts/permissions.ts, copied as-is. Deliberately MANAGER/ADMIN
+ * here (matching the existing /ledger page guard), not the tighter
+ * Admin-only default the confirmed Permission System capability
+ * registry eventually wants for some of these (PETTY_CASH_EDIT is
+ * allManagerTiers, so this matches) — the capability-level tightening is
+ * explicitly a later phase once requireCapability() is wired in. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
+}
+
 /** Today as an ISO date string -- used to block logging/reconciling a day
  * that hasn't happened yet (2026-08-14: "not be editable before day
  * comes"). Same UTC convention as everywhere else date math happens in
@@ -36,6 +58,7 @@ function readVendorForm(formData: FormData) {
 
 export async function createLedgerVendor(_prevState: LedgerAdminActionState, formData: FormData): Promise<LedgerAdminActionState> {
   try {
+    await requireManagerAction();
     const parsed = readVendorForm(formData);
     await db.insert(ledgerVendors).values({ ...parsed, active: true });
   } catch (e) {
@@ -49,6 +72,7 @@ export async function updateLedgerVendor(_prevState: LedgerAdminActionState, for
   const vendorId = Number(formData.get("vendorId"));
   if (!vendorId) return { error: "Missing vendor id" };
   try {
+    await requireManagerAction();
     const parsed = readVendorForm(formData);
     await db.update(ledgerVendors).set(parsed).where(eq(ledgerVendors.id, vendorId));
   } catch (e) {
@@ -59,6 +83,7 @@ export async function updateLedgerVendor(_prevState: LedgerAdminActionState, for
 }
 
 export async function toggleLedgerVendorActive(vendorId: number, nextActive: boolean) {
+  await requireManagerAction();
   await db.update(ledgerVendors).set({ active: nextActive }).where(eq(ledgerVendors.id, vendorId));
   revalidatePath("/ledger/vendors");
 }
@@ -74,6 +99,7 @@ export async function createLedgerCategory(_prevState: LedgerAdminActionState, f
   const name = String(formData.get("name") ?? "").trim();
   const pnlGroupRaw = String(formData.get("pnlGroup") ?? "OTHER_EXPENSE");
   try {
+    await requireManagerAction();
     if (!name) throw new Error("Category name is required");
     const [existing] = await db.select().from(ledgerCategories).where(eq(ledgerCategories.name, name));
     if (existing) throw new Error(`A category named "${name}" already exists`);
@@ -87,6 +113,7 @@ export async function createLedgerCategory(_prevState: LedgerAdminActionState, f
 }
 
 export async function toggleLedgerCategoryActive(categoryId: number, nextActive: boolean) {
+  await requireManagerAction();
   await db.update(ledgerCategories).set({ active: nextActive }).where(eq(ledgerCategories.id, categoryId));
   revalidatePath("/ledger/categories");
 }
@@ -98,6 +125,7 @@ export async function toggleLedgerCategoryActive(categoryId: number, nextActive:
  * every past AND future entry under that category the next time the P&L
  * is viewed (there's nothing per-entry to migrate). */
 export async function setLedgerCategoryPnlGroup(categoryId: number, pnlGroup: string) {
+  await requireManagerAction();
   if (!PNL_GROUPS.includes(pnlGroup as PnlGroup)) throw new Error("Invalid P&L group");
   await db.update(ledgerCategories).set({ pnlGroup: pnlGroup as PnlGroup }).where(eq(ledgerCategories.id, categoryId));
   revalidatePath("/ledger/categories");
@@ -132,6 +160,8 @@ export async function addPettyCashEntry(
   const amountRaw = formData.get("amount");
 
   try {
+    const session = await requireManagerAction();
+
     if (!date) throw new Error("Missing date");
     if (date > todayIso()) throw new Error("Can't log petty cash for a day that hasn't happened yet.");
     const categoryId = Number(categoryIdRaw);
@@ -139,9 +169,6 @@ export async function addPettyCashEntry(
     const amount = Number(amountRaw);
     if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be a positive number");
     const vendorId = vendorIdRaw && String(vendorIdRaw).trim() !== "" ? Number(vendorIdRaw) : null;
-
-    const session = await getCurrentStaffSession();
-    if (!session) throw new Error("Not signed in");
 
     const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
     if (existingRecon?.status === "finalized" && session.systemRole !== "ADMIN") {
@@ -166,9 +193,9 @@ export async function addPettyCashEntry(
 }
 
 export async function deletePettyCashEntry(entryId: number, date: string) {
-  const session = await getCurrentStaffSession();
+  const session = await requireManagerAction();
   const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  if (existingRecon?.status === "finalized" && session?.systemRole !== "ADMIN") {
+  if (existingRecon?.status === "finalized" && session.systemRole !== "ADMIN") {
     throw new Error("This day is already finalized -- can't remove entries from it.");
   }
   await db.delete(pettyCashEntries).where(eq(pettyCashEntries.id, entryId));
@@ -196,12 +223,12 @@ export async function saveDailyReconciliationDraft(
   countedAmount: number | null,
   note: string | null
 ) {
+  const session = await requireManagerAction();
   if (date > todayIso()) {
     throw new Error("Can't reconcile a day that hasn't happened yet.");
   }
-  const session = await getCurrentStaffSession();
   const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  if (existing?.status === "finalized" && session?.systemRole !== "ADMIN") {
+  if (existing?.status === "finalized" && session.systemRole !== "ADMIN") {
     throw new Error("This day is already finalized.");
   }
   if (existing) {
@@ -227,6 +254,8 @@ export async function saveDailyReconciliationDraft(
  * shiftsReady requires finalized shifts that wouldn't exist yet, but the
  * explicit check keeps the rule obvious rather than incidental. */
 export async function finalizePettyCashDay(date: string, countedAmount: number, note: string | null) {
+  const session = await requireManagerAction();
+
   if (date > todayIso()) {
     throw new Error("Can't finalize a day that hasn't happened yet.");
   }
@@ -238,9 +267,6 @@ export async function finalizePettyCashDay(date: string, countedAmount: number, 
   if (!Number.isFinite(countedAmount)) {
     throw new Error("Enter the counted cash amount before finalizing.");
   }
-
-  const session = await getCurrentStaffSession();
-  if (!session) throw new Error("Not signed in");
 
   const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
   const finalizedAt = new Date().toISOString();

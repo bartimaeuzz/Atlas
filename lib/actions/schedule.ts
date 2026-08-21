@@ -21,6 +21,22 @@ import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 const PERIODS = ["Lunch", "Dinner"] as const;
 
+/** 2026-08-21 — server-action auth audit: most of this file's exported
+ * actions had NO auth check at all (including publishWeek, the one
+ * originally flagged as missing it — it's what makes a week visible to
+ * staff). A few others (autoFillWeek, clearDay, deleteWeek) checked only
+ * that a session existed, never systemRole, so any logged-in Staff
+ * account could bulk-clear or delete a published week. Same established
+ * pattern as employees.ts/tipPools.ts/payroll.ts/permissions.ts, copied
+ * as-is — see project_atlas_security_audit_2026_08_17 memory. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
+}
+
 export interface ScheduleActionState {
   error: string | null;
   saved?: boolean;
@@ -39,6 +55,8 @@ export async function updateStaffingTargets(
   formData: FormData
 ): Promise<ScheduleActionState> {
   try {
+    await requireManagerAction();
+
     const allPositions = await db.select({ id: positions.id }).from(positions);
 
     const rows: { positionId: number; dayOfWeek: number; period: "Lunch" | "Dinner"; targetCount: number }[] = [];
@@ -98,6 +116,8 @@ export async function setTemplateVacancy(
   vacancyReason: "RESIGNATION" | "PROMOTION" | "OTHER",
   vacancyStartsOn: string
 ) {
+  await requireManagerAction();
+
   const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
   if (!target) return;
 
@@ -120,6 +140,8 @@ export async function setTemplateVacancy(
  * clears rows that still have that same reason, so it can't
  * accidentally wipe out an unrelated flag set for a different reason. */
 export async function clearTemplateVacancy(templateId: number) {
+  await requireManagerAction();
+
   const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
   if (!target || !target.vacancyReason) return;
 
@@ -160,6 +182,8 @@ export async function syncEmployeePositionTemplate(
   positionId: number,
   cells: { dayOfWeek: number; period: "Lunch" | "Dinner" }[]
 ) {
+  await requireManagerAction();
+
   const existing = await db
     .select()
     .from(employeeScheduleTemplates)
@@ -202,6 +226,8 @@ export async function syncEmployeePositionTemplate(
  * flag. Distinct from "Mark vacating": this is for cleaning up a mistake
  * or an already-effective change, not flagging a future departure. */
 export async function retireEmployeeFromPosition(employeeId: number, positionId: number) {
+  await requireManagerAction();
+
   await db
     .update(employeeScheduleTemplates)
     .set({ active: false })
@@ -230,6 +256,8 @@ export async function retireEmployeeFromPosition(employeeId: number, positionId:
  *     visible against the staffing target on the grid).
  */
 export async function generateWeekFromTemplate(weekStartDate: string) {
+  await requireManagerAction();
+
   const [existing] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.weekStartDate, weekStartDate));
   if (existing) return;
 
@@ -270,6 +298,8 @@ export async function addPlannedAssignment(
   formData: FormData
 ): Promise<PlannedAssignmentActionState> {
   try {
+    await requireManagerAction();
+
     const weekId = Number(formData.get("weekId"));
     const employeeId = Number(formData.get("employeeId"));
     const positionId = Number(formData.get("positionId"));
@@ -365,8 +395,7 @@ export interface AutoFillActionState {
  * elsewhere in the grid, etc). */
 export async function autoFillWeek(weekId: number): Promise<AutoFillActionState> {
   try {
-    const session = await getCurrentStaffSession();
-    if (!session) return { error: "You've been signed out -- sign in again" };
+    await requireManagerAction();
 
     const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
     if (!week) return { error: "That week no longer exists" };
@@ -531,6 +560,8 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
  * use.
  */
 export async function removePlannedAssignment(assignmentId: number) {
+  const session = await requireManagerAction();
+
   const [assignment] = await db
     .select({
       weekId: plannedShiftAssignments.weekId,
@@ -547,8 +578,7 @@ export async function removePlannedAssignment(assignmentId: number) {
   await db.delete(plannedShiftAssignments).where(eq(plannedShiftAssignments.id, assignmentId));
 
   const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, assignment.weekId));
-  const session = await getCurrentStaffSession();
-  if (week?.status === "published" && session) {
+  if (week?.status === "published") {
     await logScheduleChange({
       weekId: assignment.weekId,
       weekStartDate: week.weekStartDate,
@@ -577,6 +607,8 @@ export async function removePlannedAssignment(assignmentId: number) {
  * (a later phase) — draft weeks are manager-only. No un-publish for v1;
  * not asked for. */
 export async function publishWeek(weekId: number) {
+  await requireManagerAction();
+
   await db
     .update(scheduleWeeks)
     .set({ status: "published", publishedAt: new Date().toISOString() })
@@ -699,8 +731,7 @@ export async function clearDay(
   // of a message inside the form. Now it always resolves to a readable
   // inline error instead of crashing the page.
   try {
-    const session = await getCurrentStaffSession();
-    if (!session) return { error: "You've been signed out -- sign in again" };
+    const session = await requireManagerAction();
 
     const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
     if (!week) return { error: "That week no longer exists" };
@@ -762,8 +793,7 @@ export async function deleteWeek(
   // (e.g. a not-yet-applied migration) used to crash straight to
   // Next.js's generic error page instead of showing a message.
   try {
-    const session = await getCurrentStaffSession();
-    if (!session) return { error: "You've been signed out -- sign in again" };
+    const session = await requireManagerAction();
 
     const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
     if (!week) return { error: "That week no longer exists" };
