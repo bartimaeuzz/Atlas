@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadSummaryData } from "@/lib/shift/loadSummaryData";
 import { Card, Section } from "@/components/ui/Card";
+import { formatDateTime } from "@/lib/formatDateTime";
 
 export default async function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -37,7 +38,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         Summary Report — {data.shift.date} ({data.shift.period})
       </h1>
       <p className="text-sm text-[var(--ink-500)] mb-8">
-        Finalized {data.shift.finalizedAt ? new Date(data.shift.finalizedAt).toLocaleString() : ""} — figures below are a
+        Finalized {data.shift.finalizedAt ? formatDateTime(data.shift.finalizedAt) : ""} — figures below are a
         locked snapshot, not recalculated live.
       </p>
 

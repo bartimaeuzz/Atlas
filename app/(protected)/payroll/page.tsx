@@ -7,6 +7,7 @@ import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Banner } from "@/components/ui/Banner";
 import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
+import { formatShortDate } from "@/lib/formatDateTime";
 
 function weekLabel(weekStart: string): string {
   const days = datesInWeek(weekStart);
@@ -65,7 +66,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
         {register.status === "paid" ? (
           <Badge tone="success">
             Paid{register.paidByName ? ` — by ${register.paidByName}` : ""}
-            {register.paidAt ? ` on ${new Date(register.paidAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+            {register.paidAt ? ` on ${formatShortDate(register.paidAt)}` : ""}
           </Badge>
         ) : (
           <Badge tone="neutral">Draft — live numbers</Badge>

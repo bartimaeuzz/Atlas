@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
+import { formatDateTime } from "@/lib/formatDateTime";
 
 /** The holistic checks table (2026-08-14 restructure, replaces v46's
  * "Recent payments" list) -- every check ever printed, most recent
@@ -157,7 +158,7 @@ function CheckRow({
             </a>
             {check.status === "paid" ? (
               <p className="text-xs text-[var(--success-700)]">
-                Delivered {check.deliveredAt ? new Date(check.deliveredAt).toLocaleString() : ""}
+                Delivered {check.deliveredAt ? formatDateTime(check.deliveredAt) : ""}
                 {check.deliveredByName ? ` · marked by ${check.deliveredByName}` : ""}
               </p>
             ) : (
@@ -178,7 +179,7 @@ function CheckRow({
  * "fixed the description" edit doesn't clutter the line with an
  * unchanged amount. */
 function HistoryEntry({ entry }: { entry: CheckAuditLogEntry }) {
-  const when = new Date(entry.createdAt).toLocaleString();
+  const when = formatDateTime(entry.createdAt);
 
   if (entry.action === "PRINTED_CHECK") {
     const d = entry.details as { checkNumber: string | null; totalAmount: number; invoiceIds: number[] };

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { generateRecoveryCode, type GenerateRecoveryCodeState } from "@/lib/actions/recovery";
 import type { RecoveryCodeStatus } from "@/lib/settings/loadRestaurantSettings";
+import { formatDateTime } from "@/lib/formatDateTime";
 
 const initialState: GenerateRecoveryCodeState = { error: null };
 
@@ -101,5 +102,10 @@ export function RecoveryCodeSection({ status, viewerIsAdmin }: { status: Recover
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleString();
+  // 2026-08-21: use the shared deterministic formatter -- a bare
+  // toLocaleString() resolves against the runtime's default locale/
+  // timezone, which differs between server-render and client-hydration
+  // and causes a React hydration mismatch (found live on the same
+  // pattern in ledger/ReconciliationPanel.tsx, see lib/formatDateTime.ts).
+  return formatDateTime(iso);
 }

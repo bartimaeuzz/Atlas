@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TextInput } from "@/components/ui/Field";
 import { formatMoney } from "./formatMoney";
+import { formatDateTime } from "@/lib/formatDateTime";
 
 /** The "opening manager counts the drawer against what the closing
  * manager handed over" ritual Oliver described, digitized. Sales cash /
@@ -80,7 +81,7 @@ export function ReconciliationPanel({ data, isAdmin }: { data: PettyCashDayData;
           <Banner
             tone="success"
             title="Finalized"
-            description={`${data.finalizedAt ? new Date(data.finalizedAt).toLocaleString() : ""}${data.finalizedByName ? ` by ${data.finalizedByName}` : ""}`}
+            description={`${data.finalizedAt ? formatDateTime(data.finalizedAt) : ""}${data.finalizedByName ? ` by ${data.finalizedByName}` : ""}`}
           />
         </div>
       )}
@@ -201,12 +202,19 @@ function Field({
 }
 
 function ReadOnlyField({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
+  // 2026-08-21 visual-audit fix: this is the app's own documented
+  // money-format rule ("negatives shown as red text with a minus sign",
+  // project_atlas_ui_design.md) -- was previously always neutral ink
+  // regardless of sign. Payroll's Deduction column (page.tsx) already
+  // got this right; this component hadn't. Bold/negative both apply
+  // (e.g. a negative "Expected total balance" is both bold AND a real
+  // problem), negative wins over the plain "bold" ink-900 default.
+  const negative = value < 0;
+  const colorClass = negative ? "text-[var(--danger-700)]" : bold ? "text-[var(--ink-900)]" : "text-[var(--ink-700)]";
   return (
     <div className="flex items-center justify-between">
       <span className="text-[var(--ink-500)]">{label}</span>
-      <span className={`tabular-nums ${bold ? "font-semibold text-[var(--ink-900)]" : "text-[var(--ink-700)]"}`}>
-        {formatMoney(value)}
-      </span>
+      <span className={`tabular-nums ${bold ? "font-semibold" : ""} ${colorClass}`}>{formatMoney(value)}</span>
     </div>
   );
 }
