@@ -12,6 +12,23 @@ import {
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
 import { weekStartFor } from "@/lib/schedule/weekMath";
+import { getCurrentStaffSession } from "@/lib/auth/session";
+
+/** 2026-08-21 — server-action auth audit: this file had NO auth check at
+ * all before, on any of its six exported actions, including
+ * confirmFinalize (the step that permanently locks a shift's payroll
+ * numbers). The page-level requireManager() guard on /shifts/* protects
+ * page loads, not a Server Action's own POST endpoint called directly —
+ * same gap class already found and fixed in employees.ts/tipPools.ts/
+ * payroll.ts/permissions.ts, see project_atlas_security_audit_2026_08_17
+ * memory. Same established pattern, copied as-is. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
+}
 
 /** Auto-seeds a brand-new shift's roster from a PUBLISHED weekly plan
  * (Schedule Planner Phase 2, 2026-08-11) — confirmed with Oliver: this is
@@ -53,6 +70,8 @@ async function seedRosterFromPublishedPlan(shiftId: number, date: string, period
  * the existing "Add someone" flow on the roster page (untouched) still
  * handles same-day fixes on top of whatever gets seeded here. */
 export async function createShift(formData: FormData) {
+  await requireManagerAction();
+
   const date = String(formData.get("date") ?? "");
   const period = String(formData.get("period") ?? "");
   if (!date || (period !== "Lunch" && period !== "Dinner")) {
@@ -77,6 +96,8 @@ export async function createShift(formData: FormData) {
 }
 
 export async function addRosterEntry(formData: FormData) {
+  await requireManagerAction();
+
   const shiftId = Number(formData.get("shiftId"));
   const employeeId = Number(formData.get("employeeId"));
   const positionId = Number(formData.get("positionId"));
@@ -102,6 +123,8 @@ export async function addRosterEntry(formData: FormData) {
 }
 
 export async function removeRosterEntry(formData: FormData) {
+  await requireManagerAction();
+
   const rosterEntryId = Number(formData.get("rosterEntryId"));
   const shiftId = Number(formData.get("shiftId"));
   if (!rosterEntryId || !shiftId) throw new Error("Missing roster entry");
@@ -133,6 +156,7 @@ export async function saveClosingReportSales(
   if (!shiftId) return { error: "Missing shift id" };
 
   try {
+    await requireManagerAction();
     await assertDraft(shiftId);
     await upsertClosingReportSales(shiftId, formData);
   } catch (e) {
@@ -160,6 +184,7 @@ export async function saveClosingReportAndPreview(
   if (!shiftId) return { error: "Missing shift id" };
 
   try {
+    await requireManagerAction();
     await assertDraft(shiftId);
     await upsertClosingReportSales(shiftId, formData);
   } catch (e) {
@@ -183,6 +208,7 @@ export async function confirmFinalize(
   if (!shiftId) return { error: "Missing shift id" };
 
   try {
+    await requireManagerAction();
     await assertDraft(shiftId);
     await runFinalize(shiftId);
   } catch (e) {
@@ -424,4 +450,3 @@ async function assertDraft(shiftId: number) {
     throw new Error("This shift is already finalized and locked — view the Summary Report instead.");
   }
 }
-
