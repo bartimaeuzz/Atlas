@@ -12,7 +12,19 @@ const POOL_OPTIONS: { value: TipPoolGroup; label: string; hint: string }[] = [
   { value: "POOL_3_DELIVERY", label: "Pool 3 — Delivery", hint: "Delivery Guy (equal split, not point-weighted)" },
 ];
 
-export function PositionForm({ existing }: { existing: PositionListRow | null }) {
+/** canEditPools (2026-08-21, Phase C re-review): tip pool membership is
+ * the same positionTipPools data the /settings/tip-pools board writes,
+ * and that board is Admin+Partner-only via TIP_POOL_STRUCTURE_EDIT. The
+ * server action now enforces the same rule here; these checkboxes are
+ * disabled to match, so a Floor Manager isn't offered a control that
+ * fails on submit. Everything else on this form stays editable. */
+export function PositionForm({
+  existing,
+  canEditPools,
+}: {
+  existing: PositionListRow | null;
+  canEditPools: boolean;
+}) {
   const action = existing ? updatePosition : createPosition;
   const [state, formAction, isPending] = useActionState(action, initialState);
   const [category, setCategory] = useState<"FOH" | "BOH">(existing?.category ?? "FOH");
@@ -95,7 +107,8 @@ export function PositionForm({ existing }: { existing: PositionListRow | null })
                 name="tipPoolGroups"
                 value={opt.value}
                 defaultChecked={existing?.tipPoolGroups.includes(opt.value) ?? false}
-                className="mt-0.5"
+                disabled={!canEditPools}
+                className="mt-0.5 disabled:cursor-not-allowed"
               />
               <span>
                 <span className="font-medium">{opt.label}</span>
@@ -105,8 +118,9 @@ export function PositionForm({ existing }: { existing: PositionListRow | null })
           ))}
         </div>
         <p className="text-xs text-neutral-500 mt-1">
-          A position with no boxes checked is in no tip pool at all (e.g. Manager, Chef). A
-          position can belong to more than one pool — Host is the reason this exists.
+          {canEditPools
+            ? "A position with no boxes checked is in no tip pool at all (e.g. Manager, Chef). A position can belong to more than one pool — Host is the reason this exists."
+            : "Which pools a position belongs to is set by an admin or partner. Everything else on this form is yours to edit."}
         </p>
       </div>
 

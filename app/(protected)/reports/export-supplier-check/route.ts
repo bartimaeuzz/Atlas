@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireCapabilityRoute } from "@/lib/auth/requireRouteAccess";
 import { loadSupplierCheckReport } from "@/lib/reports/loadSupplierCheckReport";
 import { buildSupplierCheckWorkbook } from "@/lib/reports/buildSupplierCheckWorkbook";
 
@@ -14,6 +15,13 @@ import { buildSupplierCheckWorkbook } from "@/lib/reports/buildSupplierCheckWork
  * import. See buildSupplierCheckWorkbook's own comment for the full
  * reasoning. */
 export async function GET(request: NextRequest) {
+  // Auth added 2026-08-21 (Phase C scrutinize): this handler had none.
+  // Matched to VIEW_LEDGER_OVERVIEW, the same capability that now gates
+  // the Supplier Check page this data comes from -- otherwise the export
+  // URL is a way to read a page you were just denied.
+  const denied = await requireCapabilityRoute("VIEW_LEDGER_OVERVIEW");
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");

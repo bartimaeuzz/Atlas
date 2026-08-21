@@ -6,6 +6,8 @@ import { PageHeader, Card } from "@/components/ui/Card";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { TextInput } from "@/components/ui/Field";
 import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 
 /** Pinned to UTC noon, same fix as Reports/MyEarningsView — avoids the
  * classic "YYYY-MM-DD parses as the previous day" bug in negative-UTC-
@@ -119,6 +121,30 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  // Permission System Phase C (2026-08-21) -- two capabilities, one page.
+  // VIEW_ANALYTICS opens the page (operating ratios and the revenue /
+  // expense breakdowns); VIEW_PNL additionally reveals the bottom-line
+  // profit figures. Oliver's call, confirmed before building: a manager
+  // can be shown where the money is going without being shown what the
+  // restaurant earns.
+  //
+  // "Bottom-line profit" is deliberately read as more than just the P&L
+  // table -- confirmed with Oliver after a scrutinize pass showed a
+  // narrower reading would have been cosmetic. Three things are withheld
+  // without VIEW_PNL:
+  //   1. the P&L statement itself;
+  //   2. the Net margin health indicator, which IS a profit figure (net
+  //      profit as a % of revenue);
+  //   3. every dollar amount on the two breakdown charts, because total
+  //      revenue times the prime-cost ratio (which stays) reconstructs
+  //      the bottom line to within other operating expenses.
+  // Food/bar/labor/prime cost ratios and the breakdown SHARES stay --
+  // "food is 31% of spend, up from 27%" is the cost-control job
+  // VIEW_ANALYTICS exists for, and needs no dollar figures.
+  const viewer = await getViewerCapabilities();
+  if (!viewer?.has("VIEW_ANALYTICS")) return <NoAccess pageLabel="the Analytics page" />;
+  const canSeePnL = viewer.has("VIEW_PNL");
+
   const params = await searchParams;
   const today = parseDate(toIso(new Date()));
   const presets = computePresets(today);
@@ -138,8 +164,12 @@ export default async function AnalyticsPage({
   return (
     <main className="max-w-5xl mx-auto p-4 sm:p-8">
       <PageHeader
-        title="Analytics & P&L"
-        description={`Revenue, expenses, and the "sweet spot" indicators for the range below — computed from finalized shifts and Ledger entries already in Atlas. No POS integration yet, so this only reflects what's been entered here.`}
+        title={canSeePnL ? "Analytics & P&L" : "Analytics"}
+        description={
+          canSeePnL
+            ? `Revenue, expenses, and the "sweet spot" indicators for the range below — computed from finalized shifts and Ledger entries already in Atlas. No POS integration yet, so this only reflects what's been entered here.`
+            : `Where revenue and spending are going for the range below, as shares of the total, plus the "sweet spot" cost indicators — computed from finalized shifts and Ledger entries already in Atlas. Dollar totals are part of the P&L, which isn't turned on for your account.`
+        }
       />
 
       <Card className="flex flex-wrap items-end gap-4 mb-6">
@@ -179,32 +209,46 @@ export default async function AnalyticsPage({
 
       {/* Benchmarked KPIs -- the "sweet spot" indicators Oliver asked for */}
       <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">Health indicators</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 ${canSeePnL ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <KpiMeterCard benchmark={pnl.kpis.foodCostPct} />
         <KpiMeterCard benchmark={pnl.kpis.barCostPct} />
         <KpiMeterCard benchmark={pnl.kpis.laborCostPct} />
         <KpiMeterCard benchmark={pnl.kpis.primeCostPct} />
-        <KpiMeterCard benchmark={pnl.kpis.netMarginPct} />
+        {canSeePnL && <KpiMeterCard benchmark={pnl.kpis.netMarginPct} />}
       </div>
 
       {/* Revenue / expense breakdown charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
         <BreakdownBarChart
           title="Revenue by channel"
-          subtitle="Net sales (excludes tax and tips) — Toast is your in-house register/card terminal."
+          subtitle={
+            canSeePnL
+              ? "Net sales (excludes tax and tips) — Toast is your in-house register/card terminal."
+              : "Share of net sales by channel — Toast is your in-house register/card terminal."
+          }
           slices={revenueSlices}
           total={pnl.revenue.total}
+          showAmounts={canSeePnL}
         />
         <BreakdownBarChart
           title="Expenses by category"
-          subtitle="Petty Cash + Supplier Check + Card, pooled by category. Payroll isn't shown here — see the P&L below, it's computed from actual shift wages instead."
+          subtitle={
+            canSeePnL
+              ? "Petty Cash + Supplier Check + Card, pooled by category. Payroll isn't shown here — see the P&L below, it's computed from actual shift wages instead."
+              : "Share of spend by category, pooled from Petty Cash + Supplier Check + Card. Payroll isn't included here — it's computed from actual shift wages instead."
+          }
           slices={expenseSlices}
           total={pnl.expenses.total}
+          showAmounts={canSeePnL}
         />
       </div>
       {pnl.expenses.excludedTotal > 0 && (
         <p className="text-xs text-[var(--ink-500)] -mt-6 mb-8">
-          Note: {formatMoney(pnl.expenses.excludedTotal)} logged under the PAYROLL BOH/PAYROLL FOH ledger categories was
+          {/* The amount itself is a dollar figure, so it follows the same
+              rule as the charts above -- the note still explains what was
+              excluded and why, just without the number. */}
+          Note: spending logged under the PAYROLL BOH/PAYROLL FOH ledger categories
+          {canSeePnL ? ` (${formatMoney(pnl.expenses.excludedTotal)})` : ""} was
           left out of the chart above — Payroll on this page comes from Atlas&apos;s own computed shift-wage data instead,
           so counting both would double-count. Re-tag those categories from{" "}
           <Link href="/ledger/categories" className="underline hover:text-[var(--ink-900)]">
@@ -214,29 +258,34 @@ export default async function AnalyticsPage({
         </p>
       )}
 
-      {/* P&L statement */}
-      <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">P&amp;L statement</h2>
-      <div className="border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-2">
-        <table className="w-full text-sm border-collapse">
-          <tbody>
-            <PnLRow label="Revenue" amount={pnl.revenue.total} bold />
-            <PnLRow label="Food cost" amount={-pnl.cogs.food} indent />
-            <PnLRow label="Drinks cost (non-alcoholic)" amount={-pnl.cogs.drinks} indent />
-            <PnLRow label="Bar cost (alcohol)" amount={-pnl.cogs.bar} indent />
-            <PnLRow label="Cost of goods sold" amount={-pnl.cogs.total} bold border />
-            <PnLRow label="Gross profit" amount={pnl.grossProfit} bold border />
-            <PnLRow label="Payroll — FOH" amount={-pnl.payroll.foh} indent />
-            <PnLRow label="Payroll — BOH" amount={-pnl.payroll.boh} indent />
-            <PnLRow label="Payroll total" amount={-pnl.payroll.total} bold />
-            <PnLRow label="Other operating expenses" amount={-pnl.otherOpex} bold />
-            <PnLRow label="Net profit" amount={pnl.netProfit} bold border highlight />
-          </tbody>
-        </table>
-      </div>
-      <p className="text-xs text-[var(--ink-500)] mb-8">
-        Only counts finalized shifts and Supplier Check payments already printed/paid — matches the same rules the
-        Sales &amp; Tax and Supplier Check reports already use.
-      </p>
+      {/* P&L statement -- VIEW_PNL only, see the doc block at the top of
+          this component for why this is a separate capability. */}
+      {canSeePnL && (
+        <>
+          <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">P&amp;L statement</h2>
+          <div className="border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-2">
+            <table className="w-full text-sm border-collapse">
+              <tbody>
+                <PnLRow label="Revenue" amount={pnl.revenue.total} bold />
+                <PnLRow label="Food cost" amount={-pnl.cogs.food} indent />
+                <PnLRow label="Drinks cost (non-alcoholic)" amount={-pnl.cogs.drinks} indent />
+                <PnLRow label="Bar cost (alcohol)" amount={-pnl.cogs.bar} indent />
+                <PnLRow label="Cost of goods sold" amount={-pnl.cogs.total} bold border />
+                <PnLRow label="Gross profit" amount={pnl.grossProfit} bold border />
+                <PnLRow label="Payroll — FOH" amount={-pnl.payroll.foh} indent />
+                <PnLRow label="Payroll — BOH" amount={-pnl.payroll.boh} indent />
+                <PnLRow label="Payroll total" amount={-pnl.payroll.total} bold />
+                <PnLRow label="Other operating expenses" amount={-pnl.otherOpex} bold />
+                <PnLRow label="Net profit" amount={pnl.netProfit} bold border highlight />
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-[var(--ink-500)] mb-8">
+            Only counts finalized shifts and Supplier Check payments already printed/paid — matches the same rules the
+            Sales &amp; Tax and Supplier Check reports already use.
+          </p>
+        </>
+      )}
     </main>
   );
 }

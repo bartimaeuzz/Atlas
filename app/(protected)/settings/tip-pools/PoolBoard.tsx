@@ -92,7 +92,32 @@ interface SplitMethods {
   POOL_3_DELIVERY: PoolSplitMethod;
 }
 
-export function PoolBoard({ positions, splitMethods }: { positions: PositionListRow[]; splitMethods: SplitMethods }) {
+/** readOnly (2026-08-21, Permission System Phase C): VIEW_SETTINGS
+ * without EDIT_SETTINGS. Handled inside this component rather than by
+ * wrapping it in a disabled <fieldset> from the page, for two reasons a
+ * fieldset can't cover:
+ *
+ *  - Drag-and-drop lives on plain <div>s (draggable / onDrop below).
+ *    `disabled` on a fieldset only affects form-associated elements, so
+ *    a disabled wrapper would still let a desktop user drag a position
+ *    into a pool, watch the optimistic update move it, and then get a
+ *    red "Not authorized." banner when the server action refused --
+ *    exactly the failure read-only mode exists to prevent.
+ *  - The All/Unassigned/FOH/BOH filters are pure view state. A fieldset
+ *    would disable those too, taking away filtering from someone who is
+ *    only reading -- which is when filtering is most useful.
+ *
+ * Everything that writes is disabled; everything that only looks stays
+ * live. */
+export function PoolBoard({
+  positions,
+  splitMethods,
+  readOnly = false,
+}: {
+  positions: PositionListRow[];
+  splitMethods: SplitMethods;
+  readOnly?: boolean;
+}) {
   const [rows, setRows] = useState(positions);
   const [methods, setMethods] = useState(splitMethods);
   const [filter, setFilter] = useState<"all" | "unassigned" | "FOH" | "BOH">("all");
@@ -102,6 +127,7 @@ export function PoolBoard({ positions, splitMethods }: { positions: PositionList
   const router = useRouter();
 
   function toggle(positionId: number, pool: TipPoolGroup, add: boolean) {
+    if (readOnly) return;
     setError(null);
     // Optimistic update first, for the snappy "game UI" feel.
     setRows((prev) =>
@@ -130,6 +156,7 @@ export function PoolBoard({ positions, splitMethods }: { positions: PositionList
   }
 
   function changeSplitMethod(pool: TipPoolGroup, method: PoolSplitMethod) {
+    if (readOnly) return;
     setError(null);
     const prevMethod = methods[pool];
     setMethods((m) => ({ ...m, [pool]: method }));
@@ -191,7 +218,7 @@ export function PoolBoard({ positions, splitMethods }: { positions: PositionList
           ) : (
             <div className="space-y-1.5">
               {filtered.map((p) => (
-                <MasterCard key={p.id} position={p} onToggle={toggle} dragId={dragId} setDragId={setDragId} />
+                <MasterCard key={p.id} position={p} onToggle={toggle} dragId={dragId} setDragId={setDragId} readOnly={readOnly} />
               ))}
             </div>
           )}
@@ -208,20 +235,23 @@ export function PoolBoard({ positions, splitMethods }: { positions: PositionList
               onToggle={toggle}
               dragId={dragId}
               setDragId={setDragId}
+              readOnly={readOnly}
             />
           ))}
         </div>
       </div>
 
       <p className="text-xs text-[var(--ink-500)] mt-4 text-center">
-        Every change saves immediately. Tap the number buttons (works on phone), or drag a card into a pool window on
-        desktop.
+        {readOnly
+          ? "This is how the pools are set up today. You can look, but changing it needs Edit Settings access."
+          : "Every change saves immediately. Tap the number buttons (works on phone), or drag a card into a pool window on desktop."}
       </p>
     </div>
   );
 }
 
 function MasterCard({
+  readOnly,
   position,
   onToggle,
   dragId,
@@ -231,14 +261,16 @@ function MasterCard({
   onToggle: (positionId: number, pool: TipPoolGroup, add: boolean) => void;
   dragId: number | null;
   setDragId: (id: number | null) => void;
+  readOnly: boolean;
 }) {
   return (
     <div
-      draggable
+      draggable={!readOnly}
       onDragStart={() => setDragId(position.id)}
       onDragEnd={() => setDragId(null)}
       className={
-        "flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--paper)] px-2.5 py-2 cursor-grab active:cursor-grabbing" +
+        "flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--paper)] px-2.5 py-2" +
+        (readOnly ? "" : " cursor-grab active:cursor-grabbing") +
         (dragId === position.id ? " opacity-40" : "") +
         (!position.active ? " opacity-50" : "")
       }
@@ -276,9 +308,22 @@ function MasterCard({
               title={actionLabel}
               aria-label={actionLabel}
               aria-pressed={active}
+              disabled={readOnly}
               onClick={() => onToggle(position.id, pool.key, !active)}
               className={
                 "min-h-11 min-w-11 rounded-[var(--radius-sm)] text-[13px] flex items-center justify-center font-bold transition-colors " +
+                // Without these, a disabled button still lights up on
+                // hover (:hover matches disabled elements) and then does
+                // nothing on click -- which reads as broken rather than
+                // as read-only. Same treatment SettingsForm's submit
+                // button already uses.
+                //
+                // bg-inherit, NOT bg-[var(--card)]: `disabled:hover:` is
+                // one class plus two pseudo-classes, so it outranks the
+                // active branch's own bg-blue-600/emerald/amber -- an
+                // in-pool button would have painted itself white while
+                // its "✓" stayed white, making the glyph vanish.
+                "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-inherit " +
                 (active
                   ? `text-white border border-transparent ${c.chip}`
                   : `bg-[var(--card)] border ${c.border} ${c.text} hover:bg-[var(--paper)]`)
@@ -294,6 +339,7 @@ function MasterCard({
 }
 
 function PoolWindow({
+  readOnly,
   pool,
   positions,
   method,
@@ -306,6 +352,7 @@ function PoolWindow({
   positions: PositionListRow[];
   method: PoolSplitMethod;
   onChangeMethod: (m: PoolSplitMethod) => void;
+  readOnly: boolean;
   onToggle: (positionId: number, pool: TipPoolGroup, add: boolean) => void;
   dragId: number | null;
   setDragId: (id: number | null) => void;
@@ -316,11 +363,13 @@ function PoolWindow({
   return (
     <div
       onDragOver={(e) => {
+        if (readOnly) return;
         e.preventDefault();
         setDragOver(true);
       }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => {
+        if (readOnly) return;
         e.preventDefault();
         setDragOver(false);
         if (dragId == null) return;
@@ -351,11 +400,12 @@ function PoolWindow({
             return (
               <div
                 key={p.id}
-                draggable
+                draggable={!readOnly}
                 onDragStart={() => setDragId(p.id)}
                 onDragEnd={() => setDragId(null)}
                 className={
-                  "flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2.5 py-2 cursor-grab active:cursor-grabbing" +
+                  "flex items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-2.5 py-2" +
+                  (readOnly ? "" : " cursor-grab active:cursor-grabbing") +
                   (dragId === p.id ? " opacity-40" : "")
                 }
               >
@@ -377,8 +427,9 @@ function PoolWindow({
                   type="button"
                   title={`Remove from ${pool.title}`}
                   aria-label={`Remove from ${pool.title}`}
+                  disabled={readOnly}
                   onClick={() => onToggle(p.id, pool.key, false)}
-                  className="min-h-11 min-w-11 rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--ink-500)] hover:bg-[var(--paper)] hover:text-[var(--ink-900)] text-sm flex items-center justify-center shrink-0 transition-colors"
+                  className="min-h-11 min-w-11 rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--ink-500)] hover:bg-[var(--paper)] hover:text-[var(--ink-900)] text-sm flex items-center justify-center shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--ink-500)]"
                 >
                   ✕
                 </button>
@@ -391,6 +442,7 @@ function PoolWindow({
       <Select
         label="Split method"
         value={method}
+        disabled={readOnly}
         onChange={(e) => onChangeMethod(e.target.value as PoolSplitMethod)}
         className="text-xs"
       >

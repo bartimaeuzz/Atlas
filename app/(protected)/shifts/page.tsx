@@ -3,9 +3,14 @@ import { loadShiftsList } from "@/lib/shift/loadShiftsList";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 
 export default async function ShiftsListPage() {
-  const shifts = await loadShiftsList();
+  // Phase C (2026-08-21): Settings is behind VIEW_SETTINGS, which
+  // defaults to Admin+Partner -- so this shortcut would dead-end for
+  // every Floor/Assistant Manager, on the page they use most. Hidden
+  // rather than left to fail.
+  const [shifts, canSeeSettings] = await Promise.all([loadShiftsList(), hasCapability("VIEW_SETTINGS")]);
 
   return (
     <main className="max-w-2xl mx-auto px-4 sm:px-8 py-8">
@@ -13,9 +18,11 @@ export default async function ShiftsListPage() {
         title="Shifts"
         actions={
           <>
-            <LinkButton href="/settings" variant="secondary" size="sm">
-              Settings
-            </LinkButton>
+            {canSeeSettings && (
+              <LinkButton href="/settings" variant="secondary" size="sm">
+                Settings
+              </LinkButton>
+            )}
             <LinkButton href="/positions" variant="secondary" size="sm">
               Positions
             </LinkButton>

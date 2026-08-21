@@ -1,8 +1,9 @@
-import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadUnseenLeaveRequestCount } from "@/lib/schedule/loadLeaveRequests";
 import { loadUnseenSwapCount } from "@/lib/schedule/loadSwapRequests";
 import { toIso } from "@/lib/schedule/weekMath";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NavBarClient } from "./NavBarClient";
+import { NAV_ITEM_CAPABILITY, resolveLedgerHref } from "./navItemCapabilities";
 import { SessionIdleWarning } from "./SessionIdleWarning";
 
 /** Server wrapper — resolves the staff session cookie server-side (client
@@ -22,8 +23,43 @@ import { SessionIdleWarning } from "./SessionIdleWarning";
  * then calls router.refresh()) reliably clears its share of the badge
  * on the very next render. */
 export async function NavBar() {
-  const session = await getCurrentStaffSession();
+  // Permission System Phase C (2026-08-21) -- resolve which capability-
+  // gated nav destinations this viewer can actually open, so the rail
+  // never offers a link that lands on a no-access page.
+  //
+  // Note this runs for every signed-in session, staff included, even
+  // though the staff nav has no gated destinations. That's deliberate
+  // after the re-review: getViewerCapabilities() is React-cache()d per
+  // request and the page below almost always needs it anyway, so
+  // skipping it for STAFF would save nothing on manager pages and add a
+  // branch. It resolves the session in the same call.
+  const viewer = await getViewerCapabilities();
+  const session = viewer?.session ?? null;
   const isManager = session && (session.systemRole === "MANAGER" || session.systemRole === "ADMIN");
+  let hiddenNavHrefs =
+    viewer && isManager
+      ? Object.entries(NAV_ITEM_CAPABILITY)
+          .filter(([, capabilityKey]) => !viewer.has(capabilityKey))
+          .map(([href]) => href)
+      : [];
+  // See resolveLedgerHref's own comment: the Ledger nav item points at
+  // the Card report instead when that's the only half of the Ledger this
+  // viewer holds, rather than being a link to a page that refuses them.
+  const ledgerHref = viewer && isManager ? resolveLedgerHref(viewer.has) : "/ledger";
+  if (ledgerHref === null) {
+    if (!hiddenNavHrefs.includes("/ledger")) hiddenNavHrefs.push("/ledger");
+  } else {
+    // NAV_ITEM_CAPABILITY already added "/ledger" to the hidden list on
+    // VIEW_LEDGER_OVERVIEW alone. Un-hide it when the card half is held:
+    // NavBarClient filters BEFORE it applies the href override, so
+    // leaving it hidden would drop the item and make the override dead
+    // code -- which is exactly the "holds the capability, no way to use
+    // it" bug resolveLedgerHref exists to prevent. Caught by the Phase C
+    // re-review; the home tile (app/page.tsx) already handled this case.
+    hiddenNavHrefs = hiddenNavHrefs.filter((h) => h !== "/ledger");
+  }
+  const navHrefOverrides: Record<string, string> =
+    ledgerHref && ledgerHref !== "/ledger" ? { "/ledger": ledgerHref } : {};
   const today = toIso(new Date());
   const [unseenLeaveCount, unseenSwapCount] = isManager
     ? await Promise.all([loadUnseenLeaveRequestCount(session.id, today), loadUnseenSwapCount(session.id, today)])
@@ -38,6 +74,8 @@ export async function NavBar() {
       <NavBarClient
         auth={session ? { name: session.name, systemRole: session.systemRole } : null}
         unseenScheduleCount={unseenLeaveCount + unseenSwapCount}
+        hiddenNavHrefs={hiddenNavHrefs}
+        navHrefOverrides={navHrefOverrides}
       />
     </>
   );

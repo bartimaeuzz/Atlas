@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { loadPositionsList } from "@/lib/positions/loadPositionsList";
 import { ToggleActiveButton } from "./ToggleActiveButton";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 
 const POOL_LABELS: Record<string, string> = {
   POOL_1_DINE_IN: "Pool 1",
@@ -9,7 +10,8 @@ const POOL_LABELS: Record<string, string> = {
 };
 
 export default async function PositionsListPage() {
-  const positionList = await loadPositionsList();
+  // Phase C (2026-08-21): /settings/tip-pools is behind VIEW_SETTINGS.
+  const [positionList, canSeeSettings] = await Promise.all([loadPositionsList(), hasCapability("VIEW_SETTINGS")]);
 
   return (
     <main className="max-w-3xl mx-auto p-8 font-sans">
@@ -24,9 +26,16 @@ export default async function PositionsListPage() {
         (for FOH) their flat wage rate. Retiring a position keeps every past shift that used it
         intact; it just stops showing up when staffing new ones.
       </p>
-      <Link href="/settings/tip-pools" className="inline-block text-xs text-neutral-500 hover:text-black underline mb-6">
-        Bulk-manage tip pool assignment for every position →
-      </Link>
+      {/* The mb-6 lives on the wrapper, not the link: hanging it off a
+          conditional element made the table jump up ~12px for anyone
+          without VIEW_SETTINGS. */}
+      <div className="mb-6">
+        {canSeeSettings && (
+          <Link href="/settings/tip-pools" className="inline-block text-xs text-neutral-500 hover:text-black underline">
+            Bulk-manage tip pool assignment for every position →
+          </Link>
+        )}
+      </div>
 
       {positionList.length === 0 ? (
         <p className="text-neutral-500 text-sm">No positions yet.</p>

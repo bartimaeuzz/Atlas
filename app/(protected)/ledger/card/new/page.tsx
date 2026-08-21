@@ -4,10 +4,14 @@ import { NewPeriodForm } from "../NewPeriodForm";
 import { EmptyState } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 
 /** Dedicated "New statement period" page, same pattern as Supplier
  * Check's /new -- redirects to the new period's detail page on success. */
 export default async function NewCardStatementPeriodPage() {
+  if (!(await hasCapability("VIEW_LEDGER_CARD_REPORT"))) return <NoAccess pageLabel="the Card report" />;
+
   const allCards = await loadLedgerCards();
   const cards = allCards.filter((c) => c.active);
 

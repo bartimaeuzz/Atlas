@@ -3,6 +3,9 @@ import { loadPositionsList } from "@/lib/positions/loadPositionsList";
 import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 import { PoolBoard } from "./PoolBoard";
 import { PageHeader } from "@/components/ui/Card";
+import { Banner } from "@/components/ui/Banner";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 
 /** Tip Pool Assignment (2026-08-17) — its own Settings section, split off
  * the main /settings page. A second way to edit the SAME positionTipPools
@@ -18,6 +21,19 @@ import { PageHeader } from "@/components/ui/Card";
  * h1/p heading for PageHeader, matching the Ledger/Vendors back-link +
  * PageHeader pattern). */
 export default async function TipPoolsSettingsPage() {
+  // Permission System Phase C (2026-08-21) -- same VIEW_SETTINGS /
+  // EDIT_SETTINGS pair as the main Settings page, since this IS a
+  // Settings section (it was split off that page, not built separately).
+  // PoolBoard takes readOnly itself rather than being wrapped in a
+  // disabled <fieldset> -- see its own doc comment: a fieldset can't
+  // reach the drag-and-drop handlers (plain divs), and would wrongly
+  // disable the view-only filter buttons. Server-side, both tip-pool
+  // actions are already gated on TIP_POOL_STRUCTURE_EDIT (Phase B);
+  // this is about not offering controls that would fail.
+  const viewer = await getViewerCapabilities();
+  if (!viewer?.has("VIEW_SETTINGS")) return <NoAccess pageLabel="Settings" />;
+  const canEdit = viewer.has("EDIT_SETTINGS");
+
   const [positions, settings] = await Promise.all([loadPositionsList(), loadRestaurantSettings()]);
 
   return (
@@ -30,7 +46,18 @@ export default async function TipPoolsSettingsPage() {
         description="Which positions belong to each tip pool, and how each pool splits. This writes the same data as each position's own edit page — use whichever view is easier for what you're doing."
       />
 
+      {!canEdit && (
+        <div className="mb-6">
+          <Banner
+            tone="info"
+            title="You can read this, but not change it."
+            description="This shows which positions are in each pool today. Ask an admin if it needs to change."
+          />
+        </div>
+      )}
+
       <PoolBoard
+        readOnly={!canEdit}
         positions={positions}
         splitMethods={{
           POOL_1_DINE_IN: settings.pool1SplitMethod,

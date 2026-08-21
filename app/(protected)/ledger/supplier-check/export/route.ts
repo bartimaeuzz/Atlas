@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireCapabilityRoute } from "@/lib/auth/requireRouteAccess";
 import { loadSupplierCheckReportByIds } from "@/lib/reports/loadSupplierCheckReport";
 import { buildSupplierCheckWorkbook } from "@/lib/reports/buildSupplierCheckWorkbook";
 
@@ -16,6 +17,11 @@ import { buildSupplierCheckWorkbook } from "@/lib/reports/buildSupplierCheckWork
  * comment for the full reasoning and the "audit" variant used by the
  * /reports export instead). */
 export async function GET(request: NextRequest) {
+  // Auth added 2026-08-21 (Phase C scrutinize): this handler had none.
+  // Same capability as the Supplier Check page it is triggered from.
+  const denied = await requireCapabilityRoute("VIEW_LEDGER_OVERVIEW");
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const idsParam = searchParams.get("paymentIds");
   if (!idsParam) {

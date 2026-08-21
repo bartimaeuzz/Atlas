@@ -327,12 +327,30 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
 export function NavBarClient({
   auth,
   unseenScheduleCount = 0,
+  hiddenNavHrefs = [],
+  navHrefOverrides = {},
 }: {
   auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" } | null;
   unseenScheduleCount?: number;
+  /** Hrefs from NAV_ITEM_CAPABILITY the current viewer doesn't hold the
+   * capability for — resolved server-side in NavBar.tsx (2026-08-21).
+   * Hiding them here is the dead-end guard: those pages now render a
+   * no-access notice, and a nav rail that keeps offering them would put
+   * a permanent broken-looking link in front of the person on every
+   * single screen. */
+  hiddenNavHrefs?: string[];
+  /** Nav items whose destination differs for this viewer -- currently
+   * only Ledger, which points at the Card report for someone who holds
+   * the card key but not the overview key. Keyed by the item's canonical
+   * href (2026-08-21). */
+  navHrefOverrides?: Record<string, string>;
 }) {
   const pathname = usePathname();
   const isManager = auth?.systemRole === "MANAGER" || auth?.systemRole === "ADMIN";
+  const hidden = new Set(hiddenNavHrefs);
+  const visibleManagerNavItems = MANAGER_NAV_ITEMS.filter((item) => !hidden.has(item.href)).map((item) =>
+    navHrefOverrides[item.href] ? { ...item, href: navHrefOverrides[item.href] } : item,
+  );
   const { collapsed, toggle } = useNavCollapse();
 
   const [menuOpen, setMenuOpen] = useState(false);
@@ -424,7 +442,7 @@ export function NavBarClient({
             (collapsed ? "items-center px-0" : "items-center sm:items-stretch px-0 sm:px-2")
           }
         >
-          {MANAGER_NAV_ITEMS.map((item) => (
+          {visibleManagerNavItems.map((item) => (
             <NavItem
               key={item.href}
               href={item.href}
@@ -445,7 +463,7 @@ export function NavBarClient({
           (collapsed ? "items-center px-0" : "items-center sm:items-stretch px-0 sm:px-2")
         }
       >
-        {isManager && (
+        {isManager && !hidden.has(SETTINGS_ITEM.href) && (
           <NavItem
             href={SETTINGS_ITEM.href}
             label={SETTINGS_ITEM.label}

@@ -52,10 +52,7 @@ import { db } from "@/db/client";
 import { employeeCapabilities } from "@/db/schema";
 import { getCurrentStaffSession, type StaffSessionEmployee } from "@/lib/auth/session";
 import { isValidCapabilityKey } from "@/lib/permissions/capabilities";
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+import { grantAllows } from "@/lib/permissions/viewerCapabilities";
 
 /** Throws "Not authorized." (same contract as requireManagerAction(),
  * so existing try/catch call sites don't need to change) unless the
@@ -75,13 +72,17 @@ export async function requireCapability(capabilityKey: string): Promise<StaffSes
   if (!session) throw new Error("Not authorized.");
   if (session.systemRole === "ADMIN") return session; // see file header
 
+  // The grant decision itself lives in viewerCapabilities.ts so the
+  // action guard (here) and the page view guards can never drift apart
+  // on what "holds this capability" means -- added 2026-08-21 with
+  // Phase C. Behaviour here is unchanged: same granted/expiry rules,
+  // same "no row means not granted" convention.
   const [row] = await db
     .select({ granted: employeeCapabilities.granted, expiresAt: employeeCapabilities.expiresAt })
     .from(employeeCapabilities)
     .where(and(eq(employeeCapabilities.employeeId, session.id), eq(employeeCapabilities.capabilityKey, capabilityKey)));
 
-  if (!row || !row.granted) throw new Error("Not authorized.");
-  if (row.expiresAt && row.expiresAt < todayIso()) throw new Error("Not authorized.");
+  if (!grantAllows(false, row)) throw new Error("Not authorized.");
 
   return session;
 }

@@ -11,6 +11,8 @@ import { LinkButton } from "@/components/ui/Button";
 import { Tab } from "@/components/ui/Tabs";
 import { formatMoney } from "../formatMoney";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 
 /** Month helpers, same shape as /ledger/page.tsx's (kept local rather
  * than shared -- matches that file's own precedent of each page owning
@@ -65,6 +67,10 @@ export default async function SupplierCheckPage({
 }: {
   searchParams: Promise<{ view?: string; week?: string; month?: string }>;
 }) {
+  const viewer = await getViewerCapabilities();
+  if (!viewer?.has("VIEW_LEDGER_OVERVIEW")) return <NoAccess pageLabel="Supplier Check" />;
+  const showCard = viewer.has("VIEW_LEDGER_CARD_REPORT");
+
   const params = await searchParams;
   const todayIso = toIso(new Date());
   // Week/month picker (2026-08-16) -- Oliver: "supplier tab on ledger
@@ -101,7 +107,7 @@ export default async function SupplierCheckPage({
     <main className="max-w-lg mx-auto p-4 sm:p-8">
       <PageHeader title="Ledger" description="Invoice-based vendor payments, settled by check." />
 
-      <LedgerTabs active="supplier" />
+      <LedgerTabs active="supplier" showOverview showCard={showCard} />
 
       <div className="flex items-center justify-between gap-3 mb-6">
         <LinkButton href="/ledger/supplier-check/new" size="sm">

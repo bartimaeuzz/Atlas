@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireManagerRoute } from "@/lib/auth/requireRouteAccess";
 import { loadPayrollRegister } from "@/lib/payroll/loadPayrollRegister";
 import { buildPayrollWorkbook } from "@/lib/payroll/buildPayrollWorkbook";
 import { weekStartFor } from "@/lib/schedule/weekMath";
@@ -8,6 +9,13 @@ import { weekStartFor } from "@/lib/schedule/weekMath";
  * for both a draft week (live numbers) and a paid week (the locked
  * snapshot) -- loadPayrollRegister already returns whichever applies. */
 export async function GET(request: NextRequest) {
+  // Auth added 2026-08-21 (Phase C scrutinize): this handler had none,
+  // and it returns every employee's wages and pay-stub detail for the
+  // week. /payroll has no view capability of its own yet, so this holds
+  // the same manager bar the page does; tighten it when one exists.
+  const denied = await requireManagerRoute();
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const weekParam = searchParams.get("week");
   if (!weekParam || !/^\d{4}-\d{2}-\d{2}$/.test(weekParam)) {

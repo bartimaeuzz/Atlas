@@ -8,6 +8,8 @@ import { ReconciliationPanel } from "../ReconciliationPanel";
 import { Badge } from "@/components/ui/Badge";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 
 /** The actual day-level Petty Cash work -- add expenses, review entries,
  * reconcile the drawer. Moved here from the bare /ledger route in the
@@ -25,6 +27,8 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
  *    finalized item." Editing as admin does NOT unfinalize the day; it
  *    just updates the numbers underneath the existing finalized record. */
 export default async function LedgerDayPage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
+  if (!(await hasCapability("VIEW_LEDGER_OVERVIEW"))) return <NoAccess pageLabel="the Ledger" />;
+
   const params = await searchParams;
   const todayIso = toIso(new Date());
   const date = params.date || todayIso;

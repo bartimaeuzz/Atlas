@@ -4,6 +4,8 @@ import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
 import { loadSupplierCheckReport } from "@/lib/reports/loadSupplierCheckReport";
 import { PettyCashReportTable } from "./PettyCashReportTable";
 import { SupplierCheckReportTable } from "./SupplierCheckReportTable";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 
 /** Pinned to UTC noon, same fix as MyEarningsView.tsx — avoids the classic
  * "YYYY-MM-DD parses as the previous day" bug in negative-UTC-offset
@@ -59,8 +61,23 @@ export default async function ReportsPage({
   // utilize that page to show different report" rather than building a
   // second calendar UI under /ledger for the Petty Cash week/month view
   // (and, 2026-08-14, the Supplier Check range view).
-  const report: ReportType =
+  const requestedReport: ReportType =
     params.report === "petty-cash" ? "petty-cash" : params.report === "supplier-check" ? "supplier-check" : "sales-tax";
+
+  // Permission System Phase C (2026-08-21), from the scrutinize pass:
+  // two of the three report types on this page ARE the Ledger data that
+  // VIEW_LEDGER_OVERVIEW now gates -- the Petty Cash report is the same
+  // loader /ledger uses, and the Supplier Check report is the same data
+  // as /ledger/supplier-check. Gating /ledger while leaving these open
+  // would have made the new guard decorative: the same numbers were one
+  // tab away. Sales & tax stays open to any manager (it is shift/POS
+  // data, not Ledger data, and has no capability of its own).
+  const viewer = await getViewerCapabilities();
+  const canSeeLedgerReports = viewer?.has("VIEW_LEDGER_OVERVIEW") ?? false;
+  if ((requestedReport === "petty-cash" || requestedReport === "supplier-check") && !canSeeLedgerReports) {
+    return <NoAccess pageLabel="that report" />;
+  }
+  const report = requestedReport;
 
   const data = report === "sales-tax" ? await loadSalesTaxReport(from, to) : null;
   const pettyCashData = report === "petty-cash" ? await loadPettyCashReport(from, to) : null;
@@ -85,12 +102,19 @@ export default async function ReportsPage({
         <ReportTabLink report="sales-tax" current={report} from={from} to={to}>
           Sales &amp; Tax
         </ReportTabLink>
-        <ReportTabLink report="petty-cash" current={report} from={from} to={to}>
-          Petty Cash
-        </ReportTabLink>
-        <ReportTabLink report="supplier-check" current={report} from={from} to={to}>
-          Supplier Check
-        </ReportTabLink>
+        {/* Hidden rather than shown-and-denied: a tab that always lands
+            on a no-access notice is the dead-end pattern, same reasoning
+            as the hidden nav items and home tiles. */}
+        {canSeeLedgerReports && (
+          <>
+            <ReportTabLink report="petty-cash" current={report} from={from} to={to}>
+              Petty Cash
+            </ReportTabLink>
+            <ReportTabLink report="supplier-check" current={report} from={from} to={to}>
+              Supplier Check
+            </ReportTabLink>
+          </>
+        )}
       </div>
 
       <div className="flex flex-wrap items-end gap-4 mb-6 border rounded p-4 bg-neutral-50">

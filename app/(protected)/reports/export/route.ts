@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireManagerRoute } from "@/lib/auth/requireRouteAccess";
 import { loadSalesTaxReport } from "@/lib/reports/loadSalesTaxReport";
 import { buildSalesTaxWorkbook } from "@/lib/reports/buildSalesTaxWorkbook";
 
@@ -10,6 +11,12 @@ import { buildSalesTaxWorkbook } from "@/lib/reports/buildSalesTaxWorkbook";
  * directly in Google Sheets via upload/import — Oliver's stated normal
  * workflow — without needing any Google API integration. */
 export async function GET(request: NextRequest) {
+  // Auth added 2026-08-21 (Phase C scrutinize): this handler had none.
+  // Sales & tax is not behind a view capability -- /reports itself is
+  // open to any manager -- so the standing manager role is the bar here.
+  const denied = await requireManagerRoute();
+  if (denied) return denied;
+
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from");
   const to = searchParams.get("to");

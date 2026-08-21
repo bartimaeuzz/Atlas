@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { positions, positionTipPools, positionShiftRates } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { requireCapability } from "@/lib/permissions/requireCapability";
 
 export interface PositionActionState {
   error: string | null;
@@ -107,6 +108,13 @@ export async function createPosition(_prevState: PositionActionState, formData: 
     const [existing] = await db.select().from(positions).where(eq(positions.name, parsed.name));
     if (existing) throw new Error(`A position named "${parsed.name}" already exists`);
 
+    // Same reduction as updatePosition below -- creating a position
+    // already IN a pool is a pool-structure change too. Creating one
+    // with no pool membership stays plain manager work.
+    if (parsed.tipPoolGroups.length > 0) {
+      await requireCapability("TIP_POOL_STRUCTURE_EDIT");
+    }
+
     const [created] = await db
       .insert(positions)
       .values({
@@ -142,6 +150,13 @@ export async function updatePosition(_prevState: PositionActionState, formData: 
       throw new Error(`A position named "${parsed.name}" already exists`);
     }
 
+    const currentPools = (
+      await db
+        .select({ tipPoolGroup: positionTipPools.tipPoolGroup })
+        .from(positionTipPools)
+        .where(eq(positionTipPools.positionId, positionId))
+    ).map((r) => r.tipPoolGroup);
+
     await db
       .update(positions)
       .set({
@@ -153,6 +168,25 @@ export async function updatePosition(_prevState: PositionActionState, formData: 
       })
       .where(eq(positions.id, positionId));
 
+    // Tip pool membership is ALSO editable here, as checkboxes on the
+    // position form -- a second door into the same positionTipPools data
+    // the /settings/tip-pools board writes (see that page's own comment:
+    // "not a fork -- both read/write the one table"). Phase B put the
+    // board's own actions behind TIP_POOL_STRUCTURE_EDIT (Admin+Partner,
+    // Oliver's confirmed intentional reduction: pool structure is
+    // foundational config decided collectively by owners, not day-to-day
+    // manager work) but left this door open, so the reduction wasn't
+    // actually in force -- a Floor Manager refused on the board could
+    // still tick a box here and save. Found by the Phase C re-review.
+    //
+    // Scoped to an ACTUAL membership change, not to editing a position
+    // at all: renaming a position or changing its wage rate stays plain
+    // manager work. Comparing sets rather than gating the whole action
+    // keeps the reduction exactly as narrow as it was confirmed to be.
+    if (poolMembershipChanged(currentPools, parsed.tipPoolGroups)) {
+      await requireCapability("TIP_POOL_STRUCTURE_EDIT");
+    }
+
     await syncPositionChildRows(positionId, parsed.tipPoolGroups, parsed.shiftRates);
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
@@ -160,6 +194,15 @@ export async function updatePosition(_prevState: PositionActionState, formData: 
 
   revalidatePath("/positions");
   redirect("/positions");
+}
+
+/** Order-insensitive set comparison -- the form submits checkbox values
+ * in DOM order and the stored rows come back in insertion order, so a
+ * plain join/compare would report a false change. */
+function poolMembershipChanged(current: string[], next: string[]): boolean {
+  if (current.length !== next.length) return true;
+  const currentSet = new Set(current);
+  return next.some((pool) => !currentSet.has(pool));
 }
 
 /** Retire/reactivate — never a hard delete. A retired position stops being

@@ -1,26 +1,66 @@
 import { loadRestaurantSettings, loadRecoveryCodeStatus } from "@/lib/settings/loadRestaurantSettings";
-import { getCurrentStaffSession } from "@/lib/auth/session";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
+import { Banner } from "@/components/ui/Banner";
 import { SettingsForm } from "./SettingsForm";
 import { RecoveryCodeSection } from "./RecoveryCodeSection";
 
+/**
+ * Permission System Phase C (2026-08-21) — two capabilities, one page,
+ * matching what the capability registry already promised in
+ * VIEW_SETTINGS's own description: "Partner sees them read-only
+ * (visible-but-disabled) unless also granted Edit Settings."
+ *
+ * VIEW_SETTINGS opens the page. Without EDIT_SETTINGS the whole form is
+ * wrapped in a disabled <fieldset>, which per the HTML spec disables
+ * every form control descended from it — including the submit button —
+ * without touching SettingsForm itself. Deliberately done here rather
+ * than by threading a `readOnly` prop through that client component: the
+ * form has ~15 controls across 6 fieldsets, and one wrapper cannot miss
+ * one the way a hand-edited prop pass can.
+ *
+ * This is defense in depth, not the actual protection: updateRestaurantSettings
+ * has been gated on EDIT_SETTINGS server-side since Phase B, so a
+ * hand-crafted POST was already refused. What this adds is honesty in the
+ * UI — a Partner accountable for these settings can read exactly how the
+ * restaurant is configured without being shown controls that would fail
+ * on submit.
+ */
 export default async function SettingsPage() {
-  const [settings, recoveryStatus, session] = await Promise.all([
-    loadRestaurantSettings(),
-    loadRecoveryCodeStatus(),
-    getCurrentStaffSession(),
-  ]);
-  const viewerIsAdmin = session?.systemRole === "ADMIN";
+  const viewer = await getViewerCapabilities();
+  if (!viewer?.has("VIEW_SETTINGS")) return <NoAccess pageLabel="Settings" />;
+  const canEdit = viewer.has("EDIT_SETTINGS");
+
+  const [settings, recoveryStatus] = await Promise.all([loadRestaurantSettings(), loadRecoveryCodeStatus()]);
+  const viewerIsAdmin = viewer.isAdmin;
 
   return (
     <main className="max-w-2xl mx-auto p-8 font-sans">
       <h1 className="text-2xl font-semibold mb-1">Settings</h1>
       <p className="text-neutral-500 text-sm mb-6">Restaurant-wide configuration for tips, pools, and roster visibility.</p>
+      {!canEdit && (
+        <div className="mb-6">
+          <Banner
+            tone="info"
+            title="You can read these settings, but not change them."
+            description="Everything below is shown exactly as it's set today. Ask an admin if something here needs to change."
+          />
+        </div>
+      )}
       {viewerIsAdmin && (
         <div className="mb-8">
           <RecoveryCodeSection status={recoveryStatus} viewerIsAdmin={viewerIsAdmin} />
         </div>
       )}
-      <SettingsForm settings={settings} />
+      {/* min-w-0 matters: a <fieldset> carries min-inline-size:
+          min-content in every UA stylesheet and Tailwind's preflight
+          doesn't reset it, so without this the wrapper can be pinned
+          wider than the viewport and reintroduce horizontal page scroll
+          (WCAG 1.4.10) -- the same class of bug fixed on Analytics
+          earlier the same day. */}
+      <fieldset disabled={!canEdit} className="border-0 p-0 m-0 min-w-0">
+        <SettingsForm settings={settings} />
+      </fieldset>
     </main>
   );
 }

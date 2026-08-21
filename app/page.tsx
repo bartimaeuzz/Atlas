@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getCurrentStaffSession } from "@/lib/auth/session";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { resolveLedgerHref } from "./navItemCapabilities";
 
 /**
  * Tile home page (2026-08-16). Replaces the old static "/" page (a
@@ -20,6 +21,14 @@ interface Tile {
   label: string;
   description: string;
   icon: React.ReactNode;
+  /** Permission System Phase C (2026-08-21). When set, the tile is only
+   * shown to someone who holds this capability — because that page now
+   * renders a no-access notice for everyone else, and offering a tile
+   * that leads to "you can't open this" is exactly the dead-end pattern
+   * Atlas has already had to fix once. Tiles with no `capability` lead to
+   * pages still governed by the plain manager guard, so every manager
+   * sees them. */
+  capability?: string;
 }
 
 const iconProps = {
@@ -86,6 +95,7 @@ const MANAGER_TILES: Tile[] = [
     href: "/ledger",
     label: "Ledger",
     description: "Track petty cash and supplier payments",
+    capability: "VIEW_LEDGER_OVERVIEW",
     icon: (
       <svg {...iconProps}>
         <rect x="3" y="5" width="18" height="14" rx="2" />
@@ -110,6 +120,7 @@ const MANAGER_TILES: Tile[] = [
     href: "/analytics",
     label: "Analytics",
     description: "P&L, revenue and expense breakdowns",
+    capability: "VIEW_ANALYTICS",
     icon: (
       <svg {...iconProps}>
         <path d="M4 19V5" />
@@ -135,6 +146,7 @@ const MANAGER_TILES: Tile[] = [
     href: "/settings",
     label: "Settings",
     description: "Restaurant-wide configuration",
+    capability: "VIEW_SETTINGS",
     icon: (
       <svg {...iconProps}>
         <circle cx="12" cy="12" r="3" />
@@ -196,11 +208,24 @@ function TileLink({ tile }: { tile: Tile }) {
  * this real feature and just re-skinning it, rather than regressing to
  * the older placeholder content. */
 export default async function Home() {
-  const session = await getCurrentStaffSession();
-  if (!session) redirect("/login");
+  const viewer = await getViewerCapabilities();
+  if (!viewer) redirect("/login");
+  const { session } = viewer;
 
   const isManager = session.systemRole === "MANAGER" || session.systemRole === "ADMIN";
-  const tiles = isManager ? MANAGER_TILES : STAFF_TILES;
+  // Phase C (2026-08-21): filter out tiles the viewer can't actually
+  // open. Staff tiles are unfiltered — /me and /me/schedule are a
+  // person's own data, governed by having a session at all, not by any
+  // capability.
+  // The Ledger tile is resolved rather than simply filtered -- see
+  // resolveLedgerHref: a viewer holding only the Card half of the Ledger
+  // still gets a tile, pointing at the Card report.
+  const ledgerHref = resolveLedgerHref(viewer.has);
+  const tiles = isManager
+    ? MANAGER_TILES.filter((t) => (t.href === "/ledger" ? ledgerHref !== null : !t.capability || viewer.has(t.capability))).map(
+        (t) => (t.href === "/ledger" && ledgerHref ? { ...t, href: ledgerHref } : t),
+      )
+    : STAFF_TILES;
 
   return (
     <main className="max-w-4xl mx-auto p-6 sm:p-8">

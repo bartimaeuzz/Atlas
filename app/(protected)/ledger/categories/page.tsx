@@ -5,6 +5,7 @@ import { ToggleCategoryActiveButton } from "./ToggleCategoryActiveButton";
 import { SetCategoryPnlGroupSelect } from "./SetCategoryPnlGroupSelect";
 import { EmptyState, Section } from "@/components/ui/Card";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 
 /** Ledger expense categories admin (2026-08-14, Ledger v1) — same
  * retire-not-delete pattern as Positions. Seeded from Soothr's real
@@ -19,7 +20,7 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
  * "PAYROLL FOH" default to "Excluded" here on purpose (Atlas's own
  * computed wage data is the P&L's payroll source of truth instead). */
 export default async function LedgerCategoriesPage() {
-  const categories = await loadLedgerCategories();
+  const [categories, canSeeAnalytics] = await Promise.all([loadLedgerCategories(), hasCapability("VIEW_ANALYTICS")]);
 
   return (
     <main className="max-w-2xl mx-auto p-6 sm:p-8">
@@ -31,9 +32,16 @@ export default async function LedgerCategoriesPage() {
         Categories used across Petty Cash, Supplier Check, and Card entries. Retiring a category
         keeps every past entry that used it intact; it just stops being offered for new ones. The
         &ldquo;P&amp;L&rdquo; dropdown controls which line of the{" "}
-        <Link href="/analytics" className="underline hover:text-[var(--ink-900)]">
-          Analytics / P&amp;L
-        </Link>{" "}
+        {/* Phase C (2026-08-21): plain text, not a link, for anyone
+            without VIEW_ANALYTICS -- the sentence still explains what the
+            dropdown does, it just stops offering a door that's locked. */}
+        {canSeeAnalytics ? (
+          <Link href="/analytics" className="underline hover:text-[var(--ink-900)]">
+            Analytics / P&amp;L
+          </Link>
+        ) : (
+          "Analytics / P&L"
+        )}{" "}
         report this category rolls up into.
       </p>
 

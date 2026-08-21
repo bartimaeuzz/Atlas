@@ -28,16 +28,30 @@ import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
  * (`categoricalSlot()`) is the dataviz-skill-validated palette and is
  * NOT part of this token retrofit -- left untouched on purpose.
  */
+/** showAmounts=false renders the same chart as shares only -- no dollar
+ * total in the header, no per-bar dollar figure, and no Amount column in
+ * the table view (2026-08-21, Permission System Phase C).
+ *
+ * This is what VIEW_ANALYTICS-without-VIEW_PNL looks like. Hiding the
+ * P&L table alone was not enough: total revenue in this header, times
+ * the prime-cost ratio shown above it, reconstructs the bottom line to
+ * within other operating expenses -- so the capability would have been
+ * cosmetic. Confirmed with Oliver: a manager without P&L access still
+ * sees whether food cost is drifting as a share of spend, which is the
+ * operating job, without being able to work out what the restaurant
+ * earns. The bars stay proportional either way; only the labels change. */
 export function BreakdownBarChart({
   title,
   subtitle,
   slices,
   total,
+  showAmounts = true,
 }: {
   title: string;
   subtitle?: string;
   slices: { label: string; amount: number; share: number }[];
   total: number;
+  showAmounts?: boolean;
 }) {
   const maxAmount = Math.max(1, ...slices.map((s) => s.amount));
 
@@ -45,7 +59,9 @@ export function BreakdownBarChart({
     <Card>
       <div className="flex items-baseline justify-between mb-1">
         <h3 className="text-sm font-medium text-[var(--ink-900)]">{title}</h3>
-        <span className="text-sm font-semibold tabular-nums text-[var(--ink-900)]">{formatMoney(total)}</span>
+        {showAmounts && (
+          <span className="text-sm font-semibold tabular-nums text-[var(--ink-900)]">{formatMoney(total)}</span>
+        )}
       </div>
       {subtitle && <p className="text-xs text-[var(--ink-500)] mb-3">{subtitle}</p>}
 
@@ -67,8 +83,16 @@ export function BreakdownBarChart({
                   }}
                 />
               </div>
-              <div className="w-32 shrink-0 text-right text-xs tabular-nums text-[var(--ink-700)]">
-                {formatMoney(s.amount)} <span className="text-[var(--ink-500)]">({(s.share * 100).toFixed(1)}%)</span>
+              <div
+                className={`shrink-0 text-right text-xs tabular-nums text-[var(--ink-700)] ${showAmounts ? "w-32" : "w-16"}`}
+              >
+                {showAmounts ? (
+                  <>
+                    {formatMoney(s.amount)} <span className="text-[var(--ink-500)]">({(s.share * 100).toFixed(1)}%)</span>
+                  </>
+                ) : (
+                  <>{(s.share * 100).toFixed(1)}%</>
+                )}
               </div>
             </div>
           ))}
@@ -84,7 +108,7 @@ export function BreakdownBarChart({
             <thead>
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
                 <th className="py-1 pr-2 font-normal">Category</th>
-                <th className="py-1 pr-2 font-normal text-right">Amount</th>
+                {showAmounts && <th className="py-1 pr-2 font-normal text-right">Amount</th>}
                 <th className="py-1 font-normal text-right">Share</th>
               </tr>
             </thead>
@@ -92,7 +116,9 @@ export function BreakdownBarChart({
               {slices.map((s) => (
                 <tr key={s.label} className="border-b border-[var(--border)]">
                   <td className="py-1 pr-2 text-[var(--ink-900)]">{s.label}</td>
-                  <td className="py-1 pr-2 text-right tabular-nums text-[var(--ink-700)]">{formatMoney(s.amount)}</td>
+                  {showAmounts && (
+                    <td className="py-1 pr-2 text-right tabular-nums text-[var(--ink-700)]">{formatMoney(s.amount)}</td>
+                  )}
                   <td className="py-1 text-right tabular-nums text-[var(--ink-700)]">{(s.share * 100).toFixed(1)}%</td>
                 </tr>
               ))}

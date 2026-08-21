@@ -8,6 +8,8 @@ import { PeriodHeaderForm } from "../PeriodHeaderForm";
 import { Badge } from "@/components/ui/Badge";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 
 /** One statement period's work: log transactions against it, then
  * reconcile once the logged total matches the statement's own total.
@@ -16,6 +18,8 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
  * still correct it directly (doesn't un-reconcile it, just updates the
  * numbers underneath). */
 export default async function CardStatementPeriodPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+  if (!(await hasCapability("VIEW_LEDGER_CARD_REPORT"))) return <NoAccess pageLabel="the Card report" />;
+
   const params = await searchParams;
   const periodId = Number(params.id);
 

@@ -2,6 +2,8 @@ import Link from "next/link";
 import { loadLedgerVendors, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
 import { LogInvoiceForm } from "../LogInvoiceForm";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 
 /** Dedicated "Add item" page (2026-08-14 restructure) -- same pattern as
  * Vendors/Positions' /new pages: the form's action redirects back to
@@ -9,6 +11,8 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
  * on failure. Kept off the main Supplier Check page so that page can
  * lead with the checks table instead of an always-open form. */
 export default async function NewSupplierInvoicePage() {
+  if (!(await hasCapability("VIEW_LEDGER_OVERVIEW"))) return <NoAccess pageLabel="Supplier Check" />;
+
   const [vendors, categories] = await Promise.all([loadLedgerVendors(), loadLedgerCategories()]);
 
   return (
