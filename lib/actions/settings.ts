@@ -4,35 +4,33 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { restaurantSettings } from "@/db/schema";
-import { getCurrentStaffSession } from "@/lib/auth/session";
+import { requireCapability } from "@/lib/permissions/requireCapability";
 
 export interface SettingsActionState {
   error: string | null;
   saved: boolean;
 }
 
-/** 2026-08-21 — server-action auth audit: this file had NO auth check at
- * all. Deliberately MANAGER/ADMIN here (matching the existing /settings
- * page guard, requireManager() in lib/auth/guard.ts, which already lets
- * any manager reach this form today) rather than jumping ahead to the
- * tighter Admin-only default the confirmed Permission System capability
- * registry eventually wants for EDIT_SETTINGS — that's a live behavior
- * change explicitly deferred to the later requireCapability() wiring
- * phase, not something to sneak in as part of closing this gap. */
-async function requireManagerAction() {
-  const session = await getCurrentStaffSession();
-  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
-    throw new Error("Not authorized.");
-  }
-  return session;
-}
+/** 2026-08-21 (Phase A) — server-action auth audit: this file had NO auth
+ * check at all. Started as a MANAGER/ADMIN gate matching the existing
+ * /settings page guard, with EDIT_SETTINGS's tighter Admin-only default
+ * explicitly deferred to Phase B.
+ *
+ * 2026-08-21 (Phase B) — now wired to the real EDIT_SETTINGS capability,
+ * matching the confirmed Permission System registry ("Edit Settings
+ * (non-financial) — Admin ✓ only"). Verified via a live read-only query
+ * before shipping: Aey's real account (Partner) does NOT have
+ * EDIT_SETTINGS granted, matching this intended restriction, so this is
+ * a live behavior change only for non-Admin managers who were relying on
+ * the old MANAGER-tier gate — see project_atlas_permission_system memory
+ * for the full reasoning. */
 
 export async function updateRestaurantSettings(
   _prevState: SettingsActionState,
   formData: FormData
 ): Promise<SettingsActionState> {
   try {
-    await requireManagerAction();
+    await requireCapability("EDIT_SETTINGS");
     // Entered as a percent (e.g. 4.5 for 4.5%), same fix as the sales tax
     // rate below (2026-08-15 accessibility audit flag #1, applied here
     // 2026-08-17) — typing the raw fraction (0.045) invited the same

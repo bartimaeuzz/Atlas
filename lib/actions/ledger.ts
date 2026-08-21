@@ -6,25 +6,25 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { ledgerVendors, ledgerCategories, pettyCashEntries, dailyCashReconciliations, shifts } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { requireCapability } from "@/lib/permissions/requireCapability";
 
 export interface LedgerAdminActionState {
   error: string | null;
 }
 
-/** 2026-08-21 — server-action auth audit: this file had NO auth check at
- * all on most exports (vendors/categories admin, plus the plain
- * deletePettyCashEntry/saveDailyReconciliationDraft/finalizePettyCashDay
- * functions, which only fetched a session to feed the existing
- * finalized-day ADMIN-override check below — if the day wasn't already
- * finalized, that check short-circuited false regardless of whether
- * there even was a session, so an unauthenticated request could still
- * write). Same established pattern as employees.ts/tipPools.ts/
- * payroll.ts/permissions.ts, copied as-is. Deliberately MANAGER/ADMIN
- * here (matching the existing /ledger page guard), not the tighter
- * Admin-only default the confirmed Permission System capability
- * registry eventually wants for some of these (PETTY_CASH_EDIT is
- * allManagerTiers, so this matches) — the capability-level tightening is
- * explicitly a later phase once requireCapability() is wired in. */
+/** 2026-08-21 (Phase A) — server-action auth audit: this file had NO auth
+ * check at all on most exports. Closed with a MANAGER/ADMIN gate matching
+ * the existing /ledger page guard.
+ *
+ * 2026-08-21 (Phase B) — the confirmed Permission System registry has no
+ * capability key covering vendor/category administration specifically
+ * (only PETTY_CASH_EDIT, "Petty Cash: enter/edit," is defined for this
+ * file — see lib/permissions/capabilities.ts). Rather than guess a
+ * mapping for vendors/categories, this helper stays in place for those
+ * sections; Petty Cash entries and Daily Reconciliation below (the same
+ * /ledger/day page, and the only actions this file's capability registry
+ * entry actually names) are wired to requireCapability("PETTY_CASH_EDIT")
+ * instead — see project_atlas_permission_system memory. */
 async function requireManagerAction() {
   const session = await getCurrentStaffSession();
   if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
@@ -160,7 +160,7 @@ export async function addPettyCashEntry(
   const amountRaw = formData.get("amount");
 
   try {
-    const session = await requireManagerAction();
+    const session = await requireCapability("PETTY_CASH_EDIT");
 
     if (!date) throw new Error("Missing date");
     if (date > todayIso()) throw new Error("Can't log petty cash for a day that hasn't happened yet.");
@@ -193,7 +193,7 @@ export async function addPettyCashEntry(
 }
 
 export async function deletePettyCashEntry(entryId: number, date: string) {
-  const session = await requireManagerAction();
+  const session = await requireCapability("PETTY_CASH_EDIT");
   const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
   if (existingRecon?.status === "finalized" && session.systemRole !== "ADMIN") {
     throw new Error("This day is already finalized -- can't remove entries from it.");
@@ -223,7 +223,7 @@ export async function saveDailyReconciliationDraft(
   countedAmount: number | null,
   note: string | null
 ) {
-  const session = await requireManagerAction();
+  const session = await requireCapability("PETTY_CASH_EDIT");
   if (date > todayIso()) {
     throw new Error("Can't reconcile a day that hasn't happened yet.");
   }
@@ -254,7 +254,7 @@ export async function saveDailyReconciliationDraft(
  * shiftsReady requires finalized shifts that wouldn't exist yet, but the
  * explicit check keeps the rule obvious rather than incidental. */
 export async function finalizePettyCashDay(date: string, countedAmount: number, note: string | null) {
-  const session = await requireManagerAction();
+  const session = await requireCapability("PETTY_CASH_EDIT");
 
   if (date > todayIso()) {
     throw new Error("Can't finalize a day that hasn't happened yet.");

@@ -5,29 +5,32 @@ import { redirect } from "next/navigation";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { supplierInvoices, supplierCheckPayments, employees, supplierCheckAuditLog } from "@/db/schema";
-import { getCurrentStaffSession } from "@/lib/auth/session";
 import { verifyPin } from "@/lib/auth/pin";
+import { requireCapability } from "@/lib/permissions/requireCapability";
 
 export interface SupplierInvoiceActionState {
   error: string | null;
 }
 
-/** 2026-08-21 — server-action auth audit: this file had NO auth check at
- * all on deletePendingInvoice, and every other function only fetched a
- * session to feed some other check (or nothing at all) without ever
- * verifying systemRole — same gap class as ledger.ts/card.ts. Base
- * authorization here stays MANAGER/ADMIN (matching the existing /ledger
- * page guard); the separate, tighter Admin-or-financial-auditor +
- * PIN-confirm gate inside editSupplierInvoice for already-printed/paid
- * invoices is untouched — that's a distinct, already-correct check on
- * top of this one, not replaced by it. */
-async function requireManagerAction() {
-  const session = await getCurrentStaffSession();
-  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
-    throw new Error("Not authorized.");
-  }
-  return session;
-}
+/** 2026-08-21 (Phase A) — server-action auth audit: this file had NO auth
+ * check at all on deletePendingInvoice, and every other function only
+ * fetched a session to feed some other check without ever verifying
+ * systemRole. Closed with a MANAGER/ADMIN gate matching the existing
+ * /ledger page guard.
+ *
+ * 2026-08-21 (Phase B) — every base-level action in this file (log,
+ * delete-pending, edit-while-pending, print, mark-paid) now checks the
+ * SUPPLIER_CHECK_LOG capability instead, matching its confirmed registry
+ * label verbatim: "Supplier Check: log/print/mark paid" — all four of
+ * those verbs map onto this file's functions. The separate, tighter
+ * Admin-or-financial-auditor + PIN-confirm gate inside editSupplierInvoice
+ * for already-printed/paid invoices is untouched — that's a distinct,
+ * already-correct check layered on top, not replaced by this. Note:
+ * FA_SUPPLIER_CHECK_FINALIZE (a separate, per-item-expirable Financial
+ * Auditor capability in the registry) is NOT wired to anything here —
+ * it's ambiguous from the confirmed design alone which action it's meant
+ * to gate given SUPPLIER_CHECK_LOG's own label already covers "mark
+ * paid," so this is flagged as an open question rather than guessed. */
 
 /** Logging an invoice is deliberately its own form, not a reuse of
  * addPettyCashEntry -- Oliver's own words: "the input form on petty
@@ -49,7 +52,7 @@ export async function logSupplierInvoice(
   const amountRaw = formData.get("amount");
 
   try {
-    const session = await requireManagerAction();
+    const session = await requireCapability("SUPPLIER_CHECK_LOG");
 
     if (!receivedDate) throw new Error("Missing date");
     const vendorId = Number(vendorIdRaw);
@@ -79,7 +82,7 @@ export async function logSupplierInvoice(
 }
 
 export async function deletePendingInvoice(invoiceId: number) {
-  await requireManagerAction();
+  await requireCapability("SUPPLIER_CHECK_LOG");
   const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
   if (!invoice) return;
   if (invoice.status !== "pending") {
@@ -133,7 +136,7 @@ export async function editSupplierInvoice(input: {
   auditorCode?: string;
 }): Promise<EditSupplierInvoiceActionState> {
   try {
-    const session = await requireManagerAction();
+    const session = await requireCapability("SUPPLIER_CHECK_LOG");
 
     const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, input.invoiceId));
     if (!invoice) return { error: "Invoice not found." };
@@ -219,7 +222,7 @@ export async function editSupplierInvoice(input: {
  * invoice logged in the split second between the select and the update
  * can't sneak into this check without its amount being in the total. */
 export async function printSupplierCheck(vendorId: number, checkNumber: string | null): Promise<{ paymentId: number }> {
-  const session = await requireManagerAction();
+  const session = await requireCapability("SUPPLIER_CHECK_LOG");
 
   const pending = await db
     .select()
@@ -282,7 +285,7 @@ export async function printSupplierCheck(vendorId: number, checkNumber: string |
 export async function printChecksForVendors(
   selections: { vendorId: number; checkNumber: string | null }[]
 ): Promise<{ paymentIds: number[] }> {
-  await requireManagerAction();
+  await requireCapability("SUPPLIER_CHECK_LOG");
 
   if (selections.length === 0) {
     throw new Error("Select at least one vendor to print a check for.");
@@ -304,7 +307,7 @@ export async function printChecksForVendors(
  * holistic table's per-invoice detail reflects the final state without
  * needing to join back through the payment's own status every time. */
 export async function markSupplierCheckPaid(paymentId: number) {
-  const session = await requireManagerAction();
+  const session = await requireCapability("SUPPLIER_CHECK_LOG");
 
   const [payment] = await db.select().from(supplierCheckPayments).where(eq(supplierCheckPayments.id, paymentId));
   if (!payment) throw new Error("Check not found.");
