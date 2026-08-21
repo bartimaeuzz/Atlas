@@ -2,6 +2,10 @@ import Link from "next/link";
 import { loadPnL } from "@/lib/analytics/loadPnL";
 import { BreakdownBarChart } from "./BreakdownBarChart";
 import { KpiMeterCard } from "./KpiMeterCard";
+import { PageHeader, Card } from "@/components/ui/Card";
+import { Button, LinkButton } from "@/components/ui/Button";
+import { TextInput } from "@/components/ui/Field";
+import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
 
 /** Pinned to UTC noon, same fix as Reports/MyEarningsView — avoids the
  * classic "YYYY-MM-DD parses as the previous day" bug in negative-UTC-
@@ -37,17 +41,15 @@ function computePresets(today: Date) {
   };
 }
 
-function money(n: number): string {
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 /**
  * Analytics / P&L (2026-08-16) — Oliver's ask, modeled on his reference
  * workbook's "Chart" + "Report" sheets: revenue by channel, expenses by
  * category, and a P&L statement, computed purely from data already
  * inside Atlas (no Toast/POS API yet — that's a confirmed future step).
  * A new TOP-LEVEL page (Oliver's choice, not a Reports tab), manager-
- * only like every other financial page in this app.
+ * only like every other financial page in this app -- enforced by the
+ * shared `(protected)` layout's `requireManager()` guard, not a
+ * per-page check, same as every sibling financial page.
  *
  * Phase 1 of a phased build, confirmed with Oliver before writing any
  * code: a single-period snapshot first (this page), with month-to-date/
@@ -63,6 +65,42 @@ function money(n: number): string {
  * confirmed with Oliver as the P&L's payroll source of truth, NOT the
  * legacy PAYROLL BOH/PAYROLL FOH ledger categories, to avoid double-
  * counting).
+ *
+ * Design-system-v2 retrofit (2026-08-21) — the last page from the
+ * original 5-page retrofit list still on raw Tailwind neutrals. Restyled
+ * onto `components/ui` primitives and `--ink-*`/`--border`/`--danger-*`
+ * tokens, matching the rest of the app. Two real bugs caught along the
+ * way, not just visual restyling:
+ *
+ * 1. This page's local `money()` helper (and the two chart components'
+ *    inline formatting) called `Number#toLocaleString(undefined, ...)` —
+ *    an explicit `undefined` locale resolves against the runtime's
+ *    default, which can differ between Node's server-render and the
+ *    browser's client-render, the exact same hydration-mismatch
+ *    mechanism as the `Date#toLocaleString()` bug fixed elsewhere this
+ *    same day (see lib/formatDateTime.ts). Not yet reproduced live (this
+ *    is a narrower trigger than the Date case -- it only differs when
+ *    the browser's own locale setting isn't US-English), but the same
+ *    bug class, so fixed proactively rather than waiting for a report.
+ *    Replaced with Ledger's shared, `"en-US"`-pinned `formatMoney()`.
+ * 2. The P&L table rendered negative amounts as `(1,234.56)` — parens,
+ *    no `$`. Atlas's own documented money-format rule is a leading
+ *    minus sign, not parens (`project_atlas_ui_design.md`). `formatMoney`
+ *    fixes this as a side effect of the formatter swap above. Colored
+ *    every negative row `--danger-700`, matching the precedent already
+ *    shipped on Payroll's Deduction column and Ledger's reconciliation
+ *    panel — most P&L rows are cost lines and therefore negative by
+ *    construction, so this does mean most of the table reads red, but
+ *    that's consistent with both this app's existing convention and the
+ *    common "expenses in red" accounting-statement convention, rather
+ *    than inventing a P&L-specific exception to the app's own rule.
+ *
+ * The two chart components' actual data-color logic (BreakdownBarChart's
+ * `categoricalSlot()`, KpiMeterCard's `STATUS_COLORS`) is deliberately
+ * left untouched -- it's a fixed, dataviz-skill-validated palette, not
+ * part of the design-system token set, and re-validating it wasn't in
+ * scope for this pass. Only the surrounding chrome (card background/
+ * border/radius, text colors) was retrofit.
  */
 export default async function AnalyticsPage({
   searchParams,
@@ -86,40 +124,35 @@ export default async function AnalyticsPage({
   }));
 
   return (
-    <main className="max-w-5xl mx-auto p-8 font-sans">
-      <Link href="/" className="text-sm text-neutral-500 hover:text-black">
-        &larr; Home
-      </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-1">Analytics &amp; P&amp;L</h1>
-      <p className="text-neutral-500 text-sm mb-4">
-        Revenue, expenses, and the &ldquo;sweet spot&rdquo; indicators for the range below — computed from
-        finalized shifts and Ledger entries already in Atlas. No POS integration yet, so this
-        only reflects what&apos;s been entered here.
-      </p>
+    <main className="max-w-5xl mx-auto p-4 sm:p-8">
+      <PageHeader
+        title="Analytics & P&L"
+        description={`Revenue, expenses, and the "sweet spot" indicators for the range below — computed from finalized shifts and Ledger entries already in Atlas. No POS integration yet, so this only reflects what's been entered here.`}
+      />
 
-      <div className="flex flex-wrap items-end gap-4 mb-6 border rounded p-4 bg-neutral-50">
+      <Card className="flex flex-wrap items-end gap-4 mb-6">
         <div className="flex gap-2">
-          <PresetLink href={`/analytics?from=${presets.week.from}&to=${presets.week.to}`}>This week</PresetLink>
-          <PresetLink href={`/analytics?from=${presets.month.from}&to=${presets.month.to}`}>This month</PresetLink>
-          <PresetLink href={`/analytics?from=${presets.year.from}&to=${presets.year.to}`}>This year</PresetLink>
+          <LinkButton href={`/analytics?from=${presets.week.from}&to=${presets.week.to}`} variant="secondary" size="sm">
+            This week
+          </LinkButton>
+          <LinkButton href={`/analytics?from=${presets.month.from}&to=${presets.month.to}`} variant="secondary" size="sm">
+            This month
+          </LinkButton>
+          <LinkButton href={`/analytics?from=${presets.year.from}&to=${presets.year.to}`} variant="secondary" size="sm">
+            This year
+          </LinkButton>
         </div>
-        <form className="flex items-end gap-2 text-sm" action="/analytics">
-          <label>
-            <span className="block text-neutral-500 mb-1">From</span>
-            <input type="date" name="from" defaultValue={from} className="border rounded px-2 py-1" />
-          </label>
-          <label>
-            <span className="block text-neutral-500 mb-1">To</span>
-            <input type="date" name="to" defaultValue={to} className="border rounded px-2 py-1" />
-          </label>
-          <button type="submit" className="px-3 py-1.5 rounded bg-black text-white text-sm">
+        <form className="flex items-end gap-2" action="/analytics">
+          <TextInput type="date" name="from" label="From" defaultValue={from} className="min-h-9 py-1.5" />
+          <TextInput type="date" name="to" label="To" defaultValue={to} className="min-h-9 py-1.5" />
+          <Button type="submit" size="sm">
             View
-          </button>
+          </Button>
         </form>
-      </div>
+      </Card>
 
       {/* Benchmarked KPIs -- the "sweet spot" indicators Oliver asked for */}
-      <h2 className="text-sm font-medium mb-2">Health indicators</h2>
+      <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">Health indicators</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
         <KpiMeterCard benchmark={pnl.kpis.foodCostPct} />
         <KpiMeterCard benchmark={pnl.kpis.barCostPct} />
@@ -144,11 +177,11 @@ export default async function AnalyticsPage({
         />
       </div>
       {pnl.expenses.excludedTotal > 0 && (
-        <p className="text-xs text-neutral-400 -mt-6 mb-8">
-          Note: ${money(pnl.expenses.excludedTotal)} logged under the PAYROLL BOH/PAYROLL FOH ledger categories was
+        <p className="text-xs text-[var(--ink-500)] -mt-6 mb-8">
+          Note: {formatMoney(pnl.expenses.excludedTotal)} logged under the PAYROLL BOH/PAYROLL FOH ledger categories was
           left out of the chart above — Payroll on this page comes from Atlas&apos;s own computed shift-wage data instead,
           so counting both would double-count. Re-tag those categories from{" "}
-          <Link href="/ledger/categories" className="underline hover:text-black">
+          <Link href="/ledger/categories" className="underline hover:text-[var(--ink-900)]">
             Expense categories
           </Link>{" "}
           if that&apos;s not what you want.
@@ -156,35 +189,29 @@ export default async function AnalyticsPage({
       )}
 
       {/* P&L statement */}
-      <h2 className="text-sm font-medium mb-2">P&amp;L statement</h2>
-      <table className="w-full text-sm border-collapse mb-2">
-        <tbody>
-          <PnLRow label="Revenue" amount={pnl.revenue.total} bold />
-          <PnLRow label="Food cost" amount={-pnl.cogs.food} indent />
-          <PnLRow label="Drinks cost (non-alcoholic)" amount={-pnl.cogs.drinks} indent />
-          <PnLRow label="Bar cost (alcohol)" amount={-pnl.cogs.bar} indent />
-          <PnLRow label="Cost of goods sold" amount={-pnl.cogs.total} bold border />
-          <PnLRow label="Gross profit" amount={pnl.grossProfit} bold border />
-          <PnLRow label="Payroll — FOH" amount={-pnl.payroll.foh} indent />
-          <PnLRow label="Payroll — BOH" amount={-pnl.payroll.boh} indent />
-          <PnLRow label="Payroll total" amount={-pnl.payroll.total} bold />
-          <PnLRow label="Other operating expenses" amount={-pnl.otherOpex} bold />
-          <PnLRow label="Net profit" amount={pnl.netProfit} bold border highlight />
-        </tbody>
-      </table>
-      <p className="text-xs text-neutral-400 mb-8">
+      <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">P&amp;L statement</h2>
+      <div className="border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-2">
+        <table className="w-full text-sm border-collapse min-w-[420px]">
+          <tbody>
+            <PnLRow label="Revenue" amount={pnl.revenue.total} bold />
+            <PnLRow label="Food cost" amount={-pnl.cogs.food} indent />
+            <PnLRow label="Drinks cost (non-alcoholic)" amount={-pnl.cogs.drinks} indent />
+            <PnLRow label="Bar cost (alcohol)" amount={-pnl.cogs.bar} indent />
+            <PnLRow label="Cost of goods sold" amount={-pnl.cogs.total} bold border />
+            <PnLRow label="Gross profit" amount={pnl.grossProfit} bold border />
+            <PnLRow label="Payroll — FOH" amount={-pnl.payroll.foh} indent />
+            <PnLRow label="Payroll — BOH" amount={-pnl.payroll.boh} indent />
+            <PnLRow label="Payroll total" amount={-pnl.payroll.total} bold />
+            <PnLRow label="Other operating expenses" amount={-pnl.otherOpex} bold />
+            <PnLRow label="Net profit" amount={pnl.netProfit} bold border highlight />
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[var(--ink-500)] mb-8">
         Only counts finalized shifts and Supplier Check payments already printed/paid — matches the same rules the
         Sales &amp; Tax and Supplier Check reports already use.
       </p>
     </main>
-  );
-}
-
-function PresetLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link href={href} className="px-3 py-1.5 rounded border text-sm text-neutral-600 hover:bg-white">
-      {children}
-    </Link>
   );
 }
 
@@ -203,19 +230,34 @@ function PnLRow({
   border?: boolean;
   highlight?: boolean;
 }) {
+  // 2026-08-21 retrofit: negatives now go through the shared formatMoney
+  // (leading minus sign, not parens) and render in --danger-700, matching
+  // Payroll's Deduction column / Ledger's reconciliation panel -- see the
+  // page-level doc comment above for why this applies to every negative
+  // row here, not just anomaly/mismatch signals.
   const isNegative = amount < 0;
+  const amountColor = isNegative ? "text-[var(--danger-700)]" : bold ? "text-[var(--ink-900)]" : "text-[var(--ink-700)]";
   return (
-    <tr className={border ? "border-t-2 border-neutral-800" : "border-b border-neutral-100"}>
-      <td className={"py-1.5 " + (indent ? "pl-6 text-neutral-500" : "") + (bold ? " font-medium" : "")}>{label}</td>
+    <tr
+      className={
+        // A heavier, near-black rule for subtotal/total rows -- intentionally
+        // stronger than the app's usual --border-strong divider, matching
+        // standard accounting-statement styling for a subtotal line.
+        border ? "border-t-2 border-[var(--ink-900)]" : "border-b border-[var(--border)]"
+      }
+    >
+      <td className={`py-2 ${indent ? "pl-6 text-[var(--ink-500)]" : "text-[var(--ink-900)]"} ${bold ? "font-semibold" : ""}`}>
+        {label}
+      </td>
       <td
         className={
-          "py-1.5 text-right tabular-nums " +
-          (bold ? "font-medium " : "") +
+          "py-2 text-right tabular-nums " +
+          (bold ? "font-semibold " : "") +
           (highlight ? "text-lg " : "") +
-          (isNegative ? "text-neutral-500" : "")
+          amountColor
         }
       >
-        {isNegative ? "(" + money(Math.abs(amount)) + ")" : "$" + money(amount)}
+        {formatMoney(amount)}
       </td>
     </tr>
   );

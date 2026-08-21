@@ -1,4 +1,5 @@
 import { STATUS_COLORS } from "./palette";
+import { Card } from "@/components/ui/Card";
 import type { Benchmark } from "@/lib/analytics/loadPnL";
 
 const STATUS_LABEL: Record<Benchmark["status"], string> = {
@@ -17,6 +18,12 @@ const STATUS_LABEL: Record<Benchmark["status"], string> = {
  * band is drawn as a faint marker on the track so the fill's position
  * relative to "healthy" is visible at a glance, not just implied by
  * color.
+ *
+ * Design-system-v2 retrofit (2026-08-21): card chrome and non-status
+ * text now use the shared `Card` component and `--ink-*`/`--paper`/
+ * `--border-strong` tokens. `STATUS_COLORS` (the fill/status color
+ * itself) is the dataviz-skill-validated status palette and is
+ * deliberately NOT part of this token retrofit.
  */
 export function KpiMeterCard({ benchmark }: { benchmark: Benchmark }) {
   const pct = Math.max(0, Math.min(1, benchmark.value));
@@ -29,9 +36,9 @@ export function KpiMeterCard({ benchmark }: { benchmark: Benchmark }) {
   const icon = benchmark.status === "in_range" ? "✓" : benchmark.status === "not_applicable" ? "–" : "⚠";
 
   return (
-    <div className="border rounded p-4">
+    <Card>
       <div className="flex items-baseline justify-between mb-1">
-        <h3 className="text-sm font-medium text-neutral-700">{benchmark.label}</h3>
+        <h3 className="text-sm font-medium text-[var(--ink-700)]">{benchmark.label}</h3>
         <span className="text-xl font-semibold tabular-nums" style={{ color }}>
           {(benchmark.value * 100).toFixed(1)}%
         </span>
@@ -42,10 +49,10 @@ export function KpiMeterCard({ benchmark }: { benchmark: Benchmark }) {
         <span className="font-medium">{STATUS_LABEL[benchmark.status]}</span>
       </div>
 
-      <div className="relative h-2 rounded-full bg-neutral-100 overflow-hidden mb-2">
+      <div className="relative h-2 rounded-full bg-[var(--paper)] overflow-hidden mb-2">
         {benchmark.goodRangeLow != null && benchmark.goodRangeHigh != null && (
           <div
-            className="absolute inset-y-0 bg-neutral-200"
+            className="absolute inset-y-0 bg-[var(--border-strong)]"
             style={{
               left: `${Math.min(100, benchmark.goodRangeLow * 100)}%`,
               width: `${Math.max(0, Math.min(100, benchmark.goodRangeHigh * 100) - Math.min(100, benchmark.goodRangeLow * 100))}%`,
@@ -56,8 +63,8 @@ export function KpiMeterCard({ benchmark }: { benchmark: Benchmark }) {
         <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${Math.min(100, pct * 100)}%`, backgroundColor: color }} />
       </div>
 
-      <p className="text-xs text-neutral-400 leading-snug">{benchmark.note}</p>
-      <p className="text-[10px] text-neutral-300 mt-1">Source: {benchmark.source}</p>
-    </div>
+      <p className="text-xs text-[var(--ink-500)] leading-snug">{benchmark.note}</p>
+      <p className="text-[10px] text-[var(--ink-400)] mt-1">Source: {benchmark.source}</p>
+    </Card>
   );
 }
