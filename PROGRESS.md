@@ -4162,3 +4162,139 @@ only representative data available this session was hand-authored.
 **Delivery:** committed locally (commit `fc8346c`, off `dae1e78`), zipped
 with full `.git` history (no push credentials in this sandbox, same as
 always).
+
+## Design-system-v2 retrofit: Ledger, Payroll, Tip Pool, People (2026-08-20)
+
+The next four subsystems off the retrofit backlog, all shipped in one
+late-night session — 9 commits between 01:09 and 01:28am, each reporting
+clean `tsc`/`eslint`/`build`/tests (123/123):
+
+- **Ledger** (`b95a8df`, `3fa1c5f`, `b69d1cd`, `565d439`, `26d9b58`,
+  `5a82715` — 6 parts, whole subsystem): day/month landing (Petty Cash),
+  the Card channel, Supplier Check, and the vendors/categories/cards
+  admin pages. `MonthList.tsx`'s one real HTML `<table>` got the same
+  stacked-cards-on-phone/table-on-desktop split established elsewhere in
+  the app.
+- **Payroll** (`8a61544`): the weekly register restyled onto
+  `components/ui` primitives and Ledger's shared `formatMoney`.
+  `PayrollActions.tsx` (Mark Paid / Revert to Draft) had already been
+  retrofitted separately in the 2026-08-18 bug-fix batch and was left
+  untouched by this pass.
+- **Tip Pool settings** (`0512988`, `/settings/tip-pools`).
+- **People** (`3016c3d`, `/people`).
+
+**Two real bugs caught and fixed during this round, not just visual
+restyling:**
+
+- Tip Pool's pool Add/Remove buttons had `TAP_TARGET_PAD` applied on top
+  of an explicit `w-7 h-7` size class — under border-box sizing the
+  padding is absorbed inside the fixed box and never actually grows the
+  tap target, so the shared touch-target fix from 2026-08-18 silently
+  didn't work here. Fixed with `min-h-11 min-w-11` directly instead of
+  relying on the padding trick. Worth checking any other
+  `TAP_TARGET_PAD` + explicit-fixed-size combination for the same gap.
+- `GenerateLoginIdControl.tsx`'s Reset-PIN button was still a raw
+  `window.confirm()` — fixed to the design system's `ConfirmDialog`,
+  matching `PublishWeekButton.tsx`/`PayrollActions.tsx`'s established
+  pattern. (Its sibling control on the same page, the Retire button on
+  `EmployeeToggleActiveButton.tsx`, was NOT caught here — it had no
+  confirmation at all, not even a `window.confirm()` — see the
+  2026-08-21 visual-audit entry below for how that was found and fixed.)
+
+**Not yet checked at the time:** a live-viewport visual audit — none of
+these four subsystems had ever had one. See the 2026-08-21 entry below
+for that pass and its fix loop.
+
+**Delivery:** pushed directly to `main` (GitHub write access, direct
+push once verified — see `project_atlas_github_access_policy.md`).
+
+## Visual-audit of the 2026-08-20 retrofit, plus same-day fix loop (2026-08-21)
+
+First live-render check of the sidebar-nav stack (light re-check; 5
+prior runs had already closed everything there) and the four subsystems
+retrofitted the day before. Logged in as `TEST - admin` against
+`atlas-zeta-sandy.vercel.app`, both desktop (1440×900) and mobile
+(390×844).
+
+**Findings: 1 blocker, 2 majors, plus 2 long-open Login findings finally
+confirmed closed.**
+
+- **Blocker.** `/people`'s "Retire" button (`EmployeeToggleActiveButton.tsx`)
+  fired instantly on a single click, no confirmation at all — reproduced
+  live by accident (retired the `TEST - staff` seed account, recovered
+  it via its edit page's Active checkbox). Inconsistent with its own
+  sibling Reset-PIN control on the same page, fixed to `ConfirmDialog`
+  in the retrofit commit above but this one left untouched.
+- **Major.** A React hydration error (minified #418) fired in the
+  console on `/ledger/day?date=2026-08-14` (a finalized reconciliation),
+  reproduced at both viewports on every fresh load.
+- **Major.** The app's own documented money-format rule — "negatives
+  shown as red text with a minus sign" — wasn't implemented anywhere it
+  applies. Confirmed (at the time) at two sites: Ledger's day
+  reconciliation and Payroll's Deduction column.
+- **Closed, confirmed fixed, not previously re-verified since
+  2026-08-18:** `/login`'s "Forgot PIN?" touch target (now 85×36px,
+  clears WCAG 2.5.8) and its empty-form validation (now names both
+  missing fields).
+
+**Same-day fix loop, all 3 new findings closed:**
+
+1. `EmployeeToggleActiveButton.tsx` rewritten to gate Retire behind
+   `ConfirmDialog` (Reactivate stays instant — it's the undo path, not
+   itself destructive). The same unguarded shape was found and fixed
+   proactively on its two Ledger siblings, `ToggleCategoryActiveButton.tsx`
+   and `ToggleCardActiveButton.tsx`, which the original finding had
+   flagged as "likely, not confirmed."
+2. Root cause of the hydration error: `ReconciliationPanel.tsx`'s
+   "Finalized … by …" line called `Date#toLocaleString()` with no
+   explicit locale/timeZone, which resolves against the runtime's
+   default and differs between Node server-render and browser
+   hydration. New shared `lib/formatDateTime.ts` pins `"en-US"` +
+   `"America/New_York"` for real wall-clock timestamps — deliberately
+   distinct from the app's existing UTC-anchored pure-calendar-date
+   helpers (`weekMath.ts` etc.), which are a different, correct pattern
+   and untouched. The same bare-locale bug was found and fixed
+   proactively at 4 more call sites beyond the one reproduced:
+   `RecoveryCodeSection.tsx`, `ChecksTable.tsx` (×2),
+   `shifts/[id]/summary/page.tsx`, and `payroll/page.tsx` (short-date
+   variant).
+3. `ReconciliationPanel.tsx`'s `ReadOnlyField` now applies
+   `--danger-700` whenever its value is negative, matching the
+   documented rule. **Self-correction, worth recording:** the original
+   live-DOM check of Payroll's Deduction column used
+   `document.querySelectorAll('td')` and read `getComputedStyle` on the
+   `<td>` itself — which returns the cell's own inherited color, not the
+   color of the `<span className="text-[var(--danger)]">` nested inside
+   it. That was a false positive; Payroll's Deduction column was already
+   correct (fixed back in the 2026-08-18 bug-fix batch's design-system
+   pass). Caught by reading the actual source before "fixing" something
+   that wasn't broken. Lesson applied to every measurement afterward:
+   select the exact leaf element carrying the text, never a container
+   that might wrap a differently-styled child.
+
+**Verified clean:** `tsc --noEmit` (one pre-existing, unrelated
+`LayoutProps` error on unmodified `main`, confirmed via `git stash` —
+a documented non-standard-Next.js tooling quirk, not caused by this
+change), `eslint` (0 issues across all 9 touched files), `npm test`
+(123/123), `npm run build` (48 routes, success).
+
+**Delivery and live re-verification:** pushed directly to `main`
+(commit `fe68d24c5978e96e1966940e8aa88983158d9182`), confirmed deployed
+(Vercel `dpl_GkEvobkNPAsx1wV5a9busPSzA11u`, READY, aliased to
+`atlas-zeta-sandy.vercel.app`). All 3 fixes then independently
+re-verified against the live deployed app, not just assumed from the
+diff: the Retire confirmation dialog now appears at both viewports
+(clicked Cancel each time, confirmed via a fresh DOM read that the
+seed account was never actually mutated by the check); `/ledger/day`'s
+console showed 0 errors/warnings at both viewports on the exact page
+originally reproduced on; the reconciliation's negative line item
+measured `rgb(185, 28, 28)` (`--danger-700`) via the corrected
+leaf-element technique. No known-open findings remain from this round.
+Full detail: `project_atlas_visual_audit_skill.md` § "Sixth-run
+findings fixed and closed, 2026-08-21."
+
+**Still open after this round:** Analytics remains the one screen from
+the original 5-page retrofit list never touched (0% design-system-v2
+adoption) — next target. The editable pre-publish Schedule Planner grid
+(`WeeklyPlanGrid.tsx`) still hasn't been converted to stacked cards;
+needs its own scoping conversation with Oliver.
