@@ -1,12 +1,13 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { deleteCardTransaction } from "@/lib/actions/card";
 import type { CardTransactionView } from "@/lib/ledger/loadCard";
 import { EmptyState } from "@/components/ui/Card";
 import { XIcon } from "@/components/ui/icons";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 /** Card list, not a wide table -- same shape as EntriesList. */
 export function TransactionsList({
@@ -35,8 +36,14 @@ export function TransactionsList({
   );
 }
 
+/** 2026-08-21 visual-audit fix: same permanent-delete-on-one-click gap
+ * fixed in EntriesList.tsx the same day (see that file's doc comment) --
+ * this is its card-channel twin, and deleting a transaction here also
+ * silently moves the period's reconciliation total. Now gated behind
+ * ConfirmDialog. */
 function TransactionRow({ transaction, periodId, locked }: { transaction: CardTransactionView; periodId: number; locked: boolean }) {
   const [isPending, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const isCredit = transaction.amount < 0;
 
   return (
@@ -57,13 +64,27 @@ function TransactionRow({ transaction, periodId, locked }: { transaction: CardTr
           <button
             type="button"
             disabled={isPending}
-            onClick={() => startTransition(() => deleteCardTransaction(transaction.id, periodId))}
+            onClick={() => setConfirmOpen(true)}
             className={`text-[var(--ink-500)] hover:text-[var(--danger)] disabled:opacity-50 ${TAP_TARGET_PAD}`}
             aria-label={`Remove ${transaction.categoryName} transaction`}
           >
             <XIcon width={16} height={16} />
           </button>
         )}
+        <ConfirmDialog
+          open={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          title="Remove this transaction?"
+          description={`${transaction.categoryName} · ${transaction.date} — ${formatMoney(transaction.amount)}. This deletes it for good and changes what this period has logged against the statement. It can't be undone.`}
+          confirmLabel="Remove"
+          loading={isPending}
+          onConfirm={() =>
+            startTransition(async () => {
+              await deleteCardTransaction(transaction.id, periodId);
+              setConfirmOpen(false);
+            })
+          }
+        />
       </div>
     </li>
   );

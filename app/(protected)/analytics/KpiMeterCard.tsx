@@ -27,13 +27,30 @@ const STATUS_LABEL: Record<Benchmark["status"], string> = {
  */
 export function KpiMeterCard({ benchmark }: { benchmark: Benchmark }) {
   const pct = Math.max(0, Math.min(1, benchmark.value));
+
+  /* 2026-08-21 visual-audit fix: this used to warn on ANY out-of-band
+   * value, so a page whose own copy says "Above 8% is great, not a
+   * warning sign" still showed an amber warning glyph on a 78.7% net
+   * margin -- 4 of 4 warnings on the live page were false alarms.
+   * Crying wolf on good news is exactly what trains a manager to
+   * ignore the one warning that matters (Nielsen #1, visibility of
+   * system status: the signal has to mean something). Warning styling
+   * is now reserved for a deviation on the metric's actual concern
+   * side; a deviation the other way reads as informational -- still
+   * labelled "Above range"/"Below range" so the fact is not hidden,
+   * just not alarm-coded. */
+  const isConcern =
+    (benchmark.status === "above_range" && benchmark.concernDirection === "above") ||
+    (benchmark.status === "below_range" && benchmark.concernDirection === "below");
+  const isDeviation = benchmark.status === "above_range" || benchmark.status === "below_range";
+
   const color =
     benchmark.status === "in_range"
       ? STATUS_COLORS.good
-      : benchmark.status === "not_applicable"
-        ? STATUS_COLORS.neutral
-        : STATUS_COLORS.warning;
-  const icon = benchmark.status === "in_range" ? "✓" : benchmark.status === "not_applicable" ? "–" : "⚠";
+      : isConcern
+        ? STATUS_COLORS.warning
+        : STATUS_COLORS.neutral;
+  const icon = benchmark.status === "in_range" ? "✓" : isConcern ? "⚠" : isDeviation ? "ℹ" : "–";
 
   return (
     <Card>

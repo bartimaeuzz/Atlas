@@ -4,6 +4,7 @@ import { CategoryForm } from "./CategoryForm";
 import { ToggleCategoryActiveButton } from "./ToggleCategoryActiveButton";
 import { SetCategoryPnlGroupSelect } from "./SetCategoryPnlGroupSelect";
 import { EmptyState, Section } from "@/components/ui/Card";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Ledger expense categories admin (2026-08-14, Ledger v1) — same
  * retire-not-delete pattern as Positions. Seeded from Soothr's real
@@ -22,7 +23,7 @@ export default async function LedgerCategoriesPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-6 sm:p-8">
-      <Link href="/ledger" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/ledger" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Ledger
       </Link>
       <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-1">Expense categories</h1>

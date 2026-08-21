@@ -3,6 +3,7 @@ import { loadLedgerCards } from "@/lib/ledger/loadCard";
 import { CardForm } from "./CardForm";
 import { ToggleCardActiveButton } from "./ToggleCardActiveButton";
 import { EmptyState } from "@/components/ui/Card";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Card admin (2026-08-16, Card v1) -- same retire-not-delete pattern as
  * Vendors/Categories. Youk Thai may have more than one card, each with
@@ -12,8 +13,12 @@ export default async function LedgerCardsPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-6 sm:p-8">
-      <Link href="/ledger/card" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
-        &larr; Ledger
+      {/* 2026-08-21 visual-audit nit: the label said "Ledger" while the
+          href goes to the Card tab -- a back link should name where it
+          actually lands (Nielsen #4, consistency), matching how
+          card/new and card/period already label theirs "Card". */}
+      <Link href="/ledger/card" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+        &larr; Card
       </Link>
       <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-1">Cards</h1>
       <p className="text-sm text-[var(--ink-500)] mb-6">
