@@ -101,6 +101,18 @@ function computePresets(today: Date) {
  * part of the design-system token set, and re-validating it wasn't in
  * scope for this pass. Only the surrounding chrome (card background/
  * border/radius, text colors) was retrofit.
+ *
+ * 3. Live mobile re-verification (390px) after the above shipped caught a
+ *    third bug: the P&L table had a `min-w-[420px]` forcing a
+ *    horizontal-scroll table on phone, cutting the amount column off-
+ *    screen for every indented row -- the exact anti-pattern Payroll's
+ *    own doc comment calls out (that page uses a stacked-cards-on-phone
+ *    split specifically to avoid it). Unlike Payroll's multi-field rows,
+ *    a P&L line is just a label/amount pair, so a full stacked-card
+ *    split isn't needed -- removing the forced min-width and adding real
+ *    cell padding (px-3/pl-8) lets the two-column table lay out fluidly
+ *    and fit 390px without scrolling or clipping. Re-verified live: no
+ *    horizontal scroll needed, every row's amount visible, at 390x844.
  */
 export default async function AnalyticsPage({
   searchParams,
@@ -191,7 +203,7 @@ export default async function AnalyticsPage({
       {/* P&L statement */}
       <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">P&amp;L statement</h2>
       <div className="border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-2">
-        <table className="w-full text-sm border-collapse min-w-[420px]">
+        <table className="w-full text-sm border-collapse">
           <tbody>
             <PnLRow label="Revenue" amount={pnl.revenue.total} bold />
             <PnLRow label="Food cost" amount={-pnl.cogs.food} indent />
@@ -246,12 +258,12 @@ function PnLRow({
         border ? "border-t-2 border-[var(--ink-900)]" : "border-b border-[var(--border)]"
       }
     >
-      <td className={`py-2 ${indent ? "pl-6 text-[var(--ink-500)]" : "text-[var(--ink-900)]"} ${bold ? "font-semibold" : ""}`}>
+      <td className={`py-2 pr-2 ${indent ? "pl-8 text-[var(--ink-500)]" : "pl-3 text-[var(--ink-900)]"} ${bold ? "font-semibold" : ""}`}>
         {label}
       </td>
       <td
         className={
-          "py-2 text-right tabular-nums " +
+          "py-2 pr-3 text-right tabular-nums " +
           (bold ? "font-semibold " : "") +
           (highlight ? "text-lg " : "") +
           amountColor
