@@ -15,27 +15,28 @@ import {
   scheduleChangeLog,
 } from "@/db/schema";
 import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
-import { getCurrentStaffSession } from "@/lib/auth/session";
 import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
+import { requireCapability } from "@/lib/permissions/requireCapability";
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 const PERIODS = ["Lunch", "Dinner"] as const;
 
-/** 2026-08-21 — server-action auth audit: most of this file's exported
- * actions had NO auth check at all (including publishWeek, the one
- * originally flagged as missing it — it's what makes a week visible to
- * staff). A few others (autoFillWeek, clearDay, deleteWeek) checked only
- * that a session existed, never systemRole, so any logged-in Staff
- * account could bulk-clear or delete a published week. Same established
- * pattern as employees.ts/tipPools.ts/payroll.ts/permissions.ts, copied
- * as-is — see project_atlas_security_audit_2026_08_17 memory. */
-async function requireManagerAction() {
-  const session = await getCurrentStaffSession();
-  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
-    throw new Error("Not authorized.");
-  }
-  return session;
-}
+/** 2026-08-21 (Phase A) — server-action auth audit: most of this file's
+ * exported actions had NO auth check at all (including publishWeek, the
+ * one originally flagged as missing it — it's what makes a week visible
+ * to staff). A few others (autoFillWeek, clearDay, deleteWeek) checked
+ * only that a session existed, never systemRole. Closed with a
+ * MANAGER/ADMIN gate matching the pattern used across employees.ts/
+ * tipPools.ts/payroll.ts/permissions.ts.
+ *
+ * 2026-08-21 (Phase B) — every action in this file now checks the
+ * SCHEDULE_MANAGE capability instead, matching the confirmed registry
+ * ("Schedule: swap requests, manage/edit plan, publish" — default ON for
+ * Floor Manager/Assistant Manager/Partner/Admin, this is their normal
+ * day-to-day job; revoke individually for a specific problem account
+ * rather than disabling the tier). Default grant matches the old
+ * MANAGER/ADMIN gate exactly, so this is a pure refinement, not a live
+ * behavior change, for anyone already at that gate. */
 
 export interface ScheduleActionState {
   error: string | null;
@@ -55,7 +56,7 @@ export async function updateStaffingTargets(
   formData: FormData
 ): Promise<ScheduleActionState> {
   try {
-    await requireManagerAction();
+    await requireCapability("SCHEDULE_MANAGE");
 
     const allPositions = await db.select({ id: positions.id }).from(positions);
 
@@ -116,7 +117,7 @@ export async function setTemplateVacancy(
   vacancyReason: "RESIGNATION" | "PROMOTION" | "OTHER",
   vacancyStartsOn: string
 ) {
-  await requireManagerAction();
+  await requireCapability("SCHEDULE_MANAGE");
 
   const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
   if (!target) return;
@@ -140,7 +141,7 @@ export async function setTemplateVacancy(
  * clears rows that still have that same reason, so it can't
  * accidentally wipe out an unrelated flag set for a different reason. */
 export async function clearTemplateVacancy(templateId: number) {
-  await requireManagerAction();
+  await requireCapability("SCHEDULE_MANAGE");
 
   const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
   if (!target || !target.vacancyReason) return;
@@ -182,7 +183,7 @@ export async function syncEmployeePositionTemplate(
   positionId: number,
   cells: { dayOfWeek: number; period: "Lunch" | "Dinner" }[]
 ) {
-  await requireManagerAction();
+  await requireCapability("SCHEDULE_MANAGE");
 
   const existing = await db
     .select()
@@ -226,7 +227,7 @@ export async function syncEmployeePositionTemplate(
  * flag. Distinct from "Mark vacating": this is for cleaning up a mistake
  * or an already-effective change, not flagging a future departure. */
 export async function retireEmployeeFromPosition(employeeId: number, positionId: number) {
-  await requireManagerAction();
+  await requireCapability("SCHEDULE_MANAGE");
 
   await db
     .update(employeeScheduleTemplates)
@@ -256,7 +257,7 @@ export async function retireEmployeeFromPosition(employeeId: number, positionId:
  *     visible against the staffing target on the grid).
  */
 export async function generateWeekFromTemplate(weekStartDate: string) {
-  await requireManagerAction();
+  await requireCapability("SCHEDULE_MANAGE");
 
   const [existing] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.weekStartDate, weekStartDate));
   if (existing) return;
@@ -298,7 +299,7 @@ export async function addPlannedAssignment(
   formData: FormData
 ): Promise<PlannedAssignmentActionState> {
   try {
-    await requireManagerAction();
+    await requireCapability("SCHEDULE_MANAGE");
 
     const weekId = Number(formData.get("weekId"));
     const employeeId = Number(formData.get("employeeId"));
@@ -395,7 +396,7 @@ export interface AutoFillActionState {
  * elsewhere in the grid, etc). */
 export async function autoFillWeek(weekId: number): Promise<AutoFillActionState> {
   try {
-    await requireManagerAction();
+    await requireCapability("SCHEDULE_MANAGE");
 
     const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
     if (!week) return { error: "That week no longer exists" };
@@ -560,7 +561,7 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
  * use.
  */
 export async function removePlannedAssignment(assignmentId: number) {
-  const session = await requireManagerAction();
+  const session = await requireCapability("SCHEDULE_MANAGE");
 
   const [assignment] = await db
     .select({
@@ -607,7 +608,7 @@ export async function removePlannedAssignment(assignmentId: number) {
  * (a later phase) — draft weeks are manager-only. No un-publish for v1;
  * not asked for. */
 export async function publishWeek(weekId: number) {
-  await requireManagerAction();
+  await requireCapability("SCHEDULE_MANAGE");
 
   await db
     .update(scheduleWeeks)
@@ -731,7 +732,7 @@ export async function clearDay(
   // of a message inside the form. Now it always resolves to a readable
   // inline error instead of crashing the page.
   try {
-    const session = await requireManagerAction();
+    const session = await requireCapability("SCHEDULE_MANAGE");
 
     const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
     if (!week) return { error: "That week no longer exists" };
@@ -793,7 +794,7 @@ export async function deleteWeek(
   // (e.g. a not-yet-applied migration) used to crash straight to
   // Next.js's generic error page instead of showing a message.
   try {
-    const session = await requireManagerAction();
+    const session = await requireCapability("SCHEDULE_MANAGE");
 
     const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));
     if (!week) return { error: "That week no longer exists" };
