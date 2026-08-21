@@ -4456,3 +4456,171 @@ the Ledger/Analytics instances; `/shifts`' "View summary →" at 115×19 and
 friends remain), `/schedule` Set 2 (targets/templates/weeks/leave/swaps)
 has still never been visually audited, and `WeeklyPlanGrid.tsx`'s
 editable pre-publish grid still isn't converted to stacked cards.
+
+
+## Permission System — Foundation phase: capability schema, Account Type presets, Permission and Roles page (2026-08-19)
+
+Confirmed design ([[project_atlas_permission_system]] memory, finalized
+2026-08-18) built for the first time: two new tables
+(`employee_capabilities`, `permission_grant_log`), a 19-key capability
+registry with per-Account-Type defaults (`lib/permissions/
+capabilities.ts`), and a new Admin-only `/permissions` page
+("Permission and Roles") with a preset-apply flow plus a
+progressive-disclosure "Advanced" per-capability form (individual
+checkboxes, expiry dates on the Financial Auditor subset).
+
+- Migration `0024_lyrical_mockingbird` — pure `CREATE TABLE`, no
+  `ALTER TABLE`, applied to `atlas-prod` and confirmed via
+  `__drizzle_migrations`.
+- `MANAGE_PERMISSIONS` is not independently togglable in this phase —
+  effectively tied to `ADMIN` systemRole via the page's own
+  `requireAdmin()` gate, not a real per-account flag yet. Account Type
+  preset selector shipped on `/permissions` rather than `/people` as
+  originally drafted. Both deviations confirmed fine by Oliver same day
+  ("it doesn't change purpose of button, we can map UI later").
+- **Nothing here is enforced by any existing server action yet** — the
+  schema and UI exist, but no `lib/actions/*.ts` file reads a
+  capability row. That's Phase A/B below.
+- Three UI bugs found on `/permissions` and deferred at Oliver's
+  request ("we'll come back for that later"): the Account Type preset
+  dropdown visually reverts after "Apply preset" even though the DB
+  write succeeds; Advanced checkbox/date changes don't reflect on
+  screen until a manual refresh, same DB-write-succeeds-but-stale-UI
+  shape; preset/save buttons aren't usable on mobile widths.
+
+`tsc`/`eslint`/`npm test`/`npm run build` clean; Vercel deploy READY.
+
+## Permission System — Phase A: server-action auth-check gap closed across 7 files (2026-08-21)
+
+Every `lib/actions/*.ts` file that had zero or inconsistent auth
+checking now has at least a coarse `requireManagerAction()`
+(MANAGER/ADMIN systemRole) gate — the same copy-pasted-per-file
+convention this codebase already uses elsewhere. This closes the
+"server action has no auth check at all" class of bug identified in
+the 2026-08-18 scrutinize pass (the same bug class already found once
+in `tipPools.ts`/`payroll.ts`, commit `b16e606`) — `publishWeek`
+(`schedule.ts`) was the worst offender, with literally zero auth check
+at the action level, relying only on page-level gating. `card.ts`,
+`supplierCheck.ts`, `positions.ts`, and `settings.ts` got the same
+treatment. No fine-grained capability checks yet — that's Phase B.
+
+`tsc`/`eslint`/`npm test`/`npm run build` clean.
+
+## Permission System — Phase B: capability checks wired for 5 zero-risk actions + backfill script (2026-08-21)
+
+Replaced Phase A's coarse `requireManagerAction()` with the real
+capability check on the subset of actions where the confirmed registry
+maps unambiguously and carries no risk of locking out a real working
+account. New shared helper `lib/permissions/requireCapability.ts`
+(written once, not per-file, since the lookup is genuinely shared)
+checks one capability key against `employee_capabilities`
+(granted=true, not expired), with an ADMIN bypass that can only ever
+grant *more* access, never less, since every capability's registry
+default is `ADMIN: true`.
+
+- `updateRestaurantSettings` → `EDIT_SETTINGS`
+- Petty Cash entries + Daily Reconciliation in `ledger.ts` (not
+  vendors/categories admin) → `PETTY_CASH_EDIT`
+- 6 base-level actions in `supplierCheck.ts` → `SUPPLIER_CHECK_LOG`
+  (the separate Admin-or-financial-auditor+PIN gate on printed/paid
+  invoice edits left untouched)
+- All 12 actions in `schedule.ts` → `SCHEDULE_MANAGE`
+- Both actions in `tipPools.ts` → `TIP_POOL_STRUCTURE_EDIT` — a
+  pre-confirmed *intentional* access reduction from the old
+  any-MANAGER gate to Admin+Partner only, since tip-pool structure is
+  near-one-time foundational config decided collectively by owners,
+  not day-to-day manager work.
+
+A live read-only Turso check before wiring anything found 21 of 24
+employees — including Oliver's own real ADMIN account — had ZERO
+`employee_capabilities` rows, which would have locked everyone out the
+moment this deployed if the check were row-only. New script
+`db/backfillCapabilities.ts` (`npm run db:backfill-capabilities`) gives
+every zero-row employee a baseline preset mapped from their existing
+`systemRole`/`isPartner`, additive-only, idempotent. **Oliver ran it
+2026-08-21** — 21 of 24 employees backfilled, the 3 with existing
+manual rows (Aey, Chui, seed ADMIN) correctly skipped, independently
+re-verified live.
+
+Every `FA_*` Financial Auditor capability was deliberately left
+unwired here — they default Admin-only, a real access reduction from
+today's MANAGER/ADMIN gate, and Aey (the real working manager) had
+none of them granted. Wiring live without knowing who should hold them
+risked locking her out mid-shift. Flagged for Oliver rather than
+guessed — see Phase B, part 2 below for the resolution.
+
+Self-reviewed via `scrutinize` before push (report-only, no
+auto-fix) — no blockers, two minor notes logged in memory. Shipped as
+two commits (`9d851de` + `028015c`, a `schedule.ts` push accidentally
+dropped from the first batch and caught immediately via the
+post-push sync check). `tsc`/`eslint`/`npm test` (123/123)/`npm run
+build` clean at the true final commit.
+
+## Permission System — Phase B, part 2: two Financial Auditor capabilities wired after "aey hold it" (2026-08-21)
+
+Oliver's reply to the Phase B report — **"aey hold it"** — resolved
+*who* should hold the Financial Auditor tier, prompting a re-audit of
+all 7 `FA_*` registry keys against the actual code. Only 2 of the 7
+had an unambiguous 1:1 mapping onto an existing action:
+
+- `FA_LEDGER_CARD_RECONCILE` → `card.ts`'s `reconcileStatementPeriod`
+- `FA_PAYROLL_LOCK_FINALIZE` → `payroll.ts`'s `markPayrollPeriodPaid`
+  **and** `revertPayrollPeriodToDraft` (the latter was previously
+  hardcoded to `ADMIN` systemRole directly, not a capability check at
+  all — now brought under the same capability as its sibling, since
+  "lock & finalize" naturally includes correcting a mistake in what
+  you locked)
+
+The other 5 stayed unwired, each flagged in-code with a specific
+reason rather than guessed: `FA_LEDGER_CARD_IMPORT` has no CSV/bank
+import to gate; `FA_LEDGER_CARD_CATEGORIZE` would mean gating ordinary
+day-to-day card-transaction entry (a real access reduction for every
+manager who enters card transactions today, and it surfaced a real
+registry gap — Card has no GENERAL day-to-day-entry capability the way
+Petty Cash/Supplier Check do); `FA_SUPPLIER_CHECK_FINALIZE` remains
+ambiguous against `SUPPLIER_CHECK_LOG`'s own "mark paid" label;
+`FA_SUPPLIER_CHECK_EDIT_LOCKED` is already covered by a separate,
+arguably-stronger Admin-or-`isFinancialAuditor`+PIN mechanism Aey
+already passes through today; `FA_EDIT_FINANCIAL_SETTINGS` has no
+separate action to attach to without splitting the Settings form.
+
+Shipped as commit `213e93a`. `tsc`/`eslint`/`npm test` (123/123)/`npm
+run build` clean. **The actual `/permissions` grant to Aey — confirmed
+live same day**: a read-only Turso query on employee id 1 shows
+`FA_LEDGER_CARD_RECONCILE` and `FA_PAYROLL_LOCK_FINALIZE` both
+`granted=1`, `expires_at=NULL`. She can reconcile a Card statement
+period and lock/revert a payroll week today.
+
+## Permission System — Ledger Card FA_* registry default tightened to Admin+Partner (2026-08-21, commit `6d6ab89`)
+
+Same-day follow-up to Phase B part 2. Oliver clarified the underlying
+business fact behind "who holds these": **"card would hold by partner
+tier or above and they're only people who can do card reconciliation
+for now."** That's a statement about who physically holds/uses the
+restaurant card today, not just a permission preference, so the
+registry *default* needed to change, not just Aey's individual grant.
+
+- `FA_LEDGER_CARD_IMPORT`, `FA_LEDGER_CARD_CATEGORIZE`, and
+  `FA_LEDGER_CARD_RECONCILE` in `lib/permissions/capabilities.ts` now
+  default to Admin+Partner instead of Admin-only, matching every other
+  Admin+Partner default already in the registry. The other 6 `FA_*`
+  items are untouched.
+- **Default change, not a retroactive grant** — `applyAccountTypePreset`/
+  `db/backfillCapabilities.ts` only read this default when a preset is
+  (re-)applied to an account, so it doesn't touch Aey's existing row;
+  it means the *next* Partner-tier hire or promotion gets it correctly
+  by default.
+- Explicitly forward-looking, not final: Oliver also flagged "one day
+  when we got GM or Assistant manager right might fall into them to
+  leverage work" — deliberately not built ahead of that; the existing
+  per-account override already covers a future one-off grant when
+  that day comes.
+- Test suite updated to match (`capabilities.test.ts`'s "Financial
+  Auditor subset is Admin-only" invariant now excludes these 3 keys,
+  plus a new dedicated test for their Admin+Partner default) — caught
+  by `npm test` before push, not a silent regression.
+
+`tsc`/`eslint`/`npm test` (124/124)/`npm run build` clean. `main` HEAD
+reconfirmed at `6d6ab89` via `git ls-remote`.
+
+---
