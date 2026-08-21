@@ -35,14 +35,34 @@ test("capabilities: MANAGE_PERMISSIONS defaults true for Admin only", () => {
   }
 });
 
-test("capabilities: Financial Auditor subset items are all expirable and false-by-default except Admin", () => {
-  const faItems = CAPABILITIES.filter((c) => c.category === "FINANCIAL_AUDITOR");
+// 2026-08-21: the three Ledger Card items (IMPORT/CATEGORIZE/RECONCILE)
+// are a confirmed exception to the subset's usual "Admin only" default —
+// Oliver: "card would hold by partner tier or above and they're only
+// people who can do card reconciliation for now" — see the doc comment
+// above those three CAPABILITIES entries. Excluded here and covered by
+// their own test below instead of weakening this invariant for everyone.
+const FA_ADMIN_PARTNER_EXCEPTIONS = new Set(["FA_LEDGER_CARD_IMPORT", "FA_LEDGER_CARD_CATEGORIZE", "FA_LEDGER_CARD_RECONCILE"]);
+
+test("capabilities: Financial Auditor subset items are all expirable and false-by-default except Admin (Ledger Card items excepted)", () => {
+  const faItems = CAPABILITIES.filter((c) => c.category === "FINANCIAL_AUDITOR" && !FA_ADMIN_PARTNER_EXCEPTIONS.has(c.key));
   assert.ok(faItems.length > 0);
   for (const def of faItems) {
     assert.equal(def.expirable, true, `${def.key} should be expirable`);
     for (const type of ACCOUNT_TYPES) {
       assert.equal(def.defaults[type], type === "ADMIN", `${def.key} default for ${type}`);
     }
+  }
+});
+
+test("capabilities: Ledger Card FA_* items are expirable and default Admin+Partner only, matching the confirmed card-holder tightening", () => {
+  for (const key of FA_ADMIN_PARTNER_EXCEPTIONS) {
+    const def = getCapabilityDef(key)!;
+    assert.equal(def.expirable, true, `${key} should be expirable`);
+    assert.equal(def.defaults.ADMIN, true);
+    assert.equal(def.defaults.PARTNER, true);
+    assert.equal(def.defaults.FLOOR_MANAGER, false);
+    assert.equal(def.defaults.ASSISTANT_MANAGER, false);
+    assert.equal(def.defaults.STAFF, false);
   }
 });
 

@@ -162,13 +162,28 @@ export const CAPABILITIES: CapabilityDef[] = [
     expirable: true,
     defaults: { ...ALL_FALSE, ADMIN: true },
   },
+  // 2026-08-21 — Oliver confirmed the restaurant card itself is currently
+  // held only by Partner tier and above: "card would hold by partner
+  // tier or above and they're only people who can do card reconciliation
+  // for now." All three Ledger Card FA_* items default to Admin+Partner
+  // (not Admin-only like the rest of this subset) to match. Oliver also
+  // flagged this as forward-looking, not fixed forever: "one day when we
+  // got GM or Assistant manager right might fall into them to leverage
+  // work" — deliberately NOT built ahead of that; the existing
+  // per-account override (see Core architectural decision) already
+  // covers a future one-off grant to a specific Floor Manager/Assistant
+  // Manager/GM account without needing a registry change when that day
+  // comes. Note this only sets the *default* going forward (new hires,
+  // future preset re-applications) — it does not retroactively grant
+  // these to Aey's existing capability rows; that's a separate manual
+  // /permissions step, see project_atlas_permission_system memory.
   {
     key: "FA_LEDGER_CARD_IMPORT",
     category: "FINANCIAL_AUDITOR",
     label: "Ledger Card: import",
     description: "Import Ledger Card transactions.",
     expirable: true,
-    defaults: { ...ALL_FALSE, ADMIN: true },
+    defaults: adminPartner(),
   },
   {
     key: "FA_LEDGER_CARD_CATEGORIZE",
@@ -176,7 +191,7 @@ export const CAPABILITIES: CapabilityDef[] = [
     label: "Ledger Card: categorize",
     description: "Categorize Ledger Card transactions.",
     expirable: true,
-    defaults: { ...ALL_FALSE, ADMIN: true },
+    defaults: adminPartner(),
   },
   {
     key: "FA_LEDGER_CARD_RECONCILE",
@@ -184,7 +199,7 @@ export const CAPABILITIES: CapabilityDef[] = [
     label: "Ledger Card: reconcile",
     description: "Reconcile the Ledger Card report.",
     expirable: true,
-    defaults: { ...ALL_FALSE, ADMIN: true },
+    defaults: adminPartner(),
   },
   {
     key: "FA_SUPPLIER_CHECK_EDIT_LOCKED",
