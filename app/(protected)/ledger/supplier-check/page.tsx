@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { Tab } from "@/components/ui/Tabs";
 import { formatMoney } from "../formatMoney";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Month helpers, same shape as /ledger/page.tsx's (kept local rather
  * than shared -- matches that file's own precedent of each page owning
@@ -139,7 +140,7 @@ export default async function SupplierCheckPage({
               ? `/ledger/supplier-check?view=week&week=${shiftWeek(weekStart, -1)}`
               : `/ledger/supplier-check?view=month&month=${shiftMonth(month, -1)}`
           }
-          className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]"
+          className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
         >
           &larr; Prev
         </Link>
@@ -150,14 +151,14 @@ export default async function SupplierCheckPage({
               ? `/ledger/supplier-check?view=week&week=${shiftWeek(weekStart, 1)}`
               : `/ledger/supplier-check?view=month&month=${shiftMonth(month, 1)}`
           }
-          className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]"
+          className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
         >
           Next &rarr;
         </Link>
       </div>
 
       <p className="text-sm text-[var(--ink-500)] mb-3">
-        {checks.length === 0 ? "No checks in this period." : `${checks.length} check${checks.length === 1 ? "" : "s"} -- ${formatMoney(periodTotal)} total`}
+        {checks.length === 0 ? "No checks in this period." : `${checks.length} check${checks.length === 1 ? "" : "s"} — ${formatMoney(periodTotal)} total`}
       </p>
 
       <ChecksTable checks={checks} canEditLockedInvoices={canEditLockedInvoices} />

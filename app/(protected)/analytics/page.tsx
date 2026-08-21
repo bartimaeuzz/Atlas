@@ -154,9 +154,23 @@ export default async function AnalyticsPage({
             This year
           </LinkButton>
         </div>
-        <form className="flex items-end gap-2" action="/analytics">
-          <TextInput type="date" name="from" label="From" defaultValue={from} className="min-h-9 py-1.5" />
-          <TextInput type="date" name="to" label="To" defaultValue={to} className="min-h-9 py-1.5" />
+        {/* 2026-08-21 visual-audit fix: this row was `flex items-end gap-2`
+            with no wrap, so at 390px its two date inputs plus the View
+            button measured 399px inside a ~342px content column -- the
+            View button rendered entirely off-screen (x=432 in a 390px
+            viewport) and the whole page scrolled sideways, a WCAG 1.4.10
+            Reflow failure on the filter's only submit control. Same
+            anti-pattern class as the P&L table's min-width bug fixed
+            earlier the same day, different component on the same page.
+            Now wraps, and the inputs flex down instead of holding an
+            intrinsic width. */}
+        <form className="flex flex-wrap items-end gap-2 w-full sm:w-auto" action="/analytics">
+          <div className="flex-1 min-w-[9.5rem]">
+            <TextInput type="date" name="from" label="From" defaultValue={from} className="min-h-9 py-1.5" />
+          </div>
+          <div className="flex-1 min-w-[9.5rem]">
+            <TextInput type="date" name="to" label="To" defaultValue={to} className="min-h-9 py-1.5" />
+          </div>
           <Button type="submit" size="sm">
             View
           </Button>
