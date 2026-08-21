@@ -14,17 +14,44 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { ledgerCards, cardStatementPeriods, cardTransactions } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { requireCapability } from "@/lib/permissions/requireCapability";
 
 export interface CardActionState {
   error: string | null;
 }
 
-/** 2026-08-21 — server-action auth audit: same gap class as ledger.ts
- * (see that file's comment on requireManagerAction for the full
- * reasoning) — several functions here only fetched a session to feed
- * the existing reconciled-then-ADMIN-override check, which meant an
- * unauthenticated request could still write as long as the period
- * wasn't already reconciled. */
+/** 2026-08-21 (Phase A) — server-action auth audit: same gap class as
+ * ledger.ts (see that file's comment on requireManagerAction for the
+ * full reasoning) — several functions here only fetched a session to
+ * feed the existing reconciled-then-ADMIN-override check, which meant
+ * an unauthenticated request could still write as long as the period
+ * wasn't already reconciled.
+ *
+ * 2026-08-21 (Phase B, part 2) — Oliver confirmed Aey should hold the
+ * Financial Auditor tier ("aey hold it"), which unblocks wiring the one
+ * capability in this file with an unambiguous 1:1 action mapping:
+ * reconcileStatementPeriod -> FA_LEDGER_CARD_RECONCILE (registry label
+ * "Ledger Card: reconcile" -- there's no other candidate action in this
+ * file for that verb). Everything else here stays on the coarse
+ * requireManagerAction() gate deliberately, not by oversight:
+ *   - createLedgerCard / toggleLedgerCardActive: card admin, same
+ *     "no capability exists for this yet" category as ledger.ts's
+ *     vendor/category admin functions.
+ *   - createStatementPeriod / editStatementPeriod / addCardTransaction /
+ *     deleteCardTransaction: day-to-day entry. The registry has
+ *     PETTY_CASH_EDIT and SUPPLIER_CHECK_LOG as GENERAL (all-manager-
+ *     tier-by-default) capabilities for the other two Ledger channels'
+ *     day-to-day entry, but no equivalent exists for Card -- the only
+ *     Card capabilities in the registry are the three FA_LEDGER_CARD_*
+ *     Financial Auditor ones (IMPORT/CATEGORIZE/RECONCILE), all
+ *     Admin-only by default. Mapping ordinary transaction entry onto
+ *     FA_LEDGER_CARD_CATEGORIZE (the closest-sounding one, since every
+ *     addCardTransaction call includes a categoryId) would be a real
+ *     access reduction for every manager who enters card transactions
+ *     today -- not something to guess at. Flagged as an open registry
+ *     gap for Oliver, not wired. FA_LEDGER_CARD_IMPORT has no
+ *     corresponding action in this file at all (no CSV/bank import
+ *     exists in v1 per this file's own header comment). */
 async function requireManagerAction() {
   const session = await getCurrentStaffSession();
   if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
@@ -119,7 +146,7 @@ export async function editStatementPeriod(
  * Petty Cash's "counted must match expected" discipline -- confirmed
  * with Oliver this should be a forced match, not just a log. */
 export async function reconcileStatementPeriod(periodId: number) {
-  const session = await requireManagerAction();
+  const session = await requireCapability("FA_LEDGER_CARD_RECONCILE");
 
   const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
   if (!period) throw new Error("Statement period not found");

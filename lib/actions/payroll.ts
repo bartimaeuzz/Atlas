@@ -13,27 +13,34 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { payrollPeriods, payrollPeriodEmployeeTotals } from "@/db/schema";
-import { getCurrentStaffSession } from "@/lib/auth/session";
+import { requireCapability } from "@/lib/permissions/requireCapability";
 import { datesInWeek } from "@/lib/schedule/weekMath";
 import { computeLivePayrollRegister } from "@/lib/payroll/loadPayrollRegister";
 
-/** Locks a week's payroll register. Blocked unless every shift that
- * exists in that week is already finalized (same "source data must be
- * locked first" rule Ledger/Card enforce) and there's at least one
- * employee to pay. Snapshots the exact live numbers at this moment into
- * payrollPeriodEmployeeTotals — a locked historical record that won't
- * silently change later if a shift is edited/refinalized. */
+/** 2026-08-17 security audit finding #2 (MAJOR) — markPayrollPeriodPaid
+ * originally only checked "is anyone logged in," not "is this a
+ * manager," even though /payroll itself is manager-gated and its
+ * sibling revertPayrollPeriodToDraft below correctly required ADMIN. A
+ * STAFF-only session (e.g. someone who only ever logs in for My
+ * Schedule) could otherwise lock a week's payroll as paid by calling
+ * this action directly. Closed same day with a MANAGER/ADMIN gate.
+ *
+ * 2026-08-21 (Phase B, part 2) — both functions below now check the
+ * real FA_PAYROLL_LOCK_FINALIZE capability (registry label "Payroll:
+ * lock & finalize," Admin-only by default) instead of the coarse
+ * MANAGER/ADMIN or hardcoded-ADMIN checks, now that Oliver has
+ * confirmed Aey holds the Financial Auditor tier ("aey hold it").
+ * revertPayrollPeriodToDraft is included under the same capability
+ * (not left ADMIN-only) because "lock & finalize" naturally includes
+ * correcting a mistake in what you locked — whoever can finalize a
+ * period should be able to unlock it to fix an error, matching the
+ * symmetry the Financial Auditor tier is meant to grant. Confirmed
+ * safe to wire: unlike the FA_LEDGER_CARD_* / FA_SUPPLIER_CHECK_* items
+ * left unwired in card.ts/supplierCheck.ts, both functions here map
+ * 1:1 onto this one capability with no ambiguity about which action(s)
+ * it should gate. */
 export async function markPayrollPeriodPaid(weekStartDate: string) {
-  const session = await getCurrentStaffSession();
-  // 2026-08-17 security audit finding #2 (MAJOR) — this only checked "is
-  // anyone logged in," not "is this a manager," even though /payroll
-  // itself is manager-gated and its sibling revertPayrollPeriodToDraft
-  // below correctly requires ADMIN. A STAFF-only session (e.g. someone
-  // who only ever logs in for My Schedule) could otherwise lock a week's
-  // payroll as paid by calling this action directly.
-  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
-    throw new Error("Only a manager can mark payroll as paid.");
-  }
+  const session = await requireCapability("FA_PAYROLL_LOCK_FINALIZE");
 
   const weekEndDate = datesInWeek(weekStartDate)[6];
 
@@ -91,15 +98,13 @@ export async function markPayrollPeriodPaid(weekStartDate: string) {
 }
 
 /** Reverts a paid week back to draft so it can be corrected and
- * re-marked paid — ADMIN only, same override exception already used for
- * a finalized Ledger day / reconciled Card period / paid Supplier
- * Check. Deletes the locked snapshot; the week goes back to showing
- * live numbers until marked paid again. */
+ * re-marked paid — see the 2026-08-21 (Phase B, part 2) header comment
+ * above for why this now shares FA_PAYROLL_LOCK_FINALIZE with
+ * markPayrollPeriodPaid instead of staying hardcoded to ADMIN. Deletes
+ * the locked snapshot; the week goes back to showing live numbers until
+ * marked paid again. */
 export async function revertPayrollPeriodToDraft(weekStartDate: string) {
-  const session = await getCurrentStaffSession();
-  if (!session || session.systemRole !== "ADMIN") {
-    throw new Error("Only an Admin can revert a paid payroll week back to draft.");
-  }
+  await requireCapability("FA_PAYROLL_LOCK_FINALIZE");
 
   const [existing] = await db.select().from(payrollPeriods).where(eq(payrollPeriods.weekStartDate, weekStartDate));
   if (!existing || existing.status !== "paid") return;
@@ -112,4 +117,3 @@ export async function revertPayrollPeriodToDraft(weekStartDate: string) {
 
   revalidatePath("/payroll");
 }
-
