@@ -4366,3 +4366,93 @@ while shipping) hasn't been run on either this page or the 2026-08-20
 Ledger/Payroll/Tip Pool/People round. The editable pre-publish Schedule
 Planner grid (`WeeklyPlanGrid.tsx`) still hasn't been converted to
 stacked cards.
+
+---
+
+## 2026-08-21 — Visual audit of the never-audited Ledger admin pages + a full Analytics pass (3 blockers, 2 majors, 2 nits — all fixed same day)
+
+The first `visual-audit` run against `/ledger/vendors`, `/ledger/categories`,
+`/ledger/cards`, `/ledger/card`, `/ledger/card/period` and
+`/ledger/supplier-check` — all retrofitted 2026-08-20 but never once
+checked against a real rendered screen — plus the full checklist pass on
+`/analytics` that shipping it the same morning hadn't included. Desktop
+1440×900 and mobile 390×844, logged in as `TEST - admin`.
+
+**Blockers found and fixed.**
+
+1. **Permanent deletes of money records fired on a single click, with no
+   confirmation.** `/ledger/day`'s petty-cash entries (`EntriesList.tsx`)
+   and `/ledger/card/period`'s transactions (`card/TransactionsList.tsx`)
+   each removed a real money record instantly from a 24×32px icon button
+   — no dialog, no undo, and unlike Retire these deletions are permanent
+   and silently move the day's/period's reconciliation total. Both now
+   gated behind `ConfirmDialog`, naming the exact entry and amount
+   ("Bar — $30.00. This deletes the entry for good…").
+2. **`/ledger/vendors`' Retire still fired instantly.** The sibling that
+   the 2026-08-21 morning sweep missed, because it lives inline in
+   `VendorsList.tsx` rather than in its own `Toggle*ActiveButton.tsx`
+   file — a filename-shaped search didn't surface it. Now behind
+   `ConfirmDialog`, matching People/Categories/Cards.
+3. **`/analytics`' date-range "View" button rendered entirely off-screen
+   at 390px.** The From/To/View row was a no-wrap flex measuring 399px
+   inside a ~342px content column; the button sat at x=432 in a 390px
+   viewport and the whole page scrolled sideways — a WCAG 1.4.10 Reflow
+   failure on the filter's only submit control. Same anti-pattern class
+   as the P&L table's `min-w-[420px]` bug fixed earlier the same day, a
+   different component on the same page. Now wraps.
+
+**Majors found and fixed.**
+
+4. **Every Analytics health indicator warned, including the good news.**
+   `KpiMeterCard` applied the amber ⚠ to any out-of-band value, so a
+   78.7% net margin showed a warning directly above its own text saying
+   "Above 8% is great, not a warning sign" — 4 of 4 warnings on the live
+   page were false alarms. Crying wolf on good news is what trains a
+   manager to ignore the one warning that matters. `Benchmark` gained a
+   `concernDirection` field (`"above"` for the three cost ratios,
+   `"below"` for net margin, `null` for un-benchmarked bar cost); warning
+   styling is now reserved for that side, and a deviation the other way
+   renders informational (ℹ, neutral gray) while still being labelled
+   "Above range"/"Below range" so the fact isn't hidden.
+5. **Undersized tap targets across every audited page.** Ledger back
+   links measured 62×19 / 47×19, supplier-check and month Prev/Next
+   45×20, the petty-cash day-nav arrows were bare single glyphs, and
+   Analytics' "View as table" disclosure was 430×16 — all under WCAG
+   2.5.8's 24px floor. `TAP_TARGET_PAD` applied across the Ledger
+   subsystem's nav links (now ~35px), `min-w-11 min-h-11` on the day
+   arrows (now 44×44), padding on the disclosure (now 32px).
+
+**Nits fixed.** Literal `--` replaced with real em dashes in user-facing
+copy (supplier-check's "1 check -- $750.00 total", three Analytics meter
+descriptions, two supplier-check form messages); `/ledger/cards`' back
+link relabelled "← Card" to match where it actually lands.
+
+**Confirmed working, not assumed.** The morning's Category/Card
+`ConfirmDialog` fix holds live (dialog appears, Escape closes it, no
+mutation); real populated data was exercised throughout (a $750 check
+with 2 invoices, a card period with a real $26 mismatch, two real
+petty-cash entries); 0 console errors or warnings on every audited page
+at both viewports.
+
+**Shipped as three commits** — `119cb82` (ConfirmDialog gates),
+`e29a315` (`concernDirection`, tap targets, copy), `2b0faea` (Analytics
+form wrap, supplier-check) — split only because this sandbox pushes
+through the GitHub API rather than `git push`. Verified against the
+exact tree now on `main`: `tsc` clean, `eslint` 0 errors (1 pre-existing
+`PrintChecksButton` warning), `npm test` 123/123, `npm run build` 48
+routes. Note `0850605` (Permission System Phase A) landed from a
+concurrent session between parts 2 and 3 — no file overlap, and the
+merged tree is what was verified above.
+
+**Re-verified live after deploy**, at both viewports: the View button now
+sits fully on-screen (right edge 353px of 390), the page no longer
+scrolls horizontally, all 5 indicator cards render neutral-gray ℹ with
+zero false warnings, every destructive control opens its dialog, and
+Escape-cancel left every record intact — zero net data mutation across
+the whole audit-plus-verification cycle.
+
+**Still open:** the app-wide undersized-text-link sweep (this round fixed
+the Ledger/Analytics instances; `/shifts`' "View summary →" at 115×19 and
+friends remain), `/schedule` Set 2 (targets/templates/weeks/leave/swaps)
+has still never been visually audited, and `WeeklyPlanGrid.tsx`'s
+editable pre-publish grid still isn't converted to stacked cards.
