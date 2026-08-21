@@ -4,10 +4,27 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { restaurantSettings } from "@/db/schema";
+import { getCurrentStaffSession } from "@/lib/auth/session";
 
 export interface SettingsActionState {
   error: string | null;
   saved: boolean;
+}
+
+/** 2026-08-21 — server-action auth audit: this file had NO auth check at
+ * all. Deliberately MANAGER/ADMIN here (matching the existing /settings
+ * page guard, requireManager() in lib/auth/guard.ts, which already lets
+ * any manager reach this form today) rather than jumping ahead to the
+ * tighter Admin-only default the confirmed Permission System capability
+ * registry eventually wants for EDIT_SETTINGS — that's a live behavior
+ * change explicitly deferred to the later requireCapability() wiring
+ * phase, not something to sneak in as part of closing this gap. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
 }
 
 export async function updateRestaurantSettings(
@@ -15,6 +32,7 @@ export async function updateRestaurantSettings(
   formData: FormData
 ): Promise<SettingsActionState> {
   try {
+    await requireManagerAction();
     // Entered as a percent (e.g. 4.5 for 4.5%), same fix as the sales tax
     // rate below (2026-08-15 accessibility audit flag #1, applied here
     // 2026-08-17) — typing the raw fraction (0.045) invited the same

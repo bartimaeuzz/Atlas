@@ -12,6 +12,23 @@ export interface SupplierInvoiceActionState {
   error: string | null;
 }
 
+/** 2026-08-21 — server-action auth audit: this file had NO auth check at
+ * all on deletePendingInvoice, and every other function only fetched a
+ * session to feed some other check (or nothing at all) without ever
+ * verifying systemRole — same gap class as ledger.ts/card.ts. Base
+ * authorization here stays MANAGER/ADMIN (matching the existing /ledger
+ * page guard); the separate, tighter Admin-or-financial-auditor +
+ * PIN-confirm gate inside editSupplierInvoice for already-printed/paid
+ * invoices is untouched — that's a distinct, already-correct check on
+ * top of this one, not replaced by it. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
+}
+
 /** Logging an invoice is deliberately its own form, not a reuse of
  * addPettyCashEntry -- Oliver's own words: "the input form on petty
  * cash now won't work on delivery invoice based supplier." No amount
@@ -32,6 +49,8 @@ export async function logSupplierInvoice(
   const amountRaw = formData.get("amount");
 
   try {
+    const session = await requireManagerAction();
+
     if (!receivedDate) throw new Error("Missing date");
     const vendorId = Number(vendorIdRaw);
     if (!vendorId) throw new Error("Vendor is required");
@@ -40,9 +59,6 @@ export async function logSupplierInvoice(
     if (!invoiceNumber) throw new Error("Invoice number is required");
     const amount = Number(amountRaw);
     if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be a positive number");
-
-    const session = await getCurrentStaffSession();
-    if (!session) throw new Error("Not signed in");
 
     await db.insert(supplierInvoices).values({
       receivedDate,
@@ -63,6 +79,7 @@ export async function logSupplierInvoice(
 }
 
 export async function deletePendingInvoice(invoiceId: number) {
+  await requireManagerAction();
   const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
   if (!invoice) return;
   if (invoice.status !== "pending") {
@@ -116,8 +133,7 @@ export async function editSupplierInvoice(input: {
   auditorCode?: string;
 }): Promise<EditSupplierInvoiceActionState> {
   try {
-    const session = await getCurrentStaffSession();
-    if (!session) return { error: "You've been signed out -- sign in again" };
+    const session = await requireManagerAction();
 
     const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, input.invoiceId));
     if (!invoice) return { error: "Invoice not found." };
@@ -203,8 +219,7 @@ export async function editSupplierInvoice(input: {
  * invoice logged in the split second between the select and the update
  * can't sneak into this check without its amount being in the total. */
 export async function printSupplierCheck(vendorId: number, checkNumber: string | null): Promise<{ paymentId: number }> {
-  const session = await getCurrentStaffSession();
-  if (!session) throw new Error("Not signed in");
+  const session = await requireManagerAction();
 
   const pending = await db
     .select()
@@ -267,8 +282,7 @@ export async function printSupplierCheck(vendorId: number, checkNumber: string |
 export async function printChecksForVendors(
   selections: { vendorId: number; checkNumber: string | null }[]
 ): Promise<{ paymentIds: number[] }> {
-  const session = await getCurrentStaffSession();
-  if (!session) throw new Error("Not signed in");
+  await requireManagerAction();
 
   if (selections.length === 0) {
     throw new Error("Select at least one vendor to print a check for.");
@@ -290,8 +304,7 @@ export async function printChecksForVendors(
  * holistic table's per-invoice detail reflects the final state without
  * needing to join back through the payment's own status every time. */
 export async function markSupplierCheckPaid(paymentId: number) {
-  const session = await getCurrentStaffSession();
-  if (!session) throw new Error("Not signed in");
+  const session = await requireManagerAction();
 
   const [payment] = await db.select().from(supplierCheckPayments).where(eq(supplierCheckPayments.id, paymentId));
   if (!payment) throw new Error("Check not found.");

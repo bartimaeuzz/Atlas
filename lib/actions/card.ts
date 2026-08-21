@@ -19,6 +19,20 @@ export interface CardActionState {
   error: string | null;
 }
 
+/** 2026-08-21 — server-action auth audit: same gap class as ledger.ts
+ * (see that file's comment on requireManagerAction for the full
+ * reasoning) — several functions here only fetched a session to feed
+ * the existing reconciled-then-ADMIN-override check, which meant an
+ * unauthenticated request could still write as long as the period
+ * wasn't already reconciled. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
+}
+
 /* ---------------------------------------------------------------------- */
 /* Cards (admin)                                                           */
 /* ---------------------------------------------------------------------- */
@@ -26,6 +40,7 @@ export interface CardActionState {
 export async function createLedgerCard(_prevState: CardActionState, formData: FormData): Promise<CardActionState> {
   const name = String(formData.get("name") ?? "").trim();
   try {
+    await requireManagerAction();
     if (!name) throw new Error("Card name is required");
     await db.insert(ledgerCards).values({ name, active: true });
   } catch (e) {
@@ -36,6 +51,7 @@ export async function createLedgerCard(_prevState: CardActionState, formData: Fo
 }
 
 export async function toggleLedgerCardActive(cardId: number, nextActive: boolean) {
+  await requireManagerAction();
   await db.update(ledgerCards).set({ active: nextActive }).where(eq(ledgerCards.id, cardId));
   revalidatePath("/ledger/cards");
 }
@@ -52,13 +68,12 @@ export async function createStatementPeriod(_prevState: CardActionState, formDat
 
   let periodId: number;
   try {
+    const session = await requireManagerAction();
+
     if (!cardId) throw new Error("Choose a card");
     if (!periodStart || !periodEnd) throw new Error("Enter both statement dates");
     if (periodEnd < periodStart) throw new Error("Statement end date can't be before the start date");
     if (!Number.isFinite(statementTotal) || statementTotal < 0) throw new Error("Enter the statement's total charge amount");
-
-    const session = await getCurrentStaffSession();
-    if (!session) throw new Error("Not signed in");
 
     const [row] = await db
       .insert(cardStatementPeriods)
@@ -81,14 +96,15 @@ export async function editStatementPeriod(
   periodEnd: string,
   statementTotal: number
 ) {
+  const session = await requireManagerAction();
+
   if (!periodStart || !periodEnd) throw new Error("Enter both statement dates");
   if (periodEnd < periodStart) throw new Error("Statement end date can't be before the start date");
   if (!Number.isFinite(statementTotal) || statementTotal < 0) throw new Error("Enter a valid statement total");
 
-  const session = await getCurrentStaffSession();
   const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
   if (!period) throw new Error("Statement period not found");
-  if (period.status === "reconciled" && session?.systemRole !== "ADMIN") {
+  if (period.status === "reconciled" && session.systemRole !== "ADMIN") {
     throw new Error("This period is already reconciled -- can't edit it.");
   }
 
@@ -103,8 +119,7 @@ export async function editStatementPeriod(
  * Petty Cash's "counted must match expected" discipline -- confirmed
  * with Oliver this should be a forced match, not just a log. */
 export async function reconcileStatementPeriod(periodId: number) {
-  const session = await getCurrentStaffSession();
-  if (!session) throw new Error("Not signed in");
+  const session = await requireManagerAction();
 
   const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
   if (!period) throw new Error("Statement period not found");
@@ -149,15 +164,15 @@ export async function addCardTransaction(
   const amountRaw = formData.get("amount");
 
   try {
+    const session = await requireManagerAction();
+
     if (!periodId) throw new Error("Missing statement period");
     if (!date) throw new Error("Missing date");
     const categoryId = Number(categoryIdRaw);
     if (!categoryId) throw new Error("Category is required");
+
     const amount = Number(amountRaw);
     if (!Number.isFinite(amount) || amount === 0) throw new Error("Amount is required (enter a negative number for a credit/refund)");
-
-    const session = await getCurrentStaffSession();
-    if (!session) throw new Error("Not signed in");
 
     const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
     if (!period) throw new Error("Statement period not found");
@@ -183,9 +198,9 @@ export async function addCardTransaction(
 }
 
 export async function deleteCardTransaction(transactionId: number, periodId: number) {
-  const session = await getCurrentStaffSession();
+  const session = await requireManagerAction();
   const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
-  if (period?.status === "reconciled" && session?.systemRole !== "ADMIN") {
+  if (period?.status === "reconciled" && session.systemRole !== "ADMIN") {
     throw new Error("This period is already reconciled -- can't remove transactions from it.");
   }
   await db.delete(cardTransactions).where(eq(cardTransactions.id, transactionId));

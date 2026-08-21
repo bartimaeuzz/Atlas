@@ -5,9 +5,22 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { positions, positionTipPools, positionShiftRates } from "@/db/schema";
+import { getCurrentStaffSession } from "@/lib/auth/session";
 
 export interface PositionActionState {
   error: string | null;
+}
+
+/** 2026-08-21 — server-action auth audit: this file had NO auth check at
+ * all — same gap class as employees.ts/tipPools.ts/payroll.ts/
+ * permissions.ts, see project_atlas_security_audit_2026_08_17 memory.
+ * Same established pattern, copied as-is. */
+async function requireManagerAction() {
+  const session = await getCurrentStaffSession();
+  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+    throw new Error("Not authorized.");
+  }
+  return session;
 }
 
 /** Same "gather + validate, redirect() outside the try/catch" pattern as
@@ -88,6 +101,7 @@ async function syncPositionChildRows(
 export async function createPosition(_prevState: PositionActionState, formData: FormData): Promise<PositionActionState> {
   let positionId: number;
   try {
+    await requireManagerAction();
     const parsed = readPositionForm(formData);
 
     const [existing] = await db.select().from(positions).where(eq(positions.name, parsed.name));
@@ -120,6 +134,7 @@ export async function updatePosition(_prevState: PositionActionState, formData: 
   if (!positionId) return { error: "Missing position id" };
 
   try {
+    await requireManagerAction();
     const parsed = readPositionForm(formData);
 
     const [existing] = await db.select().from(positions).where(eq(positions.name, parsed.name));
@@ -154,6 +169,7 @@ export async function updatePosition(_prevState: PositionActionState, formData: 
  * working exactly as before. Plain (non-form-state) action since there's
  * no form to show inline errors on — just a button. */
 export async function togglePositionActive(positionId: number, nextActive: boolean) {
+  await requireManagerAction();
   await db.update(positions).set({ active: nextActive }).where(eq(positions.id, positionId));
   revalidatePath("/positions");
 }
