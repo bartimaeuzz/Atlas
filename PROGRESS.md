@@ -4298,3 +4298,71 @@ the original 5-page retrofit list never touched (0% design-system-v2
 adoption) — next target. The editable pre-publish Schedule Planner grid
 (`WeeklyPlanGrid.tsx`) still hasn't been converted to stacked cards;
 needs its own scoping conversation with Oliver.
+
+## Design-system-v2 retrofit: Analytics / P&L, plus a live-verification
+## mobile fix (2026-08-21)
+
+Analytics was the last page from the original 5-page retrofit list
+still on raw Tailwind neutrals. Restyled `page.tsx`,
+`BreakdownBarChart.tsx`, and `KpiMeterCard.tsx` onto `components/ui`
+primitives (`PageHeader`, `Card`, `Button`/`LinkButton`, `TextInput`,
+`EmptyState`) and `--ink-*`/`--border`/`--danger-*` tokens. The two
+charts' own data-color logic (`categoricalSlot()`, `STATUS_COLORS`) is
+the dataviz-skill-validated palette and was deliberately left untouched
+— only the surrounding chrome was retrofit.
+
+Two real bugs caught during the retrofit itself, not just visual
+restyling:
+
+1. The page's local `money()` helper and both chart components called
+   `Number#toLocaleString(undefined, ...)` — an explicit `undefined`
+   locale resolves against the runtime's default, the same
+   hydration-mismatch mechanism as the `Date#toLocaleString()` bug
+   fixed the day before (`lib/formatDateTime.ts`), just on `Number`
+   instead of `Date`. Not yet reproduced live (narrower trigger — only
+   differs when the browser's own locale isn't US-English), but the
+   same bug class, so fixed proactively. Replaced with Ledger's shared,
+   `"en-US"`-pinned `formatMoney()`.
+2. The P&L table rendered negative amounts as `(1,234.56)` — parens, no
+   `$` — instead of Atlas's documented leading-minus-sign convention.
+   `formatMoney` fixes this as a side effect of the formatter swap
+   above. Every negative P&L row now also renders `--danger-700`,
+   matching the precedent already shipped on Payroll's Deduction column
+   and Ledger's reconciliation panel.
+
+**Verified clean before push:** `tsc --noEmit`, `eslint` (0 issues on
+all 3 touched files), `npm test` (123/123), `npm run build` (all routes
+incl. `/analytics`, success). Pushed to `main`
+(commit `2c7019f8738cd3ab825d8b80d7bdaf4e7562801f`), deployed (Vercel
+`dpl_13bniSQfGGJtVkrGYU54pc7JEciv`, READY).
+
+**Live re-verification caught a third bug, this time not visible in
+the diff or an accessibility-tree snapshot.** Checking the deployed
+page at desktop (1440×900) looked clean — 0 console errors, all data
+rendering correctly with the corrected minus-sign format. But checking
+mobile (390×844) found the P&L table had a `min-w-[420px]` forcing a
+horizontal-scroll table on phone, which clipped the entire amount
+column off-screen for every indented row — the exact anti-pattern
+Payroll's own doc comment warns against (Payroll avoids it with a
+stacked-cards-on-phone split). Since a P&L line is just a label/amount
+pair, not Payroll's multi-field rows, a full stacked-card split wasn't
+needed: removed the forced min-width and added real cell padding
+(`pl-3`/`pl-8`/`pr-2`/`pr-3`) so the two-column table lays out fluidly
+at 390px instead.
+
+**Verified clean, pushed, deployed again:** `tsc`, `eslint`, and
+`npm run build` all clean. Pushed to `main`
+(commit `a29c01e1b5f1b49a7d6ef403e37fed2522275f9c`), deployed (Vercel
+`dpl_7n6QxKe34KcJdH9ZPCo4J9Wz16GA`, READY). Re-verified live after this
+second fix: `wrap.scrollWidth === wrap.clientWidth` on mobile (no
+scroll needed), every row's amount visible, `--danger-700` confirmed
+via `getComputedStyle` on the leaf `<td>` (`rgb(185, 28, 28)`) at both
+390×844 and 1440×900, 0 console errors/warnings at either viewport.
+
+**This closes out the original 5-page design-system-v2 retrofit list
+entirely.** Still open: a full `visual-audit`-skill pass (empty/
+loading/error/disabled states, not just the live re-verification done
+while shipping) hasn't been run on either this page or the 2026-08-20
+Ledger/Payroll/Tip Pool/People round. The editable pre-publish Schedule
+Planner grid (`WeeklyPlanGrid.tsx`) still hasn't been converted to
+stacked cards.
