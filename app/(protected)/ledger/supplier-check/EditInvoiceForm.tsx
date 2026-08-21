@@ -54,7 +54,7 @@ export function EditInvoiceForm({
       return;
     }
     if (!form.reason.trim()) {
-      setError("A reason for this change is required -- it's logged with the edit.");
+      setError("A reason for this change is required — it's logged with the edit.");
       return;
     }
     setError(null);

@@ -77,7 +77,7 @@ export function BreakdownBarChart({
 
       {slices.length > 0 && (
         <details className="mt-3">
-          <summary className="text-xs text-[var(--ink-500)] cursor-pointer hover:text-[var(--ink-900)]">
+          <summary className="text-xs text-[var(--ink-500)] cursor-pointer hover:text-[var(--ink-900)] py-2 -my-1 inline-block">
             View as table
           </summary>
           <table className="w-full text-xs mt-2 border-collapse">

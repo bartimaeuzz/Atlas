@@ -7,6 +7,7 @@ import { ReconcilePanel } from "../ReconcilePanel";
 import { PeriodHeaderForm } from "../PeriodHeaderForm";
 import { Badge } from "@/components/ui/Badge";
 import { Banner } from "@/components/ui/Banner";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** One statement period's work: log transactions against it, then
  * reconcile once the logged total matches the statement's own total.
@@ -30,7 +31,7 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
   if (!data) {
     return (
       <main className="max-w-lg mx-auto p-4 sm:p-8">
-        <Link href="/ledger/card" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href="/ledger/card" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           &larr; Card
         </Link>
         <div className="mt-4">
@@ -48,7 +49,7 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
 
   return (
     <main className="max-w-lg mx-auto p-4 sm:p-8">
-      <Link href="/ledger/card" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/ledger/card" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Card
       </Link>
 

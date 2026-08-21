@@ -7,6 +7,7 @@ import { EntriesList } from "../EntriesList";
 import { ReconciliationPanel } from "../ReconciliationPanel";
 import { Badge } from "@/components/ui/Badge";
 import { Banner } from "@/components/ui/Banner";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** The actual day-level Petty Cash work -- add expenses, review entries,
  * reconcile the drawer. Moved here from the bare /ledger route in the
@@ -33,7 +34,7 @@ export default async function LedgerDayPage({ searchParams }: { searchParams: Pr
   if (isFuture) {
     return (
       <main className="max-w-lg mx-auto p-4 sm:p-8">
-        <Link href={`/ledger?month=${monthOfDate}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href={`/ledger?month=${monthOfDate}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           &larr; Back to {monthOfDate}
         </Link>
         <h1 className="text-2xl font-bold text-[var(--ink-900)] mt-2 mb-4">{date}</h1>
@@ -58,7 +59,7 @@ export default async function LedgerDayPage({ searchParams }: { searchParams: Pr
 
   return (
     <main className="max-w-lg mx-auto p-4 sm:p-8">
-      <Link href={`/ledger?month=${monthOfDate}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href={`/ledger?month=${monthOfDate}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Back to {monthOfDate}
       </Link>
 
@@ -67,11 +68,11 @@ export default async function LedgerDayPage({ searchParams }: { searchParams: Pr
         <Badge tone={finalized ? "success" : "neutral"}>{finalized ? "Finalized" : "Draft"}</Badge>
       </div>
       <div className="flex items-center gap-3 text-sm mb-4">
-        <Link href={`/ledger/day?date=${prevDate}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/ledger/day?date=${prevDate}`} className="inline-flex items-center justify-center min-w-11 min-h-11 text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &larr;
         </Link>
         <span className="font-medium text-[var(--ink-900)]">{date}</span>
-        <Link href={`/ledger/day?date=${nextDate}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/ledger/day?date=${nextDate}`} className="inline-flex items-center justify-center min-w-11 min-h-11 text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &rarr;
         </Link>
       </div>

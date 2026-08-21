@@ -39,6 +39,13 @@ export interface Benchmark {
    * every metric (e.g. low prime cost can mean understaffed, not good). */
   note: string;
   source: string;
+  /** Which side of the healthy band is the genuine problem, so the UI
+   * can reserve its warning styling for that side only. Added
+   * 2026-08-21 after a visual audit found every out-of-band value --
+   * including ones this file's own `note` text calls fine ("Above 8% is
+   * great, not a warning sign") -- rendering with an amber warning
+   * glyph. `null` for metrics with no benchmark band. */
+  concernDirection: "above" | "below" | null;
 }
 
 export interface PnLData {
@@ -112,6 +119,7 @@ export function computePnL(
   const kpis: PnLData["kpis"] = {
     foodCostPct: {
       label: "Food cost %",
+      concernDirection: "above",
       value: foodCostValue,
       goodRangeLow: 0.28,
       goodRangeHigh: 0.35,
@@ -122,26 +130,29 @@ export function computePnL(
     },
     laborCostPct: {
       label: "Labor cost %",
+      concernDirection: "above",
       value: laborCostValue,
       goodRangeLow: 0.25,
       goodRangeHigh: 0.36,
       status: statusFor(laborCostValue, 0.25, 0.36),
       note:
-        "Computed payroll (wage + extra pay + incentives - deductions, no tips) as a share of revenue. Full-service median runs ~36.5%; the most profitable operators run closer to ~34%. Below 25% is unusually lean -- worth checking you're not understaffed.",
+        "Computed payroll (wage + extra pay + incentives - deductions, no tips) as a share of revenue. Full-service median runs ~36.5%; the most profitable operators run closer to ~34%. Below 25% is unusually lean — worth checking you're not understaffed.",
       source: "WhippleWood CPAs, Restaurant Financial Benchmarks 2026",
     },
     primeCostPct: {
       label: "Prime cost %",
+      concernDirection: "above",
       value: primeCostValue,
       goodRangeLow: 0.55,
       goodRangeHigh: 0.65,
       status: statusFor(primeCostValue, 0.55, 0.65),
       note:
-        "Food + Drinks + Bar + Labor combined, as a share of revenue -- the single most-watched restaurant health number. 55-65% is the target band: below 55% can mean unusually efficient (or understaffed); above 65% usually signals a structural problem menu tweaks alone won't fix.",
+        "Food + Drinks + Bar + Labor combined, as a share of revenue — the single most-watched restaurant health number. 55-65% is the target band: below 55% can mean unusually efficient (or understaffed); above 65% usually signals a structural problem menu tweaks alone won't fix.",
       source: "WhippleWood CPAs, Restaurant Financial Benchmarks 2026",
     },
     netMarginPct: {
       label: "Net margin %",
+      concernDirection: "below",
       value: netMarginValue,
       goodRangeLow: 0.03,
       goodRangeHigh: 0.08,
@@ -152,12 +163,13 @@ export function computePnL(
     },
     barCostPct: {
       label: "Bar cost %",
+      concernDirection: null,
       value: barCostValue,
       goodRangeLow: null,
       goodRangeHigh: null,
       status: "not_applicable",
       note:
-        "Alcohol/mocktail/bar-program cost as a share of revenue, tracked separately from Food cost per Aey's request -- liquor typically runs a lower cost % than food (higher margin), but no benchmark band is shown here since that wasn't part of the research done for this round.",
+        "Alcohol/mocktail/bar-program cost as a share of revenue, tracked separately from Food cost per Aey's request — liquor typically runs a lower cost % than food (higher margin), but no benchmark band is shown here since that wasn't part of the research done for this round.",
       source: "Not benchmarked yet",
     },
   };

@@ -3,6 +3,7 @@ import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
 import { LedgerTabs } from "./LedgerTabs";
 import { MonthList } from "./MonthList";
 import { PageHeader } from "@/components/ui/Card";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Ledger landing page (2026-08-14 restructure) -- Oliver's ask: "after
  * enter ledger page shows petty cash and supplier tabs. then when click
@@ -49,11 +50,11 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       <LedgerTabs active="petty-cash" />
 
       <div className="flex items-center justify-between mb-3">
-        <Link href={`/ledger?month=${shiftMonth(month, -1)}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href={`/ledger?month=${shiftMonth(month, -1)}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           &larr; Prev
         </Link>
         <span className="font-medium text-sm text-[var(--ink-900)]">{monthLabel(month)}</span>
-        <Link href={`/ledger?month=${shiftMonth(month, 1)}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href={`/ledger?month=${shiftMonth(month, 1)}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           Next &rarr;
         </Link>
       </div>

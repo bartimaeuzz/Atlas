@@ -99,7 +99,7 @@ export function PrintChecksButton({ groups }: { groups: VendorPendingGroup[] }) 
           </button>
         </div>
         <p className="text-xs text-[var(--ink-500)] mb-3">
-          Choose which vendors to print a check for right now -- each check combines all of that
+          Choose which vendors to print a check for right now — each check combines all of that
           vendor&apos;s pending invoices. Pick one for an urgent check, or select all for the weekly
           batch.
         </p>
