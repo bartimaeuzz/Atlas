@@ -33,29 +33,14 @@ import { db } from "@/db/client";
 import { employeeCapabilities } from "@/db/schema";
 import { getCurrentStaffSession, type StaffSessionEmployee } from "@/lib/auth/session";
 import { isValidCapabilityKey } from "@/lib/permissions/capabilities";
+import { grantAllows, todayIso, type CapabilityGrantRow } from "./grantAllows";
 
-export interface CapabilityGrantRow {
-  granted: boolean;
-  expiresAt: string | null;
-}
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-/** The single definition of "this viewer holds this capability", shared by
- * the action guard (requireCapability) and the page guards. `isAdmin`
- * short-circuits before the row is even consulted — see the file header. */
-export function grantAllows(
-  isAdmin: boolean,
-  row: CapabilityGrantRow | undefined,
-  today: string = todayIso(),
-): boolean {
-  if (isAdmin) return true;
-  if (!row || !row.granted) return false;
-  if (row.expiresAt && row.expiresAt < today) return false;
-  return true;
-}
+/** The grant decision itself lives in ./grantAllows — a pure module with
+ * no imports — so the /permissions preset preview (a client component)
+ * can compute effective access with the exact same rule the server
+ * enforces, instead of re-implementing it. Re-exported here so every
+ * existing import site keeps working unchanged. */
+export { grantAllows, todayIso, type CapabilityGrantRow } from "./grantAllows";
 
 export interface ViewerCapabilities {
   session: StaffSessionEmployee;

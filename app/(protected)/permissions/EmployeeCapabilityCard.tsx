@@ -2,14 +2,13 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
-import { applyAccountTypePreset, saveEmployeeCapabilities, type PermissionActionState } from "@/lib/actions/permissions";
+import { saveEmployeeCapabilities, type PermissionActionState } from "@/lib/actions/permissions";
 import {
   CAPABILITIES,
   CAPABILITY_CATEGORIES,
   CAPABILITY_CATEGORY_LABELS,
-  ACCOUNT_TYPES,
-  ACCOUNT_TYPE_LABELS,
 } from "@/lib/permissions/capabilities";
+import { PresetApplyForm } from "./PresetApplyForm";
 import type { CapabilityMatrixEmployeeRow } from "@/lib/permissions/loadCapabilityMatrix";
 
 const initialState: PermissionActionState = { error: null, saved: false };
@@ -24,14 +23,13 @@ function toDateInputValue(value: string | null): string {
 }
 
 export function EmployeeCapabilityCard({ employee }: { employee: CapabilityMatrixEmployeeRow }) {
-  const [presetState, presetAction, presetPending] = useActionState(applyAccountTypePreset, initialState);
   const [saveState, saveAction, savePending] = useActionState(saveEmployeeCapabilities, initialState);
 
   const manageIsGranted = employee.systemRole === "ADMIN";
 
   return (
     <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-white overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border)]">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 border-b border-[var(--border)]">
         <div>
           <span className="font-medium">{employee.nickname}</span>
           <span className="ml-2 text-xs text-[var(--ink-500)]">
@@ -40,33 +38,8 @@ export function EmployeeCapabilityCard({ employee }: { employee: CapabilityMatri
           </span>
         </div>
 
-        <form action={presetAction} className="flex items-center gap-2">
-          <input type="hidden" name="employeeId" value={employee.employeeId} />
-          <label className="text-xs text-[var(--ink-500)]" htmlFor={`accountType-${employee.employeeId}`}>
-            Account Type
-          </label>
-          <select
-            id={`accountType-${employee.employeeId}`}
-            name="accountType"
-            defaultValue="STAFF"
-            className="border border-[var(--border-strong)] rounded-[var(--radius-md)] text-sm px-2 py-1.5"
-          >
-            {ACCOUNT_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {ACCOUNT_TYPE_LABELS[type]}
-              </option>
-            ))}
-          </select>
-          <Button type="submit" variant="secondary" size="sm" loading={presetPending}>
-            Apply preset
-          </Button>
-        </form>
+        <PresetApplyForm employee={employee} />
       </div>
-
-      {presetState.error && <p className="px-4 pt-2 text-xs text-[var(--danger)]">{presetState.error}</p>}
-      {presetState.saved && !presetState.error && (
-        <p className="px-4 pt-2 text-xs text-[var(--primary)]">Preset applied.</p>
-      )}
 
       <details className="group">
         <summary className="cursor-pointer select-none px-4 py-2 text-sm text-[var(--ink-500)] hover:bg-[var(--paper)]">

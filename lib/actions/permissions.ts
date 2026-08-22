@@ -137,24 +137,39 @@ export async function applyAccountTypePreset(
     if (!employeeRow) throw new Error("Employee not found.");
 
     const existingRows = await db
-      .select({ capabilityKey: employeeCapabilities.capabilityKey, granted: employeeCapabilities.granted })
+      .select({
+        capabilityKey: employeeCapabilities.capabilityKey,
+        granted: employeeCapabilities.granted,
+        expiresAt: employeeCapabilities.expiresAt,
+      })
       .from(employeeCapabilities)
       .where(eq(employeeCapabilities.employeeId, employeeId));
-    const currentlyGranted = new Map(existingRows.map((r) => [r.capabilityKey, r.granted]));
+    const currentState = new Map(existingRows.map((r) => [r.capabilityKey, { granted: r.granted, expiresAt: r.expiresAt }]));
 
     for (const def of CAPABILITIES) {
       if (def.key === "MANAGE_PERMISSIONS") continue;
       const nextGranted = def.defaults[accountType as AccountType];
       await upsertCapabilityRow(employeeId, def.key, nextGranted, null);
-      const prevGranted = currentlyGranted.get(def.key) ?? false;
-      if (prevGranted !== nextGranted) {
+      const prev = currentState.get(def.key) ?? { granted: false, expiresAt: null };
+      const prevGranted = prev.granted;
+      // 2026-08-22 (scrutinize): this used to log only when `granted`
+      // flipped, so clearing an expiry on an already-granted capability
+      // was written to the DB and never recorded. That is not cosmetic --
+      // grantAllows() treats an expired row as NOT granted, so wiping the
+      // date on a lapsed Financial Auditor grant silently RESTORES live
+      // access (payroll lock/finalize, card reconcile) with no audit
+      // trail. Logged as a GRANTED event now, since that is what it is.
+      const expiryCleared = prevGranted && nextGranted && prev.expiresAt !== null;
+      if (prevGranted !== nextGranted || expiryCleared) {
         await db.insert(permissionGrantLog).values({
           employeeId,
           capabilityKey: def.key,
           action: nextGranted ? "GRANTED" : "REVOKED",
           expiresAt: null,
           actingEmployeeId: actingSession.id,
-          note: `Applied ${accountType} preset`,
+          note: expiryCleared && prevGranted === nextGranted
+            ? `Applied ${accountType} preset — cleared expiry ${prev.expiresAt}`
+            : `Applied ${accountType} preset`,
         });
       }
     }
