@@ -61,3 +61,48 @@ export function Select({ label, hint, error, required, className = "", children,
     </FieldWrapper>
   );
 }
+
+/** Checkbox / Radio (added 2026-08-22, Positions retrofit).
+ *
+ * The whole <label> is the hit target, not just the 20px box — a 20px
+ * control alone is well under the 44px minimum, and label-as-target is
+ * what makes it pass without drawing an oversized box. `min-h-11` is on
+ * the label for that reason; do NOT swap it for TAP_TARGET_PAD, which is
+ * absorbed inside a fixed-size box under border-box sizing (the bug the
+ * 2026-08-20 Tip Pool retrofit found).
+ *
+ * `description` renders under the label as always-visible text rather than
+ * a `title=` tooltip — these explain consequences, and hover-only text is
+ * unreachable on the phone half of the audience.
+ */
+interface ChoiceProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type"> {
+  label: ReactNode;
+  description?: ReactNode;
+}
+
+function Choice({ type, label, description, className = "", disabled, ...rest }: ChoiceProps & { type: "checkbox" | "radio" }) {
+  return (
+    <label
+      className={`flex items-start gap-2.5 min-h-11 py-2 text-sm ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"} ${className}`}
+    >
+      <input
+        type={type}
+        disabled={disabled}
+        className="mt-0.5 size-5 shrink-0 accent-[var(--primary)] disabled:cursor-not-allowed"
+        {...rest}
+      />
+      <span className="text-[var(--ink-900)]">
+        {label}
+        {description && <span className="block text-[var(--ink-500)] mt-0.5">{description}</span>}
+      </span>
+    </label>
+  );
+}
+
+export function Checkbox(props: ChoiceProps) {
+  return <Choice type="checkbox" {...props} />;
+}
+
+export function Radio(props: ChoiceProps) {
+  return <Choice type="radio" {...props} />;
+}

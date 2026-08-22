@@ -1,23 +1,43 @@
 import Link from "next/link";
 import type { PettyCashReportData } from "@/lib/reports/loadPettyCashReport";
-
-const STATUS_LABEL: Record<string, string> = {
-  no_data: "—",
-  draft: "Draft",
-  finalized: "Finalized",
-};
+import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
+import { formatDayLabel } from "@/lib/format/formatDayLabel";
+import {
+  Card,
+  Badge,
+  TableCard,
+  Table,
+  THead,
+  TBody,
+  TR,
+  TH,
+  TD,
+  TFoot,
+  StackedCardList,
+  StackedCard,
+  StackedField,
+  StackedTotal,
+} from "@/components/ui";
 
 /** Week/month view of Petty Cash (2026-08-14, Oliver's ask) -- one row
  * per day in the report's date range, click a date to open that day's
  * actual entry/reconciliation page at /ledger. Same range the Sales &
  * Tax report already uses (This week/month/year presets + custom), no
  * separate calendar UI needed. Floor Manager column added 2026-08-14
- * follow-up -- who finalized that day's reconciliation. */
+ * follow-up -- who finalized that day's reconciliation.
+ *
+ * Retrofitted onto the design system 2026-08-22, with two fixes:
+ * money now goes through the shared formatMoney() (a negative used to
+ * render "$-12.34" instead of Atlas's leading-minus convention), and
+ * dates carry a weekday prefix so a month of rows is scannable by day.
+ */
 export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
+  const totalEntries = data.days.reduce((s, d) => s + d.entryCount, 0);
+
   return (
     <section>
-      <div className="grid grid-cols-3 gap-4 mb-4 max-w-xl">
-        <SummaryStat label="Total spent" value={`$${data.totalSpent.toFixed(2)}`} />
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4 max-w-xl">
+        <SummaryStat label="Total spent" value={formatMoney(data.totalSpent)} />
         <SummaryStat label="Days finalized" value={String(data.finalizedCount)} />
         <SummaryStat
           label="Days with a mismatch"
@@ -26,62 +46,96 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
         />
       </div>
 
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="text-left text-neutral-500 border-b">
-            <th className="py-1.5">Date</th>
-            <th className="py-1.5 text-right">Entries</th>
-            <th className="py-1.5 text-right">Spent</th>
-            <th className="py-1.5 text-right">Status</th>
-            <th className="py-1.5">Floor Manager</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.days.map((day) => (
-            <tr key={day.date} className="border-b">
-              <td className="py-1.5">
-                <Link href={`/ledger/day?date=${day.date}`} className="hover:underline">
-                  {day.date}
-                </Link>
-              </td>
-              <td className="py-1.5 text-right tabular-nums">{day.entryCount || "—"}</td>
-              <td className="py-1.5 text-right tabular-nums">{day.totalSpent > 0 ? `$${day.totalSpent.toFixed(2)}` : "—"}</td>
-              <td className="py-1.5 text-right">
-                <StatusBadge day={day} />
-              </td>
-              <td className="py-1.5 text-neutral-600">{day.finalizedByName || "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 font-medium">
-            <td className="py-2">Total</td>
-            <td className="py-2 text-right tabular-nums">{data.days.reduce((s, d) => s + d.entryCount, 0)}</td>
-            <td className="py-2 text-right tabular-nums">${data.totalSpent.toFixed(2)}</td>
-            <td className="py-2"></td>
-            <td className="py-2"></td>
-          </tr>
-        </tfoot>
-      </table>
+      {/* Phone: stacked cards */}
+      <StackedCardList>
+        {data.days.map((day) => (
+          <StackedCard
+            key={day.date}
+            title={
+              <Link href={`/ledger/day?date=${day.date}`} className="underline underline-offset-2">
+                {formatDayLabel(day.date)}
+              </Link>
+            }
+            trailing={<StatusBadge day={day} />}
+          >
+            <StackedField label="Entries" value={day.entryCount || "—"} numeric />
+            <StackedField
+              label="Spent"
+              value={day.totalSpent > 0 ? formatMoney(day.totalSpent) : "—"}
+              numeric
+            />
+            <StackedField label="Floor Manager" value={day.finalizedByName || "—"} />
+          </StackedCard>
+        ))}
+        <StackedTotal label={`Total (${totalEntries} entries)`} value={formatMoney(data.totalSpent)} />
+      </StackedCardList>
+
+      {/* Desktop: table */}
+      <TableCard>
+        <Table minWidth={560}>
+          <THead>
+            <TR>
+              <TH>Date</TH>
+              <TH numeric>Entries</TH>
+              <TH numeric>Spent</TH>
+              <TH>Status</TH>
+              <TH>Floor Manager</TH>
+            </TR>
+          </THead>
+          <TBody>
+            {data.days.map((day) => (
+              <TR key={day.date}>
+                <TD emphasis className="whitespace-nowrap">
+                  <Link href={`/ledger/day?date=${day.date}`} className="hover:underline underline-offset-2">
+                    {formatDayLabel(day.date)}
+                  </Link>
+                </TD>
+                <TD numeric>{day.entryCount || "—"}</TD>
+                <TD numeric>{day.totalSpent > 0 ? formatMoney(day.totalSpent) : "—"}</TD>
+                <TD>
+                  <StatusBadge day={day} />
+                </TD>
+                <TD muted>{day.finalizedByName || "—"}</TD>
+              </TR>
+            ))}
+          </TBody>
+          <TFoot>
+            <TD emphasis>Total</TD>
+            <TD numeric emphasis>
+              {totalEntries}
+            </TD>
+            <TD numeric emphasis>
+              {formatMoney(data.totalSpent)}
+            </TD>
+            <TD />
+            <TD />
+          </TFoot>
+        </Table>
+      </TableCard>
     </section>
   );
 }
 
 function StatusBadge({ day }: { day: PettyCashReportData["days"][number] }) {
-  if (day.status === "no_data") return <span className="text-neutral-300">—</span>;
-  if (day.status === "draft") return <span className="text-xs px-2 py-0.5 rounded bg-neutral-100 text-neutral-600">Draft</span>;
+  if (day.status === "no_data") return <span className="text-[var(--ink-400)]">—</span>;
+  if (day.status === "draft") return <Badge tone="neutral">Draft</Badge>;
   // finalized
-  if (day.matches === false) {
-    return <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700">Mismatch</span>;
-  }
-  return <span className="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800">Finalized</span>;
+  if (day.matches === false) return <Badge tone="danger">Mismatch</Badge>;
+  return <Badge tone="success">Finalized</Badge>;
 }
 
 function SummaryStat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
-    <div className={"border rounded p-3 " + (warn ? "border-red-200 bg-red-50" : "bg-neutral-50")}>
-      <div className="text-xs text-neutral-500">{label}</div>
-      <div className={"text-lg font-semibold " + (warn ? "text-red-700" : "")}>{value}</div>
-    </div>
+    <Card className={"!p-3 " + (warn ? "border-[var(--danger-border)] bg-[var(--danger-tint)]" : "")}>
+      <div className="text-xs text-[var(--ink-500)]">{label}</div>
+      <div
+        className={
+          "text-lg font-semibold tabular-nums " +
+          (warn ? "text-[var(--danger-700)]" : "text-[var(--ink-900)]")
+        }
+      >
+        {value}
+      </div>
+    </Card>
   );
 }

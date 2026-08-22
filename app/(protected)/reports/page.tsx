@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { loadSalesTaxReport } from "@/lib/reports/loadSalesTaxReport";
 import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
 import { loadSupplierCheckReport } from "@/lib/reports/loadSupplierCheckReport";
@@ -6,6 +5,29 @@ import { PettyCashReportTable } from "./PettyCashReportTable";
 import { SupplierCheckReportTable } from "./SupplierCheckReportTable";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NoAccess } from "@/components/NoAccess";
+import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
+import { formatDayLabel } from "@/lib/format/formatDayLabel";
+import {
+  PageHeader,
+  Card,
+  Section,
+  Button,
+  LinkButton,
+  EmptyState,
+  Tabs,
+  Tab,
+  TableCard,
+  Table,
+  THead,
+  TBody,
+  TR,
+  TH,
+  TD,
+  TFoot,
+  StackedCardList,
+  StackedCard,
+  StackedField,
+} from "@/components/ui";
 
 /** Pinned to UTC noon, same fix as MyEarningsView.tsx — avoids the classic
  * "YYYY-MM-DD parses as the previous day" bug in negative-UTC-offset
@@ -89,66 +111,95 @@ export default async function ReportsPage({
 
   return (
     <main className="max-w-5xl mx-auto p-8 font-sans">
-      <h1 className="text-2xl font-semibold mb-1">Reports</h1>
-      <p className="text-sm text-neutral-500 mb-4">
-        {report === "sales-tax"
-          ? "Rolled up from finalized shifts — matches the layout of the monthly report you already send to your accountant. Only counts shifts that have been Confirmed & Finalized."
-          : report === "petty-cash"
-            ? "Petty Cash by day for the range below — click a date to open that day's actual entries and reconciliation."
-            : "Checks written to suppliers for the range below — export as .xlsx to print payment checks, columns match the supplier check export you already use."}
-      </p>
+      <PageHeader
+        title="Reports"
+        description={
+          report === "sales-tax"
+            ? "Rolled up from finalized shifts — matches the layout of the monthly report you already send to your accountant. Only counts shifts that have been Confirmed & Finalized."
+            : report === "petty-cash"
+              ? "Petty Cash by day for the range below — click a date to open that day's actual entries and reconciliation."
+              : "Checks written to suppliers for the range below — export as .xlsx to print payment checks, columns match the supplier check export you already use."
+        }
+      />
 
-      <div className="flex items-center gap-2 text-sm mb-4">
-        <ReportTabLink report="sales-tax" current={report} from={from} to={to}>
+      <Tabs>
+        <Tab href={`/reports?report=sales-tax&from=${from}&to=${to}`} active={report === "sales-tax"}>
           Sales &amp; Tax
-        </ReportTabLink>
+        </Tab>
         {/* Hidden rather than shown-and-denied: a tab that always lands
             on a no-access notice is the dead-end pattern, same reasoning
             as the hidden nav items and home tiles. */}
         {canSeeLedgerReports && (
           <>
-            <ReportTabLink report="petty-cash" current={report} from={from} to={to}>
+            <Tab href={`/reports?report=petty-cash&from=${from}&to=${to}`} active={report === "petty-cash"}>
               Petty Cash
-            </ReportTabLink>
-            <ReportTabLink report="supplier-check" current={report} from={from} to={to}>
+            </Tab>
+            <Tab href={`/reports?report=supplier-check&from=${from}&to=${to}`} active={report === "supplier-check"}>
               Supplier Check
-            </ReportTabLink>
+            </Tab>
           </>
         )}
-      </div>
+      </Tabs>
 
-      <div className="flex flex-wrap items-end gap-4 mb-6 border rounded p-4 bg-neutral-50">
-        <div className="flex gap-2">
-          <PresetLink href={`/reports?report=${report}&from=${presets.week.from}&to=${presets.week.to}`}>This week</PresetLink>
-          <PresetLink href={`/reports?report=${report}&from=${presets.month.from}&to=${presets.month.to}`}>This month</PresetLink>
-          <PresetLink href={`/reports?report=${report}&from=${presets.year.from}&to=${presets.year.to}`}>This year</PresetLink>
+      <Card className="mb-6">
+        <div className="flex flex-wrap items-end gap-4">
+          <div className="flex flex-wrap gap-2">
+            <LinkButton
+              href={`/reports?report=${report}&from=${presets.week.from}&to=${presets.week.to}`}
+              variant="secondary"
+              size="sm"
+            >
+              This week
+            </LinkButton>
+            <LinkButton
+              href={`/reports?report=${report}&from=${presets.month.from}&to=${presets.month.to}`}
+              variant="secondary"
+              size="sm"
+            >
+              This month
+            </LinkButton>
+            <LinkButton
+              href={`/reports?report=${report}&from=${presets.year.from}&to=${presets.year.to}`}
+              variant="secondary"
+              size="sm"
+            >
+              This year
+            </LinkButton>
+          </div>
+          <form className="flex flex-wrap items-end gap-2" action="/reports">
+            <input type="hidden" name="report" value={report} />
+            <label className="text-sm">
+              <span className="block text-[var(--ink-500)] mb-1.5">From</span>
+              <input
+                type="date"
+                name="from"
+                defaultValue={from}
+                className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)]"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="block text-[var(--ink-500)] mb-1.5">To</span>
+              <input
+                type="date"
+                name="to"
+                defaultValue={to}
+                className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)]"
+              />
+            </label>
+            <Button type="submit" size="sm">
+              View
+            </Button>
+          </form>
+          {(report === "sales-tax" || report === "supplier-check") && (
+            <LinkButton href={exportHref} variant="brand" size="sm" className="sm:ml-auto">
+              Export .xlsx
+            </LinkButton>
+          )}
         </div>
-        <form className="flex items-end gap-2 text-sm" action="/reports">
-          <input type="hidden" name="report" value={report} />
-          <label>
-            <span className="block text-neutral-500 mb-1">From</span>
-            <input type="date" name="from" defaultValue={from} className="border rounded px-2 py-1" />
-          </label>
-          <label>
-            <span className="block text-neutral-500 mb-1">To</span>
-            <input type="date" name="to" defaultValue={to} className="border rounded px-2 py-1" />
-          </label>
-          <button type="submit" className="px-3 py-1.5 rounded bg-black text-white text-sm">
-            View
-          </button>
-        </form>
-        {(report === "sales-tax" || report === "supplier-check") && (
-          <a
-            href={exportHref}
-            className="ml-auto px-4 py-1.5 rounded bg-green-700 text-white text-sm hover:bg-green-800"
-          >
-            Export .xlsx
-          </a>
-        )}
-      </div>
+      </Card>
 
-      <p className="text-sm text-neutral-500 mb-2">
-        {from} to {to}
+      <p className="text-sm text-[var(--ink-500)] mb-3">
+        {formatDayLabel(from)} to {formatDayLabel(to)}
       </p>
 
       {report === "petty-cash" && pettyCashData ? (
@@ -157,136 +208,211 @@ export default async function ReportsPage({
         <SupplierCheckReportTable data={supplierCheckData} />
       ) : data ? (
         <>
-      <section className="mb-8">
-        <h2 className="text-lg font-medium mb-3">Toast — by day</h2>
-        {data.toastDays.length === 0 ? (
-          <p className="text-sm text-neutral-500">No finalized shifts in this range.</p>
-        ) : (
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-left text-neutral-500 border-b">
-                <th className="py-1.5">Date</th>
-                <th className="py-1.5 text-right">Net Sale</th>
-                <th className="py-1.5 text-right">Tax</th>
-                <th className="py-1.5 text-right font-medium">Total Sale</th>
-                <th className="py-1.5 text-right">Cash</th>
-                <th className="py-1.5 text-right">CC Sales</th>
-                <th className="py-1.5 text-right">CC Tips</th>
-                <th className="py-1.5 text-right">Total Credit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.toastDays.map((d) => (
-                <tr key={d.date} className="border-b">
-                  <td className="py-1.5">{d.date}</td>
-                  <td className="py-1.5 text-right tabular-nums">${d.netSale.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums">${d.tax.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums font-medium">${d.totalSale.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums">${d.cash.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums">${d.ccSalesOnly.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums">${d.ccTips.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums">${d.totalCredit.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 font-medium">
-                <td className="py-2">Total</td>
-                <td className="py-2 text-right tabular-nums">${data.toastTotals.netSale.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.toastTotals.tax.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.toastTotals.totalSale.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.toastTotals.cash.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.toastTotals.ccSalesOnly.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.toastTotals.ccTips.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.toastTotals.totalCredit.toFixed(2)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        )}
-      </section>
+          <Section title="Toast — by day">
+            {data.toastDays.length === 0 ? (
+              <EmptyState message="No finalized shifts in this range." />
+            ) : (
+              <>
+                {/* Phone: stacked cards. Eight numeric columns cannot be read
+                    at 390px as a table — the amount column ends up clipped
+                    off-screen, the exact anti-pattern the Analytics P&L fix
+                    had to undo. Total Sale leads as the trailing value since
+                    it is the number a manager scans for. */}
+                <StackedCardList>
+                  {data.toastDays.map((d) => (
+                    <StackedCard
+                      key={d.date}
+                      title={formatDayLabel(d.date)}
+                      trailing={
+                        <span className="tabular-nums font-semibold text-[var(--ink-900)]">
+                          {formatMoney(d.totalSale)}
+                        </span>
+                      }
+                    >
+                      <StackedField label="Net Sale" value={formatMoney(d.netSale)} numeric />
+                      <StackedField label="Tax" value={formatMoney(d.tax)} numeric />
+                      <StackedField label="Cash" value={formatMoney(d.cash)} numeric />
+                      <StackedField label="CC Sales" value={formatMoney(d.ccSalesOnly)} numeric />
+                      <StackedField label="CC Tips" value={formatMoney(d.ccTips)} numeric />
+                      <StackedField label="Total Credit" value={formatMoney(d.totalCredit)} numeric />
+                    </StackedCard>
+                  ))}
+                  <div className="bg-[var(--paper)] border border-[var(--border-strong)] rounded-[var(--radius-lg)] p-4">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className="font-semibold text-[var(--ink-900)]">Total</span>
+                      <span className="font-semibold tabular-nums text-[var(--ink-900)]">
+                        {formatMoney(data.toastTotals.totalSale)}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <StackedField label="Net Sale" value={formatMoney(data.toastTotals.netSale)} numeric />
+                      <StackedField label="Tax" value={formatMoney(data.toastTotals.tax)} numeric />
+                      <StackedField label="Cash" value={formatMoney(data.toastTotals.cash)} numeric />
+                      <StackedField label="CC Sales" value={formatMoney(data.toastTotals.ccSalesOnly)} numeric />
+                      <StackedField label="CC Tips" value={formatMoney(data.toastTotals.ccTips)} numeric />
+                      <StackedField
+                        label="Total Credit"
+                        value={formatMoney(data.toastTotals.totalCredit)}
+                        numeric
+                      />
+                    </div>
+                  </div>
+                </StackedCardList>
 
-      <section>
-        <h2 className="text-lg font-medium mb-3">Online platforms — totals for range</h2>
-        {data.platformTotals.every((p) => p.net === 0) ? (
-          <p className="text-sm text-neutral-500">No online platform sales in this range.</p>
-        ) : (
-          <table className="w-full text-sm border-collapse max-w-xl">
-            <thead>
-              <tr className="text-left text-neutral-500 border-b">
-                <th className="py-1.5">Platform</th>
-                <th className="py-1.5 text-right">Net</th>
-                <th className="py-1.5 text-right">Tax</th>
-                <th className="py-1.5 text-right">Tips</th>
-                <th className="py-1.5 text-right font-medium">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.platformTotals.map((p) => (
-                <tr key={p.platformId} className="border-b">
-                  <td className="py-1.5">{p.platformName}</td>
-                  <td className="py-1.5 text-right tabular-nums">${p.net.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums">${p.tax.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums">${p.tips.toFixed(2)}</td>
-                  <td className="py-1.5 text-right tabular-nums font-medium">${p.total.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="border-t-2 font-medium">
-                <td className="py-2">Total online</td>
-                <td className="py-2 text-right tabular-nums">${data.onlineTotals.net.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.onlineTotals.tax.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${data.onlineTotals.tips.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums font-medium">${data.onlineTotals.total.toFixed(2)}</td>
-              </tr>
-            </tfoot>
-          </table>
-        )}
-        <p className="text-xs text-neutral-500 mt-4">
-          The exported .xlsx breaks online platform sales down by day (matching your accountant&apos;s
-          usual monthly report) — this page shows range totals only, to keep it readable at a glance.
-        </p>
-      </section>
-      </>
+                {/* Desktop: table */}
+                <TableCard>
+                  <Table minWidth={860}>
+                    <THead>
+                      <TR>
+                        <TH>Date</TH>
+                        <TH numeric>Net Sale</TH>
+                        <TH numeric>Tax</TH>
+                        <TH numeric emphasis>
+                          Total Sale
+                        </TH>
+                        <TH numeric>Cash</TH>
+                        <TH numeric>CC Sales</TH>
+                        <TH numeric>CC Tips</TH>
+                        <TH numeric>Total Credit</TH>
+                      </TR>
+                    </THead>
+                    <TBody>
+                      {data.toastDays.map((d) => (
+                        <TR key={d.date}>
+                          <TD emphasis className="whitespace-nowrap">
+                            {formatDayLabel(d.date)}
+                          </TD>
+                          <TD numeric>{formatMoney(d.netSale)}</TD>
+                          <TD numeric>{formatMoney(d.tax)}</TD>
+                          <TD numeric emphasis>
+                            {formatMoney(d.totalSale)}
+                          </TD>
+                          <TD numeric>{formatMoney(d.cash)}</TD>
+                          <TD numeric>{formatMoney(d.ccSalesOnly)}</TD>
+                          <TD numeric>{formatMoney(d.ccTips)}</TD>
+                          <TD numeric>{formatMoney(d.totalCredit)}</TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                    <TFoot>
+                      <TD emphasis>Total</TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.toastTotals.netSale)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.toastTotals.tax)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.toastTotals.totalSale)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.toastTotals.cash)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.toastTotals.ccSalesOnly)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.toastTotals.ccTips)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.toastTotals.totalCredit)}
+                      </TD>
+                    </TFoot>
+                  </Table>
+                </TableCard>
+              </>
+            )}
+          </Section>
+
+          <Section title="Online platforms — totals for range">
+            {data.platformTotals.every((p) => p.net === 0) ? (
+              <EmptyState message="No online platform sales in this range." />
+            ) : (
+              <>
+                <StackedCardList>
+                  {data.platformTotals.map((p) => (
+                    <StackedCard
+                      key={p.platformId}
+                      title={p.platformName}
+                      trailing={
+                        <span className="tabular-nums font-semibold text-[var(--ink-900)]">
+                          {formatMoney(p.total)}
+                        </span>
+                      }
+                    >
+                      <StackedField label="Net" value={formatMoney(p.net)} numeric />
+                      <StackedField label="Tax" value={formatMoney(p.tax)} numeric />
+                      <StackedField label="Tips" value={formatMoney(p.tips)} numeric />
+                    </StackedCard>
+                  ))}
+                  <div className="bg-[var(--paper)] border border-[var(--border-strong)] rounded-[var(--radius-lg)] p-4">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className="font-semibold text-[var(--ink-900)]">Total online</span>
+                      <span className="font-semibold tabular-nums text-[var(--ink-900)]">
+                        {formatMoney(data.onlineTotals.total)}
+                      </span>
+                    </div>
+                    <div className="space-y-1 text-xs">
+                      <StackedField label="Net" value={formatMoney(data.onlineTotals.net)} numeric />
+                      <StackedField label="Tax" value={formatMoney(data.onlineTotals.tax)} numeric />
+                      <StackedField label="Tips" value={formatMoney(data.onlineTotals.tips)} numeric />
+                    </div>
+                  </div>
+                </StackedCardList>
+
+                <TableCard className="max-w-xl">
+                  <Table minWidth={480}>
+                    <THead>
+                      <TR>
+                        <TH>Platform</TH>
+                        <TH numeric>Net</TH>
+                        <TH numeric>Tax</TH>
+                        <TH numeric>Tips</TH>
+                        <TH numeric emphasis>
+                          Total
+                        </TH>
+                      </TR>
+                    </THead>
+                    <TBody>
+                      {data.platformTotals.map((p) => (
+                        <TR key={p.platformId}>
+                          <TD emphasis>{p.platformName}</TD>
+                          <TD numeric>{formatMoney(p.net)}</TD>
+                          <TD numeric>{formatMoney(p.tax)}</TD>
+                          <TD numeric>{formatMoney(p.tips)}</TD>
+                          <TD numeric emphasis>
+                            {formatMoney(p.total)}
+                          </TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                    <TFoot>
+                      <TD emphasis>Total online</TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.onlineTotals.net)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.onlineTotals.tax)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.onlineTotals.tips)}
+                      </TD>
+                      <TD numeric emphasis>
+                        {formatMoney(data.onlineTotals.total)}
+                      </TD>
+                    </TFoot>
+                  </Table>
+                </TableCard>
+              </>
+            )}
+            <p className="text-xs text-[var(--ink-500)] mt-4">
+              The exported .xlsx breaks online platform sales down by day (matching your
+              accountant&apos;s usual monthly report) — this page shows range totals only, to keep
+              it readable at a glance.
+            </p>
+          </Section>
+        </>
       ) : null}
     </main>
-  );
-}
-
-function PresetLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="px-3 py-1.5 rounded border border-neutral-300 text-sm text-neutral-700 hover:bg-neutral-100"
-    >
-      {children}
-    </Link>
-  );
-}
-
-function ReportTabLink({
-  report,
-  current,
-  from,
-  to,
-  children,
-}: {
-  report: string;
-  current: string;
-  from: string;
-  to: string;
-  children: React.ReactNode;
-}) {
-  const active = report === current;
-  return (
-    <Link
-      href={`/reports?report=${report}&from=${from}&to=${to}`}
-      className={
-        "px-3 py-1.5 rounded border " +
-        (active ? "bg-black text-white border-black" : "text-neutral-600 hover:bg-neutral-50")
-      }
-    >
-      {children}
-    </Link>
   );
 }

@@ -6,6 +6,7 @@ export * from "./Badge";
 export * from "./Banner";
 export * from "./Avatar";
 export * from "./Tabs";
+export * from "./Table";
 export * from "./Modal";
 export * from "./ConfirmDialog";
 export * from "./DangerConfirmDialog";

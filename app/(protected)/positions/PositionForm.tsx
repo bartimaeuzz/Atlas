@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { createPosition, updatePosition, type PositionActionState } from "@/lib/actions/positions";
 import type { PositionListRow, TipPoolGroup } from "@/lib/positions/loadPositionsList";
+import { Button, TextInput, Checkbox, Radio, Banner, Card } from "@/components/ui";
 
 const initialState: PositionActionState = { error: null };
 
@@ -36,175 +37,134 @@ export function PositionForm({
       {existing && <input type="hidden" name="positionId" value={existing.id} />}
 
       {state.error && (
-        <div className="border border-red-300 bg-red-50 text-red-700 rounded p-4 text-sm whitespace-pre-line">
-          <div className="font-medium mb-1">Couldn&apos;t save.</div>
-          {state.error}
-        </div>
+        <Banner
+          tone="danger"
+          title="Couldn't save."
+          description={<span className="whitespace-pre-line">{state.error}</span>}
+        />
       )}
 
-      <div>
-        <label className="block text-sm font-medium mb-1">Name</label>
-        <input
-          type="text"
-          name="name"
-          defaultValue={existing?.name}
-          required
-          className="border rounded px-3 py-2 text-sm w-full"
-          placeholder="e.g. Server, Line Cook"
-        />
-      </div>
+      <TextInput
+        label="Name"
+        type="text"
+        name="name"
+        defaultValue={existing?.name}
+        required
+        placeholder="e.g. Server, Line Cook"
+      />
 
-      <div>
-        <label className="block text-sm font-medium mb-1">Category</label>
-        <div className="flex gap-4 text-sm">
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="category"
-              value="FOH"
-              checked={category === "FOH"}
-              onChange={() => setCategory("FOH")}
-            />
-            FOH (front of house)
-          </label>
-          <label className="flex items-center gap-2">
-            <input
-              type="radio"
-              name="category"
-              value="BOH"
-              checked={category === "BOH"}
-              onChange={() => setCategory("BOH")}
-            />
-            BOH (back of house)
-          </label>
+      <fieldset>
+        <legend className="block text-sm font-medium text-[var(--ink-700)] mb-1.5">Category</legend>
+        <div className="flex flex-wrap gap-x-6">
+          <Radio
+            name="category"
+            value="FOH"
+            checked={category === "FOH"}
+            onChange={() => setCategory("FOH")}
+            label="FOH (front of house)"
+          />
+          <Radio
+            name="category"
+            value="BOH"
+            checked={category === "BOH"}
+            onChange={() => setCategory("BOH")}
+            label="BOH (back of house)"
+          />
         </div>
-      </div>
+      </fieldset>
 
-      <div>
-        <label className="block text-sm font-medium mb-1">Default tip point value</label>
-        <input
-          type="number"
-          step="0.1"
-          name="defaultTipPointValue"
-          defaultValue={existing?.defaultTipPointValue ?? ""}
-          className="border rounded px-3 py-2 text-sm w-32"
-          placeholder="1.0"
-        />
-        <p className="text-xs text-neutral-500 mt-1">
-          Template only — suggested starting point shown when adding someone to a roster in this
-          position. Doesn&apos;t affect any calculation directly; leave blank for positions with no
-          tip pool (e.g. Manager, Chef).
-        </p>
-      </div>
+      <TextInput
+        label="Default tip point value"
+        type="number"
+        step="0.1"
+        name="defaultTipPointValue"
+        defaultValue={existing?.defaultTipPointValue ?? ""}
+        placeholder="1.0"
+        className="max-w-40"
+        hint="Template only — suggested starting point shown when adding someone to a roster in this position. Doesn't affect any calculation directly; leave blank for positions with no tip pool (e.g. Manager, Chef)."
+      />
 
-      <div>
-        <label className="block text-sm font-medium mb-2">Tip pool membership</label>
-        <div className="space-y-2">
+      <fieldset>
+        <legend className="block text-sm font-medium text-[var(--ink-700)] mb-1.5">Tip pool membership</legend>
+        <div>
           {POOL_OPTIONS.map((opt) => (
-            <label key={opt.value} className="flex items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="tipPoolGroups"
-                value={opt.value}
-                defaultChecked={existing?.tipPoolGroups.includes(opt.value) ?? false}
-                disabled={!canEditPools}
-                className="mt-0.5 disabled:cursor-not-allowed"
-              />
-              <span>
-                <span className="font-medium">{opt.label}</span>
-                <span className="text-neutral-500"> — {opt.hint}</span>
-              </span>
-            </label>
+            <Checkbox
+              key={opt.value}
+              name="tipPoolGroups"
+              value={opt.value}
+              defaultChecked={existing?.tipPoolGroups.includes(opt.value) ?? false}
+              disabled={!canEditPools}
+              label={<span className="font-medium">{opt.label}</span>}
+              description={opt.hint}
+            />
           ))}
         </div>
-        <p className="text-xs text-neutral-500 mt-1">
+        <p className="text-xs text-[var(--ink-500)] mt-1.5">
           {canEditPools
             ? "A position with no boxes checked is in no tip pool at all (e.g. Manager, Chef). A position can belong to more than one pool — Host is the reason this exists."
             : "Which pools a position belongs to is set by an admin or partner. Everything else on this form is yours to edit."}
         </p>
-      </div>
+      </fieldset>
 
       {category === "FOH" && (
-        <div>
-          <label className="block text-sm font-medium mb-2">Flat wage rate</label>
-          <div className="flex gap-4">
-            <div>
-              <label className="block text-xs text-neutral-500 mb-1">Lunch</label>
-              <input
-                type="number"
-                step="0.01"
-                name="shiftRate_Lunch"
-                defaultValue={rateFor("Lunch") ?? ""}
-                className="border rounded px-3 py-2 text-sm w-28"
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-neutral-500 mb-1">Dinner</label>
-              <input
-                type="number"
-                step="0.01"
-                name="shiftRate_Dinner"
-                defaultValue={rateFor("Dinner") ?? ""}
-                className="border rounded px-3 py-2 text-sm w-28"
-                placeholder="0.00"
-              />
-            </div>
+        <fieldset>
+          <legend className="block text-sm font-medium text-[var(--ink-700)] mb-1.5">Flat wage rate</legend>
+          <div className="flex flex-wrap gap-4">
+            <TextInput
+              label="Lunch"
+              type="number"
+              step="0.01"
+              name="shiftRate_Lunch"
+              defaultValue={rateFor("Lunch") ?? ""}
+              placeholder="0.00"
+              className="max-w-32"
+            />
+            <TextInput
+              label="Dinner"
+              type="number"
+              step="0.01"
+              name="shiftRate_Dinner"
+              defaultValue={rateFor("Dinner") ?? ""}
+              placeholder="0.00"
+              className="max-w-32"
+            />
           </div>
-          <p className="text-xs text-neutral-500 mt-1">
+          <p className="text-xs text-[var(--ink-500)] mt-1.5">
             Shared by everyone who works this position — this is the whole point of a raise going
             here: change it once and it applies to whoever&apos;s rostered next. Leave a period
             blank if this position doesn&apos;t work that period.
           </p>
-        </div>
+        </fieldset>
       )}
 
       {category === "BOH" && (
-        <p className="text-xs text-neutral-500 border rounded p-3 bg-neutral-50">
-          BOH wage is set per employee, not per position — there&apos;s no admin UI for that yet.
-          For now, a raise for a specific BOH person still needs to go through Claude directly.
-        </p>
+        <Card className="!p-4">
+          <p className="text-xs text-[var(--ink-500)]">
+            BOH wage is set per employee, not per position — there&apos;s no admin UI for that yet.
+            For now, a raise for a specific BOH person still needs to go through Claude directly.
+          </p>
+        </Card>
       )}
 
-      <div>
-        <label className="block text-sm font-medium mb-2">Visibility</label>
-        <div className="space-y-2 text-sm">
-          <label className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              name="alwaysVisibleInRoster"
-              defaultChecked={existing?.alwaysVisibleInRoster ?? false}
-              className="mt-0.5"
-            />
-            <span>
-              Always visible in roster — staff outside this category (FOH/BOH) can still see who
-              worked this position (e.g. Manager, Floor Manager, so everyone can see who&apos;s
-              running the shift).
-            </span>
-          </label>
-          <label className="flex items-start gap-2">
-            <input
-              type="checkbox"
-              name="earningsHiddenFromStaff"
-              defaultChecked={existing?.earningsHiddenFromStaff ?? false}
-              className="mt-0.5"
-            />
-            <span>
-              Hide earnings from other staff — no one except MANAGER/ADMIN and the person
-              themself ever sees this position&apos;s pay, regardless of the FOH/BOH peer-earnings
-              settings (e.g. leadership roles).
-            </span>
-          </label>
-        </div>
-      </div>
+      <fieldset>
+        <legend className="block text-sm font-medium text-[var(--ink-700)] mb-1.5">Visibility</legend>
+        <Checkbox
+          name="alwaysVisibleInRoster"
+          defaultChecked={existing?.alwaysVisibleInRoster ?? false}
+          label="Always visible in roster"
+          description="Staff outside this category (FOH/BOH) can still see who worked this position (e.g. Manager, Floor Manager, so everyone can see who's running the shift)."
+        />
+        <Checkbox
+          name="earningsHiddenFromStaff"
+          defaultChecked={existing?.earningsHiddenFromStaff ?? false}
+          label="Hide earnings from other staff"
+          description="No one except MANAGER/ADMIN and the person themself ever sees this position's pay, regardless of the FOH/BOH peer-earnings settings (e.g. leadership roles)."
+        />
+      </fieldset>
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 text-sm disabled:opacity-50"
-      >
+      <Button type="submit" loading={isPending}>
         {isPending ? "Saving…" : existing ? "Save changes" : "Create position"}
-      </button>
+      </Button>
     </form>
   );
 }

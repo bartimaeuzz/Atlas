@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { CheckIcon, AlertCircleIcon, AlertTriangleIcon } from "./icons";
 
 type BannerTone = "success" | "danger" | "warning" | "info";
@@ -14,7 +15,7 @@ const toneStyles: Record<BannerTone, { bg: string; border: string; text: string;
  * decision (easy to miss on a phone mid-shift). success/danger = the
  * result of an action; warning = an informational heads-up (e.g. "this
  * record is locked"); info = neutral, lowest-stakes. */
-export function Banner({ tone, title, description }: { tone: BannerTone; title: string; description?: string }) {
+export function Banner({ tone, title, description }: { tone: BannerTone; title: string; description?: ReactNode }) {
   const s = toneStyles[tone];
   const Icon = s.Icon;
   return (
