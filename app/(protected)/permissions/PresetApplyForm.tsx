@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useActionState, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { applyAccountTypePreset, type PermissionActionState } from "@/lib/actions/permissions";
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, type AccountType } from "@/lib/permissions/capabilities";
 import { computePresetDiff, presetDiffIsEmpty } from "@/lib/permissions/presetDiff";
@@ -36,12 +37,25 @@ const initialState: PermissionActionState = { error: null, saved: false };
  * low-computer-literacy user. Harmless (a TEST account) but the
  * mechanism governs production access.
  *
- * WHAT THIS DOES INSTEAD. Nothing is preselected, so no preset can be
- * applied by reflex; choosing one shows exactly what will change, by
- * name, before anything is written; and the wording says "reset", which
- * is what it is. An inline preview rather than a ConfirmDialog on
- * purpose — the diff can run to twenty lines, which a 360px modal
- * description string cannot show honestly.
+ * WHAT THIS DOES INSTEAD, in three layers:
+ *
+ *  1. Nothing is preselected — the select opens on "Choose a preset…",
+ *     so the control never implies it is showing the person's current
+ *     tier, and no preset can be applied by reflex.
+ *  2. Choosing one renders an inline preview naming every capability
+ *     that turns on, turns off, or gets restored. Inline rather than
+ *     inside the dialog because the diff runs to twenty lines, which a
+ *     360px modal description string cannot show honestly.
+ *  3. Every submission — pointer OR keyboard — is intercepted at the
+ *     form's onSubmit and must pass a ConfirmDialog first.
+ *
+ * Layer 3 exists because the first version of this fix had only 1 and 2,
+ * and a live audit broke it in one keystroke: the Reset button is the
+ * form's default button, so pressing Enter on the closed select
+ * activated it and rewrote all 20 rows with the preview unread. Gating
+ * the BUTTON only covers the case where nothing is chosen yet. Gating
+ * the FORM covers every path into the action, which is the property
+ * actually wanted.
  *
  * Error prevention over error messages (Nielsen 5 / poka-yoke), the
  * standing bar in project_atlas_target_users_accessibility memory.
@@ -50,6 +64,11 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
   const [state, formAction, pending] = useActionState(applyAccountTypePreset, initialState);
   const [choice, setChoice] = useState<"" | AccountType>("");
   const previewId = useId();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  /** A ref, not state: the confirm handler has to flip this and re-submit
+   * within the same tick, before React has re-rendered. */
+  const confirmedRef = useRef(false);
 
   /** Admins take the grantAllows() bypass, so their stored rows do not
    * determine their access. Applying a preset to an Admin rewrites the
@@ -64,7 +83,32 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
 
   return (
     <div className="w-full sm:w-auto">
-      <form action={formAction} className="flex flex-wrap items-center gap-2">
+      {/* Guarded at onSubmit, NOT by gating the button — the distinction
+          is the whole fix, and the first attempt got it wrong.
+          Conditionally rendering or disabling the button only stops the
+          reflex case where nothing is chosen. Once a real preset is
+          picked the button is live, and it is the form's DEFAULT button:
+          arrow to a preset, press Enter to dismiss the dropdown, and
+          Enter activates it — 20 rows rewritten, preview never read.
+          Verified live on 2026-08-22 by doing exactly that and watching
+          the DB go to zero.
+
+          Intercepting here catches BOTH paths (pointer and keyboard)
+          because every submission, however triggered, runs onSubmit. The
+          worst an errant Enter can now do is open a dialog. */}
+      <form
+        ref={formRef}
+        action={formAction}
+        onSubmit={(e) => {
+          if (confirmedRef.current) {
+            confirmedRef.current = false;
+            return; // let the confirmed submission through
+          }
+          e.preventDefault();
+          if (diff && !nothingChanges) setConfirmOpen(true);
+        }}
+        className="flex flex-wrap items-center gap-2"
+      >
         <input type="hidden" name="employeeId" value={employee.employeeId} />
         <label className="text-xs text-[var(--ink-500)]" htmlFor={`accountType-${employee.employeeId}`}>
           Reset to Account Type
@@ -89,13 +133,13 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
           ))}
         </select>
 
-        {/* Always rendered, never conditionally mounted. A form with no
-            submit button submits on Enter (neither <select> nor a hidden
-            input blocks implicit submission), which reproduced the exact
-            one-input-wipes-everything incident for keyboard users:
-            arrow to a preset, press Enter to close the dropdown, done —
-            preview never read. A DISABLED default button stops implicit
-            submission outright. Caught by the scrutinize pass. */}
+        {/* Always rendered, never conditionally mounted — a form with no
+            submit button submits on Enter anyway (neither <select> nor a
+            hidden input blocks implicit submission), so removing the
+            button would make things worse, not better. Disabling it does
+            stop the no-choice case. It does NOT stop Enter once a real
+            preset is picked; that is what the onSubmit guard above is
+            for. Both are needed. */}
         <Button
           type="submit"
           variant="secondary"
@@ -135,6 +179,15 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
             </p>
           ) : (
             <>
+              {/* Before the list, not after it: a reader who sees
+                  "Turns OFF (20)" and only then learns it doesn't apply
+                  to them has already had the fright. */}
+              {isAdmin && (
+                <p className="mb-1.5 text-[var(--ink-700)]">
+                  {employee.nickname} is an Admin, and Admins keep full access to everything regardless of these
+                  settings. This changes the stored values below, but not what they can actually open.
+                </p>
+              )}
               <p className="font-semibold mb-1">
                 This replaces {employee.nickname}&apos;s permissions with the{" "}
                 {ACCOUNT_TYPE_LABELS[choice as AccountType]} preset:
@@ -171,18 +224,29 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
                 Everything else stays as it is. This can&apos;t be undone in one step — you&apos;d have to set the
                 capabilities back by hand.
               </p>
-              {isAdmin && (
-                <p className="mt-1.5 text-[var(--ink-700)]">
-                  Note: {employee.nickname} is an Admin. Admins keep full access to everything regardless of these
-                  settings, so this changes the stored values but not what they can actually open.
-                </p>
-              )}
             </>
           )}
         </div>
       )}
 
 
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          confirmedRef.current = true;
+          setConfirmOpen(false);
+          formRef.current?.requestSubmit();
+        }}
+        title={`Reset ${employee.nickname} to ${choice === "" ? "" : ACCOUNT_TYPE_LABELS[choice]}?`}
+        description={
+          diff
+            ? `This turns ON ${diff.turningOn.length + diff.restoringExpired.length} and turns OFF ${diff.turningOff.length} of their permissions, replacing what they have now. The full list is on the page behind this box. It can't be undone in one step.`
+            : undefined
+        }
+        confirmLabel="Yes, reset"
+        loading={pending}
+      />
     </div>
   );
 }
