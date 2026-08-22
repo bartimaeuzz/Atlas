@@ -61,6 +61,19 @@ export default async function SettingsPage() {
       <fieldset disabled={!canEdit} className="border-0 p-0 m-0 min-w-0">
         <SettingsForm settings={settings} />
       </fieldset>
+      {/* Repeated at the bottom on purpose (2026-08-22 visual-audit
+          finding). The banner above sits at the top of a ~2,000px form;
+          on a phone that is roughly 2.3 screens above the disabled "Save
+          settings" button, so by the time someone reaches the one control
+          that looks like it should work, the explanation is long out of
+          view. Rendered here rather than inside SettingsForm so the
+          read-only state stays owned by this page alone — no prop to
+          thread, nothing that can disagree with the fieldset. */}
+      {!canEdit && (
+        <p className="mt-3 text-sm text-[var(--ink-500)]">
+          Saving is turned off for your account — ask an admin if something here needs to change.
+        </p>
+      )}
     </main>
   );
 }
