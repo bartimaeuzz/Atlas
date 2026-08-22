@@ -7,6 +7,31 @@ import type { RestaurantSettingsData } from "@/lib/settings/loadRestaurantSettin
 
 const initialState: SettingsActionState = { error: null, saved: false };
 
+/**
+ * Read-only affordance (2026-08-22, visual-audit finding).
+ *
+ * This form is rendered inside a `<fieldset disabled>` by page.tsx when
+ * the viewer holds VIEW_SETTINGS but not EDIT_SETTINGS. That correctly
+ * disables every control's *behaviour* — but a disabled fieldset changes
+ * nothing about how its children *look*, so the live audit found the
+ * fields rendering identically to editable ones: opacity 1, transparent
+ * background, 17:1 text contrast, default cursor. A Partner tapped a
+ * field, nothing happened, and the only explanation was a banner ~2.3
+ * phone screens further up.
+ *
+ * Text colour is deliberately NOT muted. The entire point of this mode
+ * is reading the configuration, so the values must stay fully legible —
+ * the state is signalled by the filled background, flattened border and
+ * cursor instead. (components/ui/Field.tsx mutes its disabled text; that
+ * is right for a normally-editable field that happens to be locked, and
+ * wrong for a page whose read-only state is the expected one.)
+ */
+const DISABLED_FIELD =
+  "disabled:bg-[var(--paper)] disabled:border-[var(--border)] disabled:cursor-not-allowed";
+/** Checkboxes/radios: the browser already greys the control itself, so
+ * this only needs to fix the misleading pointer. */
+const DISABLED_TOGGLE = "disabled:cursor-not-allowed";
+
 export function SettingsForm({ settings }: { settings: RestaurantSettingsData }) {
   const [state, formAction, isPending] = useActionState(updateRestaurantSettings, initialState);
 
@@ -35,7 +60,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
                 max="100"
                 name="ccTipDeductionRatePercent"
                 defaultValue={settings.ccTipDeductionRate * 100}
-                className="border rounded pl-3 pr-6 py-1.5 text-sm w-full"
+                className={`border rounded pl-3 pr-6 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">%</span>
             </div>
@@ -51,7 +76,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
                 min="0"
                 name="hostDrinkBonusPerDrinkAmount"
                 defaultValue={settings.hostDrinkBonusPerDrinkAmount}
-                className="border rounded pl-6 pr-3 py-1.5 text-sm w-full"
+                className={`border rounded pl-6 pr-3 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
               />
             </div>
             <span className="block text-xs text-neutral-400 mt-1">0 turns the bonus off entirely</span>
@@ -72,7 +97,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
                 max="100"
                 name="defaultSalesTaxRatePercent"
                 defaultValue={settings.defaultSalesTaxRate * 100}
-                className="border rounded pl-3 pr-6 py-1.5 text-sm w-full"
+                className={`border rounded pl-3 pr-6 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">%</span>
             </div>
@@ -95,6 +120,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
           <label className="flex items-center gap-2">
             <input
               type="radio"
+              className={DISABLED_TOGGLE}
               name="staffLoginMethod"
               value="NAME"
               defaultChecked={settings.staffLoginMethod === "NAME"}
@@ -104,6 +130,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
           <label className="flex items-center gap-2">
             <input
               type="radio"
+              className={DISABLED_TOGGLE}
               name="staffLoginMethod"
               value="ID"
               defaultChecked={settings.staffLoginMethod === "ID"}
@@ -142,22 +169,22 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
           <div className="space-y-2">
             <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Tip share</div>
             <label className="flex items-center gap-2">
-              <input type="checkbox" name="rosterShowPeerTipFOH" defaultChecked={settings.rosterShowPeerTipFOH} />
+              <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerTipFOH" defaultChecked={settings.rosterShowPeerTipFOH} />
               Show FOH peer tip share
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" name="rosterShowPeerTipBOH" defaultChecked={settings.rosterShowPeerTipBOH} />
+              <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerTipBOH" defaultChecked={settings.rosterShowPeerTipBOH} />
               Show BOH peer tip share
             </label>
           </div>
           <div className="space-y-2">
             <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Wage</div>
             <label className="flex items-center gap-2">
-              <input type="checkbox" name="rosterShowPeerWageFOH" defaultChecked={settings.rosterShowPeerWageFOH} />
+              <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerWageFOH" defaultChecked={settings.rosterShowPeerWageFOH} />
               Show FOH peer wage
             </label>
             <label className="flex items-center gap-2">
-              <input type="checkbox" name="rosterShowPeerWageBOH" defaultChecked={settings.rosterShowPeerWageBOH} />
+              <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerWageBOH" defaultChecked={settings.rosterShowPeerWageBOH} />
               Show BOH peer wage
             </label>
           </div>
@@ -176,11 +203,11 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         </p>
         <div className="space-y-2 text-sm">
           <label className="flex items-center gap-2">
-            <input type="checkbox" name="rosterShowCoworkerListFOH" defaultChecked={settings.rosterShowCoworkerListFOH} />
+            <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowCoworkerListFOH" defaultChecked={settings.rosterShowCoworkerListFOH} />
             Show coworker list to FOH staff
           </label>
           <label className="flex items-center gap-2">
-            <input type="checkbox" name="rosterShowCoworkerListBOH" defaultChecked={settings.rosterShowCoworkerListBOH} />
+            <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowCoworkerListBOH" defaultChecked={settings.rosterShowCoworkerListBOH} />
             Show coworker list to BOH staff
           </label>
         </div>
@@ -196,11 +223,11 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         </p>
         <div className="space-y-2 text-sm">
           <label className="flex items-center gap-2">
-            <input type="checkbox" name="rosterRestrictFOHToOwnCategory" defaultChecked={settings.rosterRestrictFOHToOwnCategory} />
+            <input type="checkbox" className={DISABLED_TOGGLE} name="rosterRestrictFOHToOwnCategory" defaultChecked={settings.rosterRestrictFOHToOwnCategory} />
             Restrict FOH staff to FOH-only view
           </label>
           <label className="flex items-center gap-2">
-            <input type="checkbox" name="rosterRestrictBOHToOwnCategory" defaultChecked={settings.rosterRestrictBOHToOwnCategory} />
+            <input type="checkbox" className={DISABLED_TOGGLE} name="rosterRestrictBOHToOwnCategory" defaultChecked={settings.rosterRestrictBOHToOwnCategory} />
             Restrict BOH staff to BOH-only view
           </label>
         </div>
