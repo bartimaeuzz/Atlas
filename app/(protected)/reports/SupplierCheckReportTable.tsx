@@ -54,7 +54,11 @@ export function SupplierCheckReportTable({ data }: { data: SupplierCheckReportDa
                 }
                 trailing={<StatusBadge status={row.status} />}
               >
-                <StackedField label="Paid" value={formatDayLabel(row.paidDate)} />
+                {/* "Paid on", not "Paid": the card already shows a Paid/Printed
+                    status badge beside the vendor name, and two different
+                    meanings of the same word on one card is exactly the
+                    ambiguity this audience does not need. */}
+                <StackedField label="Paid on" value={formatDayLabel(row.paidDate)} />
                 <StackedField label="Check #" value={row.checkNumber || "—"} numeric />
                 <StackedField label="Memo (invoices)" value={row.invoiceNumbers.join(", ") || "—"} />
                 <StackedField label="Amount" value={formatMoney(row.totalAmount)} numeric />

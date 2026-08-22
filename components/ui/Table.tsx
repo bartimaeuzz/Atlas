@@ -19,9 +19,19 @@ import type { ReactNode, CSSProperties } from "react";
  *      `TableCard` (desktop) with `StackedCard` (phone) instead — see
  *      Payroll's precedent, which this generalizes.
  *
+ * BREAKPOINT: the swap happens at `lg` (1024px), NOT `sm` (640px).
+ * Measured live 2026-08-22: at a 640px viewport the nav rail takes 216px
+ * and the page padding another 64px, leaving a 360px content column — so
+ * `sm:` handed a 640px "desktop" a 860px-wide table crammed into 360px,
+ * scrolling sideways inside the card, at exactly the width where the
+ * stacked cards that fit perfectly had just switched off. A viewport
+ * breakpoint is not a content-width breakpoint whenever a persistent
+ * sidebar is in the layout. Keep these two in sync — StackedCardList's
+ * `lg:hidden` and TableCard's `hidden lg:block` are one decision.
+ *
  * Standard usage:
- *   <StackedCardList>…</StackedCardList>   ← phone, sm:hidden
- *   <TableCard>…</TableCard>               ← desktop, hidden sm:block
+ *   <StackedCardList>…</StackedCardList>   ← narrow, lg:hidden
+ *   <TableCard>…</TableCard>               ← wide, hidden lg:block
  */
 
 export function TableCard({
@@ -31,14 +41,15 @@ export function TableCard({
 }: {
   children: ReactNode;
   className?: string;
-  /** Defaults to desktop-only, because the phone story is StackedCardList.
-   *  Pass false only for a table narrow enough to read at 390px. */
+  /** Defaults to wide-viewports-only, because the narrow story is
+   *  StackedCardList. Pass false only for a table narrow enough to read in
+   *  a 278px content column (what a 390px phone actually leaves). */
   desktopOnly?: boolean;
   }) {
   return (
     <div
       className={
-        (desktopOnly ? "hidden sm:block " : "") +
+        (desktopOnly ? "hidden lg:block " : "") +
         `bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] overflow-hidden ${className}`
       }
     >
@@ -158,7 +169,7 @@ export function TFoot({ children }: { children: ReactNode }) {
 /* ---------- Phone side ---------- */
 
 export function StackedCardList({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <div className={`sm:hidden space-y-2 ${className}`}>{children}</div>;
+  return <div className={`lg:hidden space-y-2 ${className}`}>{children}</div>;
 }
 
 export function StackedCard({

@@ -55,3 +55,21 @@ export function LinkButton({ href, variant = "primary", size = "md", className =
     </Link>
   );
 }
+
+/** Button-styled plain <a>, for hrefs that must NOT go through the Next
+ * router: file downloads served by a route handler, and external links.
+ *
+ * Why this exists (2026-08-22 visual audit): the Reports export was moved
+ * onto LinkButton during the retrofit, and next/link PREFETCHES. The
+ * prefetch requests the download route with `?_rsc=…` and none of the
+ * from/to params the handler requires, so every single /reports page view
+ * fired a 400 against /reports/export and logged a console error. A
+ * download is a plain browser navigation, not a client-side route
+ * transition — it should never have been a <Link>. */
+export function DownloadLinkButton({ href, variant = "primary", size = "md", className = "", children }: LinkButtonProps) {
+  return (
+    <a href={href} className={`${shared} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}>
+      {children}
+    </a>
+  );
+}

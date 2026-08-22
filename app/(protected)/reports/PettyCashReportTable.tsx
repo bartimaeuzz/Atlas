@@ -46,27 +46,46 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
         />
       </div>
 
-      {/* Phone: stacked cards */}
+      {/* Phone: stacked cards.
+          A day with no entries renders as ONE compact line, not a full card.
+          Measured live 2026-08-22: a month range is mostly empty days (28 of
+          32 in the August data), and at 122px per card that was 4,096px —
+          4.9 screens, ~3.4 of them nothing but em dashes. A table row of
+          dashes is cheap to skim; a four-row card of dashes is not. The day
+          is still listed and still tappable, so an empty day stays
+          distinguishable from a missing one — which matters on a cash
+          reconciliation screen. */}
       <StackedCardList>
-        {data.days.map((day) => (
-          <StackedCard
-            key={day.date}
-            title={
-              <Link href={`/ledger/day?date=${day.date}`} className="underline underline-offset-2">
-                {formatDayLabel(day.date)}
-              </Link>
-            }
-            trailing={<StatusBadge day={day} />}
-          >
-            <StackedField label="Entries" value={day.entryCount || "—"} numeric />
-            <StackedField
-              label="Spent"
-              value={day.totalSpent > 0 ? formatMoney(day.totalSpent) : "—"}
-              numeric
-            />
-            <StackedField label="Floor Manager" value={day.finalizedByName || "—"} />
-          </StackedCard>
-        ))}
+        {data.days.map((day) =>
+          day.status === "no_data" ? (
+            <Link
+              key={day.date}
+              href={`/ledger/day?date=${day.date}`}
+              className="flex items-center justify-between gap-3 min-h-11 px-4 py-2 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] text-sm text-[var(--ink-500)]"
+            >
+              <span>{formatDayLabel(day.date)}</span>
+              <span>No entries</span>
+            </Link>
+          ) : (
+            <StackedCard
+              key={day.date}
+              title={
+                <Link href={`/ledger/day?date=${day.date}`} className="underline underline-offset-2">
+                  {formatDayLabel(day.date)}
+                </Link>
+              }
+              trailing={<StatusBadge day={day} />}
+            >
+              <StackedField label="Entries" value={day.entryCount || "—"} numeric />
+              <StackedField
+                label="Spent"
+                value={day.totalSpent > 0 ? formatMoney(day.totalSpent) : "—"}
+                numeric
+              />
+              <StackedField label="Floor Manager" value={day.finalizedByName || "—"} />
+            </StackedCard>
+          )
+        )}
         <StackedTotal label={`Total (${totalEntries} entries)`} value={formatMoney(data.totalSpent)} />
       </StackedCardList>
 

@@ -13,6 +13,7 @@ import {
   Section,
   Button,
   LinkButton,
+  DownloadLinkButton,
   EmptyState,
   Tabs,
   Tab,
@@ -190,10 +191,14 @@ export default async function ReportsPage({
               View
             </Button>
           </form>
+          {/* Export is a plain <a> (DownloadLinkButton), deliberately not
+              LinkButton: next/link prefetches, and prefetching a download
+              route fires it without its required from/to params -> a 400 on
+              every page view. See DownloadLinkButton's doc comment. */}
           {(report === "sales-tax" || report === "supplier-check") && (
-            <LinkButton href={exportHref} variant="brand" size="sm" className="sm:ml-auto">
+            <DownloadLinkButton href={exportHref} variant="brand" size="sm" className="sm:ml-auto">
               Export .xlsx
-            </LinkButton>
+            </DownloadLinkButton>
           )}
         </div>
       </Card>
