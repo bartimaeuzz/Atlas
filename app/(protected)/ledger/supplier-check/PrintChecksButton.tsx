@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { printChecksForVendors } from "@/lib/actions/supplierCheck";
 import type { VendorPendingGroup } from "@/lib/ledger/loadSupplierCheck";
 import { Modal } from "@/components/ui/Modal";
@@ -27,6 +27,7 @@ import { formatMoney } from "../formatMoney";
  * out by name ("found duplicated ad hoc in PrintChecksButton"). Now
  * consumes that shared shell instead. */
 export function PrintChecksButton({ groups }: { groups: VendorPendingGroup[] }) {
+  const printTitleId = useId();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [checkNumbers, setCheckNumbers] = useState<Record<number, string>>({});
@@ -86,9 +87,11 @@ export function PrintChecksButton({ groups }: { groups: VendorPendingGroup[] }) 
         Print Checks
       </Button>
 
-      <Modal open={open} onClose={() => setOpen(false)} width={448}>
+      <Modal open={open} onClose={() => setOpen(false)} width={448} labelledBy={printTitleId}>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-base font-bold text-[var(--ink-900)]">Print checks</h3>
+          <h3 id={printTitleId} className="text-base font-bold text-[var(--ink-900)]">
+            Print checks
+          </h3>
           <button
             type="button"
             onClick={() => setOpen(false)}

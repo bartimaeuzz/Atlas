@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 import Link from "next/link";
 import { SpinnerIcon } from "./icons";
 
@@ -6,12 +6,12 @@ type Variant = "primary" | "secondary" | "brand" | "destructive" | "destructive-
 type Size = "md" | "sm";
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-[var(--primary)] text-white hover:bg-[var(--primary-600)] focus-visible:outline-[var(--primary-border)] disabled:bg-[var(--primary-border)] disabled:text-[var(--primary-tint)]",
-  secondary: "bg-transparent text-[var(--ink-700)] border border-[var(--border-strong)] hover:bg-[var(--paper)] focus-visible:outline-[var(--primary-border)] disabled:opacity-50",
-  brand: "bg-[var(--brand)] text-white hover:bg-[var(--brand-700)] focus-visible:outline-[var(--brand)] disabled:opacity-50",
-  destructive: "bg-[var(--danger)] text-white hover:bg-[var(--danger-700)] focus-visible:outline-[var(--danger-border)] disabled:bg-[var(--danger-border)] disabled:text-[var(--danger-tint)]",
-  "destructive-outline": "bg-transparent text-[var(--danger)] border border-[var(--danger)] hover:bg-[var(--danger-tint)] focus-visible:outline-[var(--danger-border)] disabled:opacity-50",
-  ghost: "bg-transparent text-[var(--ink-700)] hover:bg-[var(--paper)] focus-visible:outline-[var(--primary-border)] disabled:opacity-50",
+  primary: "bg-[var(--primary)] text-white hover:bg-[var(--primary-600)] disabled:bg-[var(--primary-border)] disabled:text-[var(--primary-tint)]",
+  secondary: "bg-transparent text-[var(--ink-700)] border border-[var(--border-strong)] hover:bg-[var(--paper)] disabled:opacity-50",
+  brand: "bg-[var(--brand)] text-white hover:bg-[var(--brand-700)] disabled:opacity-50",
+  destructive: "bg-[var(--danger)] text-white hover:bg-[var(--danger-700)] disabled:bg-[var(--danger-border)] disabled:text-[var(--danger-tint)]",
+  "destructive-outline": "bg-transparent text-[var(--danger)] border border-[var(--danger)] hover:bg-[var(--danger-tint)] disabled:opacity-50",
+  ghost: "bg-transparent text-[var(--ink-700)] hover:bg-[var(--paper)] disabled:opacity-50",
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -19,18 +19,46 @@ const sizeClasses: Record<Size, string> = {
   sm: "text-xs px-3 py-2 min-h-9",
 };
 
+/** Focus ring, rebuilt 2026-08-22 after the visual audit measured it at
+ * 1px and ~1.4:1 contrast — a WCAG 1.4.11 (Non-text Contrast, 3:1) failure
+ * on every button in the app. Two independent bugs, both invisible to
+ * tsc/eslint/build:
+ *
+ *   WIDTH. The old classes were `outline-2 … focus-visible:outline`. Both
+ *   utilities set outline-width — `.outline` to 1px, `.outline-2` to 2px —
+ *   and `.focus-visible\:outline:focus-visible` is a class PLUS a
+ *   pseudo-class, so it outranks the plain `.outline-2` on specificity and
+ *   reset the ring to 1px. Source order never came into it. Fixed by
+ *   putting the width on the focus-visible variant itself.
+ *
+ *   COLOUR. `--primary-border` (#BFDBFE) is a border tint, not an
+ *   indicator colour: ~1.4:1 against white. The ring sits at
+ *   `outline-offset: 2px`, i.e. on the page background rather than on the
+ *   button, so one strong colour serves every variant — `--primary` gives
+ *   6.7:1 in light and 4.5:1 in dark, both clear of the 3:1 floor, and
+ *   keeps the blue focus affordance rather than going neutral.
+ *
+ * Consequence for variants: none of them set their own focus colour any
+ * more. Resist re-adding a per-variant ring — a focus indicator's job is
+ * to be found, not to match the control it surrounds. */
 const shared =
-  "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold transition-colors outline-offset-2 outline-2 outline-transparent focus-visible:outline disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold transition-colors outline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
+  /** React 19 passes `ref` as an ordinary prop to function components, so no
+   *  forwardRef wrapper is needed — it just has to be declared. Added so a
+   *  dialog can point initial focus at a specific button (ConfirmDialog
+   *  lands focus on Cancel). */
+  ref?: Ref<HTMLButtonElement>;
 }
 
-export function Button({ variant = "primary", size = "md", loading, disabled, className = "", children, ...rest }: ButtonProps) {
+export function Button({ variant = "primary", size = "md", loading, disabled, className = "", children, ref, ...rest }: ButtonProps) {
   return (
     <button
+      ref={ref}
       className={`${shared} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
       disabled={disabled || loading}
       {...rest}

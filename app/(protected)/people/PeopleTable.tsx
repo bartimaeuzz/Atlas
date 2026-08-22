@@ -78,7 +78,7 @@ export function PeopleTable({
   return (
     <div>
       {/* Phone: sort control + stacked cards */}
-      <div className="sm:hidden mb-3 flex items-center gap-2">
+      <div className="lg:hidden mb-3 flex items-center gap-2">
         <div className="flex-1">
           <Select
             aria-label="Sort by"
@@ -105,7 +105,7 @@ export function PeopleTable({
         </button>
       </div>
 
-      <div className="sm:hidden space-y-3">
+      <div className="lg:hidden space-y-3">
         {sorted.map((e) => {
           const primaryPositionCategory =
             e.positions.find((p) => p.positionId === e.primaryPositionId)?.positionCategory ?? null;
@@ -152,7 +152,7 @@ export function PeopleTable({
       </div>
 
       {/* Desktop: table */}
-      <table className="hidden sm:table w-full text-sm border-collapse">
+      <table className="hidden lg:table w-full text-sm border-collapse">
         <thead>
           <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
             <SortableHeader label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={handleSort} />

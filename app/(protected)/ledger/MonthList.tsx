@@ -24,7 +24,7 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
   return (
     <>
       {/* Phone: stacked cards */}
-      <div className="sm:hidden space-y-2">
+      <div className="lg:hidden space-y-2">
         {data.days.map((day) => {
           const isFuture = day.date > todayIso;
           const isToday = day.date === todayIso;
@@ -74,7 +74,7 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
       </div>
 
       {/* Desktop: table */}
-      <table className="hidden sm:table w-full text-sm border-collapse">
+      <table className="hidden lg:table w-full text-sm border-collapse">
         <thead>
           <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
             <th className="py-2 font-medium">Date</th>

@@ -77,7 +77,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Payout by employee">
-        <div className="sm:hidden space-y-2">
+        <div className="lg:hidden space-y-2">
           {data.payouts.map((p) => (
             <Card key={p.employeeId} className="p-4">
               <div className="flex items-center justify-between mb-2">
@@ -111,7 +111,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
 
-        <table className="hidden sm:table w-full text-sm border-collapse">
+        <table className="hidden lg:table w-full text-sm border-collapse">
           <thead>
             <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
               <th className="py-2 font-medium">Employee</th>

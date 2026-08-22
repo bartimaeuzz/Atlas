@@ -1,5 +1,6 @@
 "use client";
 
+import { useId, useRef } from "react";
 import { Modal } from "./Modal";
 import { Button } from "./Button";
 
@@ -7,7 +8,12 @@ import { Button } from "./Button";
  * actions (e.g. adding a second role to someone already on the roster).
  * Primary-blue confirm button, not red: this tier is NOT for destructive
  * actions, see DangerConfirmDialog for those. Replaces raw window.confirm()
- * calls found in RosterGrid.tsx (2026-08-16 verification pass). */
+ * calls found in RosterGrid.tsx (2026-08-16 verification pass).
+ *
+ * Focus lands on CANCEL, not Confirm (2026-08-22, Oliver's call): a stray
+ * Enter or Space on an unfamiliar dialog should dismiss it, never fire the
+ * action it was asking about. That is error-prevention-over-error-messages
+ * applied to the keyboard, and it costs a confirming user exactly one Tab. */
 export function ConfirmDialog({
   open,
   onClose,
@@ -31,13 +37,18 @@ export function ConfirmDialog({
    *  (added 2026-08-22, Positions retrofit). */
   body?: React.ReactNode;
 }) {
+  const titleId = useId();
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
   return (
-    <Modal open={open} onClose={onClose} width={360}>
-      <div className="text-base font-bold text-[var(--ink-900)] mb-1.5">{title}</div>
+    <Modal open={open} onClose={onClose} width={360} labelledBy={titleId} initialFocus={cancelRef}>
+      <div id={titleId} className="text-base font-bold text-[var(--ink-900)] mb-1.5">
+        {title}
+      </div>
       {description && <p className="text-sm text-[var(--ink-700)] mb-4">{description}</p>}
       {body && <div className="mb-4">{body}</div>}
       <div className="flex gap-2 justify-end">
-        <Button variant="secondary" size="sm" onClick={onClose} disabled={loading}>
+        <Button ref={cancelRef} variant="secondary" size="sm" onClick={onClose} disabled={loading}>
           Cancel
         </Button>
         <Button variant="primary" size="sm" onClick={onConfirm} loading={loading}>

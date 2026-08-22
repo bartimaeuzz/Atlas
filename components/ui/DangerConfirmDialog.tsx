@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Modal } from "./Modal";
 import { Button } from "./Button";
 import { AlertCircleIcon } from "./icons";
@@ -9,7 +9,12 @@ import { AlertCircleIcon } from "./icons";
  * actions only (delete a shift/employee, wipe a report). Button stays
  * disabled until the typed word matches exactly. Don't reach for this for
  * every destructive action -- that trains a "just type it" reflex that
- * defeats the point; use ConfirmDialog for anything less severe. */
+ * defeats the point; use ConfirmDialog for anything less severe.
+ *
+ * Focus lands on the typed-word input (2026-08-22): unlike ConfirmDialog,
+ * there is no stray-Enter risk here because the confirm button stays
+ * disabled until the word matches exactly, so the input is both the safe
+ * landing spot and the one the user actually needs. */
 export function DangerConfirmDialog({
   open,
   onClose,
@@ -30,6 +35,8 @@ export function DangerConfirmDialog({
   loading?: boolean;
 }) {
   const [typed, setTyped] = useState("");
+  const titleId = useId();
+  const inputRef = useRef<HTMLInputElement>(null);
   const matches = typed === confirmWord;
 
   function handleClose() {
@@ -38,16 +45,19 @@ export function DangerConfirmDialog({
   }
 
   return (
-    <Modal open={open} onClose={handleClose} width={360}>
+    <Modal open={open} onClose={handleClose} width={360} labelledBy={titleId} initialFocus={inputRef}>
       <div className="flex items-center gap-2 mb-2">
         <AlertCircleIcon className="text-[var(--danger)]" width={20} height={20} />
-        <span className="text-base font-bold text-[var(--ink-900)]">{title}</span>
+        <span id={titleId} className="text-base font-bold text-[var(--ink-900)]">
+          {title}
+        </span>
       </div>
       <p className="text-sm text-[var(--ink-700)] mb-3.5">{description}</p>
       <label className="block text-xs font-semibold text-[var(--ink-700)] mb-1.5">
         Type <strong>{confirmWord}</strong> to confirm
       </label>
       <input
+        ref={inputRef}
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
         placeholder={confirmWord}

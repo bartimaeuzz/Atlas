@@ -82,7 +82,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
             {/* Phone: stacked cards, one per employee — a 13-column table is
              * unreadable at phone width no matter how it's compressed.
              * Desktop: the full comparison table. */}
-            <div className="sm:hidden space-y-2">
+            <div className="lg:hidden space-y-2">
               {sortPayoutsForDisplay(preview.result.employeePayouts, preview.employeeNames, preview.positionByEmployeeId).map((p) => (
                 <Card key={p.employeeId} className="p-4">
                   <div className="flex items-center justify-between mb-2">
@@ -122,7 +122,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
               </Card>
             </div>
 
-            <table className="hidden sm:table w-full text-sm border-collapse">
+            <table className="hidden lg:table w-full text-sm border-collapse">
               <thead>
                 <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
                   <th className="py-2 font-medium">Employee</th>

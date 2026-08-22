@@ -40,7 +40,7 @@ export default async function ShiftsListPage() {
           {/* Phone: stacked cards — the standard for all dense data on small
            * screens (2026-08-16 design-system decision), not a scrolling
            * table. */}
-          <div className="sm:hidden space-y-2">
+          <div className="lg:hidden space-y-2">
             {shifts.map((s) => (
               <Link
                 key={s.id}
@@ -62,7 +62,7 @@ export default async function ShiftsListPage() {
           </div>
 
           {/* Desktop: table */}
-          <table className="hidden sm:table w-full text-sm border-collapse">
+          <table className="hidden lg:table w-full text-sm border-collapse">
             <thead>
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
                 <th className="py-2.5 font-medium">Date</th>

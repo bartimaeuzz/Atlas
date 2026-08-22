@@ -90,7 +90,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
       ) : (
         <>
           {/* Phone: stacked cards */}
-          <div className="sm:hidden space-y-2 mb-4">
+          <div className="lg:hidden space-y-2 mb-4">
             {register.rows.map((row) => (
               <div key={row.employeeId} className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4">
                 <div className="flex items-center justify-between mb-2">
@@ -130,7 +130,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
           </div>
 
           {/* Desktop: table */}
-          <div className="hidden sm:block border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-4">
+          <div className="hidden lg:block border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-4">
             <table className="w-full text-sm min-w-[560px]">
               <thead className="bg-[var(--paper)] text-[var(--ink-500)] text-xs uppercase tracking-wide">
                 <tr>
