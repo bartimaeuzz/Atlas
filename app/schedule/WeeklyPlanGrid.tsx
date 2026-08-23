@@ -240,7 +240,16 @@ export function WeeklyPlanGrid({
                 onClick={() => setSelectedDate(date)}
                 aria-current={active ? "date" : undefined}
                 className={
+                  // focus-visible:outline-2, not outline-2, and the offset on
+                  // the base: Button.tsx records why -- in Tailwind v4 a
+                  // variant-prefixed utility outranks its bare counterpart, so
+                  // a plain outline-2 loses to focus-visible:outline and the
+                  // ring renders at the browser default width. Measured here
+                  // before this line existed: "auto 1px rgb(229,151,0)", the
+                  // UA ring, where every other control in the app shows a 2px
+                  // primary one.
                   "shrink-0 min-h-11 px-3 rounded-[var(--radius-md)] border text-sm leading-tight " +
+                  "outline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)] " +
                   (active
                     ? "bg-[var(--primary)] text-white border-[var(--primary)] font-semibold"
                     : "bg-[var(--card)] text-[var(--ink-700)] border-[var(--border-strong)]")
