@@ -7,6 +7,7 @@ export * from "./Banner";
 export * from "./Avatar";
 export * from "./Tabs";
 export * from "./Table";
+export * from "./DayLabel";
 export * from "./Modal";
 export * from "./ConfirmDialog";
 export * from "./DangerConfirmDialog";

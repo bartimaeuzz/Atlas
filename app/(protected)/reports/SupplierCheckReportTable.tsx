@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { SupplierCheckReportData } from "@/lib/reports/loadSupplierCheckReport";
 import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
-import { formatDayLabel } from "@/lib/format/formatDayLabel";
 import {
   Card,
   Badge,
+  DayLabel,
   EmptyState,
   TableCard,
   Table,
@@ -58,7 +58,7 @@ export function SupplierCheckReportTable({ data }: { data: SupplierCheckReportDa
                     status badge beside the vendor name, and two different
                     meanings of the same word on one card is exactly the
                     ambiguity this audience does not need. */}
-                <StackedField label="Paid on" value={formatDayLabel(row.paidDate)} />
+                <StackedField label="Paid on" value={<DayLabel iso={row.paidDate} />} />
                 <StackedField label="Check #" value={row.checkNumber || "—"} numeric />
                 <StackedField label="Memo (invoices)" value={row.invoiceNumbers.join(", ") || "—"} />
                 <StackedField label="Amount" value={formatMoney(row.totalAmount)} numeric />
@@ -85,7 +85,7 @@ export function SupplierCheckReportTable({ data }: { data: SupplierCheckReportDa
                   <TR key={row.paymentId}>
                     <TD className="whitespace-nowrap">
                       <Link href="/ledger/supplier-check" className="hover:underline underline-offset-2">
-                        {formatDayLabel(row.paidDate)}
+                        <DayLabel iso={row.paidDate} />
                       </Link>
                     </TD>
                     <TD numeric>{row.checkNumber || "—"}</TD>

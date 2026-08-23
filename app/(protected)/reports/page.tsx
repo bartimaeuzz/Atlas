@@ -17,6 +17,7 @@ import {
   EmptyState,
   Tabs,
   Tab,
+  DayLabel,
   TableCard,
   Table,
   THead,
@@ -203,6 +204,8 @@ export default async function ReportsPage({
         </div>
       </Card>
 
+      {/* Prose, deliberately NOT DayLabel: a fixed-width weekday box opens
+          a visible gap mid-sentence. There is no column to align to here. */}
       <p className="text-sm text-[var(--ink-500)] mb-3">
         {formatDayLabel(from)} to {formatDayLabel(to)}
       </p>
@@ -227,7 +230,7 @@ export default async function ReportsPage({
                   {data.toastDays.map((d) => (
                     <StackedCard
                       key={d.date}
-                      title={formatDayLabel(d.date)}
+                      title={<DayLabel iso={d.date} />}
                       trailing={
                         <span className="tabular-nums font-semibold text-[var(--ink-900)]">
                           {formatMoney(d.totalSale)}
@@ -285,7 +288,7 @@ export default async function ReportsPage({
                       {data.toastDays.map((d) => (
                         <TR key={d.date}>
                           <TD emphasis className="whitespace-nowrap">
-                            {formatDayLabel(d.date)}
+                            <DayLabel iso={d.date} />
                           </TD>
                           <TD numeric>{formatMoney(d.netSale)}</TD>
                           <TD numeric>{formatMoney(d.tax)}</TD>

@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { PettyCashReportData } from "@/lib/reports/loadPettyCashReport";
 import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
-import { formatDayLabel } from "@/lib/format/formatDayLabel";
 import {
   Card,
   Badge,
+  DayLabel,
   TableCard,
   Table,
   THead,
@@ -63,7 +63,7 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
               href={`/ledger/day?date=${day.date}`}
               className="flex items-center justify-between gap-3 min-h-11 px-4 py-2 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] text-sm text-[var(--ink-500)]"
             >
-              <span>{formatDayLabel(day.date)}</span>
+              <DayLabel iso={day.date} />
               <span>No entries</span>
             </Link>
           ) : (
@@ -71,7 +71,7 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
               key={day.date}
               title={
                 <Link href={`/ledger/day?date=${day.date}`} className="underline underline-offset-2">
-                  {formatDayLabel(day.date)}
+                  <DayLabel iso={day.date} />
                 </Link>
               }
               trailing={<StatusBadge day={day} />}
@@ -106,7 +106,7 @@ export function PettyCashReportTable({ data }: { data: PettyCashReportData }) {
               <TR key={day.date}>
                 <TD emphasis className="whitespace-nowrap">
                   <Link href={`/ledger/day?date=${day.date}`} className="hover:underline underline-offset-2">
-                    {formatDayLabel(day.date)}
+                    <DayLabel iso={day.date} />
                   </Link>
                 </TD>
                 <TD numeric>{day.entryCount || "—"}</TD>
