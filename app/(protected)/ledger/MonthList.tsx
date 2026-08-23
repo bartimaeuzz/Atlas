@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { PettyCashReportData } from "@/lib/reports/loadPettyCashReport";
 import { Badge } from "@/components/ui/Badge";
 import { formatMoney } from "./formatMoney";
+import { MonthRow } from "./MonthRow";
 
 /** One row per day in the selected month, for the new /ledger landing
  * (2026-08-14 restructure). Reuses the same PettyCashReportData shape
@@ -88,8 +89,8 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
           {data.days.map((day) => {
             const isFuture = day.date > todayIso;
             const isToday = day.date === todayIso;
-            return (
-              <tr key={day.date} className={"border-b border-[var(--border)]" + (isToday ? " bg-[var(--warning-tint)]" : "")}>
+            const cells = (
+              <>
                 <td className="py-2">
                   {isFuture ? (
                     <span className="text-[var(--ink-500)] opacity-60">{day.date}</span>
@@ -108,7 +109,20 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
                   {isFuture ? <span className="text-[var(--ink-500)] opacity-60 text-xs">Not yet</span> : <DayStatusBadge day={day} />}
                 </td>
                 <td className="py-2 text-[var(--ink-700)]">{isFuture ? "—" : day.finalizedByName || "—"}</td>
+              </>
+            );
+            // A future day is deliberately not interactive at all -- Oliver's
+            // rule, "not be editable before day comes" -- so it stays a plain
+            // row with no click affordance rather than a row that looks
+            // clickable and refuses.
+            return isFuture ? (
+              <tr key={day.date} className="border-b border-[var(--border)]">
+                {cells}
               </tr>
+            ) : (
+              <MonthRow key={day.date} href={`/ledger/day?date=${day.date}`} isToday={isToday}>
+                {cells}
+              </MonthRow>
             );
           })}
         </tbody>

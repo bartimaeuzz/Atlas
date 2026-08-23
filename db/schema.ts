@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, uniqueIndex, index } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 
 /* ---------------------------------------------------------------------- */
@@ -1036,12 +1036,63 @@ export const dailyCashReconciliations = sqliteTable("daily_cash_reconciliations"
   date: text("date").notNull().unique(),
   beginningBalance: real("beginning_balance").notNull().default(0),
   otherCash: real("other_cash").notNull().default(0),
+  // Why cash was added to the drawer, e.g. "top-up from BofA account"
+  // (Oliver, 2026-08-22). Nullable in the schema because every row that
+  // existed before this column has no reason to record -- but the app
+  // REQUIRES it whenever otherCash is non-zero. Money appearing in a
+  // drawer with no stated reason is exactly what a reconciliation exists
+  // to catch, so the constraint lives in lib/actions/ledger.ts where it
+  // can produce a readable message rather than a NOT NULL failure.
+  otherCashReason: text("other_cash_reason"),
   countedAmount: real("counted_amount"), // null until the opening manager enters their physical count
   note: text("note"), // e.g. explaining a mismatch between counted vs. expected
   status: text("status", { enum: ["draft", "finalized"] }).notNull().default("draft"),
   finalizedAt: text("finalized_at"),
   finalizedByEmployeeId: integer("finalized_by_employee_id").references(() => employees.id),
 });
+
+// Activity log — one row per notable action, across every subsystem
+// (2026-08-22). Deliberately GENERAL from the first row rather than a
+// per-feature audit table: Oliver's ask is an "Activity log center and tag
+// for each type of log", readable by Partner, Admin, and a
+// permission-granted Assistant Manager, and the Permission System backlog
+// already carried an unscoped "unified Activity Log page". Building a
+// bespoke petty-cash-only table now would mean migrating it later for no
+// reason.
+//
+// `type` is the tag the Centre filters on. Dotted namespace so the
+// subsystem is greppable and new kinds slot in without a schema change:
+//   petty_cash.entry.updated, petty_cash.entry.deleted,
+//   petty_cash.day.finalized, petty_cash.day.admin_edited
+//
+// `summary` is PRE-RENDERED human-readable text, on purpose. A log has to
+// stay readable years later, after the row it describes has been edited or
+// deleted and after the category it referenced was renamed -- so the
+// sentence is frozen at write time rather than reconstructed at read time
+// from records that have moved on.
+//
+// `detail` holds the before/after JSON for anyone who needs the specifics.
+// `entityId` is text, not integer, because some subjects are keyed by date
+// ("2026-08-22") rather than by a numeric id.
+export const activityLog = sqliteTable(
+  "activity_log",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    at: text("at").notNull().default(sql`(current_timestamp)`),
+    actorEmployeeId: integer("actor_employee_id").notNull().references(() => employees.id),
+    type: text("type").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityId: text("entity_id"),
+    summary: text("summary").notNull(),
+    detail: text("detail"),
+  },
+  (t) => ({
+    // The Centre's two primary reads: newest-first, and filtered by tag.
+    atIdx: index("activity_log_at_idx").on(t.at),
+    typeIdx: index("activity_log_type_idx").on(t.type),
+    entityIdx: index("activity_log_entity_idx").on(t.entityType, t.entityId),
+  })
+);
 
 // Supplier Check — invoice-based vendor payments (2026-08-14, extended
 // 2026-08-14 after Oliver talked to Aey about the real workflow). Three-

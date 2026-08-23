@@ -47,6 +47,9 @@ export interface PettyCashDayData {
   cashSales: number; // computed, from that date's shiftSales
   cashTip: number; // computed, from that date's shiftSales
   otherCash: number;
+  /** Why cash was added to the drawer (2026-08-22). Null on rows that
+   *  predate the column, and on days where nothing was added. */
+  otherCashReason: string | null;
   totalCashIn: number; // cashSales + cashTip + otherCash
   expectedTotalBalance: number; // beginningBalance + totalCashIn - totalPettyCashOut
   countedAmount: number | null;
@@ -175,6 +178,7 @@ export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> 
     cashSales,
     cashTip,
     otherCash,
+    otherCashReason: reconciliation?.otherCashReason ?? null,
     totalCashIn,
     expectedTotalBalance,
     countedAmount: reconciliation?.countedAmount ?? null,
