@@ -59,12 +59,32 @@ app; unless told otherwise, all work is Track 2.
    the sweep's *scope* out loud. Extended: any list claiming completeness must be
    built from the filesystem (`ls app/\(protected\)/`), never from recalled names.
 
-## ⚠️ This shell can reach production
+## How this shell reaches the database (updated 2026-08-23)
 
-Turso credentials are in Oliver's `~/.zshrc`, so commands run here inherit them.
-That is new — the previous cloud sandbox was physically unable to reach the
-database. `.claude/settings.json` denies the dangerous scripts, and those denials
-are load-bearing, not decoration:
+**A plain shell here cannot reach production.** Oliver moved the Turso credentials
+out of `~/.zshrc` into the macOS Keychain on 2026-08-23, so nothing is inherited
+from the environment: `process.env.DATABASE_URL` and `DATABASE_AUTH_TOKEN` are
+both unset. `db/client.ts` falls back to the local SQLite file (`./db/atlas.db`)
+when they are missing, silently and without erroring.
+
+That fallback is the trap. A command aimed at production quietly hits a local file
+instead and *appears* to work — this is exactly how a `npm run db:migrate` looked
+like it had run on 2026-08-23 while production was untouched. **Never conclude a
+database command worked because it exited 0. Verify the effect through the MCP
+Turso tools.**
+
+Four channels touch the database or the deployment. Only the read-only ones are yours:
+
+| channel | reaches prod? | your access |
+|---|---|---|
+| plain `Bash` (`npm run db:*`) | **no** — falls back to the local file | n/a |
+| the `atlas-db` credential wrapper | yes | **denied** — `.claude/settings.json:40-41` |
+| MCP Turso tools | yes | **read-only**; every write tool is denied |
+| MCP Vercel tools | yes | read-only; spend/deploy denied |
+
+The script denials below stay load-bearing even though the shell can no longer
+authenticate — they are the second layer, not the first, and credentials have
+moved once already:
 
 | script | why it is denied |
 |---|---|
@@ -73,7 +93,16 @@ are load-bearing, not decoration:
 | `npm run db:seed` | would overwrite real data |
 | `npm run db:migrate` | rule 5 — Oliver runs migrations |
 
-Never work around a denial. If one blocks legitimate work, say so and ask.
+Never work around a denial, and never invoke `atlas-db` to borrow its credentials.
+If one blocks legitimate work, say so and ask.
+
+**Adding a column is not deploy-safe on its own.** Drizzle's bare
+`db.select().from(table)` enumerates every column in `db/schema.ts` rather than
+emitting `SELECT *`, so a column that exists in the schema and not in the database
+breaks every such query — roughly ten call sites across Ledger, Schedule, People
+and Supplier Check for `employees`, not just the page being worked on. Order is:
+generate locally → Oliver migrates → *then* push, because pushing to `main`
+auto-deploys.
 
 ## Verify gate
 
