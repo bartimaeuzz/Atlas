@@ -24,7 +24,19 @@
       "Read(~/.zshrc)",
       "Edit(.env)",
       "Edit(.env.*)",
-      "Edit(.git/**)"
+      "Edit(.git/**)",
+      "mcp__turso__execute_query",
+      "mcp__turso__create_database",
+      "mcp__turso__delete_database",
+      "mcp__turso__generate_database_token",
+      "mcp__vercel__deploy_to_vercel",
+      "mcp__vercel__buy_domain",
+      "mcp__vercel__buy_pro",
+      "mcp__vercel__buy_credits",
+      "mcp__vercel__buy_addon",
+      "mcp__vercel__pause_project",
+      "mcp__vercel__unpause_project",
+      "mcp__vercel__update_project_deployment_protection"
     ],
     "allow": [
       "Bash(npm test*)",
@@ -43,7 +55,16 @@
       "Bash(git ls-remote*)",
       "Bash(git branch*)",
       "Bash(git add*)",
-      "Bash(git fetch*)"
+      "Bash(git fetch*)",
+      "mcp__turso__execute_read_only_query",
+      "mcp__turso__list_databases",
+      "mcp__turso__list_tables",
+      "mcp__turso__describe_table",
+      "mcp__vercel__list_deployments",
+      "mcp__vercel__get_deployment",
+      "mcp__vercel__get_deployment_build_logs",
+      "mcp__vercel__list_projects",
+      "mcp__vercel__get_project"
     ]
   }
 }
