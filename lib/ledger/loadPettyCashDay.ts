@@ -7,6 +7,10 @@
  * words were "you supposed not to close daily expenses without knowing
  * what cash we would get from register anyway," so the two numbers are
  * deliberately tied together at the query level, not just by convention.
+ *
+ * Literally at the query level since 2026-08-23: both figures come from a
+ * join on finalized shifts (see sumFinalizedCash below), not from reading
+ * shiftSales into memory and filtering it in JS.
  */
 
 import { eq, and } from "drizzle-orm";
@@ -77,8 +81,31 @@ export interface PettyCashDayData {
   suggestedBeginningBalance: number | null;
 }
 
+/** Cash that reached the drawer on one date, from shifts that are actually
+ * finalized -- a draft shift's numbers aren't real yet.
+ *
+ * One helper rather than two inline queries because it is needed for both
+ * the requested date and, on a brand-new day, yesterday (the carry-forward
+ * suggestion below). Those two computing cash different ways is exactly how
+ * a suggested opening balance starts disagreeing with the day it carried
+ * from. Same join as lib/reports/loadPettyCashReport.ts, single date instead
+ * of a range.
+ */
+async function sumFinalizedCash(date: string): Promise<{ cashSales: number; cashTip: number }> {
+  const rows = await db
+    .select({ cashSales: shiftSales.cashSales, cashTip: shiftSales.cashTip })
+    .from(shiftSales)
+    .innerJoin(shifts, eq(shiftSales.shiftId, shifts.id))
+    .where(and(eq(shifts.date, date), eq(shifts.status, "finalized")));
+
+  return {
+    cashSales: rows.reduce((sum, r) => sum + r.cashSales, 0),
+    cashTip: rows.reduce((sum, r) => sum + r.cashTip, 0),
+  };
+}
+
 export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> {
-  const [entryRows, [reconciliation], shiftRows, activeVendors, activeCategories] = await Promise.all([
+  const [entryRows, [reconciliation], shiftRows, activeVendors, activeCategories, cash] = await Promise.all([
     db
       .select({
         id: pettyCashEntries.id,
@@ -104,25 +131,10 @@ export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> 
       .where(eq(shifts.date, date)),
     db.select({ id: ledgerVendors.id, name: ledgerVendors.name }).from(ledgerVendors).where(eq(ledgerVendors.active, true)),
     db.select({ id: ledgerCategories.id, name: ledgerCategories.name }).from(ledgerCategories).where(eq(ledgerCategories.active, true)),
+    sumFinalizedCash(date),
   ]);
 
-  // Cash sales / cash tip come ONLY from shifts that are actually
-  // finalized for this date -- a draft shift's numbers aren't real yet.
-  const finalizedShiftIds = (
-    await db.select({ id: shifts.id }).from(shifts).where(and(eq(shifts.date, date), eq(shifts.status, "finalized")))
-  ).map((r) => r.id);
-
-  let cashSales = 0;
-  let cashTip = 0;
-  if (finalizedShiftIds.length > 0) {
-    const salesRows = await db.select().from(shiftSales);
-    for (const row of salesRows) {
-      if (finalizedShiftIds.includes(row.shiftId)) {
-        cashSales += row.cashSales;
-        cashTip += row.cashTip;
-      }
-    }
-  }
+  const { cashSales, cashTip } = cash;
 
   const totalPettyCashOut = entryRows.reduce((sum, e) => sum + e.amount, 0);
 
@@ -148,23 +160,13 @@ export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> 
     const yesterday = toIso(new Date(parseDate(date).getTime() - 24 * 60 * 60 * 1000));
     const [yRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, yesterday));
     if (yRecon) {
-      const yEntries = await db.select({ amount: pettyCashEntries.amount }).from(pettyCashEntries).where(eq(pettyCashEntries.date, yesterday));
-      const yShiftIds = (
-        await db.select({ id: shifts.id }).from(shifts).where(and(eq(shifts.date, yesterday), eq(shifts.status, "finalized")))
-      ).map((r) => r.id);
-      let ySales = 0;
-      let yTip = 0;
-      if (yShiftIds.length > 0) {
-        const ySalesRows = await db.select().from(shiftSales);
-        for (const row of ySalesRows) {
-          if (yShiftIds.includes(row.shiftId)) {
-            ySales += row.cashSales;
-            yTip += row.cashTip;
-          }
-        }
-      }
+      const [yEntries, yCash] = await Promise.all([
+        db.select({ amount: pettyCashEntries.amount }).from(pettyCashEntries).where(eq(pettyCashEntries.date, yesterday)),
+        sumFinalizedCash(yesterday),
+      ]);
       const yOut = yEntries.reduce((sum, e) => sum + e.amount, 0);
-      suggestedBeginningBalance = yRecon.beginningBalance + (ySales + yTip + yRecon.otherCash) - yOut;
+      suggestedBeginningBalance =
+        yRecon.beginningBalance + (yCash.cashSales + yCash.cashTip + yRecon.otherCash) - yOut;
     }
   }
 
