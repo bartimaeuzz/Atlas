@@ -18,7 +18,6 @@ import {
   AnalyticsIcon,
   PayrollIcon,
   SettingsIcon,
-  LoginIcon,
   ChevronDownIcon,
   ShieldIcon,
 } from "@/components/ui/icons";
@@ -332,7 +331,9 @@ export function NavBarClient({
   hiddenNavHrefs = [],
   navHrefOverrides = {},
 }: {
-  auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" } | null;
+  /** Never null: NavBar returns null for a signed-out visitor, so this
+   *  component only ever renders for a real session (2026-08-23). */
+  auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" };
   unseenScheduleCount?: number;
   /** Hrefs from NAV_ITEM_CAPABILITY the current viewer doesn't hold the
    * capability for — resolved server-side in NavBar.tsx (2026-08-21).
@@ -348,7 +349,7 @@ export function NavBarClient({
   navHrefOverrides?: Record<string, string>;
 }) {
   const pathname = usePathname();
-  const isManager = auth?.systemRole === "MANAGER" || auth?.systemRole === "ADMIN";
+  const isManager = auth.systemRole === "MANAGER" || auth.systemRole === "ADMIN";
   const hidden = new Set(hiddenNavHrefs);
   const visibleManagerNavItems = MANAGER_NAV_ITEMS.filter((item) => !hidden.has(item.href)).map((item) =>
     navHrefOverrides[item.href] ? { ...item, href: navHrefOverrides[item.href] } : item,
@@ -392,12 +393,7 @@ export function NavBarClient({
     ref: accountTooltipRef,
     handlers: accountTooltipHandlers,
     tooltip: accountTooltip,
-  } = useCollapsedTooltip<HTMLButtonElement>(auth?.name ?? "Account", collapsed && !!auth);
-  const {
-    ref: loginTooltipRef,
-    handlers: loginTooltipHandlers,
-    tooltip: loginTooltip,
-  } = useCollapsedTooltip<HTMLAnchorElement>("Staff Login", collapsed && !auth);
+  } = useCollapsedTooltip<HTMLButtonElement>(auth.name, collapsed);
 
   return (
     <aside
@@ -474,7 +470,7 @@ export function NavBarClient({
             collapsed={collapsed}
           />
         )}
-        {auth?.systemRole === "ADMIN" && (
+        {auth.systemRole === "ADMIN" && (
           <NavItem
             href={PERMISSIONS_ITEM.href}
             label={PERMISSIONS_ITEM.label}
@@ -483,8 +479,7 @@ export function NavBarClient({
             collapsed={collapsed}
           />
         )}
-        {auth ? (
-          <div className="relative" ref={menuRef}>
+        <div className="relative" ref={menuRef}>
             <button
               type="button"
               ref={accountTooltipRef}
@@ -557,29 +552,6 @@ export function NavBarClient({
               </>
             )}
           </div>
-        ) : (
-          <>
-            <Link
-              href="/login"
-              ref={loginTooltipRef}
-              aria-label="Staff Login"
-              aria-current={pathname === "/login" ? "page" : undefined}
-              className={
-                "relative flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] " +
-                navItemSizeClasses +
-                " " +
-                (pathname === "/login"
-                  ? "bg-[var(--brand-tint)] text-[var(--brand)]"
-                  : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
-              }
-              {...loginTooltipHandlers}
-            >
-              <LoginIcon className="w-[18px] h-[18px] shrink-0" />
-              <span className={collapsed ? "hidden" : "hidden sm:inline"}>Staff Login</span>
-            </Link>
-            {loginTooltip}
-          </>
-        )}
       </div>
     </aside>
   );

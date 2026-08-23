@@ -35,6 +35,22 @@ export async function NavBar() {
   // branch. It resolves the session in the same call.
   const viewer = await getViewerCapabilities();
   const session = viewer?.session ?? null;
+
+  // No session, no navigation (2026-08-23, Oliver spotted the rail on the
+  // login screen). The signed-out rail was deliberate rather than an
+  // oversight -- it had its own "Staff Login" item and tooltip -- but
+  // measured on the live page it offered a visitor exactly three links:
+  // the logo and wordmark, both pointing at "/" which redirects straight
+  // back to /login, and "Staff Login", which is the page they are already
+  // on. Every destination led back to where they stood, while the rail
+  // still cost 48-216px, a tab stop, and a collapse toggle for a nav with
+  // nothing in it.
+  //
+  // Returning null here rather than filtering items inside NavBarClient
+  // keeps the decision in one place: the layout's content offset reads the
+  // same session (see app/layout.tsx), so the rail and the padding that
+  // clears it can never disagree about whether a rail exists.
+  if (!session) return null;
   const isManager = session && (session.systemRole === "MANAGER" || session.systemRole === "ADMIN");
   let hiddenNavHrefs =
     viewer && isManager
@@ -72,7 +88,7 @@ export async function NavBar() {
        * for why this is a poll-based banner, not a client-only timer. */}
       {session && <SessionIdleWarning />}
       <NavBarClient
-        auth={session ? { name: session.name, systemRole: session.systemRole } : null}
+        auth={{ name: session.name, systemRole: session.systemRole }}
         unseenScheduleCount={unseenLeaveCount + unseenSwapCount}
         hiddenNavHrefs={hiddenNavHrefs}
         navHrefOverrides={navHrefOverrides}

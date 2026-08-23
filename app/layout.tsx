@@ -12,6 +12,7 @@ import "./globals.css";
 import { NavBar } from "./NavBar";
 import { NavCollapseProvider } from "./NavCollapseContext";
 import { NavContentWrapper } from "./NavContentWrapper";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 
 export const metadata: Metadata = {
   title: "Atlas",
@@ -28,6 +29,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const cookieStore = await cookies();
   const navCollapsed = cookieStore.get("atlas-nav-collapsed")?.value === "1";
 
+  // Whether there is a rail at all. NavBar renders nothing for a
+  // signed-out visitor, so the content must not reserve space for it --
+  // otherwise /login sits behind a 48px gutter with nothing in it.
+  // getViewerCapabilities is React-cache()d per request and NavBar calls
+  // it too, so this is the same resolution, not a second database read.
+  const signedIn = (await getViewerCapabilities())?.session != null;
+
   return (
     <html lang="en" className="h-full antialiased">
       {/* NavBar renders as a fixed-position left sidebar/rail (2026-08-18
@@ -42,7 +50,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full font-sans bg-[var(--paper)] text-[var(--ink-900)]">
         <NavCollapseProvider initialCollapsed={navCollapsed}>
           <NavBar />
-          <NavContentWrapper>{children}</NavContentWrapper>
+          <NavContentWrapper hasNav={signedIn}>{children}</NavContentWrapper>
         </NavCollapseProvider>
       </body>
     </html>
