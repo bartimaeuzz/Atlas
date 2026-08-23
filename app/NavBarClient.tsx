@@ -220,7 +220,23 @@ function NavItem({
  * mobile rail is already at its confirmed floor (48px/44x44, no further
  * collapsing) and has no toggle to begin with. The chevron flips to show
  * which direction the action goes: pointing toward the edge the sidebar
- * will collapse into when expanded, pointing back out when collapsed. */
+ * will collapse into when expanded, pointing back out when collapsed.
+ *
+ * Expanded-state alignment (2026-08-23, Oliver caught it from a live
+ * DevTools inspection): this row used `mx-2` on top of the wrapper's
+ * `sm:px-2`, so its icon sat 28px from the rail's left edge while every
+ * NavItem sat at 20px (wrapper `sm:px-2` = 8px + item `sm:px-3` = 12px,
+ * no margin — NavItem is explicitly `sm:mx-0`). An 8px indent, visible
+ * as soon as you look down the column. It was also `w-auto`, so its
+ * hover pill was ~108px against the NavItems' full-width ~200px, which
+ * made the mismatch read as two different kinds of control rather than
+ * one list.
+ *
+ * Fix is to stop styling this row's box separately: drop `mx-2` and use
+ * `w-full` so the wrapper's padding alone positions it, exactly as the
+ * `<nav>`'s padding alone positions each NavItem. The collapsed branch
+ * was already correct (`w-11 mx-auto px-0` inside a `px-0` wrapper,
+ * matching NavItem's collapsed classes) and is untouched. */
 function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const { ref: tooltipRef, handlers: tooltipHandlers, tooltip } = useCollapsedTooltip<HTMLButtonElement>("Expand", collapsed);
   return (
@@ -233,7 +249,7 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         aria-pressed={collapsed}
         className={
           "relative hidden sm:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)] " +
-          (collapsed ? "w-11 mx-auto justify-center px-0" : "w-auto justify-start px-3 mx-2")
+          (collapsed ? "w-11 mx-auto justify-center px-0" : "w-full justify-start px-3")
         }
         {...tooltipHandlers}
       >
@@ -428,7 +444,7 @@ export function NavBarClient({
         </Link>
       </div>
 
-      <div className={collapsed ? "px-0 pb-1" : "px-1 sm:px-2 pb-1"}>
+      <div className={collapsed ? "px-0 pb-1" : "px-0 sm:px-2 pb-1"}>
         <CollapseToggle collapsed={collapsed} onToggle={toggle} />
       </div>
 
