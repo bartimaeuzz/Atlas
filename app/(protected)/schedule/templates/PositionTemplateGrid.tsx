@@ -91,14 +91,20 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
               the PAGE scrolled sideways instead of the table -- the whole
               screen slid under your thumb while scrolling a column of names.
               Fixing this first is what makes the 44px cell targets below
-              affordable: the table can now be wider than the phone. */}
-        <table className="text-sm border-collapse w-full min-w-[22rem]">
+              affordable: the table can now be wider than the phone.
+
+              min-w-[34rem] is derived, not guessed: 7 day columns at 44px
+              plus the name, period and actions columns. Without it the
+              day cells squeezed to 27px wide at 390px -- still over WCAG
+              2.5.8's 24px floor, but only just, and a 27px-wide target is
+              not what "fixed" should mean. */}
+        <table className="text-sm border-collapse w-full min-w-[34rem]">
           <thead>
             <tr>
               <th className="text-left text-neutral-500 font-normal pb-1 pr-2">Name</th>
               <th className="w-6"></th>
               {DISPLAY_DAYS.map((d) => (
-                <th key={d} className="text-neutral-500 font-normal pb-1 px-1 w-10">
+                <th key={d} className="text-neutral-500 font-normal pb-1 px-1 w-11">
                   {DAY_SHORT[d]}
                 </th>
               ))}
