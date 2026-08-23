@@ -99,7 +99,14 @@ export function TargetsForm({
             <tr className="text-left text-neutral-500 border-b">
               <th className="py-1.5 pr-2 border-r">Position</th>
               <th className="py-1.5 pr-2">Period</th>
-              <th className="py-1.5 pr-3 whitespace-nowrap">All days</th>
+              {/* Desktop only (2026-08-23). Measured at 390px: Position 107px
+                  + Period 54px + this column 104px left the selected day's
+                  number sitting at x=381 on a 390px screen -- the one number
+                  you opened the page to change was off the edge. This control
+                  bumps all seven days at once, which is also the opposite of
+                  what a one-day-at-a-time view is for, so the phone is not
+                  the place for it. */}
+              <th className="hidden lg:table-cell py-1.5 pr-3 whitespace-nowrap">All days</th>
               {DAYS.map((day) => (
                 <th
                   key={day}
@@ -187,7 +194,7 @@ function PositionTargetRows({
             </td>
           )}
           <td className="py-1.5 pr-2 text-neutral-500 whitespace-nowrap align-top pt-2.5">{period}</td>
-          <td className="py-1.5 pr-3 align-top pt-2">
+          <td className="hidden lg:table-cell py-1.5 pr-3 align-top pt-2">
             <MasterStepper onBump={(delta) => bumpRow(period, delta)} />
           </td>
           {DAYS.map((day, dayIndex) => (
