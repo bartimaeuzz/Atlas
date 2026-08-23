@@ -123,11 +123,15 @@ export function EmployeeForm({
           className="mt-0.5"
         />
         <span>
-          <span className="block font-medium text-[var(--ink-900)]">Financial auditor</span>
+          <span className="block font-medium text-[var(--ink-900)]">Financial auditor sign-off</span>
           <span className="block text-xs text-[var(--ink-500)] mt-0.5">
-            Can edit a Supplier Check invoice that&apos;s already Printed or Paid. Their own PIN below
-            doubles as the confirmation code required on every such edit — anyone doing that edit,
-            even an Admin, has to enter THIS person&apos;s code to confirm it, not their own.
+            This person&apos;s PIN is the code that confirms a change to an already Printed or Paid
+            Supplier Check. Anyone making that change — even an Admin — has to enter THIS
+            person&apos;s code, not their own.
+          </span>
+          <span className="block text-xs text-[var(--ink-500)] mt-1">
+            This is not a permission. Who is <em>allowed</em> to make that change is set on the
+            Permission and Roles page, under &ldquo;Supplier Check: edit locked invoice&rdquo;.
           </span>
         </span>
       </label>

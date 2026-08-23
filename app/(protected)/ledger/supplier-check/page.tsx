@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { loadPendingInvoicesByVendor, loadSupplierChecks } from "@/lib/ledger/loadSupplierCheck";
-import { getCurrentStaffSession } from "@/lib/auth/session";
 import { toIso, weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
 import { LedgerTabs } from "../LedgerTabs";
 import { PendingByVendor } from "./PendingByVendor";
@@ -91,17 +90,19 @@ export default async function SupplierCheckPage({
           return { from: b.start, to: b.end };
         })();
 
-  const [pendingGroups, checks, session] = await Promise.all([
+  const [pendingGroups, checks] = await Promise.all([
     loadPendingInvoicesByVendor(),
     loadSupplierChecks(range),
-    getCurrentStaffSession(),
   ]);
   const periodTotal = checks.reduce((sum, c) => sum + c.totalAmount, 0);
   // Who can even attempt to edit an already Printed/Paid invoice --
   // 2026-08-15, see editSupplierInvoice's comment in
   // lib/actions/supplierCheck.ts for the full rule (this is just the
   // UI-visibility half; the server action re-checks independently).
-  const canEditLockedInvoices = session ? session.systemRole === "ADMIN" || session.isFinancialAuditor : false;
+  // Reads the capability since 2026-08-23, not systemRole plus the
+  // isFinancialAuditor column -- same four accounts, one source of truth,
+  // and /permissions now reflects it.
+  const canEditLockedInvoices = viewer.has("FA_SUPPLIER_CHECK_EDIT_LOCKED");
   // Marking a printed check paid/delivered split off from log/print on
   // 2026-08-23 -- see lib/actions/supplierCheck.ts's header. Read through
   // the capability registry rather than a systemRole test so /permissions

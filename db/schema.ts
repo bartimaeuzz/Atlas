@@ -162,15 +162,27 @@ export const employees = sqliteTable("employees", {
   pinHash: text("pin_hash"),
   // Financial auditor flag (2026-08-15) — Oliver, after catching a
   // Supplier Check editing gap: "in real senario it is admin and Aey ...
-  // as Aey will be a financial audit for Youk." Marks who's allowed to
-  // edit a supplier check invoice that's already Printed/Paid (see
-  // editSupplierInvoice in lib/actions/supplierCheck.ts) — their
-  // EXISTING staff-login PIN (pinHash above) doubles as the confirmation
-  // code required on every such edit, "like manager code in bank": even
-  // an Admin editing has to enter the flagged auditor's code, not just
-  // their own, so it works as a real sign-off rather than a role check
-  // alone. Independent of systemRole on purpose — Aey is seeded as
-  // MANAGER, not ADMIN, but still needs this specific power.
+  // as Aey will be a financial audit for Youk."
+  //
+  // NARROWED 2026-08-23 to ONE meaning: whose sign-off counts. Their
+  // EXISTING staff-login PIN (pinHash above) is the confirmation code
+  // required on every edit of an already Printed/Paid supplier check,
+  // "like manager code in bank" — even an Admin editing has to enter a
+  // flagged auditor's code, not their own, so it works as a real
+  // two-person sign-off rather than a role check.
+  //
+  // It no longer decides WHO MAY ATTEMPT that edit. That half moved onto
+  // FA_SUPPLIER_CHECK_EDIT_LOCKED in the capability registry, where
+  // /permissions can show it honestly — this column was enforcing access
+  // that the registry claimed to govern and did not, and two sources of
+  // truth for one rule drift apart. Do NOT point the PIN lookup at the
+  // capability to "finish the job": every Admin holds it, so an Admin
+  // would become a valid signer for their own edit and the control would
+  // quietly stop being two-person. Permission and identity are different
+  // questions here; only the first one belongs in the registry.
+  //
+  // Independent of systemRole on purpose — Aey is seeded as MANAGER, not
+  // ADMIN, but is the person whose sign-off Youk Thai actually relies on.
   isFinancialAuditor: integer("is_financial_auditor", { mode: "boolean" }).notNull().default(false),
   // Partner flag (2026-08-17, Oliver: "add PARTNER") — independent of
   // systemRole (which is about what they can SEE/do in the app, e.g. an

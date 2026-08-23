@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { supplierInvoices, supplierCheckPayments, employees, supplierCheckAuditLog } from "@/db/schema";
 import { verifyPin } from "@/lib/auth/pin";
 import { requireCapability } from "@/lib/permissions/requireCapability";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 
 export interface SupplierInvoiceActionState {
   error: string | null;
@@ -112,15 +113,22 @@ export interface EditSupplierInvoiceActionState {
  *     check. Oliver's rule: "in real senario it is admin and Aey ... as
  *     Aey will be a financial audit for Youk", with "a prompt to enter
  *     aey secret code for security, like manager code in bank." So:
- *     (a) only an ADMIN account or an employee flagged
- *     `isFinancialAuditor` may even attempt it, AND (b) regardless of
- *     who's doing the edit -- even Aey herself -- her own PIN has to be
- *     re-entered and verified as the confirming sign-off. This is
- *     deliberately NOT "prove you're an admin" -- it's "the auditor
- *     approved this specific change," which is why the code check is
- *     always against a flagged auditor's PIN, never the current
- *     session's own. If more than one employee is flagged, any one of
- *     their codes confirms it.
+ *     (a) only someone holding FA_SUPPLIER_CHECK_EDIT_LOCKED may even
+ *     attempt it, AND (b) regardless of who's doing the edit -- even Aey
+ *     herself -- a flagged auditor's PIN has to be re-entered and
+ *     verified as the confirming sign-off. This is deliberately NOT
+ *     "prove you're an admin" -- it's "the auditor approved this
+ *     specific change," which is why the code check is always against a
+ *     flagged auditor's PIN, never the current session's own. If more
+ *     than one employee is flagged, any one of their codes confirms it.
+ *
+ *     (a) and (b) read the same column until 2026-08-23 and now do not,
+ *     on purpose: (a) is a permission and lives in the registry where
+ *     /permissions can show it honestly; (b) is an identity -- whose
+ *     sign-off counts -- and stays on employees.isFinancialAuditor.
+ *     Pointing (b) at the capability too would make every Admin a valid
+ *     signer for their own edit, dissolving the two-person control this
+ *     whole gate exists to be.
  *
  * Editing an invoice that's already part of a printed check does NOT
  * regenerate anything on its own -- the check's .xlsx is built on demand
@@ -154,14 +162,35 @@ export async function editSupplierInvoice(input: {
     if (!reason) return { error: "A reason for this change is required -- it's logged with the edit." };
 
     if (invoice.status !== "pending") {
-      const isAdmin = session.systemRole === "ADMIN";
-      if (!isAdmin && !session.isFinancialAuditor) {
+      // WHO MAY ATTEMPT THIS -- moved onto the capability registry
+      // 2026-08-23. It used to read `systemRole === "ADMIN" ||
+      // session.isFinancialAuditor`, which enforced the same access
+      // through a column while FA_SUPPLIER_CHECK_EDIT_LOCKED sat in the
+      // registry describing it and guarding nothing. Two sources of
+      // truth for one rule drift, and the /permissions screen was the
+      // one telling the lie. Behaviour is unchanged today: the four
+      // accounts that passed the old test are exactly the four holding
+      // the key (Aey by her granted row, the admins by grantAllows'
+      // ADMIN bypass).
+      const viewer = await getViewerCapabilities();
+      if (!viewer?.has("FA_SUPPLIER_CHECK_EDIT_LOCKED")) {
         return { error: "Only an Admin or the financial auditor can edit a check that's already been printed or paid." };
       }
 
       const code = (input.auditorCode ?? "").trim();
       if (!code) return { error: "Enter the financial auditor's code to confirm this change." };
 
+      // WHOSE PIN SIGNS IT OFF -- deliberately still the
+      // isFinancialAuditor column, NOT the capability above (2026-08-23).
+      // These are two different questions and only the first one is a
+      // permission. Oliver's rule for this one: "regardless of who's
+      // doing the edit -- even Aey herself -- her own PIN has to be
+      // re-entered", and "the code check is always against a flagged
+      // auditor's PIN, never the current session's own". Reading the
+      // capability here would make all three Admin accounts valid
+      // signers, so an Admin could approve their own edit -- which is
+      // exactly what this control exists to prevent. The column now
+      // means only this: whose sign-off counts.
       const auditors = await db.select().from(employees).where(eq(employees.isFinancialAuditor, true));
       if (auditors.length === 0) {
         return {
