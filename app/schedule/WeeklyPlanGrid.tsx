@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addPlannedAssignment, removePlannedAssignment } from "@/lib/actions/schedule";
 import type { WeeklyPlanData, PlannedAssignmentRow } from "@/lib/schedule/loadWeeklyPlan";
+import { toIso } from "@/lib/schedule/weekMath";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -168,87 +169,196 @@ export function WeeklyPlanGrid({
     return map;
   }, [data.positions, allEmployees, employeeAssignedPositionIds, readOnly]);
 
+  // PHONE SHOWS ONE DAY AT A TIME (2026-08-23, Oliver). At 390px the
+  // editing grid measured 728px wide against 310px of visible width --
+  // 450px of the week, 62% of it, behind a horizontal scroll, with a
+  // "swipe sideways" hint standing in for a phone layout. Desktop is
+  // untouched and still shows all seven days.
+  //
+  // Defaults to today when today falls inside the week being viewed,
+  // otherwise the first day: opening this on a phone is nearly always
+  // about today or tomorrow, and landing on a week's Sunday when it is
+  // Thursday would cost two taps every time.
+  const todayIso = toIso(new Date());
+  // DERIVED, not synced. A week changes under this component whenever
+  // previous/next week navigation re-renders it with new dates, and a
+  // stored selection would then point at a day that is no longer in the
+  // week -- rendering an empty view that looks exactly like a legitimate
+  // "nobody scheduled". Resolving it during render instead of correcting
+  // it in an effect means there is no in-between frame to be wrong in,
+  // and no cascading re-render (eslint's set-state-in-effect rule is
+  // pointing at a real problem, not a style preference).
+  const [pickedDate, setPickedDate] = useState<string | null>(null);
+  const selectedDate =
+    pickedDate && data.dates.includes(pickedDate)
+      ? pickedDate
+      : data.dates.includes(todayIso)
+        ? todayIso
+        : data.dates[0];
+  const setSelectedDate = setPickedDate;
+
+  const dayIndex = data.dates.indexOf(selectedDate);
+  const goDay = (delta: number) => {
+    const next = data.dates[dayIndex + delta];
+    if (next) setSelectedDate(next);
+  };
+
+  // Swipe left/right to change day. Only a clearly horizontal gesture
+  // counts -- comparing dx against dy before acting is what keeps this
+  // from eating vertical scrolling, which is the usual way a swipe
+  // handler ruins a long page. The tabs above remain a complete
+  // alternative: swipe is a shortcut, never the only route to a day.
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    goDay(dx < 0 ? 1 : -1);
+  };
+
   return (
     <div className="space-y-8">
+      {/* Day picker + sticky day header, phone only. Rendered once here
+          rather than inside the period loop, so Lunch and Dinner for the
+          chosen day read as one day rather than two separate lists. */}
+      <div className="lg:hidden -mb-4">
+        <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-4 px-4">
+          {data.dates.map((date) => {
+            const active = date === selectedDate;
+            return (
+              <button
+                key={date}
+                type="button"
+                onClick={() => setSelectedDate(date)}
+                aria-current={active ? "date" : undefined}
+                className={
+                  "shrink-0 min-h-11 px-3 rounded-[var(--radius-md)] border text-sm leading-tight " +
+                  (active
+                    ? "bg-[var(--primary)] text-white border-[var(--primary)] font-semibold"
+                    : "bg-[var(--card)] text-[var(--ink-700)] border-[var(--border-strong)]")
+                }
+              >
+                <span className="block text-[11px] opacity-80">{DAY_LABELS[dayOfWeekFor(date)]}</span>
+                <span className="block font-medium">{Number(date.slice(8, 10))}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="sticky top-0 z-[2] bg-[var(--card)] border-b border-[var(--border)] py-2">
+          <span className="font-semibold text-[var(--ink-900)]">{DAY_LABELS[dayOfWeekFor(selectedDate)]}</span>
+          <span className="text-[var(--ink-500)] text-sm ml-2">{selectedDate}</span>
+          {selectedDate === todayIso && <span className="text-xs text-[var(--primary)] ml-2">today</span>}
+        </div>
+      </div>
+
       {(["Lunch", "Dinner"] as const).map((period) => (
         <section key={period}>
           <h2 className="text-lg font-medium mb-3 text-[var(--ink-900)]">{period}</h2>
-          {readOnly && (
-            <div className="sm:hidden space-y-3">
-              {data.dates.map((date) => {
-                const dayOfWeek = dayOfWeekFor(date);
-                const dayRows = data.positions
-                  .map((p) => {
-                    const assignments = data.assignments.filter(
-                      (a) => a.positionId === p.id && a.date === date && a.period === period
-                    );
-                    const target = data.targets[`${p.id}:${dayOfWeek}:${period}`] ?? 0;
-                    return { position: p, assignments, target };
-                  })
-                  .filter(({ assignments, target }) => assignments.length > 0 || (!hideDiagnostics && target > 0));
+          {/* The phone shape, both modes (2026-08-23). This used to be
+              readOnly-only; the manager building the week got a sideways
+              -scrolling table and a "swipe sideways" hint instead. Same
+              pieces as the desktop cell -- AssignmentPill and QuickAddCell
+              -- just laid out per position instead of per column, so the
+              two shapes cannot drift into behaving differently.
 
+              Safe to render one day only because this grid saves per
+              change (addPlannedAssignment / removePlannedAssignment fire
+              per cell), not as one big form. /schedule/targets looks
+              similar and is NOT like this: it posts the whole grid, which
+              is why that screen hides columns instead of dropping them. */}
+          <div className="lg:hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+            {(() => {
+              const date = selectedDate;
+              const dayOfWeek = dayOfWeekFor(date);
+              const dayRows = data.positions
+                .map((p) => {
+                  const assignments = data.assignments.filter(
+                    (a) => a.positionId === p.id && a.date === date && a.period === period
+                  );
+                  const target = data.targets[`${p.id}:${dayOfWeek}:${period}`] ?? 0;
+                  return { position: p, assignments, target };
+                })
+                // When editing, every position stays visible -- you cannot add
+                // someone to a row that is not on screen. Read-only hides the
+                // empty ones, which is what makes it readable.
+                .filter(({ assignments, target }) =>
+                  !readOnly || assignments.length > 0 || (!hideDiagnostics && target > 0)
+                );
+
+              if (dayRows.length === 0) {
                 return (
-                  <div key={date} className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
-                    <div className="px-3 py-2 bg-[var(--paper)] border-b border-[var(--border)] flex items-baseline gap-2">
-                      <span className="font-medium text-[var(--ink-900)]">{DAY_LABELS[dayOfWeek]}</span>
-                      <span className="text-xs text-[var(--ink-400)]">{date.slice(5)}</span>
-                    </div>
-                    {dayRows.length === 0 ? (
-                      <div className="px-3 py-2 text-xs text-[var(--ink-400)]">Nobody scheduled</div>
-                    ) : (
-                      <div className="divide-y divide-[var(--border)]">
-                        {dayRows.map(({ position, assignments, target }) => {
-                          const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
-                          return (
-                            <div key={position.id} className={"px-3 py-2" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
-                              <div className="text-xs text-[var(--ink-500)] mb-1">
-                                {position.name}
-                                {!hideDiagnostics && target > 0 && (
-                                  <span className={underTarget ? " ml-1 text-[var(--danger-700)] font-medium" : " ml-1"}>
-                                    ({assignments.length}/{target})
-                                  </span>
-                                )}
-                              </div>
-                              {assignments.length === 0 ? (
-                                <span className="text-xs text-[var(--ink-400)] italic">No one assigned</span>
-                              ) : (
-                                <div className="space-y-0.5">
-                                  {assignments.map((a) => {
-                                    const slotKey = `${a.employeeId}:${date}:${period}`;
-                                    const otherPositionIds = hideDiagnostics
-                                      ? []
-                                      : (slotPositionsByEmployee.get(slotKey) ?? []).filter((id) => id !== a.positionId);
-                                    const conflictPositionNames = [...new Set(otherPositionIds)].map(
-                                      (id) => positionNameById.get(id) ?? "?"
-                                    );
-                                    return (
-                                      <AssignmentPill
-                                        key={a.id}
-                                        assignment={a}
-                                        conflictPositionNames={conflictPositionNames}
-                                        readOnly
-                                        vacatingSoon={a.vacatingSoon}
-                                        onLeave={a.onLeave}
-                                        swap={a.swap}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                  <div className="rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-3 text-xs text-[var(--ink-400)]">
+                    Nobody scheduled for {period.toLowerCase()} this day.
                   </div>
                 );
-              })}
-            </div>
-          )}
-          {!readOnly && (
-            <p className="sm:hidden text-xs text-[var(--ink-500)] mb-1.5">Swipe sideways to see the rest of the week →</p>
-          )}
-          <div className={(readOnly ? "hidden sm:block " : "") + "overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0"}>
+              }
+
+              return (
+                <div className="rounded-[var(--radius-md)] border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
+                  {dayRows.map(({ position, assignments, target }) => {
+                    const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
+                    return (
+                      <div key={position.id} className={"px-3 py-2" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
+                        <div className="text-xs text-[var(--ink-500)] mb-1">
+                          {position.name}
+                          {!hideDiagnostics && target > 0 && (
+                            <span className={underTarget ? " ml-1 text-[var(--danger-700)] font-medium" : " ml-1"}>
+                              ({assignments.length}/{target})
+                            </span>
+                          )}
+                        </div>
+                        {assignments.length === 0 ? (
+                          <span className="text-xs text-[var(--ink-400)] italic">No one assigned</span>
+                        ) : (
+                          <div className="space-y-1">
+                            {assignments.map((a) => {
+                              const slotKey = `${a.employeeId}:${date}:${period}`;
+                              const otherPositionIds = hideDiagnostics
+                                ? []
+                                : (slotPositionsByEmployee.get(slotKey) ?? []).filter((id) => id !== a.positionId);
+                              const conflictPositionNames = [...new Set(otherPositionIds)].map(
+                                (id) => positionNameById.get(id) ?? "?"
+                              );
+                              return (
+                                <AssignmentPill
+                                  key={a.id}
+                                  assignment={a}
+                                  conflictPositionNames={conflictPositionNames}
+                                  readOnly={readOnly}
+                                  vacatingSoon={a.vacatingSoon}
+                                  onLeave={a.onLeave}
+                                  swap={a.swap}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                        {!readOnly && weekId !== undefined && (
+                          <QuickAddCell
+                            weekId={weekId}
+                            date={date}
+                            period={period}
+                            positionId={position.id}
+                            employees={employeesByPosition.get(position.id) ?? { eligible: [], other: [] }}
+                            alreadyAssignedIds={new Set(assignments.map((a) => a.employeeId))}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+          <div className="hidden lg:block overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
@@ -407,8 +517,13 @@ function AssignmentPill({
               router.refresh();
             })
           }
-          className="text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50"
+          /* 7x16 CSS px before 2026-08-23 -- the smallest control in the
+             app, and it removes a person from a shift. 44px on a phone,
+             back to compact at lg where seven day-columns share the
+             width and the pointer is a mouse. */
+          className="inline-flex items-center justify-center min-h-11 min-w-11 lg:min-h-0 lg:min-w-0 shrink-0 text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50"
           title="Remove"
+          aria-label="Remove from this shift"
         >
           ×
         </button>
@@ -480,7 +595,7 @@ function QuickAddCell({
             setSelectedId(e.target.value === "" ? "" : Number(e.target.value));
             setError(null);
           }}
-          className="text-[10px] border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-0.5 py-0.5 max-w-[76px] text-[var(--ink-500)] bg-[var(--card)] disabled:opacity-50"
+          className="min-h-11 w-full text-sm px-2 lg:min-h-0 lg:w-auto lg:text-[10px] lg:px-0.5 lg:py-0.5 lg:max-w-[76px] border border-[var(--border-strong)] rounded-[var(--radius-sm)] text-[var(--ink-500)] bg-[var(--card)] disabled:opacity-50"
         >
           <option value="">+ Add</option>
           {eligible.length > 0 && (
