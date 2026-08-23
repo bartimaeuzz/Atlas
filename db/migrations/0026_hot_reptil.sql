@@ -1,0 +1,1 @@
+ALTER TABLE `employees` ADD `account_type` text;

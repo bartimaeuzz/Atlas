@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Checkbox } from "@/components/ui/Field";
+import { ExpiryField } from "./ExpiryField";
 import { saveEmployeeCapabilities, type PermissionActionState } from "@/lib/actions/permissions";
 import {
   CAPABILITIES,
@@ -22,21 +24,35 @@ function toDateInputValue(value: string | null): string {
   return value.slice(0, 10);
 }
 
-export function EmployeeCapabilityCard({ employee }: { employee: CapabilityMatrixEmployeeRow }) {
+export function EmployeeCapabilityCard({
+  employee,
+  showHeader = true,
+}: {
+  employee: CapabilityMatrixEmployeeRow;
+  /** False when rendered inside a role card, where the row above already
+   * names the person and repeating it just pushes the controls down
+   * (2026-08-23). The preset form still renders either way -- it is the
+   * everyday control, not decoration. */
+  showHeader?: boolean;
+}) {
   const [saveState, saveAction, savePending] = useActionState(saveEmployeeCapabilities, initialState);
 
   const manageIsGranted = employee.systemRole === "ADMIN";
 
   return (
-    <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-white overflow-hidden">
+    <div className={showHeader ? "rounded-[var(--radius-md)] border border-[var(--border)] bg-white overflow-hidden" : ""}>
       <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 border-b border-[var(--border)]">
-        <div>
-          <span className="font-medium">{employee.nickname}</span>
-          <span className="ml-2 text-xs text-[var(--ink-500)]">
-            {employee.systemRole}
-            {!employee.active && " · inactive"}
-          </span>
-        </div>
+        {showHeader ? (
+          <div>
+            <span className="font-medium">{employee.nickname}</span>
+            <span className="ml-2 text-xs text-[var(--ink-500)]">
+              {employee.systemRole}
+              {!employee.active && " · inactive"}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-[var(--ink-500)] self-center">Reset this account to a preset</span>
+        )}
 
         <PresetApplyForm employee={employee} />
       </div>
@@ -56,19 +72,32 @@ export function EmployeeCapabilityCard({ employee }: { employee: CapabilityMatri
                 {CAPABILITIES.filter((c) => c.category === category).map((def) => {
                   if (def.key === "MANAGE_PERMISSIONS") {
                     return (
-                      <div key={def.key} className="flex items-center gap-2 text-sm text-[var(--ink-500)]">
-                        <input type="checkbox" checked={manageIsGranted} disabled readOnly />
-                        <span>{def.label} — tied to the Admin role, not individually grantable</span>
+                      <div key={def.key} className="text-[var(--ink-500)]">
+                        <Checkbox
+                          checked={manageIsGranted}
+                          disabled
+                          readOnly
+                          label={`${def.label} — tied to the Admin role, not individually grantable`}
+                        />
                       </div>
                     );
                   }
                   const current = employee.capabilities[def.key];
                   return (
                     <div key={def.key} className="flex flex-wrap items-center gap-2 text-sm">
-                      <label className="flex items-center gap-2">
-                        <input type="checkbox" name={`cap_${def.key}`} defaultChecked={current.granted} />
-                        <span title={def.description}>{def.label}</span>
-                      </label>
+                      {/* The design system's Checkbox, not a bare <input>
+                          (2026-08-23 visual audit): the raw control measured
+                          13x13 CSS px with a 20px-tall label around it, under
+                          WCAG 2.5.8's 24x24 floor, on a page where a mis-tap
+                          silently grants or revokes someone's access. Choice
+                          puts min-h-11 on the label, which is what actually
+                          gets hit-tested. Deliberately NOT TAP_TARGET_PAD --
+                          see Field.tsx's comment for why that fails here. */}
+                      <Checkbox
+                        name={`cap_${def.key}`}
+                        defaultChecked={current.granted}
+                        label={<span title={def.description}>{def.label}</span>}
+                      />
                       {/* A key nothing checks yet (2026-08-23). The switch
                           stays live so the grant is recorded for the day the
                           feature lands, but saying nothing would let an Admin
@@ -79,15 +108,9 @@ export function EmployeeCapabilityCard({ employee }: { employee: CapabilityMatri
                         </span>
                       )}
                       {def.expirable && (
-                        <label className="flex items-center gap-1 text-xs text-[var(--ink-500)]">
-                          expires
-                          <input
-                            type="date"
-                            name={`exp_${def.key}`}
-                            defaultValue={toDateInputValue(current.expiresAt)}
-                            className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-1.5 py-1"
-                          />
-                        </label>
+                        <div className="w-full">
+                          <ExpiryField name={`exp_${def.key}`} defaultValue={toDateInputValue(current.expiresAt)} />
+                        </div>
                       )}
                     </div>
                   );

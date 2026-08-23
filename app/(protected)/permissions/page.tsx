@@ -2,7 +2,8 @@ import { getCurrentStaffSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { NoAccess } from "@/components/NoAccess";
 import { loadCapabilityMatrix } from "@/lib/permissions/loadCapabilityMatrix";
-import { EmployeeCapabilityCard } from "./EmployeeCapabilityCard";
+import { RoleGroupCard } from "./RoleGroupCard";
+import type { SystemRole } from "@/lib/format/formatSystemRole";
 
 /** Permission and Roles — Admin-only (2026-08-19, Permission System
  * Phase 1 "Foundation"). See project_atlas_permission_system memory for
@@ -11,6 +12,8 @@ import { EmployeeCapabilityCard } from "./EmployeeCapabilityCard";
  * explicitly separate phase; see the schema.ts comment above
  * employeeCapabilities for the full phase breakdown). Toggling something
  * here does not yet change what anyone can actually do in the app. */
+const ROLE_ORDER: SystemRole[] = ["ADMIN", "MANAGER", "STAFF"];
+
 export default async function PermissionsPage() {
   // 2026-08-21 (Phase C): was requireAdmin(), which redirected a
   // non-Admin to /people with no explanation. Now shows the same plain
@@ -43,9 +46,18 @@ export default async function PermissionsPage() {
         Financial Auditor items are still being wired up and don&apos;t change anything yet.
       </div>
 
+      {/* Grouped by role rather than one flat card per person
+          (2026-08-23). Admin first, Staff last and collapsed: that is the
+          order an Admin actually looks for someone in, and Staff is most
+          of the roster. */}
       <div className="space-y-4">
-        {matrix.map((employee) => (
-          <EmployeeCapabilityCard key={employee.employeeId} employee={employee} />
+        {ROLE_ORDER.map((role) => (
+          <RoleGroupCard
+            key={role}
+            role={role}
+            employees={matrix.filter((e) => e.systemRole === role)}
+            defaultOpen={role !== "STAFF"}
+          />
         ))}
       </div>
     </main>

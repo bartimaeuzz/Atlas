@@ -174,6 +174,15 @@ export async function applyAccountTypePreset(
       }
     }
 
+    // Record WHICH preset this account was put on (2026-08-23). Written
+    // after the capability rows, so a failure part-way through leaves the
+    // account without a preset stamp rather than claiming a preset it
+    // does not actually match -- the honest direction to fail in, since
+    // /permissions reads this to say how far someone has drifted from
+    // their preset. Individual capability edits afterwards deliberately
+    // do NOT clear it; that drift is the thing worth seeing.
+    await db.update(employees).set({ accountType: accountType as AccountType }).where(eq(employees.id, employeeId));
+
     revalidatePath("/permissions");
     return { error: null, saved: true };
   } catch (err) {

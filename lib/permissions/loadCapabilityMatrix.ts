@@ -1,13 +1,20 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees, employeeCapabilities } from "@/db/schema";
-import { CAPABILITIES } from "./capabilities";
+import { CAPABILITIES, type AccountType } from "./capabilities";
 
 export interface CapabilityMatrixEmployeeRow {
   employeeId: number;
   nickname: string;
   systemRole: "STAFF" | "MANAGER" | "ADMIN";
   active: boolean;
+  /** Which Account Type preset was last applied (2026-08-23). null =
+   * none has been, which is the honest state for every account
+   * predating the column -- see employees.accountType's schema comment.
+   * The role cards on /permissions use it as the baseline for "what
+   * differs from this person's preset"; with null there is no baseline
+   * and the summary says so rather than guessing one. */
+  accountType: AccountType | null;
   /** Every registry capability key -> current stored state for this
    * employee (defaults to not-granted/no-expiry if no row exists yet —
    * a fresh account has no employee_capabilities rows until something
@@ -24,7 +31,13 @@ export interface CapabilityMatrixEmployeeRow {
 export async function loadCapabilityMatrix(): Promise<CapabilityMatrixEmployeeRow[]> {
   const [employeeRows, capabilityRows] = await Promise.all([
     db
-      .select({ id: employees.id, nickname: employees.nickname, systemRole: employees.systemRole, active: employees.active })
+      .select({
+        id: employees.id,
+        nickname: employees.nickname,
+        systemRole: employees.systemRole,
+        active: employees.active,
+        accountType: employees.accountType,
+      })
       .from(employees)
       .orderBy(employees.nickname),
     db
@@ -49,7 +62,14 @@ export async function loadCapabilityMatrix(): Promise<CapabilityMatrixEmployeeRo
     for (const def of CAPABILITIES) {
       capabilities[def.key] = stored[def.key] ?? { granted: false, expiresAt: null };
     }
-    return { employeeId: emp.id, nickname: emp.nickname, systemRole: emp.systemRole, active: emp.active, capabilities };
+    return {
+      employeeId: emp.id,
+      nickname: emp.nickname,
+      systemRole: emp.systemRole,
+      active: emp.active,
+      accountType: emp.accountType ?? null,
+      capabilities,
+    };
   });
 }
 

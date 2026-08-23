@@ -181,6 +181,25 @@ export const employees = sqliteTable("employees", {
   // department digit 0, everyone else defaults to their position's
   // FOH/BOH category. Editable per-employee on the People page.
   isPartner: integer("is_partner", { mode: "boolean" }).notNull().default(false),
+  // Which Account Type preset was last applied to this account
+  // (2026-08-23, Oliver: "เก็บจริง — เพิ่มคอลัมน์"). Written by
+  // applyAccountTypePreset in lib/actions/permissions.ts, and read by
+  // /permissions to show how far an account's individual capabilities
+  // have drifted from the preset it started on.
+  //
+  // NULLABLE and deliberately NOT backfilled: null means "no preset has
+  // been applied to this account", which is the honest state for every
+  // row that predates this column. Guessing a value from systemRole
+  // would make the drift summary compare against a baseline nobody
+  // actually chose -- the whole point of storing it is that the baseline
+  // stops being a guess.
+  //
+  // A LOG, not a binding: applying a preset overwrites capability rows
+  // and stamps this; editing an individual capability afterwards does
+  // NOT clear it. That is what makes "differs from preset" meaningful.
+  accountType: text("account_type", {
+    enum: ["STAFF", "ASSISTANT_MANAGER", "FLOOR_MANAGER", "PARTNER", "ADMIN"],
+  }),
   // Login ID (2026-08-17, Oliver: "build ID and login... format YK with 2
   // digit yr 2 digit month 1 digit department 0=admin 1=partner 2=BOH
   // 3=FOH and 3 digit running number" — refined in conversation to: no
