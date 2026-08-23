@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { createEmployee, updateEmployee, type EmployeeActionState } from "@/lib/actions/employees";
 import type { EmployeeListRow, AssignablePosition } from "@/lib/employees/loadEmployeesList";
-import { TextInput, Select } from "@/components/ui/Field";
+import { TextInput, Select, Checkbox } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 
@@ -110,47 +110,37 @@ export function EmployeeForm({
         </Select>
       </div>
 
-      <label className="flex items-center gap-2 text-sm text-[var(--ink-700)] py-1">
-        <input type="checkbox" name="active" defaultChecked={existing?.active ?? true} />
-        Active — unchecking retires them (never deleted; past shifts stay intact)
-      </label>
+      <Checkbox
+        name="active"
+        defaultChecked={existing?.active ?? true}
+        label="Active — unchecking retires them (never deleted; past shifts stay intact)"
+      />
 
-      <label className="flex items-start gap-2 text-sm border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)]">
-        <input
-          type="checkbox"
-          name="isFinancialAuditor"
-          defaultChecked={existing?.isFinancialAuditor ?? false}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="block font-medium text-[var(--ink-900)]">Financial auditor sign-off</span>
-          <span className="block text-xs text-[var(--ink-500)] mt-0.5">
+      <Checkbox
+        className="border border-[var(--border)] rounded-[var(--radius-md)] px-3 bg-[var(--paper)]"
+        name="isFinancialAuditor"
+        defaultChecked={existing?.isFinancialAuditor ?? false}
+        label={<span className="font-medium text-[var(--ink-900)]">Financial auditor sign-off</span>}
+        description={
+          <>
             This person&apos;s PIN is the code that confirms a change to an already Printed or Paid
             Supplier Check. Anyone making that change — even an Admin — has to enter THIS
             person&apos;s code, not their own.
-          </span>
-          <span className="block text-xs text-[var(--ink-500)] mt-1">
-            This is not a permission. Who is <em>allowed</em> to make that change is set on the
-            Permission and Roles page, under &ldquo;Supplier Check: edit locked invoice&rdquo;.
-          </span>
-        </span>
-      </label>
+            <span className="block mt-1">
+              This is not a permission. Who is <em>allowed</em> to make that change is set on the
+              Permission and Roles page, under &ldquo;Supplier Check: edit locked invoice&rdquo;.
+            </span>
+          </>
+        }
+      />
 
-      <label className="flex items-start gap-2 text-sm border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)]">
-        <input
-          type="checkbox"
-          name="isPartner"
-          defaultChecked={existing?.isPartner ?? false}
-          className="mt-0.5"
-        />
-        <span>
-          <span className="block font-medium text-[var(--ink-900)]">Partner</span>
-          <span className="block text-xs text-[var(--ink-500)] mt-0.5">
-            Restaurant partner/owner, independent of system role. Used as the default department
-            (Partner) when generating this person&apos;s login ID on the People page.
-          </span>
-        </span>
-      </label>
+      <Checkbox
+        className="border border-[var(--border)] rounded-[var(--radius-md)] px-3 bg-[var(--paper)]"
+        name="isPartner"
+        defaultChecked={existing?.isPartner ?? false}
+        label={<span className="font-medium text-[var(--ink-900)]">Partner</span>}
+        description="Restaurant partner/owner, independent of system role. Used as the default department (Partner) when generating this person's login ID on the People page."
+      />
 
       {/* Two tiers, two capabilities, two fieldsets (2026-08-23). These used
           to be one "Personal information (Admin only)" block behind one
@@ -269,7 +259,7 @@ export function EmployeeForm({
         <div className="space-y-3">
           {allPositions.map((p) => (
             <div key={p.id} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--card)]">
-              <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-900)]">
+              <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-900)] min-h-11">
                 <input
                   type="checkbox"
                   name={`assign_${p.id}`}

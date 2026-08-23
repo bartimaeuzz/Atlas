@@ -102,8 +102,8 @@ export function AddPlannedAssignmentForm({
           <option value="Lunch">Lunch</option>
           <option value="Dinner">Dinner</option>
         </Select>
-        <label className="text-sm flex items-center gap-2 pb-3">
-          <input type="checkbox" name="isExtraCoverage" className="w-4 h-4" />
+        <label className="text-sm flex items-center gap-2 pb-3 min-h-11">
+          <input type="checkbox" name="isExtraCoverage" className="size-5 shrink-0 accent-[var(--primary)]" />
           <span className="text-[var(--ink-500)]">Extra coverage</span>
         </label>
         <Button type="submit" loading={isPending}>

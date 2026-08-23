@@ -117,9 +117,9 @@ export function PrintChecksButton({ groups }: { groups: VendorPendingGroup[] }) 
         <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] mb-3 max-h-[45vh] overflow-y-auto">
           {groups.map((g) => (
             <li key={g.vendorId} className="p-2">
-              <label className="flex items-center justify-between gap-2 text-sm cursor-pointer">
+              <label className="flex items-center justify-between gap-2 text-sm cursor-pointer min-h-11">
                 <span className="flex items-center gap-2">
-                  <input type="checkbox" checked={selected.has(g.vendorId)} onChange={() => toggle(g.vendorId)} className="w-4 h-4" />
+                  <input type="checkbox" checked={selected.has(g.vendorId)} onChange={() => toggle(g.vendorId)} className="size-5 shrink-0 accent-[var(--primary)]" />
                   <span className="text-[var(--ink-900)]">{g.vendorName}</span>
                 </span>
                 <span className="text-xs tabular-nums text-[var(--ink-500)] shrink-0">

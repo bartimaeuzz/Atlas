@@ -117,7 +117,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
           instead of picking a name from a list.
         </p>
         <div className="space-y-2 text-sm">
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 min-h-11">
             <input
               type="radio"
               className={DISABLED_TOGGLE}
@@ -127,7 +127,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
             />
             Pick your name from a list
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 min-h-11">
             <input
               type="radio"
               className={DISABLED_TOGGLE}
@@ -168,22 +168,22 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
           <div className="space-y-2">
             <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Tip share</div>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 min-h-11">
               <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerTipFOH" defaultChecked={settings.rosterShowPeerTipFOH} />
               Show FOH peer tip share
             </label>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 min-h-11">
               <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerTipBOH" defaultChecked={settings.rosterShowPeerTipBOH} />
               Show BOH peer tip share
             </label>
           </div>
           <div className="space-y-2">
             <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Wage</div>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 min-h-11">
               <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerWageFOH" defaultChecked={settings.rosterShowPeerWageFOH} />
               Show FOH peer wage
             </label>
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-2 min-h-11">
               <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerWageBOH" defaultChecked={settings.rosterShowPeerWageBOH} />
               Show BOH peer wage
             </label>
@@ -202,11 +202,11 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
           list visible with earnings redacted.
         </p>
         <div className="space-y-2 text-sm">
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 min-h-11">
             <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowCoworkerListFOH" defaultChecked={settings.rosterShowCoworkerListFOH} />
             Show coworker list to FOH staff
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 min-h-11">
             <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowCoworkerListBOH" defaultChecked={settings.rosterShowCoworkerListBOH} />
             Show coworker list to BOH staff
           </label>
@@ -222,11 +222,11 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
           Managers/Admins always see everyone regardless of this setting.
         </p>
         <div className="space-y-2 text-sm">
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 min-h-11">
             <input type="checkbox" className={DISABLED_TOGGLE} name="rosterRestrictFOHToOwnCategory" defaultChecked={settings.rosterRestrictFOHToOwnCategory} />
             Restrict FOH staff to FOH-only view
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 min-h-11">
             <input type="checkbox" className={DISABLED_TOGGLE} name="rosterRestrictBOHToOwnCategory" defaultChecked={settings.rosterRestrictBOHToOwnCategory} />
             Restrict BOH staff to BOH-only view
           </label>
