@@ -8,6 +8,7 @@ import {
   clearTemplateVacancy,
 } from "@/lib/actions/schedule";
 import type { AssignedEmployeeGroup, PositionTemplateGroup, TemplateCell } from "@/lib/schedule/loadTemplatesByPosition";
+import { StackedCard, StackedCardList, StackedField } from "@/components/ui/Table";
 
 // Display order is Monday-first (matches the Weekly Plan grid and how
 // Oliver reads a real restaurant schedule) — the underlying dayOfWeek
@@ -85,7 +86,13 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
       {rows.length === 0 ? (
         <p className="text-sm text-neutral-400 mb-3">Nobody assigned yet.</p>
       ) : (
-        <div className="overflow-x-auto -mx-1 px-1 mb-3">
+        <>
+        <StackedCardList className="mb-3">
+          {rows.map((emp) => (
+            <EmployeeTemplateCard key={emp.employeeId} group={group} employee={emp} />
+          ))}
+        </StackedCardList>
+        <div className="hidden lg:block overflow-x-auto -mx-1 px-1 mb-3">
           {/* Scroll box added 2026-08-23. Measured at 390px the table was
               434px wide against a 390px viewport with overflow-x:visible, so
               the PAGE scrolled sideways instead of the table -- the whole
@@ -118,6 +125,7 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
           </tbody>
         </table>
         </div>
+        </>
       )}
 
       <PersonPicker
@@ -134,7 +142,21 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
  * day has 2 rows... name on the left... the most right is edit
  * button." Checkboxes are disabled until this row's own Edit button is
  * clicked (`editing`, below) — a look-only default, unlocked per row. */
-function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; employee: AssignedEmployeeGroup }) {
+/** The state and the save, shared by the two shapes below (2026-08-23).
+ *
+ * There are two renderings of one person's pattern -- a table row-pair on
+ * wide screens, a card on a phone -- and both need the same optimistic
+ * toggle, the same revert-on-failure, and the same per-person unlock. The
+ * logic lives here once so the two cannot drift into disagreeing about
+ * what a tap does.
+ *
+ * Each shape calls this separately, so each holds its own copy of the
+ * state. That is deliberate and matches the Ledger day flow's "one
+ * layout, two shapes, no JavaScript deciding which": both render, CSS
+ * hides one, and nobody sees both at once. The copies are also
+ * self-healing -- a save revalidates, new `employee.cells` arrive, and
+ * the effect below resyncs both. */
+function useTemplateCells(group: PositionTemplateGroup, employee: AssignedEmployeeGroup) {
   const [checked, setChecked] = useState<Set<string>>(
     () => new Set(employee.cells.map((c) => keyFor(c.dayOfWeek, c.period)))
   );
@@ -172,6 +194,88 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
       }
     });
   }
+
+  return { checked, editing, setEditing, toggle, error, isPending };
+}
+
+/** The phone shape (2026-08-23, Oliver: "let's try card overlay").
+ *
+ * The table was made to scroll sideways inside its card earlier today,
+ * which cleared WCAG 2.5.8 but showed two of seven days at a time on a
+ * 390px screen. components/ui/Table.tsx already records the house answer
+ * to that, and it is not horizontal scroll: "Atlas pairs TableCard
+ * (desktop) with StackedCard (phone) instead." This is that pairing --
+ * the earlier scroll box was me solving a problem the design system had
+ * already solved differently.
+ *
+ * One card per person, one row per day, Lunch and Dinner side by side.
+ * The day name is spelled out on each row because a card has no column
+ * header to fall back on (StackedField's own doc comment makes the same
+ * point), and both toggles are full 44px targets with a visible L/D
+ * letter rather than a bare box.
+ */
+function EmployeeTemplateCard({ group, employee }: { group: PositionTemplateGroup; employee: AssignedEmployeeGroup }) {
+  const { checked, editing, setEditing, toggle, error, isPending } = useTemplateCells(group, employee);
+  const isVacant = employee.vacancyReason !== null;
+
+  return (
+    <StackedCard
+      dimmed={isVacant}
+      title={<span className={isPending ? "opacity-50" : ""}>{employee.employeeName}</span>}
+      trailing={<EmployeeEdit group={group} employee={employee} editing={editing} setEditing={setEditing} />}
+      footer={
+        <>
+          {isVacant && (
+            <span className="text-[11px] text-[var(--danger-700)]">
+              {VACANCY_LABELS[employee.vacancyReason ?? ""] ?? employee.vacancyReason} · {employee.vacancyStartsOn}
+            </span>
+          )}
+          {error && <span className="text-[11px] text-[var(--danger-700)]">{error}</span>}
+        </>
+      }
+    >
+      {DISPLAY_DAYS.map((d) => (
+        <StackedField
+          key={d}
+          label={DAY_SHORT[d]}
+          value={
+            <span className="flex items-center gap-1 justify-end">
+              {PERIODS.map((period) => (
+                <label
+                  key={period}
+                  className={
+                    "flex items-center gap-1 min-h-11 px-2 rounded-[var(--radius-md)] border " +
+                    (checked.has(keyFor(d, period))
+                      ? "border-[var(--primary)] bg-[var(--primary-tint)] text-[var(--primary)]"
+                      : "border-[var(--border)] text-[var(--ink-500)]") +
+                    (editing ? " cursor-pointer" : " cursor-not-allowed opacity-60")
+                  }
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked.has(keyFor(d, period))}
+                    onChange={() => toggle(d, period)}
+                    disabled={!editing}
+                    className="size-4 shrink-0 accent-[var(--primary)]"
+                    aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} ${period}`}
+                  />
+                  {period === "Lunch" ? "L" : "D"}
+                </label>
+              ))}
+            </span>
+          }
+        />
+      ))}
+    </StackedCard>
+  );
+}
+
+/** One person's two table rows (Lunch, Dinner) -- the wide-screen shape.
+ * Name and Edit span both rows (rowSpan=2) so they read as one block per
+ * person, matching Oliver's spec: "each day has 2 rows... name on the
+ * left... the most right is edit button." */
+function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; employee: AssignedEmployeeGroup }) {
+  const { checked, editing, setEditing, toggle, error, isPending } = useTemplateCells(group, employee);
 
   const isVacant = employee.vacancyReason !== null;
   const rowBg = isVacant ? "bg-red-50" : "";
