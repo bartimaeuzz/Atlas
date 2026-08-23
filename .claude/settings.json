@@ -36,7 +36,9 @@
       "mcp__vercel__buy_addon",
       "mcp__vercel__pause_project",
       "mcp__vercel__unpause_project",
-      "mcp__vercel__update_project_deployment_protection"
+      "mcp__vercel__update_project_deployment_protection",
+      "Bash(atlas-db*)",
+      "Bash(*atlas-db *)"
     ],
     "allow": [
       "Bash(npm test*)",
