@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { logout } from "@/lib/actions/auth";
 import { Avatar } from "@/components/ui/Avatar";
+import { formatSystemRole, type SystemRole } from "@/lib/format/formatSystemRole";
 import { useNavCollapse } from "./NavCollapseContext";
 import {
   ShiftsIcon,
@@ -349,7 +350,7 @@ export function NavBarClient({
 }: {
   /** Never null: NavBar returns null for a signed-out visitor, so this
    *  component only ever renders for a real session (2026-08-23). */
-  auth: { name: string; systemRole: "STAFF" | "MANAGER" | "ADMIN" };
+  auth: { name: string; systemRole: SystemRole };
   unseenScheduleCount?: number;
   /** Hrefs from NAV_ITEM_CAPABILITY the current viewer doesn't hold the
    * capability for — resolved server-side in NavBar.tsx (2026-08-21).
@@ -514,7 +515,7 @@ export function NavBarClient({
                   {auth.name}
                 </span>
                 <span className="text-[11.5px] text-[var(--ink-500)]">
-                  {auth.systemRole === "STAFF" ? "Staff" : "Manager"}
+                  {formatSystemRole(auth.systemRole)}
                 </span>
               </span>
             </button>
@@ -535,7 +536,7 @@ export function NavBarClient({
                 >
                   <div className="px-3 py-2 border-b border-[var(--border)]">
                     <p className="font-medium truncate text-[var(--ink-900)]">{auth.name}</p>
-                    <p className="text-xs text-[var(--ink-500)]">{auth.systemRole === "STAFF" ? "Staff" : "Manager"}</p>
+                    <p className="text-xs text-[var(--ink-500)]">{formatSystemRole(auth.systemRole)}</p>
                   </div>
                   <Link
                     href="/me/schedule"
