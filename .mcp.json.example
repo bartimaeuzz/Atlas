@@ -1,0 +1,23 @@
+{
+  "_comment": "Copy to .mcp.json and fill in. NEVER commit real tokens. Claude Code asks you to trust this file the first time it loads. You can also add these through the desktop app's Connectors UI instead of editing this file.",
+  "mcpServers": {
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    },
+    "turso": {
+      "_note": "READ-ONLY use only. Never write. Never drizzle-kit push.",
+      "command": "npx",
+      "args": ["-y", "mcp-turso-cloud"],
+      "env": {
+        "TURSO_API_TOKEN": "${TURSO_API_TOKEN}",
+        "TURSO_ORGANIZATION": "${TURSO_ORGANIZATION}"
+      }
+    },
+    "vercel": {
+      "_note": "Read-only use. Deploy state and build logs.",
+      "type": "http",
+      "url": "https://mcp.vercel.com"
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Bash(drizzle-kit push*)",
+      "Bash(npx drizzle-kit push*)",
+      "Bash(npm run db:push*)",
+      "Bash(pnpm run db:push*)",
+      "Bash(yarn db:push*)",
+      "Bash(npm run setup*)",
+      "Bash(npm run db:seed*)",
+      "Bash(npm run db:migrate*)",
+      "Bash(npm run db:backfill-capabilities*)",
+      "Bash(tsx db/migrate.ts*)",
+      "Bash(tsx db/seed.ts*)",
+      "Bash(turso db shell*)",
+      "Bash(rm -rf *)",
+      "Bash(git push --force*)",
+      "Bash(git push -f *)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -fd*)",
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(~/.zshrc)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(.git/**)"
+    ],
+    "allow": [
+      "Bash(npm test*)",
+      "Bash(npm run build*)",
+      "Bash(npm run lint*)",
+      "Bash(npm run dev*)",
+      "Bash(npm ci*)",
+      "Bash(npm run db:generate*)",
+      "Bash(npx tsc --noEmit*)",
+      "Bash(npx eslint*)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git ls-files*)",
+      "Bash(git ls-remote*)",
+      "Bash(git branch*)",
+      "Bash(git add*)",
+      "Bash(git fetch*)"
+    ]
+  }
+}
