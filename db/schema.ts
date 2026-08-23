@@ -500,8 +500,13 @@ export const shiftSales = sqliteTable("shift_sales", {
   // Manually-identified subset of ccTipTotal from takeout orders paid at the
   // restaurant's own register (same pattern as host-upsell tip identification
   // — Toast doesn't separate this automatically). Feeds Pool 2, NOT Pool 1.
-  // ASSUMPTION pending confirmation: the 4.5% deduction applies to this the
-  // same as dine-in, since both run through the same card terminal.
+  // CONFIRMED 2026-08-23 (Oliver): the CC deduction applies to this at the
+  // same rate as dine-in, since both run through the same card terminal.
+  // This carried an "ASSUMPTION pending confirmation" note from 2026-08-10
+  // until then; the behaviour never changed, only its status. The rule is
+  // enforced at lib/calc/tipPool.ts's Pool 2 section and locked by the
+  // "Pool 2: takeout tip gets the deduction, online-platform tips do not"
+  // test in lib/calc/__tests__/tipPool.test.ts.
   takeoutCcTip: real("takeout_cc_tip").notNull().default(0),
   // Delivery orders placed by phone or the restaurant's own future platform,
   // paid via Toast (not cash, not a third-party platform). Gets the same

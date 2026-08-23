@@ -23,7 +23,15 @@ import { formatDateTime } from "@/lib/formatDateTime";
  * "even i hit print check now or not it does not mean i actually print
  * it." Reprint just re-downloads the same already-generated check via
  * the export route -- no mutation, safe to click any number of times. */
-export function ChecksTable({ checks, canEditLockedInvoices }: { checks: SupplierCheckView[]; canEditLockedInvoices: boolean }) {
+export function ChecksTable({
+  checks,
+  canEditLockedInvoices,
+  canMarkPaid,
+}: {
+  checks: SupplierCheckView[];
+  canEditLockedInvoices: boolean;
+  canMarkPaid: boolean;
+}) {
   const [openId, setOpenId] = useState<number | null>(null);
 
   if (checks.length === 0) {
@@ -39,6 +47,7 @@ export function ChecksTable({ checks, canEditLockedInvoices }: { checks: Supplie
           open={openId === c.id}
           onToggle={() => setOpenId(openId === c.id ? null : c.id)}
           canEditLockedInvoices={canEditLockedInvoices}
+          canMarkPaid={canMarkPaid}
         />
       ))}
     </ul>
@@ -50,11 +59,13 @@ function CheckRow({
   open,
   onToggle,
   canEditLockedInvoices,
+  canMarkPaid,
 }: {
   check: SupplierCheckView;
   open: boolean;
   onToggle: () => void;
   canEditLockedInvoices: boolean;
+  canMarkPaid: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -161,10 +172,18 @@ function CheckRow({
                 Delivered {check.deliveredAt ? formatDateTime(check.deliveredAt) : ""}
                 {check.deliveredByName ? ` · marked by ${check.deliveredByName}` : ""}
               </p>
-            ) : (
+            ) : canMarkPaid ? (
               <Button type="button" size="sm" disabled={isPending} loading={isPending} onClick={handleMarkPaid}>
                 {isPending ? "Marking…" : "Mark as paid / delivered"}
               </Button>
+            ) : (
+              /* No button at all rather than a disabled one (2026-08-23).
+                 A disabled control still reads as "this is your job, and
+                 it's broken"; a sentence says whose job it actually is.
+                 Same call as the Settings read-only pass (commit 8e58cac). */
+              <p className="text-xs text-[var(--ink-500)]">
+                Waiting to be marked paid — whoever handles the accounts does this step.
+              </p>
             )}
           </div>
         </div>

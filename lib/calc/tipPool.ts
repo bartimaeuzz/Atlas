@@ -181,6 +181,11 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
   const pool1ShareByEmployee = splitByMethod(netPool1AfterHostBonus, pool1Roster, pool1SplitMethod);
 
   // ---- Pool 2: takeout (register) + platform-courier-delivered online orders ----
+  // The deduction applies to takeout at the SAME rate as dine-in — confirmed
+  // by Oliver 2026-08-23, having sat as an assumption since 2026-08-10. Both
+  // run through the same card terminal, so the processor charges the same
+  // either way. platformCourierTips below is deliberately NOT deducted: that
+  // money never touched the restaurant's terminal.
   const netTakeoutCcTip = round2(takeoutCcTip * (1 - deductionRate));
   const totalPool2 = round2(netTakeoutCcTip + platformCourierTips);
   const pool2ShareByEmployee = splitByMethod(totalPool2, pool2Roster, pool2SplitMethod);

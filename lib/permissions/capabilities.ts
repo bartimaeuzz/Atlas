@@ -153,8 +153,13 @@ export const CAPABILITIES: CapabilityDef[] = [
   {
     key: "SUPPLIER_CHECK_LOG",
     category: "GENERAL",
-    label: "Supplier Check: log/print/mark paid",
-    description: "Log, print, and mark Supplier Check invoices as paid.",
+    label: "Supplier Check: log/print",
+    description: "Log Supplier Check invoices and print checks for them.",
+    // Narrowed 2026-08-23 (Oliver): this used to read "log/print/mark paid"
+    // and cover the whole lifecycle. Marking a printed check paid/delivered
+    // is now its own capability, FA_SUPPLIER_CHECK_FINALIZE below -- the
+    // last step before a payment is settled belongs with the person doing
+    // the reconciling, not with everyone who can log an invoice.
     expirable: false,
     defaults: allManagerTiers(),
   },
@@ -226,8 +231,16 @@ export const CAPABILITIES: CapabilityDef[] = [
   {
     key: "FA_SUPPLIER_CHECK_FINALIZE",
     category: "FINANCIAL_AUDITOR",
-    label: "Supplier Check: finalize",
-    description: "Finalize Supplier Check invoices.",
+    label: "Supplier Check: mark paid",
+    description: "Mark a printed Supplier Check as paid/delivered to the vendor.",
+    // Wired up 2026-08-23 (Oliver). Until then this key existed in the
+    // registry, appeared on /permissions, and guarded nothing -- SUPPLIER_
+    // CHECK_LOG's own label already claimed "mark paid," so which action
+    // this was meant to gate was flagged as an open question rather than
+    // guessed. It now gates markSupplierCheckPaid in
+    // lib/actions/supplierCheck.ts, and SUPPLIER_CHECK_LOG was narrowed to
+    // match. Default is unchanged (Admin-only), so the Financial Auditor
+    // subset invariant in __tests__/capabilities.test.ts still holds.
     expirable: true,
     defaults: { ...ALL_FALSE, ADMIN: true },
   },

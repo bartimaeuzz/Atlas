@@ -19,18 +19,21 @@ export interface SupplierInvoiceActionState {
  * /ledger page guard.
  *
  * 2026-08-21 (Phase B) — every base-level action in this file (log,
- * delete-pending, edit-while-pending, print, mark-paid) now checks the
- * SUPPLIER_CHECK_LOG capability instead, matching its confirmed registry
- * label verbatim: "Supplier Check: log/print/mark paid" — all four of
- * those verbs map onto this file's functions. The separate, tighter
+ * delete-pending, edit-while-pending, print) checks the SUPPLIER_CHECK_LOG
+ * capability, matching its registry label verbatim. The separate, tighter
  * Admin-or-financial-auditor + PIN-confirm gate inside editSupplierInvoice
  * for already-printed/paid invoices is untouched — that's a distinct,
- * already-correct check layered on top, not replaced by this. Note:
- * FA_SUPPLIER_CHECK_FINALIZE (a separate, per-item-expirable Financial
- * Auditor capability in the registry) is NOT wired to anything here —
- * it's ambiguous from the confirmed design alone which action it's meant
- * to gate given SUPPLIER_CHECK_LOG's own label already covers "mark
- * paid," so this is flagged as an open question rather than guessed. */
+ * already-correct check layered on top, not replaced by this.
+ *
+ * 2026-08-23 — mark-paid split off. It used to share SUPPLIER_CHECK_LOG
+ * with the four actions above, because that capability's label claimed
+ * "mark paid" and it was ambiguous what FA_SUPPLIER_CHECK_FINALIZE was
+ * otherwise for; that ambiguity was flagged as an open question rather
+ * than guessed. Oliver settled it: logging and printing a check is
+ * day-to-day work, but marking one paid is the last step before a payment
+ * is settled and belongs with whoever reconciles. markSupplierCheckPaid
+ * now requires FA_SUPPLIER_CHECK_FINALIZE and SUPPLIER_CHECK_LOG was
+ * narrowed to "log/print" to match. */
 
 /** Logging an invoice is deliberately its own form, not a reuse of
  * addPettyCashEntry -- Oliver's own words: "the input form on petty
@@ -307,7 +310,10 @@ export async function printChecksForVendors(
  * holistic table's per-invoice detail reflects the final state without
  * needing to join back through the payment's own status every time. */
 export async function markSupplierCheckPaid(paymentId: number) {
-  const session = await requireCapability("SUPPLIER_CHECK_LOG");
+  // FA_SUPPLIER_CHECK_FINALIZE, not SUPPLIER_CHECK_LOG — see the split
+  // described in this file's header (2026-08-23). The page hides the button
+  // for anyone without it; this is the guard that actually enforces it.
+  const session = await requireCapability("FA_SUPPLIER_CHECK_FINALIZE");
 
   const [payment] = await db.select().from(supplierCheckPayments).where(eq(supplierCheckPayments.id, paymentId));
   if (!payment) throw new Error("Check not found.");

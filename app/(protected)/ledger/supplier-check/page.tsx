@@ -102,6 +102,14 @@ export default async function SupplierCheckPage({
   // lib/actions/supplierCheck.ts for the full rule (this is just the
   // UI-visibility half; the server action re-checks independently).
   const canEditLockedInvoices = session ? session.systemRole === "ADMIN" || session.isFinancialAuditor : false;
+  // Marking a printed check paid/delivered split off from log/print on
+  // 2026-08-23 -- see lib/actions/supplierCheck.ts's header. Read through
+  // the capability registry rather than a systemRole test so /permissions
+  // and the button can't disagree; `viewer` is already loaded above and
+  // getViewerCapabilities is React-cached, so this costs nothing extra.
+  // The server action re-checks independently -- this is only the half
+  // that decides what to render.
+  const canMarkPaid = viewer.has("FA_SUPPLIER_CHECK_FINALIZE");
 
   return (
     <main className="max-w-lg mx-auto p-4 sm:p-8">
@@ -167,7 +175,7 @@ export default async function SupplierCheckPage({
         {checks.length === 0 ? "No checks in this period." : `${checks.length} check${checks.length === 1 ? "" : "s"} — ${formatMoney(periodTotal)} total`}
       </p>
 
-      <ChecksTable checks={checks} canEditLockedInvoices={canEditLockedInvoices} />
+      <ChecksTable checks={checks} canEditLockedInvoices={canEditLockedInvoices} canMarkPaid={canMarkPaid} />
     </main>
   );
 }
