@@ -1,23 +1,30 @@
-import Link from "next/link";
 import { loadSwapRequestsForManager, type SwapRequestView } from "@/lib/schedule/loadSwapRequests";
 import { toIso } from "@/lib/schedule/weekMath";
+import { formatDayLabel } from "@/lib/format/formatDayLabel";
 import { SwapDecisionButtons } from "./SwapDecisionButtons";
 import { MarkSeenOnMount } from "../MarkSeenOnMount";
+import { PageHeader, EmptyState } from "@/components/ui/Card";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
+import { LinkButton } from "@/components/ui/Button";
 
 const STATUS_LABEL: Record<SwapRequestView["status"], string> = {
-  open: "Open — unclaimed",
+  open: "Open — nobody has taken it",
   pending_manager_approval: "Needs your approval",
   completed: "Completed",
   declined: "Declined",
   cancelled: "Cancelled",
 };
 
-const STATUS_CLASS: Record<SwapRequestView["status"], string> = {
-  open: "bg-neutral-100 text-neutral-600",
-  pending_manager_approval: "bg-blue-100 text-blue-800",
-  completed: "bg-green-100 text-green-800",
-  declined: "bg-red-100 text-red-700",
-  cancelled: "bg-neutral-100 text-neutral-400",
+/** Tone per status, replacing the raw bg-green-100/text-green-800 pairs
+ * this page used before the 2026-08-23 retrofit. `primary` for the one
+ * status that needs an action, so the row that wants something from you
+ * is the row that stands out. */
+const STATUS_TONE: Record<SwapRequestView["status"], BadgeTone> = {
+  open: "neutral",
+  pending_manager_approval: "primary",
+  completed: "success",
+  declined: "danger",
+  cancelled: "neutral",
 };
 
 /** Manager-facing shift-swap inbox (Schedule Planner Phase E, 2026-08-16)
@@ -25,54 +32,94 @@ const STATUS_CLASS: Record<SwapRequestView["status"], string> = {
  * except pending_manager_approval rows genuinely need a decision: swaps
  * due <=3 days out don't finalize on acceptance alone, per Oliver's own
  * rule. Everything else here (open/completed/declined) is informational,
- * same "manager notified" spirit as leave requests. */
+ * same "manager notified" spirit as leave requests.
+ *
+ * Design-system retrofit 2026-08-23. This file had zero components/ui
+ * imports and drew its own status pills out of raw Tailwind palette
+ * colours. Three things changed beyond swapping in the primitives:
+ *
+ *  - Dates read "Mon 2026-08-31" via formatDayLabel, not the bare ISO
+ *    string. Oliver asked for exactly this elsewhere: "it easier for human
+ *    to scan through thousands of data."
+ *  - The period is spelled "Lunch"/"Dinner" instead of "(L)"/"(D)". A
+ *    single parenthesised letter is a lookup, and the audience for this
+ *    app should not have to learn one.
+ *  - Rows needing a decision come first. This is an inbox; the two rows
+ *    that want something from you should not be somewhere in a list of
+ *    twenty that do not.
+ */
 export default async function SwapsPage() {
   const requests = await loadSwapRequestsForManager(toIso(new Date()));
 
+  // Needs-approval first, then the log in the order the loader gave us.
+  const needsDecision = requests.filter((r) => r.status === "pending_manager_approval");
+  const rest = requests.filter((r) => r.status !== "pending_manager_approval");
+
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
+    <main className="max-w-2xl mx-auto p-4 sm:p-8">
       <MarkSeenOnMount section="swap_requests" />
-      <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
-        &larr; Schedule
-      </Link>
-      <h1 className="text-2xl font-semibold mt-2 mb-1">Shift swaps</h1>
-      <p className="text-neutral-500 text-sm mb-6">
-        Every swap staff have posted or accepted for an upcoming shift. Swaps due more than 3
-        days out finalize as soon as a coworker accepts — you&apos;re just notified. Swaps due
-        within 3 days need your approval before the shift actually reassigns.
-      </p>
+
+      <LinkButton href="/schedule" variant="ghost" size="sm">
+        ← Schedule
+      </LinkButton>
+
+      <div className="mt-2">
+        <PageHeader
+          title="Shift swaps"
+          description="Every swap staff have posted or accepted for an upcoming shift. Swaps more than 3 days away finalize as soon as a coworker accepts — you're just told. Swaps within 3 days need your approval before the shift actually changes hands."
+        />
+      </div>
 
       {requests.length === 0 ? (
-        <p className="text-sm text-neutral-400 border rounded p-4">No upcoming swap activity.</p>
+        <EmptyState message="No upcoming swap activity." />
       ) : (
-        <ul className="divide-y border rounded text-sm">
-          {requests.map((r) => (
-            <li key={r.id} className="px-3 py-2.5 flex items-start justify-between gap-3">
-              <div>
-                <div className="font-medium">
-                  {r.requestingEmployeeName}
-                  <span className="text-neutral-500 font-normal">
-                    {" "}
-                    — {r.positionName}, {r.date} ({r.period === "Lunch" ? "L" : "D"})
-                  </span>
-                </div>
-                {r.acceptingEmployeeName && (
-                  <div className="text-neutral-500 text-xs mt-0.5">
-                    {r.status === "declined" ? "Was accepted by" : "Accepted by"} {r.acceptingEmployeeName}
-                  </div>
-                )}
-                {r.note && <div className="text-neutral-500 text-xs mt-0.5">&quot;{r.note}&quot;</div>}
-                <span
-                  className={"inline-block mt-1 text-[11px] px-1.5 py-0.5 rounded " + STATUS_CLASS[r.status]}
-                >
-                  {STATUS_LABEL[r.status]}
-                </span>
-              </div>
-              {r.status === "pending_manager_approval" && <SwapDecisionButtons requestId={r.id} />}
-            </li>
+        <div className="space-y-2">
+          {[...needsDecision, ...rest].map((r) => (
+            <SwapRow key={r.id} request={r} />
           ))}
-        </ul>
+        </div>
       )}
     </main>
+  );
+}
+
+function SwapRow({ request: r }: { request: SwapRequestView }) {
+  const shiftLabel = `${r.positionName} · ${formatDayLabel(r.date)} · ${r.period}`;
+  const needsDecision = r.status === "pending_manager_approval";
+
+  return (
+    <div
+      className={
+        "rounded-[var(--radius-lg)] border p-3 sm:p-4 bg-[var(--card)] " +
+        (needsDecision ? "border-[var(--primary-border)]" : "border-[var(--border)]")
+      }
+    >
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-medium text-[var(--ink-900)]">{r.requestingEmployeeName}</div>
+          <div className="text-sm text-[var(--ink-700)] mt-0.5">{shiftLabel}</div>
+
+          {r.acceptingEmployeeName && (
+            <div className="text-xs text-[var(--ink-500)] mt-1">
+              {r.status === "declined" ? "Was accepted by" : "Accepted by"} {r.acceptingEmployeeName}
+            </div>
+          )}
+          {r.note && <div className="text-xs text-[var(--ink-500)] mt-1 italic">&ldquo;{r.note}&rdquo;</div>}
+
+          <div className="mt-2">
+            <Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+          </div>
+        </div>
+
+        {needsDecision && (
+          <SwapDecisionButtons
+            requestId={r.id}
+            requestingEmployeeName={r.requestingEmployeeName}
+            acceptingEmployeeName={r.acceptingEmployeeName}
+            shiftLabel={shiftLabel}
+          />
+        )}
+      </div>
+    </div>
   );
 }

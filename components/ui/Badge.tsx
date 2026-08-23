@@ -1,4 +1,4 @@
-type BadgeTone = "neutral" | "success" | "warning" | "danger" | "primary";
+export type BadgeTone = "neutral" | "success" | "warning" | "danger" | "primary";
 
 const toneClasses: Record<BadgeTone, string> = {
   neutral: "bg-[var(--paper)] text-[var(--ink-700)] border-[var(--border)]",
