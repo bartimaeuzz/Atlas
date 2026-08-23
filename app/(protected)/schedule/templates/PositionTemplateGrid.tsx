@@ -85,7 +85,14 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
       {rows.length === 0 ? (
         <p className="text-sm text-neutral-400 mb-3">Nobody assigned yet.</p>
       ) : (
-        <table className="text-sm border-collapse mb-3 w-full">
+        <div className="overflow-x-auto -mx-1 px-1 mb-3">
+          {/* Scroll box added 2026-08-23. Measured at 390px the table was
+              434px wide against a 390px viewport with overflow-x:visible, so
+              the PAGE scrolled sideways instead of the table -- the whole
+              screen slid under your thumb while scrolling a column of names.
+              Fixing this first is what makes the 44px cell targets below
+              affordable: the table can now be wider than the phone. */}
+        <table className="text-sm border-collapse w-full min-w-[22rem]">
           <thead>
             <tr>
               <th className="text-left text-neutral-500 font-normal pb-1 pr-2">Name</th>
@@ -104,6 +111,7 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
 
       <PersonPicker
@@ -162,6 +170,13 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
   const isVacant = employee.vacancyReason !== null;
   const rowBg = isVacant ? "bg-red-50" : "";
   const checkboxClass = "w-4 h-4" + (editing ? "" : " opacity-40 cursor-not-allowed");
+  // The whole cell is the tap target, not the 16px box (2026-08-23 visual
+  // audit -- WCAG 2.5.8 wants 24x24 minimum and this measured 16x16 in a
+  // 40x25 cell). A <label> filling the cell is what gets hit-tested, so
+  // the box stays visually small and the target does not: growing the box
+  // itself to 44px would turn a week grid into a wall of checkboxes.
+  const cellTargetClass =
+    "flex items-center justify-center min-h-11 w-full" + (editing ? " cursor-pointer" : " cursor-not-allowed");
 
   return (
     <>
@@ -177,15 +192,17 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
         </td>
         <td className="text-[10px] text-neutral-400 border-t">L</td>
         {DISPLAY_DAYS.map((d) => (
-          <td key={d} className="text-center px-1 py-0.5 border-t">
-            <input
-              type="checkbox"
-              checked={checked.has(keyFor(d, "Lunch"))}
-              onChange={() => toggle(d, "Lunch")}
-              disabled={!editing}
-              className={checkboxClass}
-              aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Lunch`}
-            />
+          <td key={d} className="text-center p-0 border-t">
+            <label className={cellTargetClass}>
+              <input
+                type="checkbox"
+                checked={checked.has(keyFor(d, "Lunch"))}
+                onChange={() => toggle(d, "Lunch")}
+                disabled={!editing}
+                className={checkboxClass}
+                aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Lunch`}
+              />
+            </label>
           </td>
         ))}
         <td rowSpan={2} className="text-right align-top pl-2 py-1 border-t">
@@ -195,15 +212,17 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
       <tr className={rowBg}>
         <td className="text-[10px] text-neutral-400">D</td>
         {DISPLAY_DAYS.map((d) => (
-          <td key={d} className="text-center px-1 py-0.5">
-            <input
-              type="checkbox"
-              checked={checked.has(keyFor(d, "Dinner"))}
-              onChange={() => toggle(d, "Dinner")}
-              disabled={!editing}
-              className={checkboxClass}
-              aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Dinner`}
-            />
+          <td key={d} className="text-center p-0">
+            <label className={cellTargetClass}>
+              <input
+                type="checkbox"
+                checked={checked.has(keyFor(d, "Dinner"))}
+                onChange={() => toggle(d, "Dinner")}
+                disabled={!editing}
+                className={checkboxClass}
+                aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Dinner`}
+              />
+            </label>
           </td>
         ))}
       </tr>

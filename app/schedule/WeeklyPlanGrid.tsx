@@ -500,15 +500,23 @@ function QuickAddCell({
         </select>
         {selectedId !== "" && (
           <>
+            {/* 2026-08-23 visual audit: this measured 10x10 CSS px, the
+                smallest control in the app and less than half WCAG 2.5.8's
+                24x24 floor. Unlike the template grid there is only ONE of
+                these and it appears in an inline editor that has already
+                pushed the cell open for a <select> and two buttons, so the
+                target can grow without costing the week view anything --
+                min-h-11 on the label, which is what gets hit-tested, and
+                the box itself only up to 16px so the row stays compact. */}
             <label
-              className="flex items-center gap-0.5 text-[9px] text-[var(--ink-400)] cursor-pointer"
+              className="flex items-center gap-1 min-h-11 text-[9px] text-[var(--ink-400)] cursor-pointer"
               title="Extra coverage — an anticipated busy day, not filling a known gap"
             >
               <input
                 type="checkbox"
                 checked={isExtraCoverage}
                 onChange={(e) => setIsExtraCoverage(e.target.checked)}
-                className="w-2.5 h-2.5"
+                className="size-4 shrink-0 accent-[var(--primary)]"
               />
               extra
             </label>
