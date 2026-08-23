@@ -121,6 +121,20 @@ export const CAPABILITIES: CapabilityDef[] = [
     defaults: allManagerTiers(),
   },
   {
+    key: "VIEW_ACTIVITY_LOG",
+    category: "GENERAL",
+    label: "View the Activity Log",
+    description:
+      "See the Activity Log — who changed what, and when. Admin and Partner by default; grant it to an Assistant Manager who needs oversight.",
+    expirable: false,
+    // Oliver, 2026-08-22: "partner and permission-granted assistant manager
+    // and admin can see log." Admin+Partner by default, and ASSISTANT_MANAGER
+    // is already an account type here, so "permission-granted" is the
+    // existing per-account override rather than anything new — no role tier
+    // had to be invented to honour this.
+    defaults: adminPartner(),
+  },
+  {
     key: "VIEW_LEDGER_CARD_REPORT",
     category: "GENERAL",
     label: "View Ledger Card report (read-only)",

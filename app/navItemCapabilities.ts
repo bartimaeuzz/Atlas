@@ -15,6 +15,7 @@ export const NAV_ITEM_CAPABILITY: Record<string, string> = {
   "/ledger": "VIEW_LEDGER_OVERVIEW",
   "/analytics": "VIEW_ANALYTICS",
   "/settings": "VIEW_SETTINGS",
+  "/activity": "VIEW_ACTIVITY_LOG",
 };
 
 /**

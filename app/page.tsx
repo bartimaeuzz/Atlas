@@ -143,6 +143,18 @@ const MANAGER_TILES: Tile[] = [
     ),
   },
   {
+    href: "/activity",
+    label: "Activity Log",
+    description: "Who changed what, and when",
+    capability: "VIEW_ACTIVITY_LOG",
+    icon: (
+      <svg {...iconProps}>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3.5 2" />
+      </svg>
+    ),
+  },
+  {
     href: "/settings",
     label: "Settings",
     description: "Restaurant-wide configuration",

@@ -14,6 +14,7 @@ import {
   ScheduleIcon,
   LedgerIcon,
   ReportsIcon,
+  ActivityLogIcon,
   AnalyticsIcon,
   PayrollIcon,
   SettingsIcon,
@@ -34,6 +35,7 @@ const MANAGER_NAV_ITEMS: { href: string; label: string; icon: IconType }[] = [
   { href: "/reports", label: "Reports", icon: ReportsIcon },
   { href: "/analytics", label: "Analytics", icon: AnalyticsIcon },
   { href: "/payroll", label: "Payroll", icon: PayrollIcon },
+  { href: "/activity", label: "Activity", icon: ActivityLogIcon },
 ];
 const SETTINGS_ITEM: { href: string; label: string; icon: IconType } = {
   href: "/settings",

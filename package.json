@@ -12,6 +12,7 @@
     "db:migrate": "tsx db/migrate.ts",
     "db:seed": "tsx db/seed.ts",
     "db:backfill-capabilities": "tsx db/backfillCapabilities.ts",
+    "db:sync-capabilities": "tsx db/syncNewCapabilities.ts",
     "test": "tsx --test lib/**/__tests__/*.test.ts",
     "setup": "npm install && npm run db:push && npm run db:seed"
   },
