@@ -2,17 +2,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadEmployeeForEdit, loadAllPositionsForAssignment } from "@/lib/employees/loadEmployeesList";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { EmployeeForm } from "../../EmployeeForm";
 import { SetPinForm } from "../../SetPinForm";
 import { GenerateLoginIdControl } from "../../GenerateLoginIdControl";
 
 export default async function EditEmployeePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await getCurrentStaffSession();
+  const [session, viewer] = await Promise.all([getCurrentStaffSession(), getViewerCapabilities()]);
   const viewerIsAdmin = session?.systemRole === "ADMIN";
+  // Personal info reads through the capability registry, not systemRole
+  // (2026-08-23) -- so granting a manager the HR tier on /permissions
+  // works without a deploy. viewerIsAdmin below is a different question
+  // (login-ID generation) and is deliberately left alone.
+  const canViewContact = viewer?.has("PEOPLE_CONTACT_INFO_VIEW") ?? false;
+  const canViewHrSensitive = viewer?.has("PEOPLE_HR_SENSITIVE") ?? false;
 
   const [employee, allPositions] = await Promise.all([
-    loadEmployeeForEdit(Number(id), viewerIsAdmin),
+    loadEmployeeForEdit(Number(id), { canViewContact, canViewHrSensitive }),
     loadAllPositionsForAssignment(),
   ]);
 
@@ -24,7 +31,12 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
         &larr; People
       </Link>
       <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-6">Edit employee — {employee.nickname}</h1>
-      <EmployeeForm existing={employee} allPositions={allPositions} viewerIsAdmin={viewerIsAdmin} />
+      <EmployeeForm
+        existing={employee}
+        allPositions={allPositions}
+        canViewContact={canViewContact}
+        canViewHrSensitive={canViewHrSensitive}
+      />
       <div className="mt-6">
         <SetPinForm employeeId={employee.id} hasPinSet={employee.hasPinSet} />
       </div>

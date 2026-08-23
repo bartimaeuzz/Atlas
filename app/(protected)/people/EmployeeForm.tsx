@@ -12,11 +12,17 @@ const initialState: EmployeeActionState = { error: null };
 export function EmployeeForm({
   existing,
   allPositions,
-  viewerIsAdmin,
+  canViewContact,
+  canViewHrSensitive,
 }: {
   existing: EmployeeListRow | null;
   allPositions: AssignablePosition[];
-  viewerIsAdmin: boolean;
+  /** PEOPLE_CONTACT_INFO_VIEW / PEOPLE_HR_SENSITIVE, resolved server-side.
+   * Two flags rather than one `viewerIsAdmin`, because the two tiers are
+   * separately grantable as of 2026-08-23. The server action re-checks
+   * both independently -- these only decide what renders. */
+  canViewContact: boolean;
+  canViewHrSensitive: boolean;
 }) {
   const action = existing ? updateEmployee : createEmployee;
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -142,42 +148,58 @@ export function EmployeeForm({
         </span>
       </label>
 
-      {viewerIsAdmin ? (
+      {/* Two tiers, two capabilities, two fieldsets (2026-08-23). These used
+          to be one "Personal information (Admin only)" block behind one
+          flag; contact details and SSN are now separately permissioned, so
+          someone can be trusted with a phone number without being trusted
+          with a social security number. A tier the viewer can't see is
+          absent, not disabled — there is nothing they could do about it,
+          so an inert control would only be noise. */}
+      {canViewContact && (
         <fieldset className="border border-[var(--border)] rounded-[var(--radius-lg)] p-4">
-          <legend className="text-sm font-medium text-[var(--ink-900)] px-1">Personal information (Admin only)</legend>
+          <legend className="text-sm font-medium text-[var(--ink-900)] px-1">Contact details</legend>
           <p className="text-xs text-[var(--ink-500)] mb-3">
-            Only visible to Admin accounts. Used for HR/payroll records — not shown anywhere else in the app.
+            How to reach this person. Not shown anywhere else in the app.
           </p>
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
             <TextInput
               type="date"
               name="dateOfBirth"
               label="Date of birth"
-              defaultValue={existing?.personalInfo?.dateOfBirth ?? ""}
+              defaultValue={existing?.contactInfo?.dateOfBirth ?? ""}
             />
             <TextInput
               type="tel"
               name="mobilePhone"
               label="Mobile phone"
-              defaultValue={existing?.personalInfo?.mobilePhone ?? ""}
+              defaultValue={existing?.contactInfo?.mobilePhone ?? ""}
               placeholder="(555) 555-5555"
             />
           </div>
-          <div className="mb-4 max-w-sm">
+          <div className="max-w-sm">
             <TextInput
               type="email"
               name="email"
               label="Email"
-              defaultValue={existing?.personalInfo?.email ?? ""}
+              defaultValue={existing?.contactInfo?.email ?? ""}
               placeholder="name@example.com"
             />
           </div>
+        </fieldset>
+      )}
+
+      {canViewHrSensitive && (
+        <fieldset className="border border-[var(--border)] rounded-[var(--radius-lg)] p-4">
+          <legend className="text-sm font-medium text-[var(--ink-900)] px-1">HR and payroll records</legend>
+          <p className="text-xs text-[var(--ink-500)] mb-3">
+            Home address and tax ID. Kept for payroll filing — not shown anywhere else in the app.
+          </p>
           <div className="mb-4">
             <TextInput
               type="text"
               name="addressLine1"
               label="Address line 1"
-              defaultValue={existing?.personalInfo?.addressLine1 ?? ""}
+              defaultValue={existing?.hrSensitive?.addressLine1 ?? ""}
             />
           </div>
           <div className="mb-4">
@@ -185,7 +207,7 @@ export function EmployeeForm({
               type="text"
               name="addressLine2"
               label="Address line 2 (optional)"
-              defaultValue={existing?.personalInfo?.addressLine2 ?? ""}
+              defaultValue={existing?.hrSensitive?.addressLine2 ?? ""}
               placeholder="Apt, suite, unit, etc."
             />
           </div>
@@ -194,20 +216,20 @@ export function EmployeeForm({
               type="text"
               name="city"
               label="City"
-              defaultValue={existing?.personalInfo?.city ?? ""}
+              defaultValue={existing?.hrSensitive?.city ?? ""}
             />
             <TextInput
               type="text"
               name="state"
               label="State"
-              defaultValue={existing?.personalInfo?.state ?? ""}
+              defaultValue={existing?.hrSensitive?.state ?? ""}
               placeholder="NY"
             />
             <TextInput
               type="text"
               name="zipCode"
               label="ZIP code"
-              defaultValue={existing?.personalInfo?.zipCode ?? ""}
+              defaultValue={existing?.hrSensitive?.zipCode ?? ""}
             />
           </div>
           <div className="max-w-xs">
@@ -215,17 +237,19 @@ export function EmployeeForm({
               type="text"
               name="ssnOrItin"
               label="SSN or ITIN"
-              defaultValue={existing?.personalInfo?.ssnOrItin ?? ""}
+              defaultValue={existing?.hrSensitive?.ssnOrItin ?? ""}
               placeholder="XXX-XX-XXXX"
               hint="SSN is generally required for a W-2 employee; ITIN generally applies to people who aren't authorized as a W-2 employee. Check with your accountant or payroll provider before relying on this field for actual tax filing — Atlas doesn't validate or distinguish the two."
             />
           </div>
         </fieldset>
-      ) : (
+      )}
+
+      {!canViewContact && !canViewHrSensitive && (
         <Banner
           tone="info"
           title="Personal info hidden"
-          description="Date of birth, address, phone, email, and SSN/ITIN are only visible to Admin accounts."
+          description="Contact details and HR records aren't part of what this account can see."
         />
       )}
 

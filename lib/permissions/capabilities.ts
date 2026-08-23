@@ -54,6 +54,21 @@ export interface CapabilityDef {
    * be overridden per-account afterward — this is only the starting
    * bundle, never a live/enforced binding. */
   defaults: Record<AccountType, boolean>;
+  /** True for a key that is defined here but that nothing in the app
+   * currently checks (2026-08-23).
+   *
+   * Every key in this registry renders a switch on /permissions, so a key
+   * with no enforcement is not neutral — it tells an Admin they have
+   * restricted something they have not. Rather than delete these (they
+   * record real intent for features that do not exist yet), the
+   * permissions screen reads this flag and says so plainly.
+   *
+   * Keep it honest in both directions: setting this on a key that IS
+   * enforced would understate real access, and leaving it off a key that
+   * is not is the bug it exists to prevent. The sweep that finds drift is
+   * per-key, over `requireCapability("K")` / `has("K")` — see the
+   * "inert capability keys" note in project memory. */
+  notYetEnforced?: true;
 }
 
 const ALL_FALSE: Record<AccountType, boolean> = {
@@ -178,6 +193,10 @@ export const CAPABILITIES: CapabilityDef[] = [
     category: "FINANCIAL_AUDITOR",
     label: "Edit financial Settings (CC tip deduction %)",
     description: "Edit the credit-card tip deduction rate. (Tip pool membership is governed separately — see Tip Pool structure.)",
+    // Settings saves as one action gated on EDIT_SETTINGS; separating the
+    // financial fields would mean splitting the Settings form, which is a
+    // feature, not a wiring. Labelled rather than built (Oliver, 2026-08-23).
+    notYetEnforced: true,
     expirable: true,
     defaults: { ...ALL_FALSE, ADMIN: true },
   },
@@ -201,6 +220,9 @@ export const CAPABILITIES: CapabilityDef[] = [
     category: "FINANCIAL_AUDITOR",
     label: "Ledger Card: import",
     description: "Import Ledger Card transactions.",
+    // There is no CSV/bank import feature to gate -- this key was defined
+    // ahead of the feature. Nothing to enforce until one exists.
+    notYetEnforced: true,
     expirable: true,
     defaults: adminPartner(),
   },
@@ -209,6 +231,15 @@ export const CAPABILITIES: CapabilityDef[] = [
     category: "FINANCIAL_AUDITOR",
     label: "Ledger Card: categorize",
     description: "Categorize Ledger Card transactions.",
+    // Blocked on a structural gap, not on this key: card transaction entry
+    // runs on card.ts's file-local requireManagerAction() because Card has
+    // no GENERAL day-to-day-entry capability the way Petty Cash has
+    // PETTY_CASH_EDIT and Supplier Check has SUPPLIER_CHECK_LOG. Gating
+    // entry on a Financial Auditor key would be a real access reduction
+    // for every manager who enters card transactions today. Add the
+    // missing GENERAL key first; then this one has something coherent to
+    // sit beside.
+    notYetEnforced: true,
     expirable: true,
     defaults: adminPartner(),
   },

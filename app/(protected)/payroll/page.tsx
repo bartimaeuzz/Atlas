@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadPayrollRegister } from "@/lib/payroll/loadPayrollRegister";
 import { toIso, weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { MarkPaidButton, RevertToDraftButton } from "./PayrollActions";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -39,7 +40,15 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
   const todayIso = toIso(new Date());
   const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(params.week ?? "") ? weekStartFor(params.week!) : weekStartFor(todayIso);
 
-  const [register, session] = await Promise.all([loadPayrollRegister(weekStart), getCurrentStaffSession()]);
+  const [register, session, viewer] = await Promise.all([
+    loadPayrollRegister(weekStart),
+    getCurrentStaffSession(),
+    getViewerCapabilities(),
+  ]);
+  // Gate the control as well as the route (2026-08-23). The export handler
+  // enforces this independently; rendering a download link that answers
+  // with a denial is the dead-end this project keeps re-finding.
+  const canExportPayroll = viewer?.has("FA_PAYROLL_PRINT_EXPORT") ?? false;
   const isAdmin = session?.systemRole === "ADMIN";
 
   const prevWeek = shiftWeek(weekStart, -1);
@@ -181,12 +190,14 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
 
       {register.rows.length > 0 && (
         <div className="flex flex-wrap items-center gap-3">
-          <a
-            href={`/payroll/export?week=${weekStart}`}
-            className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold text-sm px-4 py-2.5 min-h-11 border border-[var(--border-strong)] text-[var(--ink-700)] hover:bg-[var(--paper)] transition-colors"
-          >
-            Download .xlsx (check export + pay stubs + acknowledgment)
-          </a>
+          {canExportPayroll && (
+            <a
+              href={`/payroll/export?week=${weekStart}`}
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold text-sm px-4 py-2.5 min-h-11 border border-[var(--border-strong)] text-[var(--ink-700)] hover:bg-[var(--paper)] transition-colors"
+            >
+              Download .xlsx (check export + pay stubs + acknowledgment)
+            </a>
+          )}
           {register.status === "draft" && (
             <MarkPaidButton weekStartDate={weekStart} disabled={!register.canMarkPaid} />
           )}

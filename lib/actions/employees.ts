@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { employees, employeePositions, employeeWageRates, positions } from "@/db/schema";
 import { hashPin } from "@/lib/auth/pin";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { buildLoginId, LOGIN_ID_DEPARTMENTS, type LoginIdDepartment } from "@/lib/employees/loginId";
 
 export interface EmployeeActionState {
@@ -30,15 +31,31 @@ async function requireManagerAction() {
   return session;
 }
 
-/** Personal info (DOB, address, phone, SSN/ITIN) is Admin-only for now —
- * a stopgap ahead of the confirmed-but-not-yet-built Permission System's
- * Financial Auditor tier (see project_atlas_permission_system memory).
- * Any attempt to set these fields from a non-Admin session is silently
- * dropped, not just hidden in the UI — the same double-check discipline
+interface PersonalInfoAccess {
+  canWriteContact: boolean;
+  canWriteHrSensitive: boolean;
+}
+
+/** Which personal-info tiers this session may write (2026-08-23).
+ *
+ * Replaces `isAdminSession()`, which was an explicit stopgap ahead of the
+ * Permission System actually existing -- it does now, so the check reads
+ * the two capabilities the registry has described since Phase B rather
+ * than asking whether the caller is an Admin. Oliver's requirement: HR
+ * access has to be grantable to a manager from /permissions with no
+ * deploy, and any residual `systemRole === "ADMIN"` here would have
+ * quietly prevented that. Admins are unaffected -- grantAllows has an
+ * ADMIN bypass, so they hold every capability without being named here.
+ *
+ * Any attempt to set a field from a session without that tier is silently
+ * dropped, not just hidden in the UI -- the same double-check discipline
  * used everywhere else sensitive data is written in this app. */
-async function isAdminSession(): Promise<boolean> {
-  const session = await getCurrentStaffSession();
-  return session?.systemRole === "ADMIN";
+async function personalInfoAccess(): Promise<PersonalInfoAccess> {
+  const viewer = await getViewerCapabilities();
+  return {
+    canWriteContact: viewer?.has("PEOPLE_CONTACT_INFO_VIEW") ?? false,
+    canWriteHrSensitive: viewer?.has("PEOPLE_HR_SENSITIVE") ?? false,
+  };
 }
 
 /** Dead-end prevention (2026-08-17, Oliver: "how admin login in case i'm
@@ -66,7 +83,7 @@ async function hasOtherActiveManagerOrAdmin(excludeEmployeeId: number): Promise<
  *   wageRate_<positionId>_Lunch    BOH-only wage rate, Lunch
  *   wageRate_<positionId>_Dinner   BOH-only wage rate, Dinner
  */
-function readEmployeeForm(formData: FormData, allPositionIds: number[], includeSensitive: boolean) {
+function readEmployeeForm(formData: FormData, allPositionIds: number[], access: PersonalInfoAccess) {
   const nickname = String(formData.get("nickname") ?? "").trim();
   if (!nickname) throw new Error("Nickname/display name is required");
 
@@ -95,23 +112,28 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[], includeS
   const isPartner = formData.get("isPartner") === "on";
 
   // Personal info — only read from the form (and therefore only ever
-  // written) when the acting session is Admin. A non-Admin's form won't
-  // render these fields at all, but this is the actual enforcement point,
-  // not the UI hiding them.
-  function optionalTrimmed(field: string): string | null {
-    if (!includeSensitive) return undefined as unknown as string | null; // sentinel: "don't touch this field"
+  // written) when the acting session holds that TIER's capability. The
+  // form won't render a tier this account can't have, but this is the
+  // actual enforcement point, not the UI hiding them.
+  //
+  // Per-tier since 2026-08-23. One shared flag would have let the widened
+  // contact-info group write an SSN they are not allowed to read, which is
+  // a worse bug than the read-side one this change set out to fix.
+  function optionalTrimmed(field: string, allowed: boolean): string | null {
+    if (!allowed) return undefined as unknown as string | null; // sentinel: "don't touch this field"
     const v = String(formData.get(field) ?? "").trim();
     return v || null;
   }
-  const dateOfBirth = optionalTrimmed("dateOfBirth");
-  const mobilePhone = optionalTrimmed("mobilePhone");
-  const email = optionalTrimmed("email");
-  const addressLine1 = optionalTrimmed("addressLine1");
-  const addressLine2 = optionalTrimmed("addressLine2");
-  const city = optionalTrimmed("city");
-  const state = optionalTrimmed("state");
-  const zipCode = optionalTrimmed("zipCode");
-  const ssnOrItin = optionalTrimmed("ssnOrItin");
+  const { canWriteContact, canWriteHrSensitive } = access;
+  const dateOfBirth = optionalTrimmed("dateOfBirth", canWriteContact);
+  const mobilePhone = optionalTrimmed("mobilePhone", canWriteContact);
+  const email = optionalTrimmed("email", canWriteContact);
+  const addressLine1 = optionalTrimmed("addressLine1", canWriteHrSensitive);
+  const addressLine2 = optionalTrimmed("addressLine2", canWriteHrSensitive);
+  const city = optionalTrimmed("city", canWriteHrSensitive);
+  const state = optionalTrimmed("state", canWriteHrSensitive);
+  const zipCode = optionalTrimmed("zipCode", canWriteHrSensitive);
+  const ssnOrItin = optionalTrimmed("ssnOrItin", canWriteHrSensitive);
 
   const assignedPositionIds: number[] = [];
   const tipPointByPosition = new Map<number, number>();
@@ -174,18 +196,29 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[], includeS
  * readEmployeeForm's optionalTrimmed) out of a Drizzle set()/values()
  * payload — a non-Admin's submission simply never mentions these
  * columns, rather than overwriting them with null. */
-function sensitiveFieldsOrUndefined(parsed: ReturnType<typeof readEmployeeForm>, includeSensitive: boolean) {
-  if (!includeSensitive) return {};
+function sensitiveFieldsOrUndefined(parsed: ReturnType<typeof readEmployeeForm>, access: PersonalInfoAccess) {
+  // Each tier contributes its own columns or none at all -- a tier the
+  // actor lacks is omitted from the write entirely rather than written as
+  // null, so a contact-only editor saving a phone number cannot blank
+  // somebody's SSN as a side effect.
   return {
-    dateOfBirth: parsed.dateOfBirth,
-    mobilePhone: parsed.mobilePhone,
-    email: parsed.email,
-    addressLine1: parsed.addressLine1,
-    addressLine2: parsed.addressLine2,
-    city: parsed.city,
-    state: parsed.state,
-    zipCode: parsed.zipCode,
-    ssnOrItin: parsed.ssnOrItin,
+    ...(access.canWriteContact
+      ? {
+          dateOfBirth: parsed.dateOfBirth,
+          mobilePhone: parsed.mobilePhone,
+          email: parsed.email,
+        }
+      : {}),
+    ...(access.canWriteHrSensitive
+      ? {
+          addressLine1: parsed.addressLine1,
+          addressLine2: parsed.addressLine2,
+          city: parsed.city,
+          state: parsed.state,
+          zipCode: parsed.zipCode,
+          ssnOrItin: parsed.ssnOrItin,
+        }
+      : {}),
   };
 }
 
@@ -218,10 +251,10 @@ export async function createEmployee(_prevState: EmployeeActionState, formData: 
   let employeeId: number;
   try {
     await requireManagerAction();
-    const includeSensitive = await isAdminSession();
+    const access = await personalInfoAccess();
 
     const allPositions = await db.select({ id: positions.id }).from(positions);
-    const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id), includeSensitive);
+    const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id), access);
 
     const [created] = await db
       .insert(employees)
@@ -235,7 +268,7 @@ export async function createEmployee(_prevState: EmployeeActionState, formData: 
         systemRole: parsed.systemRole,
         isFinancialAuditor: parsed.isFinancialAuditor,
         isPartner: parsed.isPartner,
-        ...sensitiveFieldsOrUndefined(parsed, includeSensitive),
+        ...sensitiveFieldsOrUndefined(parsed, access),
       })
       .returning();
     employeeId = created.id;
@@ -255,13 +288,13 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
 
   try {
     await requireManagerAction();
-    const includeSensitive = await isAdminSession();
+    const access = await personalInfoAccess();
 
     const [current] = await db.select().from(employees).where(eq(employees.id, employeeId));
     if (!current) throw new Error("Employee not found");
 
     const allPositions = await db.select({ id: positions.id }).from(positions);
-    const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id), includeSensitive);
+    const parsed = readEmployeeForm(formData, allPositions.map((p) => p.id), access);
 
     // Dead-end prevention -- see hasOtherActiveManagerOrAdmin's doc comment.
     // Only relevant when this save would actually DROP the employee out of
@@ -289,7 +322,7 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
         systemRole: parsed.systemRole,
         isFinancialAuditor: parsed.isFinancialAuditor,
         isPartner: parsed.isPartner,
-        ...sensitiveFieldsOrUndefined(parsed, includeSensitive),
+        ...sensitiveFieldsOrUndefined(parsed, access),
       })
       .where(eq(employees.id, employeeId));
 

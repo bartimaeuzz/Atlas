@@ -69,6 +69,15 @@ export function EmployeeCapabilityCard({ employee }: { employee: CapabilityMatri
                         <input type="checkbox" name={`cap_${def.key}`} defaultChecked={current.granted} />
                         <span title={def.description}>{def.label}</span>
                       </label>
+                      {/* A key nothing checks yet (2026-08-23). The switch
+                          stays live so the grant is recorded for the day the
+                          feature lands, but saying nothing would let an Admin
+                          believe they had restricted something they had not. */}
+                      {def.notYetEnforced && (
+                        <span className="text-xs text-[var(--ink-700)] bg-[var(--paper)] border border-[var(--border-strong)] rounded-[var(--radius-full)] px-2 py-0.5">
+                          Not in effect yet — nothing checks this
+                        </span>
+                      )}
                       {def.expirable && (
                         <label className="flex items-center gap-1 text-xs text-[var(--ink-500)]">
                           expires

@@ -16,18 +16,31 @@ export interface EmployeeWageRateRow {
   rate: number;
 }
 
-/** Personal info (2026-08-17, Oliver: "employee section also need their
- * staff personal information... mobile phone number, DOB, address, SSN
- * or ITIN"). Admin-only, see requireAdminAction-equivalent gating in
- * lib/actions/employees.ts and employees.ssnOrItin's schema comment for
- * the honest plaintext-at-rest note. Only ever populated by
- * loadEmployeeForEdit when the caller has already confirmed the viewing
- * session is Admin — loadEmployeesList (the plain listing table) never
- * fetches or exposes this at all, since nothing on that page shows it. */
-export interface EmployeePersonalInfo {
+/** Personal info, split into two independently-gated tiers (2026-08-23).
+ *
+ * Until then this was ONE `EmployeePersonalInfo` block behind a single
+ * `viewerIsAdmin` boolean — phone number and SSN travelling together. The
+ * capability registry had described two tiers since Phase B
+ * (PEOPLE_CONTACT_INFO_VIEW, PEOPLE_HR_SENSITIVE) but the data had never
+ * been divided, so widening contact info to floor managers would have
+ * handed them everyone's SSN along with it. Splitting the type is what
+ * makes the two capabilities mean different things.
+ *
+ * Each block is null when its own capability is absent — not blank
+ * strings, absent — so a viewer who cannot see a field cannot receive it
+ * either. loadEmployeesList (the plain listing table) never populates
+ * either one, since nothing on that page shows them.
+ *
+ * See employees.ssnOrItin's schema comment for the honest
+ * plaintext-at-rest note: the HR tier is protected by this application
+ * check, NOT by encryption. */
+export interface EmployeeContactInfo {
   dateOfBirth: string | null;
   mobilePhone: string | null;
   email: string | null;
+}
+
+export interface EmployeeHrSensitiveInfo {
   addressLine1: string | null;
   addressLine2: string | null;
   city: string | null;
@@ -67,9 +80,13 @@ export interface EmployeeListRow {
    * manager generates one from the People page or the one-time backfill
    * script has run. */
   loginId: string | null;
-  /** null unless the caller is loadEmployeeForEdit with an Admin viewer
-   * -- see EmployeePersonalInfo's own doc comment. */
-  personalInfo: EmployeePersonalInfo | null;
+  /** Each null unless the caller is loadEmployeeForEdit AND the viewer
+   * holds that tier's capability -- see the two interfaces' doc comment.
+   * They are separate fields rather than one optional block so that
+   * "can see a phone number" and "can see an SSN" cannot be confused for
+   * each other by any consumer. */
+  contactInfo: EmployeeContactInfo | null;
+  hrSensitive: EmployeeHrSensitiveInfo | null;
 }
 
 /** Powers the /employees list + edit form — same shape as
@@ -144,7 +161,10 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
       isFinancialAuditor: e.isFinancialAuditor,
       isPartner: e.isPartner,
       loginId: e.loginId,
-      personalInfo: null, // the plain listing table never shows this -- see EmployeePersonalInfo's doc comment
+      // The plain listing table never shows either tier, so neither is
+      // fetched -- withheld at the source, not hidden after sending.
+      contactInfo: null,
+      hrSensitive: null,
       positions: ensurePrimaryPositionIncluded(
         positionRows
           .filter((r) => r.employeeId === e.id)
@@ -172,7 +192,15 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
     .sort((a, b) => a.nickname.localeCompare(b.nickname));
 }
 
-export async function loadEmployeeForEdit(employeeId: number, viewerIsAdmin: boolean): Promise<EmployeeListRow | null> {
+/** The two flags come from capability checks (PEOPLE_CONTACT_INFO_VIEW /
+ * PEOPLE_HR_SENSITIVE), never from a systemRole test — Oliver, 2026-08-23:
+ * HR-sensitive access must be grantable to a manager from /permissions
+ * without a deploy, which a residual `systemRole === "ADMIN"` here would
+ * quietly prevent. Admins still pass via grantAllows' ADMIN bypass. */
+export async function loadEmployeeForEdit(
+  employeeId: number,
+  access: { canViewContact: boolean; canViewHrSensitive: boolean }
+): Promise<EmployeeListRow | null> {
   const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId));
   if (!employee) return null;
 
@@ -196,11 +224,15 @@ export async function loadEmployeeForEdit(employeeId: number, viewerIsAdmin: boo
     isFinancialAuditor: employee.isFinancialAuditor,
     isPartner: employee.isPartner,
     loginId: employee.loginId,
-    personalInfo: viewerIsAdmin
+    contactInfo: access.canViewContact
       ? {
           dateOfBirth: employee.dateOfBirth,
           mobilePhone: employee.mobilePhone,
           email: employee.email,
+        }
+      : null,
+    hrSensitive: access.canViewHrSensitive
+      ? {
           addressLine1: employee.addressLine1,
           addressLine2: employee.addressLine2,
           city: employee.city,
