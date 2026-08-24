@@ -158,6 +158,19 @@ export const CAPABILITIES: CapabilityDef[] = [
     defaults: adminPartner(),
   },
   {
+    key: "LEDGER_CARD_MANAGE",
+    category: "GENERAL",
+    label: "Ledger Card: manage cards",
+    description: "Add, rename, and retire the cards whose statements get reconciled.",
+    // Added 2026-08-24 with its enforcement in the same commit (rename is
+    // new; create/toggle move off card.ts's coarse requireManagerAction()
+    // onto this key at the same time) -- never a switch with no wire
+    // behind it. Admin+Partner default: card admin is setup work, not
+    // day-to-day entry like PETTY_CASH_EDIT below.
+    expirable: true,
+    defaults: adminPartner(),
+  },
+  {
     key: "PETTY_CASH_EDIT",
     category: "GENERAL",
     label: "Petty Cash: enter/edit",

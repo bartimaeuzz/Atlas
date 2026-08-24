@@ -3,13 +3,18 @@ import { loadLedgerCards } from "@/lib/ledger/loadCard";
 import { CardForm } from "./CardForm";
 import { ToggleCardActiveButton } from "./ToggleCardActiveButton";
 import { EmptyState } from "@/components/ui/Card";
+import { RenameCardControl } from "./RenameCardControl";
+import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Card admin (2026-08-16, Card v1) -- same retire-not-delete pattern as
  * Vendors/Categories. Youk Thai may have more than one card, each with
  * its own separate statement to reconcile. */
 export default async function LedgerCardsPage() {
-  const cards = await loadLedgerCards();
+  const [cards, viewer] = await Promise.all([loadLedgerCards(), getViewerCapabilities()]);
+  // Card admin sits behind LEDGER_CARD_MANAGE since 2026-08-24 -- this
+  // only decides what renders; every action re-checks independently.
+  const canManage = viewer?.has("LEDGER_CARD_MANAGE") ?? false;
 
   return (
     <main className="max-w-2xl mx-auto p-6 sm:p-8">
@@ -38,13 +43,18 @@ export default async function LedgerCardsPage() {
                 {c.name}
                 {!c.active && <span className="ml-2 text-xs text-[var(--ink-500)]">(retired)</span>}
               </span>
-              <ToggleCardActiveButton cardId={c.id} nextActive={!c.active} />
+              {canManage && (
+                <span className="flex items-center gap-3">
+                  <RenameCardControl cardId={c.id} currentName={c.name} />
+                  <ToggleCardActiveButton cardId={c.id} nextActive={!c.active} />
+                </span>
+              )}
             </li>
           ))}
         </ul>
       )}
 
-      <CardForm />
+      {canManage && <CardForm />}
     </main>
   );
 }

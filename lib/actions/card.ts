@@ -64,10 +64,15 @@ async function requireManagerAction() {
 /* Cards (admin)                                                           */
 /* ---------------------------------------------------------------------- */
 
+/* Card admin runs on LEDGER_CARD_MANAGE since 2026-08-24 (Oliver asked
+ * for name editing "with permission"; the new key covers add/rename/
+ * retire as one unit, and create/toggle moved off the coarse
+ * requireManagerAction() in the same commit so the /permissions page
+ * and these buttons cannot disagree). */
 export async function createLedgerCard(_prevState: CardActionState, formData: FormData): Promise<CardActionState> {
   const name = String(formData.get("name") ?? "").trim();
   try {
-    await requireManagerAction();
+    await requireCapability("LEDGER_CARD_MANAGE");
     if (!name) throw new Error("Card name is required");
     await db.insert(ledgerCards).values({ name, active: true });
   } catch (e) {
@@ -78,9 +83,24 @@ export async function createLedgerCard(_prevState: CardActionState, formData: Fo
 }
 
 export async function toggleLedgerCardActive(cardId: number, nextActive: boolean) {
-  await requireManagerAction();
+  await requireCapability("LEDGER_CARD_MANAGE");
   await db.update(ledgerCards).set({ active: nextActive }).where(eq(ledgerCards.id, cardId));
   revalidatePath("/ledger/cards");
+}
+
+export async function renameLedgerCard(_prevState: CardActionState, formData: FormData): Promise<CardActionState> {
+  const cardId = Number(formData.get("cardId"));
+  const name = String(formData.get("name") ?? "").trim();
+  try {
+    await requireCapability("LEDGER_CARD_MANAGE");
+    if (!cardId) throw new Error("Missing card");
+    if (!name) throw new Error("Card name is required");
+    await db.update(ledgerCards).set({ name }).where(eq(ledgerCards.id, cardId));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+  revalidatePath("/ledger/cards");
+  return { error: null };
 }
 
 /* ---------------------------------------------------------------------- */
