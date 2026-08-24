@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadSummaryData } from "@/lib/shift/loadSummaryData";
+import { Fragment } from "react";
 import { Card, Section } from "@/components/ui/Card";
+import { TableCard } from "@/components/ui/Table";
+import { StatusBadge } from "@/components/ui/Badge";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
 import { formatDateTime } from "@/lib/formatDateTime";
 
 export default async function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,17 +31,31 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
   }
 
   const totalPayout = data.payouts.reduce((a, p) => a + p.totalCorePayout, 0);
+  const payoutGroups = [
+    { header: "Floor Manager", items: data.payouts.filter((p) => p.positionName === "Floor Manager") },
+    { header: "FOH — Front of house", items: data.payouts.filter((p) => p.positionName !== "Floor Manager" && p.positionCategory === "FOH") },
+    { header: "BOH — Back of house", items: data.payouts.filter((p) => p.positionName !== "Floor Manager" && p.positionCategory !== "FOH") },
+  ].filter((g) => g.items.length > 0);
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-8 py-8">
+    <main
+      // 2026-08-24 standards pass, mirroring the Preview page: 6xl on
+      // desktop so the 13-column table shows whole, long/short date pair,
+      // Finalized badge, TableCard border, FM/FOH/BOH grouping.
+      className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-8 py-8"
+    >
       <p className="text-sm mb-2">
-        <Link href="/shifts" className="text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href="/shifts" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           ← All shifts
         </Link>
       </p>
-      <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1.5">
-        Summary Report — {data.shift.date} ({data.shift.period})
-      </h1>
+      <div className="flex items-center gap-2.5 mb-1.5">
+        <h1 className="text-[24px] font-bold text-[var(--ink-900)]">
+          <span className="hidden sm:inline">Summary Report — {formatDayLabelLong(data.shift.date)} ({data.shift.period})</span>
+          <span className="sm:hidden">Summary Report — {formatDayLabelShort(data.shift.date)} ({data.shift.period})</span>
+        </h1>
+        <StatusBadge status="finalized" />
+      </div>
       <p className="text-sm text-[var(--ink-500)] mb-8">
         Finalized {data.shift.finalizedAt ? formatDateTime(data.shift.finalizedAt) : ""} — figures below are a
         locked snapshot, not recalculated live.
@@ -49,8 +68,8 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
       </section>
 
       <Section title="Tip pools">
-        <Card>
-          <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5 max-w-md">
+        <Card className="max-w-md">
+          <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
             <Row label="Deduction rate" value={`${(data.tipPoolCalculation.deductionRate * 100).toFixed(1)}%`} />
             <Row label="Net CC tip (after deduction)" value={`$${data.tipPoolCalculation.netCcTip.toFixed(2)}`} />
             {(data.sales?.cashTip ?? 0) > 0 && (
@@ -77,8 +96,14 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
       </Section>
 
       <Section title="Payout by employee">
+        {/* Grouped like the roster and preview pages: Floor Manager first,
+            then FOH, then BOH, same headers. */}
         <div className="lg:hidden space-y-2">
-          {data.payouts.map((p) => (
+          {payoutGroups.map((g) => (
+            <div key={g.header}>
+              <h3 className="text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase mb-1.5 mt-3 first:mt-0">{g.header}</h3>
+              <div className="space-y-2">
+          {g.items.map((p) => (
             <Card key={p.employeeId} className="p-4">
               <div className="flex items-center justify-between mb-2">
                 <div>
@@ -103,6 +128,9 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               </dl>
             </Card>
           ))}
+              </div>
+            </div>
+          ))}
           <Card className="p-4 bg-[var(--paper)]">
             <div className="flex items-center justify-between font-semibold text-[var(--ink-900)]">
               <span>Total</span>
@@ -111,53 +139,62 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           </Card>
         </div>
 
-        <table className="hidden lg:table w-full text-sm border-collapse">
+        <TableCard>
+        <table className="w-full text-sm border-collapse">
           <thead>
             <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
-              <th className="py-2 font-medium">Employee</th>
-              <th className="py-2 font-medium">Position</th>
-              <th className="py-2 text-right font-medium">Point value</th>
-              <th className="py-2 text-right font-medium" title="Pool 1 — dine-in">Pool 1</th>
-              <th className="py-2 text-right font-medium" title="Pool 2 — takeout/online">Pool 2</th>
-              <th className="py-2 text-right font-medium" title="Pool 3 — delivery">Pool 3</th>
-              <th className="py-2 text-right font-medium">Drink bonus</th>
-              <th className="py-2 text-right font-medium">Total tip</th>
-              <th className="py-2 text-right font-medium">Flat wage</th>
-              <th className="py-2 text-right font-medium">Extra pay</th>
-              <th className="py-2 text-right font-medium">Incentive</th>
-              <th className="py-2 text-right font-medium">Deduction</th>
-              <th className="py-2 text-right font-medium">Total</th>
+              <th className="py-2 px-3 font-medium">Employee</th>
+              <th className="py-2 px-3 font-medium">Position</th>
+              <th className="py-2 px-3 text-right font-medium">Point value</th>
+              <th className="py-2 px-3 text-right font-medium" title="Pool 1 — dine-in">Pool 1</th>
+              <th className="py-2 px-3 text-right font-medium" title="Pool 2 — takeout/online">Pool 2</th>
+              <th className="py-2 px-3 text-right font-medium" title="Pool 3 — delivery">Pool 3</th>
+              <th className="py-2 px-3 text-right font-medium">Drink bonus</th>
+              <th className="py-2 px-3 text-right font-medium">Total tip</th>
+              <th className="py-2 px-3 text-right font-medium">Flat wage</th>
+              <th className="py-2 px-3 text-right font-medium">Extra pay</th>
+              <th className="py-2 px-3 text-right font-medium">Incentive</th>
+              <th className="py-2 px-3 text-right font-medium">Deduction</th>
+              <th className="py-2 px-3 text-right font-medium">Total</th>
             </tr>
           </thead>
           <tbody>
-            {data.payouts.map((p) => (
+            {payoutGroups.map((g) => (
+              <Fragment key={g.header}>
+              <tr className="border-b border-[var(--border)] bg-[var(--paper)]">
+                <td colSpan={13} className="py-1.5 px-3 text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase">{g.header}</td>
+              </tr>
+            {g.items.map((p) => (
               <tr key={p.employeeId} className="border-b border-[var(--border)]">
-                <td className="py-2 text-[var(--ink-900)]">{p.employeeName}</td>
-                <td className="py-2 text-[var(--ink-500)]">{p.positionName}</td>
-                <td className="py-2 text-right tabular-nums">{p.pointValueUsed ?? "—"}</td>
-                <td className="py-2 text-right tabular-nums">{p.pool1Share > 0 ? `$${p.pool1Share.toFixed(2)}` : "—"}</td>
-                <td className="py-2 text-right tabular-nums">{p.pool2Share > 0 ? `$${p.pool2Share.toFixed(2)}` : "—"}</td>
-                <td className="py-2 text-right tabular-nums">{p.pool3Share > 0 ? `$${p.pool3Share.toFixed(2)}` : "—"}</td>
-                <td className="py-2 text-right tabular-nums">{p.hostUpsellTipShare > 0 ? `$${p.hostUpsellTipShare.toFixed(2)}` : "—"}</td>
-                <td className="py-2 text-right tabular-nums font-medium">${p.totalTip.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">${p.flatWageAmount.toFixed(2)}</td>
-                <td className="py-2 text-right tabular-nums">{p.extraPayAmount > 0 ? `$${p.extraPayAmount.toFixed(2)}` : "—"}</td>
-                <td className="py-2 text-right tabular-nums">{p.incentiveAmount > 0 ? `$${p.incentiveAmount.toFixed(2)}` : "—"}</td>
-                <td className="py-2 text-right tabular-nums text-[var(--danger)]">
+                <td className="py-2 px-3 text-[var(--ink-900)]">{p.employeeName}</td>
+                <td className="py-2 px-3 text-[var(--ink-500)]">{p.positionName}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{p.pointValueUsed ?? "—"}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{p.pool1Share > 0 ? `$${p.pool1Share.toFixed(2)}` : "—"}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{p.pool2Share > 0 ? `$${p.pool2Share.toFixed(2)}` : "—"}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{p.pool3Share > 0 ? `$${p.pool3Share.toFixed(2)}` : "—"}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{p.hostUpsellTipShare > 0 ? `$${p.hostUpsellTipShare.toFixed(2)}` : "—"}</td>
+                <td className="py-2 px-3 text-right tabular-nums font-medium">${p.totalTip.toFixed(2)}</td>
+                <td className="py-2 px-3 text-right tabular-nums">${p.flatWageAmount.toFixed(2)}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{p.extraPayAmount > 0 ? `$${p.extraPayAmount.toFixed(2)}` : "—"}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{p.incentiveAmount > 0 ? `$${p.incentiveAmount.toFixed(2)}` : "—"}</td>
+                <td className="py-2 px-3 text-right tabular-nums text-[var(--danger)]">
                   {p.deductionAmount > 0 ? `-$${p.deductionAmount.toFixed(2)}` : "—"}
                 </td>
-                <td className="py-2 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
+                <td className="py-2 px-3 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
               </tr>
+            ))}
+              </Fragment>
             ))}
           </tbody>
           <tfoot>
             <tr className="border-t-2 border-[var(--border-strong)] font-semibold">
-              <td className="py-2.5">Total</td>
-              <td colSpan={10}></td>
-              <td className="py-2.5 text-right tabular-nums">${totalPayout.toFixed(2)}</td>
+              <td className="py-2.5 px-3">Total</td>
+              <td colSpan={11}></td>
+              <td className="py-2.5 px-3 text-right tabular-nums">${totalPayout.toFixed(2)}</td>
             </tr>
           </tfoot>
         </table>
+        </TableCard>
         <p className="text-xs text-[var(--ink-500)] mt-3">
           Incentive column reflects any fired Incentive Rules (2026-08-10) — currently scoped to flat-rate, per-shift,
           category-targeted rules (e.g. the $10k-total-sales BOH bonus). Manager/Floor Manager weekly commission still needs
