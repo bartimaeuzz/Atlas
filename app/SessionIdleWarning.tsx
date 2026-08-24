@@ -20,7 +20,6 @@
  * reads as "the app is broken," not "this is a safety feature." */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { checkSessionIdleStatus, extendSession, type SessionIdleStatus } from "@/lib/actions/session";
 import { IDLE_WARNING_MS } from "@/lib/auth/idleTimeout";
 import { Button } from "@/components/ui/Button";
@@ -36,7 +35,6 @@ function formatCountdown(ms: number): string {
 }
 
 export function SessionIdleWarning() {
-  const router = useRouter();
   // Absolute deadline (epoch ms), not a countdown number, in a ref — lets
   // a single 1s ticking interval recompute "remaining" from a fixed
   // point without restarting itself every render.
@@ -88,8 +86,17 @@ export function SessionIdleWarning() {
     // The real logout already happened server-side (or is about to, on
     // this session's next request) — this just gets the person to a
     // clear explanation instead of a dead page.
-    router.push("/login?reason=idle");
-  }, [signedOut, router]);
+    //
+    // HARD navigation on purpose (2026-08-24, Oliver caught the nav rail
+    // still standing next to the login form): router.push() is a client
+    // transition, and the App Router does not re-render the root layout
+    // on those — so the rail that layout.tsx rendered while signed in
+    // stayed mounted on /login. A full page load re-runs the layout with
+    // no session, which is exactly what the manual logout action gets
+    // from its server-side redirect().
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the rule's suggested router.push() IS the bug being fixed; see the comment above
+    window.location.assign("/login?reason=idle");
+  }, [signedOut]);
 
   async function handleStaySignedIn() {
     setExtending(true);
