@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { PettyCashReportData } from "@/lib/reports/loadPettyCashReport";
 import { Badge } from "@/components/ui/Badge";
 import { TableCard } from "@/components/ui/Table";
+import { MonthRow } from "./MonthRow";
 import { formatMoney } from "./formatMoney";
 
 const MONTH_NAMES = [
@@ -129,10 +130,18 @@ export function YearMonthList({ data, year, todayIso }: { data: PettyCashReportD
                   </td>
                 </>
               );
-              return (
-                <tr key={m.month} className={"border-b border-[var(--border)] last:border-b-0" + (m.isCurrent ? " bg-[var(--warning-tint)]" : "")}>
+              // Whole row clickable (Oliver, 2026-08-24), reusing the day
+              // list's MonthRow: mouse gets the row, keyboard keeps exactly
+              // one tab stop on the real link in the Month cell. Future
+              // months stay plain rows -- not clickable by rule.
+              return m.isFuture ? (
+                <tr key={m.month} className="border-b border-[var(--border)] last:border-b-0">
                   {cells}
                 </tr>
+              ) : (
+                <MonthRow key={m.month} href={`/ledger?month=${m.month}`} isToday={m.isCurrent}>
+                  {cells}
+                </MonthRow>
               );
             })}
           </tbody>
