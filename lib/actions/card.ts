@@ -136,28 +136,40 @@ export async function createStatementPeriod(_prevState: CardActionState, formDat
 
 /** Edits a period's own header fields (dates/target total) -- blocked
  * once reconciled for everyone except ADMIN, same exception pattern as
- * Petty Cash's finalized-day admin override. Doesn't touch `status`. */
+ * Petty Cash's finalized-day admin override. Doesn't touch `status`.
+ *
+ * RETURNS its error instead of throwing (2026-08-24, Oliver hit this
+ * live): React redacts any Error thrown out of a server action in
+ * production -- the client's catch showed "Minified React error #441"
+ * where "Enter a valid statement total" should have been. Expected
+ * failures must travel as return values; dev mode shows thrown
+ * messages, which is why this class passes every local check. */
 export async function editStatementPeriod(
   periodId: number,
   periodStart: string,
   periodEnd: string,
   statementTotal: number
-) {
-  const session = await requireManagerAction();
+): Promise<{ error: string | null }> {
+  try {
+    const session = await requireManagerAction();
 
-  if (!periodStart || !periodEnd) throw new Error("Enter both statement dates");
-  if (periodEnd < periodStart) throw new Error("Statement end date can't be before the start date");
-  if (!Number.isFinite(statementTotal) || statementTotal < 0) throw new Error("Enter a valid statement total");
+    if (!periodStart || !periodEnd) throw new Error("Enter both statement dates");
+    if (periodEnd < periodStart) throw new Error("Statement end date can't be before the start date");
+    if (!Number.isFinite(statementTotal) || statementTotal < 0) throw new Error("Enter a valid statement total (0 or more)");
 
-  const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
-  if (!period) throw new Error("Statement period not found");
-  if (period.status === "reconciled" && session.systemRole !== "ADMIN") {
-    throw new Error("This period is already reconciled -- can't edit it.");
+    const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
+    if (!period) throw new Error("Statement period not found");
+    if (period.status === "reconciled" && session.systemRole !== "ADMIN") {
+      throw new Error("This period is already reconciled -- can't edit it.");
+    }
+
+    await db.update(cardStatementPeriods).set({ periodStart, periodEnd, statementTotal }).where(eq(cardStatementPeriods.id, periodId));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
-
-  await db.update(cardStatementPeriods).set({ periodStart, periodEnd, statementTotal }).where(eq(cardStatementPeriods.id, periodId));
   revalidatePath("/ledger/card");
   revalidatePath("/ledger/card/period");
+  return { error: null };
 }
 
 /** Locks the period. Blocked unless the logged transactions already sum
@@ -165,31 +177,39 @@ export async function editStatementPeriod(
  * loadCardStatementPeriods' `matches` for the same epsilon), mirroring
  * Petty Cash's "counted must match expected" discipline -- confirmed
  * with Oliver this should be a forced match, not just a log. */
-export async function reconcileStatementPeriod(periodId: number) {
-  const session = await requireCapability("FA_LEDGER_CARD_RECONCILE");
+export async function reconcileStatementPeriod(periodId: number): Promise<{ error: string | null }> {
+  // Return-value errors, not throws -- see editStatementPeriod's comment.
+  // The "don't match yet" sentence is the whole reconcile UX; production
+  // was redacting it to "Minified React error #441".
+  try {
+    const session = await requireCapability("FA_LEDGER_CARD_RECONCILE");
 
-  const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
-  if (!period) throw new Error("Statement period not found");
-  if (period.status === "reconciled") return;
+    const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
+    if (!period) throw new Error("Statement period not found");
+    if (period.status === "reconciled") return { error: null };
 
-  const txRows = await db
-    .select({ amount: cardTransactions.amount })
-    .from(cardTransactions)
-    .where(eq(cardTransactions.statementPeriodId, periodId));
-  const loggedTotal = txRows.reduce((sum, t) => sum + t.amount, 0);
+    const txRows = await db
+      .select({ amount: cardTransactions.amount })
+      .from(cardTransactions)
+      .where(eq(cardTransactions.statementPeriodId, periodId));
+    const loggedTotal = txRows.reduce((sum, t) => sum + t.amount, 0);
 
-  if (Math.abs(loggedTotal - period.statementTotal) >= 0.01) {
-    throw new Error(
-      `Logged transactions ($${loggedTotal.toFixed(2)}) don't match the statement total ($${period.statementTotal.toFixed(2)}) yet.`
-    );
+    if (Math.abs(loggedTotal - period.statementTotal) >= 0.01) {
+      throw new Error(
+        `Logged transactions ($${loggedTotal.toFixed(2)}) don't match the statement total ($${period.statementTotal.toFixed(2)}) yet.`
+      );
+    }
+
+    await db
+      .update(cardStatementPeriods)
+      .set({ status: "reconciled", reconciledAt: new Date().toISOString(), reconciledByEmployeeId: session.id })
+      .where(eq(cardStatementPeriods.id, periodId));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
-
-  await db
-    .update(cardStatementPeriods)
-    .set({ status: "reconciled", reconciledAt: new Date().toISOString(), reconciledByEmployeeId: session.id })
-    .where(eq(cardStatementPeriods.id, periodId));
   revalidatePath("/ledger/card");
   revalidatePath("/ledger/card/period");
+  return { error: null };
 }
 
 /* ---------------------------------------------------------------------- */
@@ -244,13 +264,19 @@ export async function addCardTransaction(
   return { error: null };
 }
 
-export async function deleteCardTransaction(transactionId: number, periodId: number) {
-  const session = await requireManagerAction();
-  const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
-  if (period?.status === "reconciled" && session.systemRole !== "ADMIN") {
-    throw new Error("This period is already reconciled -- can't remove transactions from it.");
+export async function deleteCardTransaction(transactionId: number, periodId: number): Promise<{ error: string | null }> {
+  // Return-value errors, not throws -- see editStatementPeriod's comment.
+  try {
+    const session = await requireManagerAction();
+    const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
+    if (period?.status === "reconciled" && session.systemRole !== "ADMIN") {
+      throw new Error("This period is already reconciled -- can't remove transactions from it.");
+    }
+    await db.delete(cardTransactions).where(eq(cardTransactions.id, transactionId));
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
-  await db.delete(cardTransactions).where(eq(cardTransactions.id, transactionId));
   revalidatePath("/ledger/card/period");
   revalidatePath("/ledger/card");
+  return { error: null };
 }

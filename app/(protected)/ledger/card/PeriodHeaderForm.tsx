@@ -80,12 +80,11 @@ export function PeriodHeaderForm({
           onClick={() => {
             setError(null);
             startTransition(async () => {
-              try {
-                await editStatementPeriod(periodId, start, end, Number(total));
-                setEditing(false);
-              } catch (e) {
-                setError(e instanceof Error ? e.message : "Couldn't save.");
-              }
+              // The action returns its error (thrown Errors get redacted
+              // to "Minified React error #441" in production builds).
+              const result = await editStatementPeriod(periodId, start, end, Number(total));
+              if (result.error) setError(result.error);
+              else setEditing(false);
             });
           }}
         >

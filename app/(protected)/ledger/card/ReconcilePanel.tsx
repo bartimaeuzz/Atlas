@@ -69,11 +69,10 @@ export function ReconcilePanel({
             onClick={() => {
               setError(null);
               startTransition(async () => {
-                try {
-                  await reconcileStatementPeriod(periodId);
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : "Couldn't reconcile.");
-                }
+                // Return-value error -- thrown Errors get redacted to
+                // "Minified React error #441" in production builds.
+                const result = await reconcileStatementPeriod(periodId);
+                if (result.error) setError(result.error);
               });
             }}
             className="w-full"
