@@ -8,6 +8,12 @@ import { toIso } from "@/lib/schedule/weekMath";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+/** Column template for the phone card table. Module scope because the
+ * header row lives in the sticky block and the body rows live in the card
+ * below it -- two elements that must agree on column widths, so they must
+ * not each carry their own copy of this string. */
+const PHONE_COLS = "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-2";
+
 function dayOfWeekFor(dateIso: string): number {
   // Pinned to UTC noon, same convention as lib/schedule/weekMath.ts.
   return new Date(`${dateIso}T12:00:00Z`).getUTCDay();
@@ -261,10 +267,24 @@ export function WeeklyPlanGrid({
             );
           })}
         </div>
-        <div className="sticky top-0 z-[2] bg-[var(--card)] border-b border-[var(--border)] py-2">
-          <span className="font-semibold text-[var(--ink-900)]">{DAY_LABELS[dayOfWeekFor(selectedDate)]}</span>
-          <span className="text-[var(--ink-500)] text-sm ml-2">{selectedDate}</span>
-          {selectedDate === todayIso && <span className="text-xs text-[var(--primary)] ml-2">today</span>}
+        {/* Day name and column names stick together as ONE block (2026-08-24).
+            They were two: the day bar was sticky and the table's own header
+            row was not, so the column names slid underneath it and the first
+            thing to disappear while scrolling was the labels telling you
+            which column was Lunch. Sticking them jointly also means the
+            column names survive a scroll through thirteen positions, which
+            is the case that actually needs them. */}
+        <div className="sticky top-0 z-[2] bg-[var(--card)] border-b border-[var(--border)] pt-2 pb-1.5">
+          <div className="pb-1.5">
+            <span className="font-semibold text-[var(--ink-900)]">{DAY_LABELS[dayOfWeekFor(selectedDate)]}</span>
+            <span className="text-[var(--ink-500)] text-sm ml-2">{selectedDate}</span>
+            {selectedDate === todayIso && <span className="text-xs text-[var(--primary)] ml-2">today</span>}
+          </div>
+          <div className={PHONE_COLS + " text-[11px] font-medium text-[var(--ink-500)]"}>
+            <span>Position</span>
+            <span>Lunch</span>
+            <span>Dinner</span>
+          </div>
         </div>
       </div>
 
@@ -316,18 +336,11 @@ export function WeeklyPlanGrid({
             );
           }
 
-          const COLS = "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2";
-
           return (
             <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
-              <div className={COLS + " px-2 py-1.5 bg-[var(--paper)] border-b border-[var(--border)] text-[11px] font-medium text-[var(--ink-500)]"}>
-                <span>Position</span>
-                <span>Lunch</span>
-                <span>Dinner</span>
-              </div>
               <div className="divide-y divide-[var(--border)]">
                 {rows.map(({ position, lunch, dinner }) => (
-                  <div key={position.id} className={COLS + " px-2 py-2 items-start"}>
+                  <div key={position.id} className={PHONE_COLS + " py-2 items-start"}>
                     <span className="text-xs text-[var(--ink-700)] leading-snug">{position.name}</span>
                     {(["Lunch", "Dinner"] as const).map((period) => {
                       const { assignments, target } = period === "Lunch" ? lunch : dinner;
