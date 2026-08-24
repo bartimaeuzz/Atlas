@@ -8,6 +8,7 @@ import { toIso } from "@/lib/schedule/weekMath";
 import { Badge } from "@/components/ui/Badge";
 import { TableCard } from "@/components/ui/Table";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { MonthRow } from "@/app/(protected)/ledger/MonthRow";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -126,8 +127,9 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
               </tr>
             </thead>
             <tbody>
-              {months.map((m) => (
-                <tr key={m.month} className={"border-b border-[var(--border)] last:border-b-0" + (m.isCurrent ? " bg-[var(--warning-tint)]" : "")}>
+              {months.map((m) => {
+                const cells = (
+                  <>
                   <td className="py-2 px-3 whitespace-nowrap">
                     {m.clickable ? (
                       <Link href={`/shifts?month=${m.month}`} className="hover:underline font-medium text-[var(--ink-900)]">
@@ -149,8 +151,21 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                       <Badge tone="warning">{m.count - m.finalized} draft{m.count - m.finalized === 1 ? "" : "s"}</Badge>
                     )}
                   </td>
-                </tr>
-              ))}
+                  </>
+                );
+                // Whole row clickable, same MonthRow the Ledger pickers use
+                // (2026-08-24): mouse gets the row, keyboard keeps one tab
+                // stop on the real link in the Month cell.
+                return m.clickable ? (
+                  <MonthRow key={m.month} href={`/shifts?month=${m.month}`} isToday={m.isCurrent}>
+                    {cells}
+                  </MonthRow>
+                ) : (
+                  <tr key={m.month} className="border-b border-[var(--border)] last:border-b-0">
+                    {cells}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </TableCard>
