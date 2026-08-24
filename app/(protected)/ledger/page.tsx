@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
 import { LedgerTabs } from "./LedgerTabs";
 import { MonthList } from "./MonthList";
+import { YearMonthList } from "./YearMonthList";
 import { PageHeader } from "@/components/ui/Card";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
@@ -38,7 +39,7 @@ function monthLabel(monthStr: string): string {
   return d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
-export default async function LedgerPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
+export default async function LedgerPage({ searchParams }: { searchParams: Promise<{ month?: string; year?: string }> }) {
   // Permission System Phase C view guard (2026-08-21). VIEW_LEDGER_OVERVIEW
   // gates the Ledger *pages*; what you can actually enter or change once
   // inside stays governed by PETTY_CASH_EDIT / SUPPLIER_CHECK_LOG on the
@@ -55,7 +56,36 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
 
   const params = await searchParams;
   const todayIso = toIso(new Date());
-  const month = params.month && /^\d{4}-\d{2}$/.test(params.month) ? params.month : todayIso.slice(0, 7);
+
+  // Two levels since 2026-08-24 (Oliver: "ledger show month list in table
+  // first"): no ?month= -> a month picker for the year; ?month=YYYY-MM ->
+  // that month's day list, exactly the page this used to be.
+  const month = params.month && /^\d{4}-\d{2}$/.test(params.month) ? params.month : null;
+
+  if (!month) {
+    const year = params.year && /^\d{4}$/.test(params.year) ? Number(params.year) : Number(todayIso.slice(0, 4));
+    const yearData = await loadPettyCashReport(`${year}-01-01`, `${year}-12-31`);
+    return (
+      <main className="max-w-lg lg:max-w-3xl mx-auto p-4 sm:p-8">
+        <PageHeader title="Ledger" description="Pick a month, then a day, to log petty cash or review its reconciliation." />
+
+        <LedgerTabs active="petty-cash" showOverview showCard={showCard} />
+
+        <div className="flex items-center justify-between mb-3">
+          <Link href={`/ledger?year=${year - 1}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+            &larr; {year - 1}
+          </Link>
+          <span className="font-medium text-sm text-[var(--ink-900)]">{year}</span>
+          <Link href={`/ledger?year=${year + 1}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+            {year + 1} &rarr;
+          </Link>
+        </div>
+
+        <YearMonthList data={yearData} year={year} todayIso={todayIso} />
+      </main>
+    );
+  }
+
   const { start, end } = monthBounds(month);
   const data = await loadPettyCashReport(start, end);
 
@@ -71,6 +101,12 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
       <PageHeader title="Ledger" description="Pick a day below to log petty cash or review its reconciliation." />
 
       <LedgerTabs active="petty-cash" showOverview showCard={showCard} />
+
+      <div className="mb-2">
+        <Link href={`/ledger?year=${month.slice(0, 4)}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+          &larr; All months
+        </Link>
+      </div>
 
       <div className="flex items-center justify-between mb-3">
         <Link href={`/ledger?month=${shiftMonth(month, -1)}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>

@@ -173,11 +173,12 @@ export function FinalizeStep({ data, seen, locked }: { data: PettyCashDayData; s
               onClick={() =>
                 run(async () => {
                   const result = await finalizePettyCashDay(data.date, counted!, note || null);
-                  // Back to the month list once the day locks (Oliver,
-                  // 2026-08-24) -- the list is where the freshly-green
-                  // Finalized badge answers "did that work", and the next
-                  // task starts there, not on the now-locked day.
-                  if (!result.error) router.push("/ledger");
+                  // Back to the day list of THIS month once the day locks
+                  // (Oliver, 2026-08-24) -- that list is where the freshly-
+                  // green Finalized badge answers "did that work". Not bare
+                  // /ledger: that is the year's month picker since the same
+                  // day's restructure, one level too far out.
+                  if (!result.error) router.push(`/ledger?month=${data.date.slice(0, 7)}`);
                   return result;
                 })
               }
