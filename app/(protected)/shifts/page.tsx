@@ -12,6 +12,20 @@ export default async function ShiftsListPage() {
   // rather than left to fail.
   const [shifts, canSeeSettings] = await Promise.all([loadShiftsList(), hasCapability("VIEW_SETTINGS")]);
 
+  // Phone card table groups the flat list by date, keeping the loader's
+  // date-desc order. A date never has two shifts of the same period --
+  // shifts are unique per date+period by construction (see db/schema.ts's
+  // note above the shifts table) -- so a plain per-period slot is safe.
+  const shiftsByDate: { date: string; byPeriod: Partial<Record<"Lunch" | "Dinner", (typeof shifts)[number]>> }[] = [];
+  for (const s of shifts) {
+    let row = shiftsByDate.find((r) => r.date === s.date);
+    if (!row) {
+      row = { date: s.date, byPeriod: {} };
+      shiftsByDate.push(row);
+    }
+    row.byPeriod[s.period as "Lunch" | "Dinner"] = s;
+  }
+
   return (
     <main className="max-w-2xl mx-auto px-4 sm:px-8 py-8">
       <PageHeader
@@ -37,28 +51,48 @@ export default async function ShiftsListPage() {
         <EmptyState message="No shifts yet." action={<LinkButton href="/shifts/new" size="sm">+ New shift</LinkButton>} />
       ) : (
         <>
-          {/* Phone: stacked cards — the standard for all dense data on small
-           * screens (2026-08-16 design-system decision), not a scrolling
-           * table. */}
-          <div className="lg:hidden space-y-2">
-            {shifts.map((s) => (
-              <Link
-                key={s.id}
-                href={s.status === "finalized" ? `/shifts/${s.id}/summary` : `/shifts/${s.id}/roster`}
-                className="block bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4"
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="font-semibold text-[var(--ink-900)]">{s.date}</span>
-                  <StatusBadge status={s.status} />
+          {/* Phone: Date | Lunch | Dinner card table (2026-08-24, Oliver) --
+           * same shape the week view got. One row per DATE, not per shift:
+           * the old stacked cards gave a two-service day two full cards, so
+           * "did we close both services on the 15th" meant finding both and
+           * matching the date by eye. Here both periods sit on one line, and
+           * each period's shift is a small tappable card that goes where the
+           * old card went (summary when finalized, roster otherwise). */}
+          <div className="lg:hidden rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
+            <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
+              <span>Date</span>
+              <span>Lunch</span>
+              <span>Dinner</span>
+            </div>
+            <div className="divide-y divide-[var(--border)]">
+              {shiftsByDate.map(({ date, byPeriod }) => (
+                <div key={date} className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 items-center">
+                  <span className="text-sm text-[var(--ink-900)]">{date}</span>
+                  {(["Lunch", "Dinner"] as const).map((period) => {
+                    const shift = byPeriod[period];
+                    if (!shift) {
+                      return (
+                        <span key={period} className="text-xs text-[var(--ink-400)]">
+                          —
+                        </span>
+                      );
+                    }
+                    return (
+                      <Link
+                        key={period}
+                        href={shift.status === "finalized" ? `/shifts/${shift.id}/summary` : `/shifts/${shift.id}/roster`}
+                        className="flex min-h-11 items-center justify-between gap-1 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--paper)] px-2 py-1"
+                      >
+                        <StatusBadge status={shift.status} />
+                        <span className="text-xs text-[var(--primary)] font-medium" aria-hidden>
+                          →
+                        </span>
+                      </Link>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-[var(--ink-500)]">{s.period}</span>
-                  <span className="text-sm text-[var(--primary)] font-medium">
-                    {s.status === "finalized" ? "View summary →" : "Continue →"}
-                  </span>
-                </div>
-              </Link>
-            ))}
+              ))}
+            </div>
           </div>
 
           {/* Desktop: table */}
