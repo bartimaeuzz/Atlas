@@ -31,7 +31,13 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 sm:px-8 py-8">
+    <main
+      // lg:max-w-6xl (Oliver, 2026-08-24: "widen table container to see all
+      // column") -- the 13-column payout table was scrolling inside its
+      // TableCard at max-w-3xl. Same one-page widening as the Ledger
+      // landing; phone and the summary/stat sections just center wider.
+      className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-8 py-8"
+    >
       <p className="text-sm mb-2">
         <Link href={`/shifts/${shiftId}/closing-report`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           ← Back to Closing Report
