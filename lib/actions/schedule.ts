@@ -1,5 +1,6 @@
 "use server";
 
+import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
@@ -116,23 +117,28 @@ export async function setTemplateVacancy(
   templateId: number,
   vacancyReason: "RESIGNATION" | "PROMOTION" | "OTHER",
   vacancyStartsOn: string
-) {
-  await requireCapability("SCHEDULE_MANAGE");
+): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireCapability("SCHEDULE_MANAGE");
 
-  const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
-  if (!target) return;
+    const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
+    if (!target) return;
 
-  const scopeCondition =
-    vacancyReason === "RESIGNATION"
-      ? and(eq(employeeScheduleTemplates.employeeId, target.employeeId), eq(employeeScheduleTemplates.active, true))
-      : and(
-          eq(employeeScheduleTemplates.employeeId, target.employeeId),
-          eq(employeeScheduleTemplates.positionId, target.positionId),
-          eq(employeeScheduleTemplates.active, true)
-        );
+    const scopeCondition =
+      vacancyReason === "RESIGNATION"
+        ? and(eq(employeeScheduleTemplates.employeeId, target.employeeId), eq(employeeScheduleTemplates.active, true))
+        : and(
+            eq(employeeScheduleTemplates.employeeId, target.employeeId),
+            eq(employeeScheduleTemplates.positionId, target.positionId),
+            eq(employeeScheduleTemplates.active, true)
+          );
 
-  await db.update(employeeScheduleTemplates).set({ vacancyReason, vacancyStartsOn }).where(scopeCondition);
-  revalidatePath("/schedule/templates");
+    await db.update(employeeScheduleTemplates).set({ vacancyReason, vacancyStartsOn }).where(scopeCondition);
+    revalidatePath("/schedule/templates");
+});
 }
 
 /** Mirrors setTemplateVacancy's scope, read from the row's CURRENT
@@ -140,23 +146,28 @@ export async function setTemplateVacancy(
  * it flagged, not just the one you happened to click "Clear" on. Only
  * clears rows that still have that same reason, so it can't
  * accidentally wipe out an unrelated flag set for a different reason. */
-export async function clearTemplateVacancy(templateId: number) {
-  await requireCapability("SCHEDULE_MANAGE");
+export async function clearTemplateVacancy(templateId: number): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireCapability("SCHEDULE_MANAGE");
 
-  const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
-  if (!target || !target.vacancyReason) return;
+    const [target] = await db.select().from(employeeScheduleTemplates).where(eq(employeeScheduleTemplates.id, templateId));
+    if (!target || !target.vacancyReason) return;
 
-  const scopeCondition =
-    target.vacancyReason === "RESIGNATION"
-      ? and(eq(employeeScheduleTemplates.employeeId, target.employeeId), eq(employeeScheduleTemplates.vacancyReason, "RESIGNATION"))
-      : and(
-          eq(employeeScheduleTemplates.employeeId, target.employeeId),
-          eq(employeeScheduleTemplates.positionId, target.positionId),
-          eq(employeeScheduleTemplates.vacancyReason, target.vacancyReason)
-        );
+    const scopeCondition =
+      target.vacancyReason === "RESIGNATION"
+        ? and(eq(employeeScheduleTemplates.employeeId, target.employeeId), eq(employeeScheduleTemplates.vacancyReason, "RESIGNATION"))
+        : and(
+            eq(employeeScheduleTemplates.employeeId, target.employeeId),
+            eq(employeeScheduleTemplates.positionId, target.positionId),
+            eq(employeeScheduleTemplates.vacancyReason, target.vacancyReason)
+          );
 
-  await db.update(employeeScheduleTemplates).set({ vacancyReason: null, vacancyStartsOn: null }).where(scopeCondition);
-  revalidatePath("/schedule/templates");
+    await db.update(employeeScheduleTemplates).set({ vacancyReason: null, vacancyStartsOn: null }).where(scopeCondition);
+    revalidatePath("/schedule/templates");
+});
 }
 
 /* ---------------------------------------------------------------------- */
@@ -182,58 +193,68 @@ export async function syncEmployeePositionTemplate(
   employeeId: number,
   positionId: number,
   cells: { dayOfWeek: number; period: "Lunch" | "Dinner" }[]
-) {
-  await requireCapability("SCHEDULE_MANAGE");
+): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireCapability("SCHEDULE_MANAGE");
 
-  const existing = await db
-    .select()
-    .from(employeeScheduleTemplates)
-    .where(and(eq(employeeScheduleTemplates.employeeId, employeeId), eq(employeeScheduleTemplates.positionId, positionId)));
+    const existing = await db
+      .select()
+      .from(employeeScheduleTemplates)
+      .where(and(eq(employeeScheduleTemplates.employeeId, employeeId), eq(employeeScheduleTemplates.positionId, positionId)));
 
-  const activeExisting = existing.filter((r) => r.active);
-  const key = (dayOfWeek: number, period: string) => `${dayOfWeek}-${period}`;
-  const wantedKeys = new Set(cells.map((c) => key(c.dayOfWeek, c.period)));
+    const activeExisting = existing.filter((r) => r.active);
+    const key = (dayOfWeek: number, period: string) => `${dayOfWeek}-${period}`;
+    const wantedKeys = new Set(cells.map((c) => key(c.dayOfWeek, c.period)));
 
-  const toRetire = activeExisting.filter((r) => !wantedKeys.has(key(r.dayOfWeek, r.period)));
-  for (const r of toRetire) {
-    await db.update(employeeScheduleTemplates).set({ active: false }).where(eq(employeeScheduleTemplates.id, r.id));
-  }
-
-  const activeKeys = new Set(activeExisting.map((r) => key(r.dayOfWeek, r.period)));
-  const toAdd = cells.filter((c) => !activeKeys.has(key(c.dayOfWeek, c.period)));
-  for (const c of toAdd) {
-    const inactiveMatch = existing.find((r) => !r.active && r.dayOfWeek === c.dayOfWeek && r.period === c.period);
-    if (inactiveMatch) {
-      await db
-        .update(employeeScheduleTemplates)
-        .set({ active: true, vacancyReason: null, vacancyStartsOn: null })
-        .where(eq(employeeScheduleTemplates.id, inactiveMatch.id));
-    } else {
-      await db.insert(employeeScheduleTemplates).values({
-        employeeId,
-        positionId,
-        dayOfWeek: c.dayOfWeek,
-        period: c.period,
-        active: true,
-      });
+    const toRetire = activeExisting.filter((r) => !wantedKeys.has(key(r.dayOfWeek, r.period)));
+    for (const r of toRetire) {
+      await db.update(employeeScheduleTemplates).set({ active: false }).where(eq(employeeScheduleTemplates.id, r.id));
     }
-  }
 
-  revalidatePath("/schedule/templates");
+    const activeKeys = new Set(activeExisting.map((r) => key(r.dayOfWeek, r.period)));
+    const toAdd = cells.filter((c) => !activeKeys.has(key(c.dayOfWeek, c.period)));
+    for (const c of toAdd) {
+      const inactiveMatch = existing.find((r) => !r.active && r.dayOfWeek === c.dayOfWeek && r.period === c.period);
+      if (inactiveMatch) {
+        await db
+          .update(employeeScheduleTemplates)
+          .set({ active: true, vacancyReason: null, vacancyStartsOn: null })
+          .where(eq(employeeScheduleTemplates.id, inactiveMatch.id));
+      } else {
+        await db.insert(employeeScheduleTemplates).values({
+          employeeId,
+          positionId,
+          dayOfWeek: c.dayOfWeek,
+          period: c.period,
+          active: true,
+        });
+      }
+    }
+
+    revalidatePath("/schedule/templates");
+});
 }
 
 /** Kebab-menu "Retire from this position" — immediately retires every
  * active row for this employee+position pair, no advance-notice vacancy
  * flag. Distinct from "Mark vacating": this is for cleaning up a mistake
  * or an already-effective change, not flagging a future departure. */
-export async function retireEmployeeFromPosition(employeeId: number, positionId: number) {
-  await requireCapability("SCHEDULE_MANAGE");
+export async function retireEmployeeFromPosition(employeeId: number, positionId: number): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireCapability("SCHEDULE_MANAGE");
 
-  await db
-    .update(employeeScheduleTemplates)
-    .set({ active: false })
-    .where(and(eq(employeeScheduleTemplates.employeeId, employeeId), eq(employeeScheduleTemplates.positionId, positionId), eq(employeeScheduleTemplates.active, true)));
-  revalidatePath("/schedule/templates");
+    await db
+      .update(employeeScheduleTemplates)
+      .set({ active: false })
+      .where(and(eq(employeeScheduleTemplates.employeeId, employeeId), eq(employeeScheduleTemplates.positionId, positionId), eq(employeeScheduleTemplates.active, true)));
+    revalidatePath("/schedule/templates");
+});
 }
 
 /* ---------------------------------------------------------------------- */

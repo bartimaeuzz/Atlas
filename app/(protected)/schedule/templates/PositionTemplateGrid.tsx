@@ -187,10 +187,11 @@ function useTemplateCells(group: PositionTemplateGroup, employee: AssignedEmploy
     });
     setError(null);
     startTransition(async () => {
-      try {
-        await syncEmployeePositionTemplate(employee.employeeId, group.positionId, cells);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't save that change.");
+      // Return-value error -- thrown server-action errors get redacted to
+      // "Minified React error #441" in production (2026-08-24 sweep).
+      const result = await syncEmployeePositionTemplate(employee.employeeId, group.positionId, cells);
+      if (result.error) {
+        setError(result.error);
         setChecked(checked); // revert the optimistic toggle
       }
     });

@@ -10,6 +10,7 @@
  * around (same immediate-action pattern as togglePositionActive /
  * toggleLedgerCardActive elsewhere in this app). */
 
+import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -45,46 +46,56 @@ export type PoolSplitMethod = "POINT_WEIGHTED" | "EQUAL_SPLIT";
  * form." Writes the same positionTipPools table the Positions edit
  * page's checkboxes use — both stay in sync automatically since there's
  * only ever one underlying table. */
-export async function toggleTipPoolMembership(positionId: number, tipPoolGroup: TipPoolGroup, add: boolean) {
-  await requireCapability("TIP_POOL_STRUCTURE_EDIT");
+export async function toggleTipPoolMembership(positionId: number, tipPoolGroup: TipPoolGroup, add: boolean): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireCapability("TIP_POOL_STRUCTURE_EDIT");
 
-  if (add) {
-    const [existing] = await db
-      .select()
-      .from(positionTipPools)
-      .where(and(eq(positionTipPools.positionId, positionId), eq(positionTipPools.tipPoolGroup, tipPoolGroup)));
-    if (!existing) {
-      await db.insert(positionTipPools).values({ positionId, tipPoolGroup });
+    if (add) {
+      const [existing] = await db
+        .select()
+        .from(positionTipPools)
+        .where(and(eq(positionTipPools.positionId, positionId), eq(positionTipPools.tipPoolGroup, tipPoolGroup)));
+      if (!existing) {
+        await db.insert(positionTipPools).values({ positionId, tipPoolGroup });
+      }
+    } else {
+      await db
+        .delete(positionTipPools)
+        .where(and(eq(positionTipPools.positionId, positionId), eq(positionTipPools.tipPoolGroup, tipPoolGroup)));
     }
-  } else {
-    await db
-      .delete(positionTipPools)
-      .where(and(eq(positionTipPools.positionId, positionId), eq(positionTipPools.tipPoolGroup, tipPoolGroup)));
-  }
-  revalidatePath("/settings/tip-pools");
-  revalidatePath("/positions");
+    revalidatePath("/settings/tip-pools");
+    revalidatePath("/positions");
+});
 }
 
 /** Updates one pool's split method (point-weighted vs. equal split) —
  * the only place this now lives (moved off the main Settings page, see
  * this file's header comment). */
-export async function updatePoolSplitMethod(tipPoolGroup: TipPoolGroup, method: PoolSplitMethod) {
-  await requireCapability("TIP_POOL_STRUCTURE_EDIT");
+export async function updatePoolSplitMethod(tipPoolGroup: TipPoolGroup, method: PoolSplitMethod): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireCapability("TIP_POOL_STRUCTURE_EDIT");
 
-  switch (tipPoolGroup) {
-    case "POOL_1_DINE_IN":
-      await db.update(restaurantSettings).set({ pool1SplitMethod: method }).where(eq(restaurantSettings.restaurantId, 1));
-      break;
-    case "POOL_2_TAKEOUT_ONLINE":
-      await db.update(restaurantSettings).set({ pool2SplitMethod: method }).where(eq(restaurantSettings.restaurantId, 1));
-      break;
-    case "POOL_3_DELIVERY":
-      await db.update(restaurantSettings).set({ pool3SplitMethod: method }).where(eq(restaurantSettings.restaurantId, 1));
-      break;
-    default:
-      // 2026-08-17 security audit finding #3 (minor) — an unrecognized
-      // tipPoolGroup previously silently no-op'd instead of throwing.
-      throw new Error(`Unrecognized tip pool group: ${tipPoolGroup satisfies never}`);
-  }
-  revalidatePath("/settings/tip-pools");
+    switch (tipPoolGroup) {
+      case "POOL_1_DINE_IN":
+        await db.update(restaurantSettings).set({ pool1SplitMethod: method }).where(eq(restaurantSettings.restaurantId, 1));
+        break;
+      case "POOL_2_TAKEOUT_ONLINE":
+        await db.update(restaurantSettings).set({ pool2SplitMethod: method }).where(eq(restaurantSettings.restaurantId, 1));
+        break;
+      case "POOL_3_DELIVERY":
+        await db.update(restaurantSettings).set({ pool3SplitMethod: method }).where(eq(restaurantSettings.restaurantId, 1));
+        break;
+      default:
+        // 2026-08-17 security audit finding #3 (minor) — an unrecognized
+        // tipPoolGroup previously silently no-op'd instead of throwing.
+        throw new Error(`Unrecognized tip pool group: ${tipPoolGroup satisfies never}`);
+    }
+    revalidatePath("/settings/tip-pools");
+});
 }

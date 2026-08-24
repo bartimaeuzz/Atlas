@@ -47,14 +47,12 @@ export function MarkPaidButton({ weekStartDate, disabled }: { weekStartDate: str
         onConfirm={() => {
           setError(null);
           startTransition(async () => {
-            try {
-              await markPayrollPeriodPaid(weekStartDate);
-              setOpen(false);
-              router.refresh();
-            } catch (e) {
-              setError(e instanceof Error ? e.message : "Couldn't mark this week paid.");
-              setOpen(false);
-            }
+            // Return-value error -- thrown server-action errors get redacted
+            // to "Minified React error #441" in production (2026-08-24 sweep).
+            const result = await markPayrollPeriodPaid(weekStartDate);
+            setOpen(false);
+            if (result.error) setError(result.error);
+            else router.refresh();
           });
         }}
       />
@@ -88,14 +86,10 @@ export function RevertToDraftButton({ weekStartDate }: { weekStartDate: string }
         onConfirm={() => {
           setError(null);
           startTransition(async () => {
-            try {
-              await revertPayrollPeriodToDraft(weekStartDate);
-              setOpen(false);
-              router.refresh();
-            } catch (e) {
-              setError(e instanceof Error ? e.message : "Couldn't revert this week.");
-              setOpen(false);
-            }
+            const result = await revertPayrollPeriodToDraft(weekStartDate);
+            setOpen(false);
+            if (result.error) setError(result.error);
+            else router.refresh();
           });
         }}
       />

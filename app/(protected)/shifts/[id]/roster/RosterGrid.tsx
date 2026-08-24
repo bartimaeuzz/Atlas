@@ -150,6 +150,9 @@ function RosterPill({
               const formData = new FormData();
               formData.set("rosterEntryId", String(entry.rosterEntryId));
               formData.set("shiftId", String(shiftId));
+              // No error surface in this pill; a failed remove leaves the
+              // row standing, which is itself the signal. (Before the
+              // 2026-08-24 sweep a failure here was an unhandled throw.)
               await removeRosterEntry(formData);
               router.refresh();
             })
@@ -197,12 +200,14 @@ function RosterQuickAdd({
     formData.set("positionId", String(positionId));
     setError(null);
     startTransition(async () => {
-      try {
-        await addRosterEntry(formData);
+      // Return-value error -- thrown server-action errors get redacted to
+      // "Minified React error #441" in production (2026-08-24 sweep).
+      const result = await addRosterEntry(formData);
+      if (result.error) {
+        setError(result.error);
+      } else {
         setSelectedId("");
         router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
       }
     });
   }

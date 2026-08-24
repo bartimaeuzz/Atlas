@@ -8,6 +8,7 @@
  * with Petty Cash/Supplier Check. See db/schema.ts's cardStatementPeriods
  * comment for the full reasoning. */
 
+import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -82,10 +83,15 @@ export async function createLedgerCard(_prevState: CardActionState, formData: Fo
   redirect("/ledger/cards");
 }
 
-export async function toggleLedgerCardActive(cardId: number, nextActive: boolean) {
-  await requireCapability("LEDGER_CARD_MANAGE");
-  await db.update(ledgerCards).set({ active: nextActive }).where(eq(ledgerCards.id, cardId));
-  revalidatePath("/ledger/cards");
+export async function toggleLedgerCardActive(cardId: number, nextActive: boolean): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireCapability("LEDGER_CARD_MANAGE");
+    await db.update(ledgerCards).set({ active: nextActive }).where(eq(ledgerCards.id, cardId));
+    revalidatePath("/ledger/cards");
+});
 }
 
 export async function renameLedgerCard(_prevState: CardActionState, formData: FormData): Promise<CardActionState> {

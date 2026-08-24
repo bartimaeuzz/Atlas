@@ -74,11 +74,10 @@ function CheckRow({
   function handleMarkPaid() {
     setError(null);
     startTransition(async () => {
-      try {
-        await markSupplierCheckPaid(check.id);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't mark paid.");
-      }
+      // Return-value error -- thrown server-action errors get redacted to
+      // "Minified React error #441" in production (2026-08-24 sweep).
+      const result = await markSupplierCheckPaid(check.id);
+      if (result.error) setError(result.error);
     });
   }
 

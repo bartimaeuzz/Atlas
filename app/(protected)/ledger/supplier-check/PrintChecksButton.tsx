@@ -58,12 +58,11 @@ export function PrintChecksButton({ groups }: { groups: VendorPendingGroup[] }) 
       checkNumber: checkNumbers[vendorId]?.trim() || null,
     }));
     startTransition(async () => {
-      try {
-        const { paymentIds } = await printChecksForVendors(selections);
-        window.location.href = `/ledger/supplier-check/export?paymentIds=${paymentIds.join(",")}`;
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't print checks.");
-      }
+      // Return-value error -- thrown server-action errors get redacted to
+      // "Minified React error #441" in production (2026-08-24 sweep).
+      const { paymentIds, error } = await printChecksForVendors(selections);
+      if (error) setError(error);
+      else window.location.href = `/ledger/supplier-check/export?paymentIds=${paymentIds.join(",")}`;
     });
   }
 

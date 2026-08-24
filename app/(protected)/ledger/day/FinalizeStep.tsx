@@ -36,15 +36,15 @@ export function FinalizeStep({ data, seen, locked }: { data: PettyCashDayData; s
   const matches = diff != null && Math.abs(diff) < 0.01;
   const finalized = data.status === "finalized";
 
-  function run(fn: () => Promise<void>) {
+  // Thunks return { error } now -- thrown server-action errors get
+  // redacted to "Minified React error #441" in production (2026-08-24
+  // sweep; see lib/actions/actionResult.ts).
+  function run(fn: () => Promise<{ error: string | null }>) {
     setError(null);
     setSaved(false);
     startTransition(async () => {
-      try {
-        await fn();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't save. Nothing was changed — try again.");
-      }
+      const result = await fn();
+      if (result.error) setError(result.error);
     });
   }
 
@@ -156,8 +156,9 @@ export function FinalizeStep({ data, seen, locked }: { data: PettyCashDayData; s
               run(async () => {
                 // Only this step's own fields — see saveDailyCount's comment
                 // for why sending the cash fields from here would be a bug.
-                await saveDailyCount(data.date, counted, note || null);
-                setSaved(true);
+                const result = await saveDailyCount(data.date, counted, note || null);
+                if (!result.error) setSaved(true);
+                return result;
               })
             }
           >
@@ -169,7 +170,7 @@ export function FinalizeStep({ data, seen, locked }: { data: PettyCashDayData; s
               className="flex-1"
               loading={isPending}
               disabled={!hasCount || !data.shiftsReady || data.reconciliationId == null}
-              onClick={() => run(async () => { await finalizePettyCashDay(data.date, counted!, note || null); })}
+              onClick={() => run(() => finalizePettyCashDay(data.date, counted!, note || null))}
             >
               Finalize day
             </Button>

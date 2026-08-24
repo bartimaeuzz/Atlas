@@ -43,19 +43,22 @@ export function CashStep({ data, seen, locked }: { data: PettyCashDayData; seen:
       return;
     }
     startTransition(async () => {
-      try {
-        await saveDailyReconciliationDraft(
-          data.date,
-          beginningBalance,
-          otherCash,
-          data.countedAmount,
-          data.note,
-          reason.trim() || null
-        );
-        if (then) then();
-        else setSaved(true);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't save. Nothing was changed — try again.");
+      // Return-value error -- thrown server-action errors get redacted to
+      // "Minified React error #441" in production (2026-08-24 sweep).
+      const result = await saveDailyReconciliationDraft(
+        data.date,
+        beginningBalance,
+        otherCash,
+        data.countedAmount,
+        data.note,
+        reason.trim() || null
+      );
+      if (result.error) {
+        setError(result.error);
+      } else if (then) {
+        then();
+      } else {
+        setSaved(true);
       }
     });
   }

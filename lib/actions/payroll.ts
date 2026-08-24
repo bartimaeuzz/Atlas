@@ -9,6 +9,7 @@
  * 3-sheet export (check-printing list, per-employee pay-stub detail,
  * bilingual wage acknowledgment). */
 
+import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -39,62 +40,67 @@ import { computeLivePayrollRegister } from "@/lib/payroll/loadPayrollRegister";
  * left unwired in card.ts/supplierCheck.ts, both functions here map
  * 1:1 onto this one capability with no ambiguity about which action(s)
  * it should gate. */
-export async function markPayrollPeriodPaid(weekStartDate: string) {
-  const session = await requireCapability("FA_PAYROLL_LOCK_FINALIZE");
+export async function markPayrollPeriodPaid(weekStartDate: string): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await requireCapability("FA_PAYROLL_LOCK_FINALIZE");
 
-  const weekEndDate = datesInWeek(weekStartDate)[6];
+    const weekEndDate = datesInWeek(weekStartDate)[6];
 
-  const [existing] = await db.select().from(payrollPeriods).where(eq(payrollPeriods.weekStartDate, weekStartDate));
-  if (existing?.status === "paid") {
-    throw new Error("This week's payroll is already marked paid.");
-  }
+    const [existing] = await db.select().from(payrollPeriods).where(eq(payrollPeriods.weekStartDate, weekStartDate));
+    if (existing?.status === "paid") {
+      throw new Error("This week's payroll is already marked paid.");
+    }
 
-  const { rows, unfinalizedShiftCount } = await computeLivePayrollRegister(weekStartDate, weekEndDate);
-  if (unfinalizedShiftCount > 0) {
-    throw new Error(
-      `${unfinalizedShiftCount} shift(s) this week aren't finalized yet — finalize every shift before marking payroll paid.`
+    const { rows, unfinalizedShiftCount } = await computeLivePayrollRegister(weekStartDate, weekEndDate);
+    if (unfinalizedShiftCount > 0) {
+      throw new Error(
+        `${unfinalizedShiftCount} shift(s) this week aren't finalized yet — finalize every shift before marking payroll paid.`
+      );
+    }
+    if (rows.length === 0) {
+      throw new Error("Nothing to pay for this week yet — no finalized shifts with payouts.");
+    }
+
+    const paidAt = new Date().toISOString();
+    let periodId: number;
+    if (existing) {
+      await db
+        .update(payrollPeriods)
+        .set({ status: "paid", paidAt, paidByEmployeeId: session.id, weekEndDate })
+        .where(eq(payrollPeriods.id, existing.id));
+      periodId = existing.id;
+      // Correction re-run (e.g. after an ADMIN reverted to draft) — clear
+      // any old snapshot rows before writing the fresh ones.
+      await db.delete(payrollPeriodEmployeeTotals).where(eq(payrollPeriodEmployeeTotals.payrollPeriodId, periodId));
+    } else {
+      const [inserted] = await db
+        .insert(payrollPeriods)
+        .values({ weekStartDate, weekEndDate, status: "paid", paidAt, paidByEmployeeId: session.id })
+        .returning({ id: payrollPeriods.id });
+      periodId = inserted.id;
+    }
+
+    await db.insert(payrollPeriodEmployeeTotals).values(
+      rows.map((r) => ({
+        payrollPeriodId: periodId,
+        employeeId: r.employeeId,
+        shiftCount: r.shiftCount,
+        flatWageAmount: r.flatWageAmount,
+        extraPayAmount: r.extraPayAmount,
+        incentiveAmount: r.incentiveAmount,
+        deductionAmount: r.deductionAmount,
+        tipPoolShare: r.tipPoolShare,
+        hostUpsellTipShare: r.hostUpsellTipShare,
+        totalTip: r.totalTip,
+        totalCorePayout: r.totalCorePayout,
+      }))
     );
-  }
-  if (rows.length === 0) {
-    throw new Error("Nothing to pay for this week yet — no finalized shifts with payouts.");
-  }
 
-  const paidAt = new Date().toISOString();
-  let periodId: number;
-  if (existing) {
-    await db
-      .update(payrollPeriods)
-      .set({ status: "paid", paidAt, paidByEmployeeId: session.id, weekEndDate })
-      .where(eq(payrollPeriods.id, existing.id));
-    periodId = existing.id;
-    // Correction re-run (e.g. after an ADMIN reverted to draft) — clear
-    // any old snapshot rows before writing the fresh ones.
-    await db.delete(payrollPeriodEmployeeTotals).where(eq(payrollPeriodEmployeeTotals.payrollPeriodId, periodId));
-  } else {
-    const [inserted] = await db
-      .insert(payrollPeriods)
-      .values({ weekStartDate, weekEndDate, status: "paid", paidAt, paidByEmployeeId: session.id })
-      .returning({ id: payrollPeriods.id });
-    periodId = inserted.id;
-  }
-
-  await db.insert(payrollPeriodEmployeeTotals).values(
-    rows.map((r) => ({
-      payrollPeriodId: periodId,
-      employeeId: r.employeeId,
-      shiftCount: r.shiftCount,
-      flatWageAmount: r.flatWageAmount,
-      extraPayAmount: r.extraPayAmount,
-      incentiveAmount: r.incentiveAmount,
-      deductionAmount: r.deductionAmount,
-      tipPoolShare: r.tipPoolShare,
-      hostUpsellTipShare: r.hostUpsellTipShare,
-      totalTip: r.totalTip,
-      totalCorePayout: r.totalCorePayout,
-    }))
-  );
-
-  revalidatePath("/payroll");
+    revalidatePath("/payroll");
+});
 }
 
 /** Reverts a paid week back to draft so it can be corrected and
@@ -103,17 +109,22 @@ export async function markPayrollPeriodPaid(weekStartDate: string) {
  * markPayrollPeriodPaid instead of staying hardcoded to ADMIN. Deletes
  * the locked snapshot; the week goes back to showing live numbers until
  * marked paid again. */
-export async function revertPayrollPeriodToDraft(weekStartDate: string) {
-  await requireCapability("FA_PAYROLL_LOCK_FINALIZE");
+export async function revertPayrollPeriodToDraft(weekStartDate: string): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireCapability("FA_PAYROLL_LOCK_FINALIZE");
 
-  const [existing] = await db.select().from(payrollPeriods).where(eq(payrollPeriods.weekStartDate, weekStartDate));
-  if (!existing || existing.status !== "paid") return;
+    const [existing] = await db.select().from(payrollPeriods).where(eq(payrollPeriods.weekStartDate, weekStartDate));
+    if (!existing || existing.status !== "paid") return;
 
-  await db.delete(payrollPeriodEmployeeTotals).where(eq(payrollPeriodEmployeeTotals.payrollPeriodId, existing.id));
-  await db
-    .update(payrollPeriods)
-    .set({ status: "draft", paidAt: null, paidByEmployeeId: null })
-    .where(eq(payrollPeriods.id, existing.id));
+    await db.delete(payrollPeriodEmployeeTotals).where(eq(payrollPeriodEmployeeTotals.payrollPeriodId, existing.id));
+    await db
+      .update(payrollPeriods)
+      .set({ status: "draft", paidAt: null, paidByEmployeeId: null })
+      .where(eq(payrollPeriods.id, existing.id));
 
-  revalidatePath("/payroll");
+    revalidatePath("/payroll");
+});
 }

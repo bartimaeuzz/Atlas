@@ -87,17 +87,16 @@ function EntryRow({
   function save() {
     setError(null);
     startTransition(async () => {
-      try {
-        await updatePettyCashEntry(entry.id, date, {
-          categoryId: Number(categoryId),
-          vendorId: vendorId === "" ? null : Number(vendorId),
-          note: note.trim() || null,
-          amount: Number(amount),
-        });
-        setEditing(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't save that. Nothing was changed — try again.");
-      }
+      // Return-value error -- thrown server-action errors get redacted to
+      // "Minified React error #441" in production (2026-08-24 sweep).
+      const result = await updatePettyCashEntry(entry.id, date, {
+        categoryId: Number(categoryId),
+        vendorId: vendorId === "" ? null : Number(vendorId),
+        note: note.trim() || null,
+        amount: Number(amount),
+      });
+      if (result.error) setError(result.error);
+      else setEditing(false);
     });
   }
 
@@ -179,13 +178,9 @@ function EntryRow({
         loading={isPending}
         onConfirm={() =>
           startTransition(async () => {
-            try {
-              await deletePettyCashEntry(entry.id, date);
-              setConfirmOpen(false);
-            } catch (e) {
-              setError(e instanceof Error ? e.message : "Couldn't remove that. Nothing was changed.");
-              setConfirmOpen(false);
-            }
+            const result = await deletePettyCashEntry(entry.id, date);
+            if (result.error) setError(result.error);
+            setConfirmOpen(false);
           })
         }
       />

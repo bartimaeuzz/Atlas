@@ -5,6 +5,7 @@
  * design reasoning -- confirmed with Oliver across two rounds of
  * AskUserQuestion before any of this was written. */
 
+import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
@@ -93,17 +94,22 @@ export async function createSwapRequest(
 
 /** Requester withdraws their own request while it's still open --
  * confirmed self-service, same spirit as cancelling a leave request. */
-export async function cancelSwapRequest(requestId: number) {
-  const session = await getCurrentStaffSession();
-  if (!session) throw new Error("Not signed in");
+export async function cancelSwapRequest(requestId: number): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await getCurrentStaffSession();
+    if (!session) throw new Error("Not signed in");
 
-  const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
-  if (!request) return;
-  if (request.requestingEmployeeId !== session.id) throw new Error("You can only cancel your own request");
-  if (request.status !== "open") throw new Error("Only an unclaimed request can be cancelled");
+    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
+    if (!request) return;
+    if (request.requestingEmployeeId !== session.id) throw new Error("You can only cancel your own request");
+    if (request.status !== "open") throw new Error("Only an unclaimed request can be cancelled");
 
-  await db.update(swapRequests).set({ status: "cancelled" }).where(eq(swapRequests.id, requestId));
-  revalidateSwapPaths();
+    await db.update(swapRequests).set({ status: "cancelled" }).where(eq(swapRequests.id, requestId));
+    revalidateSwapPaths();
+});
 }
 
 /** A coworker accepts an open swap request. Re-checks every eligibility
@@ -114,112 +120,127 @@ export async function cancelSwapRequest(requestId: number) {
  * (confirmed with Oliver: closer-in swaps need a manager's eyes on
  * them; anything further out just notifies the manager after the
  * fact). */
-export async function acceptSwapRequest(requestId: number) {
-  const session = await getCurrentStaffSession();
-  if (!session) throw new Error("Not signed in");
+export async function acceptSwapRequest(requestId: number): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await getCurrentStaffSession();
+    if (!session) throw new Error("Not signed in");
 
-  const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
-  if (!request) throw new Error("That request no longer exists");
-  if (request.status !== "open") throw new Error("That request is no longer open");
-  if (request.requestingEmployeeId === session.id) throw new Error("You can't accept your own request");
+    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
+    if (!request) throw new Error("That request no longer exists");
+    if (request.status !== "open") throw new Error("That request is no longer open");
+    if (request.requestingEmployeeId === session.id) throw new Error("You can't accept your own request");
 
-  const [assignment] = await db
-    .select()
-    .from(plannedShiftAssignments)
-    .where(eq(plannedShiftAssignments.id, request.assignmentId));
-  if (!assignment) throw new Error("The underlying shift no longer exists");
+    const [assignment] = await db
+      .select()
+      .from(plannedShiftAssignments)
+      .where(eq(plannedShiftAssignments.id, request.assignmentId));
+    if (!assignment) throw new Error("The underlying shift no longer exists");
 
-  const [holdsPosition] = await db
-    .select()
-    .from(employeePositions)
-    .where(
-      and(
-        eq(employeePositions.employeeId, session.id),
-        eq(employeePositions.positionId, assignment.positionId),
-        eq(employeePositions.isActive, true)
-      )
-    );
-  if (!holdsPosition) throw new Error("You don't hold the position this shift needs");
+    const [holdsPosition] = await db
+      .select()
+      .from(employeePositions)
+      .where(
+        and(
+          eq(employeePositions.employeeId, session.id),
+          eq(employeePositions.positionId, assignment.positionId),
+          eq(employeePositions.isActive, true)
+        )
+      );
+    if (!holdsPosition) throw new Error("You don't hold the position this shift needs");
 
-  const [conflict] = await db
-    .select()
-    .from(plannedShiftAssignments)
-    .where(
-      and(
-        eq(plannedShiftAssignments.employeeId, session.id),
-        eq(plannedShiftAssignments.date, assignment.date),
-        eq(plannedShiftAssignments.period, assignment.period)
-      )
-    );
-  if (conflict) throw new Error("You're already scheduled that day/period");
+    const [conflict] = await db
+      .select()
+      .from(plannedShiftAssignments)
+      .where(
+        and(
+          eq(plannedShiftAssignments.employeeId, session.id),
+          eq(plannedShiftAssignments.date, assignment.date),
+          eq(plannedShiftAssignments.period, assignment.period)
+        )
+      );
+    if (conflict) throw new Error("You're already scheduled that day/period");
 
-  const onLeave = await db
-    .select()
-    .from(leaveRequests)
-    .where(eq(leaveRequests.employeeId, session.id));
-  if (onLeave.some((l) => assignment.date >= l.startDate && assignment.date <= l.endDate)) {
-    throw new Error("You have leave logged over that date");
-  }
+    const onLeave = await db
+      .select()
+      .from(leaveRequests)
+      .where(eq(leaveRequests.employeeId, session.id));
+    if (onLeave.some((l) => assignment.date >= l.startDate && assignment.date <= l.endDate)) {
+      throw new Error("You have leave logged over that date");
+    }
 
-  const today = toIso(new Date());
-  const daysOut = daysBetween(today, assignment.date);
-  const needsApproval = daysOut <= APPROVAL_WINDOW_DAYS;
+    const today = toIso(new Date());
+    const daysOut = daysBetween(today, assignment.date);
+    const needsApproval = daysOut <= APPROVAL_WINDOW_DAYS;
 
-  await db
-    .update(swapRequests)
-    .set({
-      acceptingEmployeeId: session.id,
-      status: needsApproval ? "pending_manager_approval" : "completed",
-      respondedAt: sql`(current_timestamp)`,
-    })
-    .where(eq(swapRequests.id, requestId));
+    await db
+      .update(swapRequests)
+      .set({
+        acceptingEmployeeId: session.id,
+        status: needsApproval ? "pending_manager_approval" : "completed",
+        respondedAt: sql`(current_timestamp)`,
+      })
+      .where(eq(swapRequests.id, requestId));
 
-  if (!needsApproval) {
-    const [updated] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
-    await completeSwap(updated);
-  }
+    if (!needsApproval) {
+      const [updated] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
+      await completeSwap(updated);
+    }
 
-  revalidateSwapPaths();
+    revalidateSwapPaths();
+});
 }
 
 /** Manager approves a swap that's within the <=3-day window. */
-export async function approveSwapRequest(requestId: number) {
-  const session = await getCurrentStaffSession();
-  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
-    throw new Error("Managers only");
-  }
+export async function approveSwapRequest(requestId: number): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await getCurrentStaffSession();
+    if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+      throw new Error("Managers only");
+    }
 
-  const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
-  if (!request) throw new Error("That request no longer exists");
-  if (request.status !== "pending_manager_approval") throw new Error("That request isn't awaiting approval");
+    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
+    if (!request) throw new Error("That request no longer exists");
+    if (request.status !== "pending_manager_approval") throw new Error("That request isn't awaiting approval");
 
-  await completeSwap(request);
-  await db
-    .update(swapRequests)
-    .set({ status: "completed", decidedAt: sql`(current_timestamp)`, decidedByEmployeeId: session.id })
-    .where(eq(swapRequests.id, requestId));
+    await completeSwap(request);
+    await db
+      .update(swapRequests)
+      .set({ status: "completed", decidedAt: sql`(current_timestamp)`, decidedByEmployeeId: session.id })
+      .where(eq(swapRequests.id, requestId));
 
-  revalidateSwapPaths();
+    revalidateSwapPaths();
+});
 }
 
 /** Manager declines a pending swap -- confirmed with Oliver: the shift
  * simply reverts to the original requester (it was never actually
  * reassigned during the pending state, so this is just closing out the
  * request, not undoing anything). */
-export async function declineSwapRequest(requestId: number) {
-  const session = await getCurrentStaffSession();
-  if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
-    throw new Error("Managers only");
-  }
+export async function declineSwapRequest(requestId: number): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await getCurrentStaffSession();
+    if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
+      throw new Error("Managers only");
+    }
 
-  const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
-  if (!request) throw new Error("That request no longer exists");
-  if (request.status !== "pending_manager_approval") throw new Error("That request isn't awaiting approval");
+    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
+    if (!request) throw new Error("That request no longer exists");
+    if (request.status !== "pending_manager_approval") throw new Error("That request isn't awaiting approval");
 
-  await db
-    .update(swapRequests)
-    .set({ status: "declined", decidedAt: sql`(current_timestamp)`, decidedByEmployeeId: session.id })
-    .where(eq(swapRequests.id, requestId));
+    await db
+      .update(swapRequests)
+      .set({ status: "declined", decidedAt: sql`(current_timestamp)`, decidedByEmployeeId: session.id })
+      .where(eq(swapRequests.id, requestId));
 
-  revalidateSwapPaths();
+    revalidateSwapPaths();
+});
 }

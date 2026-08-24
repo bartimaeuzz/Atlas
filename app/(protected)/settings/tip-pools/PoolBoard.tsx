@@ -138,10 +138,10 @@ export function PoolBoard({
       )
     );
     startTransition(async () => {
-      try {
-        await toggleTipPoolMembership(positionId, pool, add);
-        router.refresh();
-      } catch (e) {
+      // Return-value error -- thrown server-action errors get redacted to
+      // "Minified React error #441" in production (2026-08-24 sweep).
+      const result = await toggleTipPoolMembership(positionId, pool, add);
+      if (result.error) {
         // Revert on failure so the board never silently drifts from the DB.
         setRows((prev) =>
           prev.map((p) =>
@@ -150,7 +150,9 @@ export function PoolBoard({
               : { ...p, tipPoolGroups: add ? p.tipPoolGroups.filter((g) => g !== pool) : [...p.tipPoolGroups, pool] }
           )
         );
-        setError(e instanceof Error ? e.message : "Couldn't save that change — try again.");
+        setError(result.error);
+      } else {
+        router.refresh();
       }
     });
   }
@@ -161,12 +163,12 @@ export function PoolBoard({
     const prevMethod = methods[pool];
     setMethods((m) => ({ ...m, [pool]: method }));
     startTransition(async () => {
-      try {
-        await updatePoolSplitMethod(pool, method);
-        router.refresh();
-      } catch (e) {
+      const result = await updatePoolSplitMethod(pool, method);
+      if (result.error) {
         setMethods((m) => ({ ...m, [pool]: prevMethod }));
-        setError(e instanceof Error ? e.message : "Couldn't save the split method — try again.");
+        setError(result.error);
+      } else {
+        router.refresh();
       }
     });
   }

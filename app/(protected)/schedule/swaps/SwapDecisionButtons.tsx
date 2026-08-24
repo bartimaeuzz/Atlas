@@ -41,15 +41,15 @@ export function SwapDecisionButtons({
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
 
-  function run(action: (id: number) => Promise<void>, then?: () => void) {
+  // Actions return { error } now -- thrown server-action errors get
+  // redacted to "Minified React error #441" in production (2026-08-24
+  // sweep; see lib/actions/actionResult.ts).
+  function run(action: (id: number) => Promise<{ error: string | null }>, then?: () => void) {
     setError(null);
     startTransition(async () => {
-      try {
-        await action(requestId);
-        if (then) then();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
-      }
+      const result = await action(requestId);
+      if (result.error) setError(result.error);
+      else if (then) then();
     });
   }
 

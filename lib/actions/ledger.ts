@@ -1,5 +1,6 @@
 "use server";
 
+import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -114,10 +115,15 @@ export async function createLedgerCategory(_prevState: LedgerAdminActionState, f
   redirect("/ledger/categories");
 }
 
-export async function toggleLedgerCategoryActive(categoryId: number, nextActive: boolean) {
-  await requireManagerAction();
-  await db.update(ledgerCategories).set({ active: nextActive }).where(eq(ledgerCategories.id, categoryId));
-  revalidatePath("/ledger/categories");
+export async function toggleLedgerCategoryActive(categoryId: number, nextActive: boolean): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireManagerAction();
+    await db.update(ledgerCategories).set({ active: nextActive }).where(eq(ledgerCategories.id, categoryId));
+    revalidatePath("/ledger/categories");
+});
 }
 
 /** Re-tags which P&L bucket this category rolls up into (2026-08-16,
@@ -194,36 +200,41 @@ export async function addPettyCashEntry(
   return { error: null };
 }
 
-export async function deletePettyCashEntry(entryId: number, date: string) {
-  const session = await requireCapability("PETTY_CASH_EDIT");
-  const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  if (existingRecon?.status === "finalized" && session.systemRole !== "ADMIN") {
-    throw new Error("This day is already finalized -- can't remove entries from it.");
-  }
-  const wasFinalized = existingRecon?.status === "finalized";
-  const del = db.delete(pettyCashEntries).where(eq(pettyCashEntries.id, entryId));
+export async function deletePettyCashEntry(entryId: number, date: string): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await requireCapability("PETTY_CASH_EDIT");
+    const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
+    if (existingRecon?.status === "finalized" && session.systemRole !== "ADMIN") {
+      throw new Error("This day is already finalized -- can't remove entries from it.");
+    }
+    const wasFinalized = existingRecon?.status === "finalized";
+    const del = db.delete(pettyCashEntries).where(eq(pettyCashEntries.id, entryId));
 
-  if (wasFinalized) {
-    // Admin correcting a closed day: the delete and its log row go in one
-    // batch, so a finalized record can never change without a trace.
-    const [entry] = await db.select().from(pettyCashEntries).where(eq(pettyCashEntries.id, entryId));
-    await db.batch([
-      del,
-      logActivityStatement({
-        actorEmployeeId: session.id,
-        type: "petty_cash.entry.deleted",
-        entityType: "petty_cash_entry",
-        entityId: String(entryId),
-        summary: `Deleted a ${logMoney(entry?.amount ?? 0)} expense from finalized day ${date}.`,
-        detail: { date, entry },
-      }),
-    ]);
-  } else {
-    await del;
-  }
+    if (wasFinalized) {
+      // Admin correcting a closed day: the delete and its log row go in one
+      // batch, so a finalized record can never change without a trace.
+      const [entry] = await db.select().from(pettyCashEntries).where(eq(pettyCashEntries.id, entryId));
+      await db.batch([
+        del,
+        logActivityStatement({
+          actorEmployeeId: session.id,
+          type: "petty_cash.entry.deleted",
+          entityType: "petty_cash_entry",
+          entityId: String(entryId),
+          summary: `Deleted a ${logMoney(entry?.amount ?? 0)} expense from finalized day ${date}.`,
+          detail: { date, entry },
+        }),
+      ]);
+    } else {
+      await del;
+    }
 
-  revalidatePath("/ledger/day");
-  revalidatePath("/ledger");
+    revalidatePath("/ledger/day");
+    revalidatePath("/ledger");
+});
 }
 
 /** Correct an entry in place (2026-08-22, Oliver: "added expense should be
@@ -240,54 +251,59 @@ export async function updatePettyCashEntry(
   entryId: number,
   date: string,
   fields: { categoryId: number; vendorId: number | null; note: string | null; amount: number }
-) {
-  const session = await requireCapability("PETTY_CASH_EDIT");
+): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await requireCapability("PETTY_CASH_EDIT");
 
-  if (!fields.categoryId) throw new Error("Category is required.");
-  if (!Number.isFinite(fields.amount) || fields.amount <= 0) {
-    throw new Error("Amount must be a positive number.");
-  }
+    if (!fields.categoryId) throw new Error("Category is required.");
+    if (!Number.isFinite(fields.amount) || fields.amount <= 0) {
+      throw new Error("Amount must be a positive number.");
+    }
 
-  const [before] = await db.select().from(pettyCashEntries).where(eq(pettyCashEntries.id, entryId));
-  if (!before) throw new Error("That expense no longer exists.");
-  if (before.date !== date) {
-    // The date comes from the page, the entry from the database. If they
-    // disagree, something is wrong with the caller -- refuse rather than
-    // edit a record on a day the user is not looking at.
-    throw new Error("That expense belongs to a different day.");
-  }
+    const [before] = await db.select().from(pettyCashEntries).where(eq(pettyCashEntries.id, entryId));
+    if (!before) throw new Error("That expense no longer exists.");
+    if (before.date !== date) {
+      // The date comes from the page, the entry from the database. If they
+      // disagree, something is wrong with the caller -- refuse rather than
+      // edit a record on a day the user is not looking at.
+      throw new Error("That expense belongs to a different day.");
+    }
 
-  const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  if (existingRecon?.status === "finalized" && session.systemRole !== "ADMIN") {
-    throw new Error("This day is already finalized -- can't change its entries.");
-  }
+    const [existingRecon] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
+    if (existingRecon?.status === "finalized" && session.systemRole !== "ADMIN") {
+      throw new Error("This day is already finalized -- can't change its entries.");
+    }
 
-  const update = db
-    .update(pettyCashEntries)
-    .set({ categoryId: fields.categoryId, vendorId: fields.vendorId, note: fields.note, amount: fields.amount })
-    .where(eq(pettyCashEntries.id, entryId));
+    const update = db
+      .update(pettyCashEntries)
+      .set({ categoryId: fields.categoryId, vendorId: fields.vendorId, note: fields.note, amount: fields.amount })
+      .where(eq(pettyCashEntries.id, entryId));
 
-  if (existingRecon?.status === "finalized") {
-    const changed = before.amount !== fields.amount
-      ? `${logMoney(before.amount)} to ${logMoney(fields.amount)}`
-      : "details";
-    await db.batch([
-      update,
-      logActivityStatement({
-        actorEmployeeId: session.id,
-        type: "petty_cash.entry.updated",
-        entityType: "petty_cash_entry",
-        entityId: String(entryId),
-        summary: `Changed an expense on finalized day ${date} -- ${changed}.`,
-        detail: { date, before, after: fields },
-      }),
-    ]);
-  } else {
-    await update;
-  }
+    if (existingRecon?.status === "finalized") {
+      const changed = before.amount !== fields.amount
+        ? `${logMoney(before.amount)} to ${logMoney(fields.amount)}`
+        : "details";
+      await db.batch([
+        update,
+        logActivityStatement({
+          actorEmployeeId: session.id,
+          type: "petty_cash.entry.updated",
+          entityType: "petty_cash_entry",
+          entityId: String(entryId),
+          summary: `Changed an expense on finalized day ${date} -- ${changed}.`,
+          detail: { date, before, after: fields },
+        }),
+      ]);
+    } else {
+      await update;
+    }
 
-  revalidatePath("/ledger/day");
-  revalidatePath("/ledger");
+    revalidatePath("/ledger/day");
+    revalidatePath("/ledger");
+});
 }
 
 /* ---------------------------------------------------------------------- */
@@ -310,72 +326,77 @@ export async function saveDailyReconciliationDraft(
   countedAmount: number | null,
   note: string | null,
   otherCashReason: string | null
-) {
-  const session = await requireCapability("PETTY_CASH_EDIT");
-  if (date > todayIso()) {
-    throw new Error("Can't reconcile a day that hasn't happened yet.");
-  }
-
-  // Cash added to the drawer must say where it came from (Oliver,
-  // 2026-08-22 -- his example: a top-up from the BofA account). Money
-  // appearing in a drawer with no stated reason is precisely what a
-  // reconciliation exists to catch. Enforced here rather than as a NOT
-  // NULL column so it can say something readable, and so the rows that
-  // predate the column stay valid.
-  const reason = otherCashReason?.trim() || null;
-  if (requiresOtherCashReason(otherCash) && !reason) {
-    throw new Error("Say where the added cash came from.");
-  }
-
-  const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  if (existing?.status === "finalized" && session.systemRole !== "ADMIN") {
-    throw new Error("This day is already finalized.");
-  }
-
-  if (existing) {
-    const update = db
-      .update(dailyCashReconciliations)
-      .set({ beginningBalance, otherCash, countedAmount, note, otherCashReason: reason })
-      .where(eq(dailyCashReconciliations.id, existing.id));
-
-    if (existing.status === "finalized") {
-      await db.batch([
-        update,
-        logActivityStatement({
-          actorEmployeeId: session.id,
-          type: "petty_cash.day.reconciliation_edited",
-          entityType: "daily_cash_reconciliation",
-          entityId: date,
-          summary: `Edited the cash reconciliation on finalized day ${date}.`,
-          detail: {
-            before: {
-              beginningBalance: existing.beginningBalance,
-              otherCash: existing.otherCash,
-              countedAmount: existing.countedAmount,
-              note: existing.note,
-              otherCashReason: existing.otherCashReason,
-            },
-            after: { beginningBalance, otherCash, countedAmount, note, otherCashReason: reason },
-          },
-        }),
-      ]);
-    } else {
-      await update;
+): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await requireCapability("PETTY_CASH_EDIT");
+    if (date > todayIso()) {
+      throw new Error("Can't reconcile a day that hasn't happened yet.");
     }
-  } else {
-    await db.insert(dailyCashReconciliations).values({
-      date,
-      beginningBalance,
-      otherCash,
-      countedAmount,
-      note,
-      otherCashReason: reason,
-      status: "draft",
-    });
-  }
 
-  revalidatePath("/ledger/day");
-  revalidatePath("/ledger");
+    // Cash added to the drawer must say where it came from (Oliver,
+    // 2026-08-22 -- his example: a top-up from the BofA account). Money
+    // appearing in a drawer with no stated reason is precisely what a
+    // reconciliation exists to catch. Enforced here rather than as a NOT
+    // NULL column so it can say something readable, and so the rows that
+    // predate the column stay valid.
+    const reason = otherCashReason?.trim() || null;
+    if (requiresOtherCashReason(otherCash) && !reason) {
+      throw new Error("Say where the added cash came from.");
+    }
+
+    const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
+    if (existing?.status === "finalized" && session.systemRole !== "ADMIN") {
+      throw new Error("This day is already finalized.");
+    }
+
+    if (existing) {
+      const update = db
+        .update(dailyCashReconciliations)
+        .set({ beginningBalance, otherCash, countedAmount, note, otherCashReason: reason })
+        .where(eq(dailyCashReconciliations.id, existing.id));
+
+      if (existing.status === "finalized") {
+        await db.batch([
+          update,
+          logActivityStatement({
+            actorEmployeeId: session.id,
+            type: "petty_cash.day.reconciliation_edited",
+            entityType: "daily_cash_reconciliation",
+            entityId: date,
+            summary: `Edited the cash reconciliation on finalized day ${date}.`,
+            detail: {
+              before: {
+                beginningBalance: existing.beginningBalance,
+                otherCash: existing.otherCash,
+                countedAmount: existing.countedAmount,
+                note: existing.note,
+                otherCashReason: existing.otherCashReason,
+              },
+              after: { beginningBalance, otherCash, countedAmount, note, otherCashReason: reason },
+            },
+          }),
+        ]);
+      } else {
+        await update;
+      }
+    } else {
+      await db.insert(dailyCashReconciliations).values({
+        date,
+        beginningBalance,
+        otherCash,
+        countedAmount,
+        note,
+        otherCashReason: reason,
+        status: "draft",
+      });
+    }
+
+    revalidatePath("/ledger/day");
+    revalidatePath("/ledger");
+});
 }
 
 /** Save just the physical count and the note.
@@ -390,47 +411,52 @@ export async function saveDailyReconciliationDraft(
  *
  * So each step writes only its own fields, and the clobber cannot happen.
  */
-export async function saveDailyCount(date: string, countedAmount: number | null, note: string | null) {
-  const session = await requireCapability("PETTY_CASH_EDIT");
-  if (date > todayIso()) {
-    throw new Error("Can't reconcile a day that hasn't happened yet.");
-  }
-
-  const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  if (existing?.status === "finalized" && session.systemRole !== "ADMIN") {
-    throw new Error("This day is already finalized.");
-  }
-
-  if (existing) {
-    const update = db
-      .update(dailyCashReconciliations)
-      .set({ countedAmount, note })
-      .where(eq(dailyCashReconciliations.id, existing.id));
-
-    if (existing.status === "finalized") {
-      await db.batch([
-        update,
-        logActivityStatement({
-          actorEmployeeId: session.id,
-          type: "petty_cash.day.reconciliation_edited",
-          entityType: "daily_cash_reconciliation",
-          entityId: date,
-          summary: `Edited the counted amount on finalized day ${date}.`,
-          detail: {
-            before: { countedAmount: existing.countedAmount, note: existing.note },
-            after: { countedAmount, note },
-          },
-        }),
-      ]);
-    } else {
-      await update;
+export async function saveDailyCount(date: string, countedAmount: number | null, note: string | null): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await requireCapability("PETTY_CASH_EDIT");
+    if (date > todayIso()) {
+      throw new Error("Can't reconcile a day that hasn't happened yet.");
     }
-  } else {
-    await db.insert(dailyCashReconciliations).values({ date, countedAmount, note, status: "draft" });
-  }
 
-  revalidatePath("/ledger/day");
-  revalidatePath("/ledger");
+    const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
+    if (existing?.status === "finalized" && session.systemRole !== "ADMIN") {
+      throw new Error("This day is already finalized.");
+    }
+
+    if (existing) {
+      const update = db
+        .update(dailyCashReconciliations)
+        .set({ countedAmount, note })
+        .where(eq(dailyCashReconciliations.id, existing.id));
+
+      if (existing.status === "finalized") {
+        await db.batch([
+          update,
+          logActivityStatement({
+            actorEmployeeId: session.id,
+            type: "petty_cash.day.reconciliation_edited",
+            entityType: "daily_cash_reconciliation",
+            entityId: date,
+            summary: `Edited the counted amount on finalized day ${date}.`,
+            detail: {
+              before: { countedAmount: existing.countedAmount, note: existing.note },
+              after: { countedAmount, note },
+            },
+          }),
+        ]);
+      } else {
+        await update;
+      }
+    } else {
+      await db.insert(dailyCashReconciliations).values({ date, countedAmount, note, status: "draft" });
+    }
+
+    revalidatePath("/ledger/day");
+    revalidatePath("/ledger");
+});
 }
 
 /** Locks the day. Confirmed with Oliver 2026-08-14: "you supposed not to
@@ -443,61 +469,66 @@ export async function saveDailyCount(date: string, countedAmount: number | null,
  * happened yet -- in practice this is already impossible since
  * shiftsReady requires finalized shifts that wouldn't exist yet, but the
  * explicit check keeps the rule obvious rather than incidental. */
-export async function finalizePettyCashDay(date: string, countedAmount: number, note: string | null) {
-  const session = await requireCapability("PETTY_CASH_EDIT");
+export async function finalizePettyCashDay(date: string, countedAmount: number, note: string | null): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await requireCapability("PETTY_CASH_EDIT");
 
-  if (date > todayIso()) {
-    throw new Error("Can't finalize a day that hasn't happened yet.");
-  }
-  const dayShifts = await db.select({ status: shifts.status }).from(shifts).where(eq(shifts.date, date));
-  const anyUnfinalized = dayShifts.some((s) => s.status !== "finalized");
-  if (anyUnfinalized) {
-    throw new Error("Finish finalizing today's shift(s) first -- cash sales/tips aren't final until the shift is.");
-  }
-  if (!Number.isFinite(countedAmount)) {
-    throw new Error("Enter the counted cash amount before finalizing.");
-  }
+    if (date > todayIso()) {
+      throw new Error("Can't finalize a day that hasn't happened yet.");
+    }
+    const dayShifts = await db.select({ status: shifts.status }).from(shifts).where(eq(shifts.date, date));
+    const anyUnfinalized = dayShifts.some((s) => s.status !== "finalized");
+    if (anyUnfinalized) {
+      throw new Error("Finish finalizing today's shift(s) first -- cash sales/tips aren't final until the shift is.");
+    }
+    if (!Number.isFinite(countedAmount)) {
+      throw new Error("Enter the counted cash amount before finalizing.");
+    }
 
-  const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
-  const finalizedAt = new Date().toISOString();
+    const [existing] = await db.select().from(dailyCashReconciliations).where(eq(dailyCashReconciliations.date, date));
+    const finalizedAt = new Date().toISOString();
 
-  // Finalizing locks a day's money. That is worth a log line on its own,
-  // not only when an admin later corrects it -- the Activity Log Centre
-  // should be able to answer "who closed this day, and when" without
-  // depending on the reconciliation row still existing in its original
-  // shape.
-  const logStatement = logActivityStatement({
-    actorEmployeeId: session.id,
-    type: "petty_cash.day.finalized",
-    entityType: "daily_cash_reconciliation",
-    entityId: date,
-    summary: `Finalized ${date} with ${logMoney(countedAmount)} counted in the drawer.`,
-    detail: { date, countedAmount, note },
-  });
+    // Finalizing locks a day's money. That is worth a log line on its own,
+    // not only when an admin later corrects it -- the Activity Log Centre
+    // should be able to answer "who closed this day, and when" without
+    // depending on the reconciliation row still existing in its original
+    // shape.
+    const logStatement = logActivityStatement({
+      actorEmployeeId: session.id,
+      type: "petty_cash.day.finalized",
+      entityType: "daily_cash_reconciliation",
+      entityId: date,
+      summary: `Finalized ${date} with ${logMoney(countedAmount)} counted in the drawer.`,
+      detail: { date, countedAmount, note },
+    });
 
-  if (existing) {
-    await db.batch([
-      db
-        .update(dailyCashReconciliations)
-        .set({ countedAmount, note, status: "finalized", finalizedAt, finalizedByEmployeeId: session.id })
-        .where(eq(dailyCashReconciliations.id, existing.id)),
-      logStatement,
-    ]);
-  } else {
-    await db.batch([
-      db.insert(dailyCashReconciliations).values({
-        date,
-        beginningBalance: 0,
-        otherCash: 0,
-        countedAmount,
-        note,
-        status: "finalized",
-        finalizedAt,
-        finalizedByEmployeeId: session.id,
-      }),
-      logStatement,
-    ]);
-  }
-  revalidatePath("/ledger/day");
-  revalidatePath("/ledger");
+    if (existing) {
+      await db.batch([
+        db
+          .update(dailyCashReconciliations)
+          .set({ countedAmount, note, status: "finalized", finalizedAt, finalizedByEmployeeId: session.id })
+          .where(eq(dailyCashReconciliations.id, existing.id)),
+        logStatement,
+      ]);
+    } else {
+      await db.batch([
+        db.insert(dailyCashReconciliations).values({
+          date,
+          beginningBalance: 0,
+          otherCash: 0,
+          countedAmount,
+          note,
+          status: "finalized",
+          finalizedAt,
+          finalizedByEmployeeId: session.id,
+        }),
+        logStatement,
+      ]);
+    }
+    revalidatePath("/ledger/day");
+    revalidatePath("/ledger");
+});
 }

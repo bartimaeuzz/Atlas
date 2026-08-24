@@ -1,5 +1,6 @@
 "use server";
 
+import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, and, inArray } from "drizzle-orm";
@@ -316,20 +317,27 @@ export async function printSupplierCheck(vendorId: number, checkNumber: string |
  * printed (see /ledger/supplier-check/export/route.ts). */
 export async function printChecksForVendors(
   selections: { vendorId: number; checkNumber: string | null }[]
-): Promise<{ paymentIds: number[] }> {
-  await requireCapability("SUPPLIER_CHECK_LOG");
-
-  if (selections.length === 0) {
-    throw new Error("Select at least one vendor to print a check for.");
-  }
-
+): Promise<{ paymentIds: number[]; error: string | null }> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts). Carries its
+  // paymentIds alongside, so not the shared ActionResult shape.
   const paymentIds: number[] = [];
-  for (const { vendorId, checkNumber } of selections) {
-    const { paymentId } = await printSupplierCheck(vendorId, checkNumber);
-    paymentIds.push(paymentId);
-  }
+  try {
+    await requireCapability("SUPPLIER_CHECK_LOG");
 
-  return { paymentIds };
+    if (selections.length === 0) {
+      throw new Error("Select at least one vendor to print a check for.");
+    }
+
+    for (const { vendorId, checkNumber } of selections) {
+      const { paymentId } = await printSupplierCheck(vendorId, checkNumber);
+      paymentIds.push(paymentId);
+    }
+  } catch (e) {
+    return { paymentIds, error: e instanceof Error ? e.message : String(e) };
+  }
+  return { paymentIds, error: null };
 }
 
 /** Marks a PRINTED check as delivered/paid to the supplier -- the final
@@ -338,22 +346,27 @@ export async function printChecksForVendors(
  * actually handed over. Also flips the check's invoices to "paid" so the
  * holistic table's per-invoice detail reflects the final state without
  * needing to join back through the payment's own status every time. */
-export async function markSupplierCheckPaid(paymentId: number) {
-  // FA_SUPPLIER_CHECK_FINALIZE, not SUPPLIER_CHECK_LOG — see the split
-  // described in this file's header (2026-08-23). The page hides the button
-  // for anyone without it; this is the guard that actually enforces it.
-  const session = await requireCapability("FA_SUPPLIER_CHECK_FINALIZE");
+export async function markSupplierCheckPaid(paymentId: number): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    // FA_SUPPLIER_CHECK_FINALIZE, not SUPPLIER_CHECK_LOG — see the split
+    // described in this file's header (2026-08-23). The page hides the button
+    // for anyone without it; this is the guard that actually enforces it.
+    const session = await requireCapability("FA_SUPPLIER_CHECK_FINALIZE");
 
-  const [payment] = await db.select().from(supplierCheckPayments).where(eq(supplierCheckPayments.id, paymentId));
-  if (!payment) throw new Error("Check not found.");
-  if (payment.status === "paid") return;
+    const [payment] = await db.select().from(supplierCheckPayments).where(eq(supplierCheckPayments.id, paymentId));
+    if (!payment) throw new Error("Check not found.");
+    if (payment.status === "paid") return;
 
-  await db
-    .update(supplierCheckPayments)
-    .set({ status: "paid", deliveredAt: new Date().toISOString(), deliveredByEmployeeId: session.id })
-    .where(eq(supplierCheckPayments.id, paymentId));
+    await db
+      .update(supplierCheckPayments)
+      .set({ status: "paid", deliveredAt: new Date().toISOString(), deliveredByEmployeeId: session.id })
+      .where(eq(supplierCheckPayments.id, paymentId));
 
-  await db.update(supplierInvoices).set({ status: "paid" }).where(eq(supplierInvoices.paymentId, paymentId));
+    await db.update(supplierInvoices).set({ status: "paid" }).where(eq(supplierInvoices.paymentId, paymentId));
 
-  revalidatePath("/ledger/supplier-check");
+    revalidatePath("/ledger/supplier-check");
+});
 }

@@ -19,13 +19,11 @@ export function ToggleCardActiveButton({ cardId, nextActive }: { cardId: number;
   function doToggle() {
     setError(null);
     startTransition(async () => {
-      try {
-        await toggleLedgerCardActive(cardId, nextActive);
-        setConfirmOpen(false);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Couldn't update this card.");
-        setConfirmOpen(false);
-      }
+      // Return-value error -- thrown server-action errors get redacted
+      // to "Minified React error #441" in production (2026-08-24 sweep).
+      const result = await toggleLedgerCardActive(cardId, nextActive);
+      if (result.error) setError(result.error);
+      setConfirmOpen(false);
     });
   }
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, and, isNull } from "drizzle-orm";
@@ -95,44 +96,54 @@ export async function createShift(formData: FormData) {
   redirect(`/shifts/${shift.id}/roster`);
 }
 
-export async function addRosterEntry(formData: FormData) {
-  await requireManagerAction();
+export async function addRosterEntry(formData: FormData): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireManagerAction();
 
-  const shiftId = Number(formData.get("shiftId"));
-  const employeeId = Number(formData.get("employeeId"));
-  const positionId = Number(formData.get("positionId"));
+    const shiftId = Number(formData.get("shiftId"));
+    const employeeId = Number(formData.get("employeeId"));
+    const positionId = Number(formData.get("positionId"));
 
-  if (!shiftId || !employeeId || !positionId) {
-    throw new Error("Employee and position are required");
-  }
+    if (!shiftId || !employeeId || !positionId) {
+      throw new Error("Employee and position are required");
+    }
 
-  await assertDraft(shiftId);
+    await assertDraft(shiftId);
 
-  // Point value override is NOT set here on purpose — it's a closing-time
-  // judgment call ("did great today"), entered on the Closing Report page
-  // right before Save, not a staffing decision made when building the
-  // roster hours earlier. New entries start with no override (resolves to
-  // the employee's standing point value until someone bumps it later).
-  await db.insert(shiftRosterEntries).values({
-    shiftId,
-    employeeId,
-    positionId,
-  });
+    // Point value override is NOT set here on purpose — it's a closing-time
+    // judgment call ("did great today"), entered on the Closing Report page
+    // right before Save, not a staffing decision made when building the
+    // roster hours earlier. New entries start with no override (resolves to
+    // the employee's standing point value until someone bumps it later).
+    await db.insert(shiftRosterEntries).values({
+      shiftId,
+      employeeId,
+      positionId,
+    });
 
-  revalidatePath(`/shifts/${shiftId}/roster`);
+    revalidatePath(`/shifts/${shiftId}/roster`);
+});
 }
 
-export async function removeRosterEntry(formData: FormData) {
-  await requireManagerAction();
+export async function removeRosterEntry(formData: FormData): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    await requireManagerAction();
 
-  const rosterEntryId = Number(formData.get("rosterEntryId"));
-  const shiftId = Number(formData.get("shiftId"));
-  if (!rosterEntryId || !shiftId) throw new Error("Missing roster entry");
+    const rosterEntryId = Number(formData.get("rosterEntryId"));
+    const shiftId = Number(formData.get("shiftId"));
+    if (!rosterEntryId || !shiftId) throw new Error("Missing roster entry");
 
-  await assertDraft(shiftId);
+    await assertDraft(shiftId);
 
-  await db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
-  revalidatePath(`/shifts/${shiftId}/roster`);
+    await db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
+    revalidatePath(`/shifts/${shiftId}/roster`);
+});
 }
 
 export interface ClosingReportActionState {

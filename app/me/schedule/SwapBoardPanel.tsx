@@ -143,11 +143,10 @@ function AcceptableRow({ request }: { request: SwapRequestView }) {
         onClick={() =>
           startTransition(async () => {
             setError(null);
-            try {
-              await acceptSwapRequest(request.id);
-            } catch (e) {
-              setError(e instanceof Error ? e.message : String(e));
-            }
+            // Return-value error -- thrown server-action errors get redacted
+            // to "Minified React error #441" in production (2026-08-24 sweep).
+            const result = await acceptSwapRequest(request.id);
+            if (result.error) setError(result.error);
           })
         }
       >
@@ -183,7 +182,14 @@ function MyRequestRow({ request }: { request: SwapRequestView }) {
         <button
           type="button"
           disabled={isPending}
-          onClick={() => startTransition(() => cancelSwapRequest(request.id))}
+          onClick={() =>
+            startTransition(async () => {
+              // Discard the { error } result: cancelling your own open
+              // request has no expected failure a user can act on, and
+              // this row has no error surface.
+              await cancelSwapRequest(request.id);
+            })
+          }
           className="text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0"
         >
           Cancel
