@@ -235,7 +235,13 @@ export function WeeklyPlanGrid({
       {/* Day picker + sticky day header, phone only. Rendered once here
           rather than inside the period loop, so Lunch and Dinner for the
           chosen day read as one day rather than two separate lists. */}
-      <div className="lg:hidden -mb-4">
+      {/* No negative bottom margin here. -mb-4 used to shrink space-y-8's
+          gap to 16px, but a negative margin under an opaque sticky block
+          pulls the table 16px UNDER the header -- the first row's position
+          name sat covered before any scrolling happened (Oliver caught it
+          on 2026-08-24). The 16px gap now comes from !mt-4 on the table
+          block below instead, which cannot overlap anything. */}
+      <div className="lg:hidden">
         <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-4 px-4">
           {data.dates.map((date) => {
             const active = date === selectedDate;
@@ -304,7 +310,10 @@ export function WeeklyPlanGrid({
           cell), not as one big form. /schedule/targets looks like the same
           problem and is NOT: it posts the whole grid, which is why that
           screen hides columns instead of dropping them. */}
-      <div className="lg:hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      {/* !mt-4: overrides space-y-8's margin-top for this pair only -- see
+          the day-header block above for why the tighter gap lives here and
+          not as a negative margin up there. */}
+      <div className="lg:hidden !mt-4" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         {(() => {
           const date = selectedDate;
           const dayOfWeek = dayOfWeekFor(date);
