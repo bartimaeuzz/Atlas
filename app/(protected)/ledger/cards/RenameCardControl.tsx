@@ -1,51 +1,36 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
 import { renameLedgerCard, type CardActionState } from "@/lib/actions/card";
 import { Button } from "@/components/ui/Button";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const initialState: CardActionState = { error: null };
 
-/** Inline card rename (2026-08-24, Oliver: "card name can be edit with
- * permission"). Rendered only for LEDGER_CARD_MANAGE holders -- the page
- * resolves that server-side and simply doesn't mount this for anyone
- * else; the server action re-checks independently. Edit-in-place rather
- * than a route: same one-field pattern as CardForm right below it. */
+/** Card name as an always-editable field (2026-08-24, Oliver's revision
+ * of the same-day Rename button: "instead of popup field to edit, just
+ * change name to field box"). Rendered only for LEDGER_CARD_MANAGE
+ * holders -- everyone else gets the plain text name from the page. Save
+ * sits beside the field rather than saving on blur: an explicit commit
+ * matches the rest of the app, and a stray tap can't silently rename a
+ * card that appears on statements. */
 export function RenameCardControl({ cardId, currentName }: { cardId: number; currentName: string }) {
-  const [editing, setEditing] = useState(false);
   const [state, formAction, isPending] = useActionState(renameLedgerCard, initialState);
 
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        onClick={() => setEditing(true)}
-        className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
-      >
-        Rename
-      </button>
-    );
-  }
-
   return (
-    <form action={formAction} className="flex items-center gap-2">
+    <form action={formAction} className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
       <input type="hidden" name="cardId" value={cardId} />
       <input
         type="text"
         name="name"
         defaultValue={currentName}
         required
-        autoFocus
-        className="border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 text-sm w-40 bg-[var(--card)]"
+        aria-label="Card name"
+        className="border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 text-sm flex-1 min-w-32 max-w-64 bg-[var(--card)]"
       />
-      <Button type="submit" size="sm" loading={isPending}>
+      <Button type="submit" size="sm" variant="secondary" loading={isPending}>
         Save
       </Button>
-      <Button type="button" size="sm" variant="secondary" onClick={() => setEditing(false)} disabled={isPending}>
-        Cancel
-      </Button>
-      {state.error && <span className="text-xs text-[var(--danger-700)]">{state.error}</span>}
+      {state.error && <span className="text-xs text-[var(--danger-700)] w-full">{state.error}</span>}
     </form>
   );
 }
