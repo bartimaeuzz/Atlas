@@ -6,6 +6,7 @@ import {
   type ClosingReportActionState,
 } from "@/lib/actions/shift";
 import type { ClosingReportData, PlatformSalesRow as PlatformSalesRowData } from "@/lib/shift/loadClosingReportData";
+import { Button } from "@/components/ui/Button";
 
 const initialState: ClosingReportActionState = { error: null };
 
@@ -25,7 +26,8 @@ function round2(n: number): number {
    across two layouts would double-post every field. Phone: each employee
    is a bordered card with labelled fields; lg: the same nodes lay out as
    table-ish rows under a header row that is hidden on phone. */
-const INPUT = "border rounded px-2 py-1 min-h-11 w-full disabled:bg-neutral-100";
+const INPUT =
+  "border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-11 w-full bg-[var(--card)] disabled:bg-[var(--paper)] disabled:text-[var(--ink-500)]";
 
 export function ClosingReportForm({
   shiftId,
@@ -61,17 +63,17 @@ export function ClosingReportForm({
       <input type="hidden" name="shiftId" value={shiftId} />
 
       {error && (
-        <div className="border border-red-300 bg-red-50 text-red-700 rounded p-4 text-sm whitespace-pre-line">
-          <div className="font-medium mb-1">Couldn&apos;t save — nothing was recorded.</div>
+        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded-[var(--radius-md)] p-4 text-sm whitespace-pre-line">
+          <div className="font-semibold mb-1">Couldn&apos;t save — nothing was recorded.</div>
           {error}
         </div>
       )}
 
       <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium mb-3">Sales</legend>
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Sales</legend>
         <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
           <label className="text-sm block">
-            <span className="block text-neutral-500 mb-1">Total sales (Net, before tax)</span>
+            <span className="block text-[var(--ink-500)] mb-1">Total sales (Net, before tax)</span>
             <input
               type="number"
               step={0.01}
@@ -87,7 +89,7 @@ export function ClosingReportForm({
           </label>
           <div>
             <label className="text-sm block">
-              <span className="block text-neutral-500 mb-1">Sales tax</span>
+              <span className="block text-[var(--ink-500)] mb-1">Sales tax</span>
               <input
                 type="number"
                 step={0.01}
@@ -101,7 +103,7 @@ export function ClosingReportForm({
               />
             </label>
             {!taxTouched && (
-              <p className="text-xs text-neutral-400 mt-1">
+              <p className="text-xs text-[var(--ink-400)] mt-1">
                 Auto-calculated from the tax rate in Settings ({(taxRate * 100).toFixed(3)}%) — edit if
                 Toast&apos;s actual number differs.
               </p>
@@ -115,7 +117,7 @@ export function ClosingReportForm({
           <Field label="Gross food sales" name="grossFoodSales" defaultValue={s?.grossFoodSales} />
           <Field label="Gross beverage sales" name="grossBeverageSales" defaultValue={s?.grossBeverageSales} />
         </div>
-        <p className="text-xs text-neutral-500 mt-2">
+        <p className="text-xs text-[var(--ink-500)] mt-2">
           &quot;CC tip total&quot; must be the FULL day&apos;s card tip total — takeout and delivery tip are a
           subset of it, not extra on top. Fill this in first. &quot;Total sales&quot; is Net Sale (before tax) —
           same meaning it&apos;s always had, tax is now tracked separately.
@@ -123,21 +125,21 @@ export function ClosingReportForm({
       </fieldset>
 
       <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium mb-3">Tip points</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Tip points</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Bump someone&apos;s point value for today only — e.g. they upsold a ton of drinks, or
           covered for someone. Defaults to their standing value; leave alone to change nothing.
           This does NOT change their permanent record, only this shift.
         </p>
         {data.pointValueRows.length === 0 ? (
-          <p className="text-sm text-neutral-500">No tip-pool-eligible staff on the roster yet.</p>
+          <p className="text-sm text-[var(--ink-500)]">No tip-pool-eligible staff on the roster yet.</p>
         ) : (
           <table className="text-sm border-collapse">
             <tbody>
               {data.pointValueRows.map((r) => (
                 <tr key={r.rosterEntryId}>
                   <td className="pr-4 py-1">{r.employeeName}</td>
-                  <td className="pr-4 py-1 text-neutral-500">{r.positionName}</td>
+                  <td className="pr-4 py-1 text-[var(--ink-500)]">{r.positionName}</td>
                   <td className="pr-4 py-1">
                     <input
                       type="number"
@@ -155,8 +157,8 @@ export function ClosingReportForm({
       </fieldset>
 
       <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium mb-3">Bonus metrics</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Bonus metrics</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Restaurant-configurable bonuses — today that's the host team&apos;s shared
           drink count (paid $ per drink, pulled off the top of Pool 1 before the
           split, then split equally among whoever worked Host — see Preview).
@@ -167,7 +169,7 @@ export function ClosingReportForm({
           <div className="space-y-3 mb-4">
             {data.shiftMetricRows.map((r) => (
               <label key={r.metricDefinitionId} className="text-sm block max-w-xs">
-                <span className="block text-neutral-500 mb-1">{r.metricLabel}</span>
+                <span className="block text-[var(--ink-500)] mb-1">{r.metricLabel}</span>
                 <input
                   type="number"
                   step={1}
@@ -183,7 +185,7 @@ export function ClosingReportForm({
 
         {data.metricRows.length > 0 && (
           <div>
-            <div className="hidden lg:grid lg:grid-cols-[1.3fr_1.3fr_1fr] lg:gap-3 text-sm text-neutral-500 pb-1">
+            <div className="hidden lg:grid lg:grid-cols-[1.3fr_1.3fr_1fr] lg:gap-3 text-sm text-[var(--ink-500)] pb-1">
               <span>Employee</span>
               <span>Metric</span>
               <span>Value</span>
@@ -192,18 +194,18 @@ export function ClosingReportForm({
               {data.metricRows.map((r) => (
                 <div
                   key={`${r.metricDefinitionId}_${r.employeeId}`}
-                  className="grid grid-cols-2 gap-3 rounded border p-3 text-sm lg:grid-cols-[1.3fr_1.3fr_1fr] lg:items-center lg:border-0 lg:p-0"
+                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] p-3 text-sm lg:grid-cols-[1.3fr_1.3fr_1fr] lg:items-center lg:border-0 lg:p-0"
                 >
                   <div className="col-span-2 lg:col-span-1">
                     {r.employeeName}
-                    <span className="block text-xs text-neutral-500">{r.positionName}</span>
+                    <span className="block text-xs text-[var(--ink-500)]">{r.positionName}</span>
                   </div>
-                  <div className="text-neutral-500 self-center">
+                  <div className="text-[var(--ink-500)] self-center">
                     <span className="lg:hidden text-xs block">Metric</span>
                     {r.metricLabel}
                   </div>
                   <label className="block">
-                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Value</span>
+                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Value</span>
                     <input
                       type="number"
                       step={1}
@@ -220,13 +222,13 @@ export function ClosingReportForm({
         )}
 
         {data.shiftMetricRows.length === 0 && data.metricRows.length === 0 && (
-          <p className="text-sm text-neutral-500">No bonus-eligible staff on the roster yet.</p>
+          <p className="text-sm text-[var(--ink-500)]">No bonus-eligible staff on the roster yet.</p>
         )}
       </fieldset>
 
       <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium mb-3">Wage adjustments</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Wage adjustments</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Optional, for shift-coverage situations — e.g. Erika works Host but covers Aey&apos;s
           Bartender shift when Aey calls in sick. &quot;Override&quot; replaces the system&apos;s
           normal wage pick if it&apos;s wrong; &quot;Extra pay&quot; is always added ON TOP and shows
@@ -234,10 +236,10 @@ export function ClosingReportForm({
           change nothing.
         </p>
         {data.wageAdjustmentRows.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nobody on the roster yet.</p>
+          <p className="text-sm text-[var(--ink-500)]">Nobody on the roster yet.</p>
         ) : (
           <div>
-            <div className="hidden lg:grid lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:gap-3 text-sm text-neutral-500 pb-1">
+            <div className="hidden lg:grid lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:gap-3 text-sm text-[var(--ink-500)] pb-1">
               <span>Employee</span>
               <span>Auto wage</span>
               <span>Override</span>
@@ -248,18 +250,18 @@ export function ClosingReportForm({
               {data.wageAdjustmentRows.map((r) => (
                 <div
                   key={r.employeeId}
-                  className="grid grid-cols-2 gap-3 rounded border p-3 text-sm lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:items-center lg:border-0 lg:p-0"
+                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] p-3 text-sm lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:items-center lg:border-0 lg:p-0"
                 >
                   <div className="col-span-2 lg:col-span-1">
                     {r.employeeName}
-                    <span className="block text-xs text-neutral-500">{r.wageBearingPositionName}</span>
+                    <span className="block text-xs text-[var(--ink-500)]">{r.wageBearingPositionName}</span>
                   </div>
-                  <div className="text-neutral-500 self-center">
+                  <div className="text-[var(--ink-500)] self-center">
                     <span className="lg:hidden text-xs block">Auto wage</span>
                     {r.autoResolvedWage != null ? `$${r.autoResolvedWage.toFixed(2)}` : "—"}
                   </div>
                   <label className="block">
-                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Override</span>
+                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Override</span>
                     <input
                       type="number"
                       step={0.01}
@@ -270,7 +272,7 @@ export function ClosingReportForm({
                     />
                   </label>
                   <label className="block col-span-2 lg:col-span-1">
-                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Extra pay</span>
+                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Extra pay</span>
                     <input
                       type="number"
                       step={0.01}
@@ -281,7 +283,7 @@ export function ClosingReportForm({
                     />
                   </label>
                   <label className="block col-span-2 lg:col-span-1">
-                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Reason</span>
+                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Reason</span>
                     <input
                       type="text"
                       name={`wageReason_${r.employeeId}`}
@@ -298,8 +300,8 @@ export function ClosingReportForm({
       </fieldset>
 
       <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium mb-3">Disciplinary deductions</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Disciplinary deductions</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Optional, for disciplinary/correction issues (late, property damage, etc.) — since wages
           are flat-rate, a deduction can&apos;t come out of hours worked, so it&apos;s a direct dollar
           amount subtracted from that person&apos;s payout. Shown to the employee themselves and
@@ -307,10 +309,10 @@ export function ClosingReportForm({
           wage adjustments above. Leave blank to change nothing.
         </p>
         {data.wageAdjustmentRows.length === 0 ? (
-          <p className="text-sm text-neutral-500">Nobody on the roster yet.</p>
+          <p className="text-sm text-[var(--ink-500)]">Nobody on the roster yet.</p>
         ) : (
           <div>
-            <div className="hidden lg:grid lg:grid-cols-[1.3fr_1fr_1.7fr] lg:gap-3 text-sm text-neutral-500 pb-1">
+            <div className="hidden lg:grid lg:grid-cols-[1.3fr_1fr_1.7fr] lg:gap-3 text-sm text-[var(--ink-500)] pb-1">
               <span>Employee</span>
               <span>Deduction</span>
               <span>Reason</span>
@@ -319,11 +321,11 @@ export function ClosingReportForm({
               {data.wageAdjustmentRows.map((r) => (
                 <div
                   key={r.employeeId}
-                  className="grid grid-cols-2 gap-3 rounded border p-3 text-sm lg:grid-cols-[1.3fr_1fr_1.7fr] lg:items-center lg:border-0 lg:p-0"
+                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] p-3 text-sm lg:grid-cols-[1.3fr_1fr_1.7fr] lg:items-center lg:border-0 lg:p-0"
                 >
                   <div className="col-span-2 lg:col-span-1 self-center">{r.employeeName}</div>
                   <label className="block">
-                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Deduction</span>
+                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Deduction</span>
                     <input
                       type="number"
                       step={0.01}
@@ -335,7 +337,7 @@ export function ClosingReportForm({
                     />
                   </label>
                   <label className="block">
-                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Reason</span>
+                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Reason</span>
                     <input
                       type="text"
                       name={`deductionReason_${r.employeeId}`}
@@ -352,8 +354,8 @@ export function ClosingReportForm({
       </fieldset>
 
       <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium mb-3">Online platform sales</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Online platform sales</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Split tips by who delivered: platform-courier tips feed Pool 2 (Host/Operator/Packer/Bag
           Handler), restaurant-driver tips feed Pool 3 (Delivery Guy).
         </p>
@@ -366,20 +368,28 @@ export function ClosingReportForm({
 
       {!isFinalized && (
         <div className="flex flex-col sm:flex-row gap-3">
-          <button
+          {/* Secondary saves the draft, primary moves the flow forward --
+              one obviously-correct next action. Both are the design
+              system's Button (raw <button>s until 2026-08-24); formAction
+              rides through Button's ...rest. */}
+          <Button
+            type="submit"
+            variant="secondary"
             formAction={saveFormAction}
-            disabled={isSaving || isGoingToPreview}
-            className="border border-neutral-300 px-4 py-2 min-h-11 rounded hover:bg-neutral-50 disabled:opacity-50"
+            loading={isSaving}
+            disabled={isGoingToPreview}
           >
             {isSaving ? "Saving…" : "Save (draft)"}
-          </button>
-          <button
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
             formAction={previewFormAction}
-            disabled={isSaving || isGoingToPreview}
-            className="bg-black text-white px-4 py-2 min-h-11 rounded hover:bg-neutral-800 disabled:opacity-50"
+            loading={isGoingToPreview}
+            disabled={isSaving}
           >
             {isGoingToPreview ? "Saving…" : "Save & Preview →"}
-          </button>
+          </Button>
         </div>
       )}
     </form>
@@ -397,11 +407,11 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
   const [taxTouched, setTaxTouched] = useState(!p.taxAmountIsAuto);
 
   return (
-    <div className="border rounded p-3">
+    <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--card)]">
       <div className="text-sm font-medium mb-2">{p.platformName}</div>
       <div className="grid sm:grid-cols-5 gap-3">
         <label className="text-sm block">
-          <span className="block text-neutral-500 mb-1">Sales amount (Net)</span>
+          <span className="block text-[var(--ink-500)] mb-1">Sales amount (Net)</span>
           <input
             type="number"
             step={0.01}
@@ -417,7 +427,7 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
         </label>
         <div>
           <label className="text-sm block">
-            <span className="block text-neutral-500 mb-1">Sales tax</span>
+            <span className="block text-[var(--ink-500)] mb-1">Sales tax</span>
             <input
               type="number"
               step={0.01}
@@ -430,7 +440,7 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
               className={INPUT}
             />
           </label>
-          {!taxTouched && <p className="text-xs text-neutral-400 mt-1">Auto-calculated, edit if it differs.</p>}
+          {!taxTouched && <p className="text-xs text-[var(--ink-400)] mt-1">Auto-calculated, edit if it differs.</p>}
         </div>
         <Field label="Commission fee" name={`platform_${p.platformId}_commissionFee`} defaultValue={p.commissionFee} />
         <Field label="Tip — platform courier" name={`platform_${p.platformId}_tipCourier`} defaultValue={p.tipAmountPlatformCourier} />
@@ -443,7 +453,7 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
 function Field({ label, name, defaultValue }: { label: string; name: string; defaultValue?: number }) {
   return (
     <label className="text-sm block">
-      <span className="block text-neutral-500 mb-1">{label}</span>
+      <span className="block text-[var(--ink-500)] mb-1">{label}</span>
       <input
         type="number"
         step={0.01}

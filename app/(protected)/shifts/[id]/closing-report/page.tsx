@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { loadClosingReportData } from "@/lib/shift/loadClosingReportData";
 import { ClosingReportForm } from "./ClosingReportForm";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { Banner } from "@/components/ui/Banner";
+import { StatusBadge } from "@/components/ui/Badge";
 
 export default async function ClosingReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -15,17 +17,26 @@ export default async function ClosingReportPage({ params }: { params: Promise<{ 
   return (
     <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
       <p className="text-sm mb-1">
-        <Link href={`/shifts/${shiftId}/roster`} className={`text-neutral-500 hover:underline ${TAP_TARGET_PAD}`}>← Roster</Link>
+        <Link href={`/shifts/${shiftId}/roster`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:underline ${TAP_TARGET_PAD}`}>← Roster</Link>
       </p>
-      <h1 className="text-2xl font-semibold mb-1">
+      <h1 className="text-2xl font-semibold text-[var(--ink-900)] mb-1">
         Closing Report — {data.shift.date} ({data.shift.period})
       </h1>
-      <p className="text-sm text-neutral-500 mb-6">Status: {data.shift.status}</p>
+      <p className="text-sm text-[var(--ink-500)] mb-6 flex items-center gap-2">
+        Status: <StatusBadge status={isFinalized ? "finalized" : "draft"} />
+      </p>
 
       {isFinalized && (
-        <div className="border border-amber-300 bg-amber-50 text-amber-800 rounded p-4 text-sm mb-6">
-          This shift is finalized — figures are locked.{" "}
-          <Link href={`/shifts/${shiftId}/summary`} className="underline">View the Summary Report →</Link>
+        <div className="mb-6">
+          <Banner
+            tone="warning"
+            title="This shift is finalized — figures are locked."
+            description={
+              <Link href={`/shifts/${shiftId}/summary`} className="underline">
+                View the Summary Report →
+              </Link>
+            }
+          />
         </div>
       )}
 
