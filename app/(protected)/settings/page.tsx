@@ -35,7 +35,7 @@ export default async function SettingsPage() {
   const viewerIsAdmin = viewer.isAdmin;
 
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
+    <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
       <h1 className="text-2xl font-semibold mb-1">Settings</h1>
       <p className="text-neutral-500 text-sm mb-6">Restaurant-wide configuration for tips, pools, and roster visibility.</p>
       {!canEdit && (

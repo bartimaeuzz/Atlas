@@ -35,7 +35,7 @@ export default async function WeeklyPlanPreviewPage({
 
   if (!weekStartDate) {
     return (
-      <main className="max-w-5xl mx-auto p-8 font-sans">
+      <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
         <p className="text-sm text-[var(--ink-500)] mb-4">Missing week.</p>
         <Link href="/schedule/plan" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
           &larr; Back to Weekly Plan
@@ -48,7 +48,7 @@ export default async function WeeklyPlanPreviewPage({
 
   if (!data.week) {
     return (
-      <main className="max-w-5xl mx-auto p-8 font-sans">
+      <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
         <p className="text-sm text-[var(--ink-500)] mb-4">This week hasn&apos;t been generated yet.</p>
         <Link
           href={`/schedule/plan?week=${weekStartDate}`}
@@ -63,7 +63,7 @@ export default async function WeeklyPlanPreviewPage({
   const week = data.week;
 
   return (
-    <main className="max-w-5xl mx-auto p-8 font-sans">
+    <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
       <Link href={`/schedule/plan?week=${weekStartDate}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Schedule Planner
       </Link>

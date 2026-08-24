@@ -112,7 +112,7 @@ export default async function ReportsPage({
       : `/reports/export?from=${from}&to=${to}`;
 
   return (
-    <main className="max-w-5xl mx-auto p-8 font-sans">
+    <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
       <PageHeader
         title="Reports"
         description={

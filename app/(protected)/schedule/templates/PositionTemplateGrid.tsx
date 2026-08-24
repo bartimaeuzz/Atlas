@@ -9,6 +9,7 @@ import {
 } from "@/lib/actions/schedule";
 import type { AssignedEmployeeGroup, PositionTemplateGroup, TemplateCell } from "@/lib/schedule/loadTemplatesByPosition";
 import { StackedCard, StackedCardList, StackedField } from "@/components/ui/Table";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 // Display order is Monday-first (matches the Weekly Plan grid and how
 // Oliver reads a real restaurant schedule) — the underlying dayOfWeek
@@ -403,6 +404,10 @@ function EmployeeEdit({
   setEditing: (v: boolean) => void;
 }) {
   const [showVacancyForm, setShowVacancyForm] = useState(false);
+  // The last live window.confirm() in the app (caught by the 2026-08-24
+  // behaviour sweep for the raw-confirm bug class). Same ConfirmDialog
+  // tier as swap-approve: destructive-ish but recoverable by re-assigning.
+  const [confirmingRetire, setConfirmingRetire] = useState(false);
   const [isPending, startTransition] = useTransition();
   const isVacant = employee.vacancyReason !== null;
   const anyTemplateId = employee.cells[0]?.templateId;
@@ -444,17 +449,24 @@ function EmployeeEdit({
           <button
             type="button"
             disabled={isPending || !anyTemplateId}
-            onClick={() => {
-              if (window.confirm(`Retire ${employee.employeeName} from ${group.positionName} entirely?`)) {
-                startTransition(async () => {
-                  await retireEmployeeFromPosition(employee.employeeId, group.positionId);
-                });
-              }
-            }}
+            onClick={() => setConfirmingRetire(true)}
             className="text-red-700 hover:underline disabled:opacity-40 disabled:no-underline"
           >
             Retire
           </button>
+          <ConfirmDialog
+            open={confirmingRetire}
+            onClose={() => setConfirmingRetire(false)}
+            onConfirm={() => {
+              setConfirmingRetire(false);
+              startTransition(async () => {
+                await retireEmployeeFromPosition(employee.employeeId, group.positionId);
+              });
+            }}
+            title={`Retire ${employee.employeeName} from ${group.positionName}?`}
+            description="Takes them off this position's recurring template — future weeks stop pre-filling them here. Past and already-generated weeks are untouched, and you can add them back on this page."
+            confirmLabel="Retire"
+          />
         </div>
       )}
       {showVacancyForm && (

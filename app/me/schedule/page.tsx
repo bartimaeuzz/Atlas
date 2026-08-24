@@ -62,7 +62,7 @@ export default async function MyScheduleView({
   const nextMonth = shiftMonth(monthAnchor, 1);
 
   return (
-    <main className="max-w-3xl mx-auto p-8 font-sans">
+    <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
       <PageHeader
         title="My Schedule"
         description={`${data.employeeName} — ${data.monthLabel}. Grey days mean that week hasn't been published yet — not that you're off.`}

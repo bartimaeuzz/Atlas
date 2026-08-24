@@ -29,7 +29,7 @@ export default async function PermissionsPage() {
   const matrix = await loadCapabilityMatrix();
 
   return (
-    <main className="max-w-4xl mx-auto p-8 font-sans">
+    <main className="max-w-4xl mx-auto p-4 sm:p-8 font-sans">
       <h1 className="text-2xl font-semibold mb-1">Permission and Roles</h1>
       <p className="text-[var(--ink-500)] text-sm mb-2">
         Assign an Account Type preset for the everyday case, or open Advanced to fine-tune individual

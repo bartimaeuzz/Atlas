@@ -24,7 +24,7 @@ export default async function EmployeeSchedulePage({
     const activeEmployees = employeeList.filter((e) => e.active);
 
     return (
-      <main className="max-w-3xl mx-auto p-8 font-sans">
+      <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
         <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
           &larr; Schedule Planner
         </Link>
@@ -52,7 +52,7 @@ export default async function EmployeeSchedulePage({
   const nextMonth = shiftMonth(monthAnchor, 1);
 
   return (
-    <main className="max-w-5xl mx-auto p-8 font-sans">
+    <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
       <Link href="/schedule/plan/person" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Change person
       </Link>

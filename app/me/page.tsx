@@ -11,7 +11,7 @@ export default async function MyPayPage() {
   if (!data) redirect("/login"); // employee record vanished mid-session — treat as signed out
 
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
+    <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
       <h1 className="text-2xl font-semibold mb-1">My Pay</h1>
       <p className="text-sm text-neutral-500 mb-8">
         {data.employee.name} — figures below are locked snapshots from each finalized shift, not

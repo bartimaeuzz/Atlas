@@ -28,7 +28,7 @@ export default async function ShiftPage({ params }: { params: Promise<{ id: stri
     : [];
 
   return (
-    <main className="max-w-4xl mx-auto p-8 font-sans">
+    <main className="max-w-4xl mx-auto p-4 sm:p-8 font-sans">
       <p className="text-sm mb-1">
         <Link href="/shifts" className="text-neutral-500 hover:underline">← All shifts</Link>
       </p>

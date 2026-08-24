@@ -35,7 +35,7 @@ export default async function WeeksListPage({
   const nextWindow = shiftWeek(windowStart, WINDOW_SIZE);
 
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
+    <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
       <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
         &larr; Schedule Planner
       </Link>

@@ -16,7 +16,7 @@ export default async function LeavePage() {
   const requests = await loadUpcomingLeaveRequests(toIso(new Date()));
 
   return (
-    <main className="max-w-2xl mx-auto p-8 font-sans">
+    <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
       <MarkSeenOnMount section="leave_requests" />
       <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
         &larr; Schedule

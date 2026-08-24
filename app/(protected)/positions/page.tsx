@@ -40,7 +40,7 @@ export default async function PositionsListPage() {
   const [positionList, canSeeSettings] = await Promise.all([loadPositionsList(), hasCapability("VIEW_SETTINGS")]);
 
   return (
-    <main className="max-w-3xl mx-auto p-8 font-sans">
+    <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
       <PageHeader
         title="Positions"
         description="Create and edit job positions — which tip pool(s) they belong to, roster visibility, and (for FOH) their flat wage rate. Retiring a position keeps every past shift that used it intact; it just stops showing up when staffing new ones."

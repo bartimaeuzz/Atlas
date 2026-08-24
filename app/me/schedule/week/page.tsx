@@ -41,7 +41,7 @@ export default async function StaffWeeklyPlanPage({
   const nextWeek = shiftWeek(weekStartDate, 1);
 
   return (
-    <main className="max-w-5xl mx-auto p-8 font-sans">
+    <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
       <Link href="/me/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; My Schedule
       </Link>

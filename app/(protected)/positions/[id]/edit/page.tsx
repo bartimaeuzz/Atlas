@@ -14,7 +14,7 @@ export default async function EditPositionPage({ params }: { params: Promise<{ i
   if (!position) notFound();
 
   return (
-    <main className="max-w-3xl mx-auto p-8 font-sans">
+    <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
       <div className="mb-3">
         <LinkButton href="/positions" variant="ghost" size="sm">
           ← Positions
