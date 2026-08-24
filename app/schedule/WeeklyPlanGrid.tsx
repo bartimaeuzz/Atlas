@@ -268,105 +268,140 @@ export function WeeklyPlanGrid({
         </div>
       </div>
 
-      {(["Lunch", "Dinner"] as const).map((period) => (
-        <section key={period}>
-          <h2 className="text-lg font-medium mb-3 text-[var(--ink-900)]">{period}</h2>
-          {/* The phone shape, both modes (2026-08-23). This used to be
-              readOnly-only; the manager building the week got a sideways
-              -scrolling table and a "swipe sideways" hint instead. Same
-              pieces as the desktop cell -- AssignmentPill and QuickAddCell
-              -- just laid out per position instead of per column, so the
-              two shapes cannot drift into behaving differently.
+      {/* PHONE: one card table for the selected day (2026-08-24, Oliver).
+          Row per position, Lunch and Dinner as columns, each staff name a
+          small card in whichever period they work.
 
-              Safe to render one day only because this grid saves per
-              change (addPlannedAssignment / removePlannedAssignment fire
-              per cell), not as one big form. /schedule/targets looks
-              similar and is NOT like this: it posts the whole grid, which
-              is why that screen hides columns instead of dropping them. */}
-          <div className="lg:hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-            {(() => {
-              const date = selectedDate;
-              const dayOfWeek = dayOfWeekFor(date);
-              const dayRows = data.positions
-                .map((p) => {
-                  const assignments = data.assignments.filter(
-                    (a) => a.positionId === p.id && a.date === date && a.period === period
-                  );
-                  const target = data.targets[`${p.id}:${dayOfWeek}:${period}`] ?? 0;
-                  return { position: p, assignments, target };
-                })
-                // When editing, every position stays visible -- you cannot add
-                // someone to a row that is not on screen. Read-only hides the
-                // empty ones, which is what makes it readable.
-                .filter(({ assignments, target }) =>
-                  !readOnly || assignments.length > 0 || (!hideDiagnostics && target > 0)
-                );
+          Rendered ONCE, outside the period loop, which is the whole reason
+          this replaced yesterday's shape: that one lived inside the loop and
+          so could only ever show a single period at a time. Reading "is
+          Bartender covered for both services" meant scrolling from the Lunch
+          list to the Dinner list and matching the position name by eye. Here
+          both periods for a position sit on one line.
 
-              if (dayRows.length === 0) {
-                return (
-                  <div className="rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-3 text-xs text-[var(--ink-400)]">
-                    Nobody scheduled for {period.toLowerCase()} this day.
-                  </div>
-                );
-              }
+          Still safe to render one day only because this grid saves per
+          change (addPlannedAssignment / removePlannedAssignment fire per
+          cell), not as one big form. /schedule/targets looks like the same
+          problem and is NOT: it posts the whole grid, which is why that
+          screen hides columns instead of dropping them. */}
+      <div className="lg:hidden" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        {(() => {
+          const date = selectedDate;
+          const dayOfWeek = dayOfWeekFor(date);
+          const cellFor = (positionId: number, period: "Lunch" | "Dinner") => {
+            const assignments = data.assignments.filter(
+              (a) => a.positionId === positionId && a.date === date && a.period === period
+            );
+            const target = data.targets[`${positionId}:${dayOfWeek}:${period}`] ?? 0;
+            return { assignments, target };
+          };
 
-              return (
-                <div className="rounded-[var(--radius-md)] border border-[var(--border)] divide-y divide-[var(--border)] overflow-hidden">
-                  {dayRows.map(({ position, assignments, target }) => {
-                    const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
-                    return (
-                      <div key={position.id} className={"px-3 py-2" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
-                        <div className="text-xs text-[var(--ink-500)] mb-1">
-                          {position.name}
+          const rows = data.positions
+            .map((p) => ({ position: p, lunch: cellFor(p.id, "Lunch"), dinner: cellFor(p.id, "Dinner") }))
+            // Editing keeps every position on screen -- you cannot add someone
+            // to a row that is not rendered. Read-only hides the ones with
+            // nobody and no target, which is what keeps it readable.
+            .filter(({ lunch, dinner }) =>
+              !readOnly ||
+              lunch.assignments.length > 0 ||
+              dinner.assignments.length > 0 ||
+              (!hideDiagnostics && (lunch.target > 0 || dinner.target > 0))
+            );
+
+          if (rows.length === 0) {
+            return (
+              <div className="rounded-[var(--radius-md)] border border-[var(--border)] px-3 py-3 text-xs text-[var(--ink-400)]">
+                Nobody scheduled this day.
+              </div>
+            );
+          }
+
+          const COLS = "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2";
+
+          return (
+            <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
+              <div className={COLS + " px-2 py-1.5 bg-[var(--paper)] border-b border-[var(--border)] text-[11px] font-medium text-[var(--ink-500)]"}>
+                <span>Position</span>
+                <span>Lunch</span>
+                <span>Dinner</span>
+              </div>
+              <div className="divide-y divide-[var(--border)]">
+                {rows.map(({ position, lunch, dinner }) => (
+                  <div key={position.id} className={COLS + " px-2 py-2 items-start"}>
+                    <span className="text-xs text-[var(--ink-700)] leading-snug">{position.name}</span>
+                    {(["Lunch", "Dinner"] as const).map((period) => {
+                      const { assignments, target } = period === "Lunch" ? lunch : dinner;
+                      const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
+                      return (
+                        // Tint the CELL, not the row. In a two-period row a row
+                        // tint would say "this position is short" when only one
+                        // service is -- the eye should land on the service that
+                        // actually needs someone.
+                        <div
+                          key={period}
+                          className={
+                            "-my-1 -mx-1 px-1 py-1 rounded-[var(--radius-sm)] " +
+                            (underTarget ? "bg-[var(--danger-tint)]" : "")
+                          }
+                        >
+                          {assignments.length === 0 && readOnly ? (
+                            <span className="text-[11px] text-[var(--ink-400)]">—</span>
+                          ) : (
+                            <div className="space-y-1">
+                              {assignments.map((a) => {
+                                const slotKey = `${a.employeeId}:${date}:${period}`;
+                                const otherPositionIds = hideDiagnostics
+                                  ? []
+                                  : (slotPositionsByEmployee.get(slotKey) ?? []).filter((id) => id !== a.positionId);
+                                const conflictPositionNames = [...new Set(otherPositionIds)].map(
+                                  (id) => positionNameById.get(id) ?? "?"
+                                );
+                                return (
+                                  <AssignmentPill
+                                    key={a.id}
+                                    assignment={a}
+                                    conflictPositionNames={conflictPositionNames}
+                                    readOnly={readOnly}
+                                    vacatingSoon={a.vacatingSoon}
+                                    onLeave={a.onLeave}
+                                    swap={a.swap}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )}
                           {!hideDiagnostics && target > 0 && (
-                            <span className={underTarget ? " ml-1 text-[var(--danger-700)] font-medium" : " ml-1"}>
-                              ({assignments.length}/{target})
-                            </span>
+                            <div className={"text-[11px] mt-0.5" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-400)]")}>
+                              {assignments.length}/{target}
+                            </div>
+                          )}
+                          {!readOnly && weekId !== undefined && (
+                            <QuickAddCell
+                              weekId={weekId}
+                              date={date}
+                              period={period}
+                              positionId={position.id}
+                              employees={employeesByPosition.get(position.id) ?? { eligible: [], other: [] }}
+                              alreadyAssignedIds={new Set(assignments.map((a) => a.employeeId))}
+                            />
                           )}
                         </div>
-                        {assignments.length === 0 ? (
-                          <span className="text-xs text-[var(--ink-400)] italic">No one assigned</span>
-                        ) : (
-                          <div className="space-y-1">
-                            {assignments.map((a) => {
-                              const slotKey = `${a.employeeId}:${date}:${period}`;
-                              const otherPositionIds = hideDiagnostics
-                                ? []
-                                : (slotPositionsByEmployee.get(slotKey) ?? []).filter((id) => id !== a.positionId);
-                              const conflictPositionNames = [...new Set(otherPositionIds)].map(
-                                (id) => positionNameById.get(id) ?? "?"
-                              );
-                              return (
-                                <AssignmentPill
-                                  key={a.id}
-                                  assignment={a}
-                                  conflictPositionNames={conflictPositionNames}
-                                  readOnly={readOnly}
-                                  vacatingSoon={a.vacatingSoon}
-                                  onLeave={a.onLeave}
-                                  swap={a.swap}
-                                />
-                              );
-                            })}
-                          </div>
-                        )}
-                        {!readOnly && weekId !== undefined && (
-                          <QuickAddCell
-                            weekId={weekId}
-                            date={date}
-                            period={period}
-                            positionId={position.id}
-                            employees={employeesByPosition.get(position.id) ?? { eligible: [], other: [] }}
-                            alreadyAssignedIds={new Set(assignments.map((a) => a.employeeId))}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+
+      {(["Lunch", "Dinner"] as const).map((period) => (
+        // hidden below lg (2026-08-24): the phone now shows one card table
+        // with Lunch and Dinner as columns, so a "Lunch" heading above it
+        // would name a period the table already names twice.
+        <section key={period} className="hidden lg:block">
+          <h2 className="text-lg font-medium mb-3 text-[var(--ink-900)]">{period}</h2>
           <div className="hidden lg:block overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
