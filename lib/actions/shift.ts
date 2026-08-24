@@ -70,30 +70,50 @@ async function seedRosterFromPublishedPlan(shiftId: number, date: string, period
  * roster from a published weekly plan for a NEWLY created shift only —
  * the existing "Add someone" flow on the roster page (untouched) still
  * handles same-day fixes on top of whatever gets seeded here. */
-export async function createShift(formData: FormData) {
-  await requireManagerAction();
+export interface CreateShiftState {
+  error: string | null;
+  /** Set instead of redirecting when the date+period shift already exists
+   * (2026-08-24, Oliver): the old behaviour silently opened the existing
+   * shift's roster, which read as "created" when nothing was. The form
+   * shows a dialog -- Cancel | Go to that shift -- so the manager knows. */
+  existing?: { id: number; status: "draft" | "finalized"; date: string; period: string };
+}
 
-  const date = String(formData.get("date") ?? "");
-  const period = String(formData.get("period") ?? "");
-  if (!date || (period !== "Lunch" && period !== "Dinner")) {
-    throw new Error("Date and period (Lunch/Dinner) are required");
-  }
+export async function createShift(_prev: CreateShiftState, formData: FormData): Promise<CreateShiftState> {
+  let shiftId: number;
+  try {
+    await requireManagerAction();
 
-  const [existing] = await db
-    .select()
-    .from(shifts)
-    .where(and(eq(shifts.date, date), eq(shifts.period, period as "Lunch" | "Dinner")));
+    const date = String(formData.get("date") ?? "");
+    const period = String(formData.get("period") ?? "");
+    if (!date || (period !== "Lunch" && period !== "Dinner")) {
+      throw new Error("Date and period (Lunch/Dinner) are required");
+    }
 
-  let shift = existing;
-  if (!shift) {
-    shift = (
-      await db.insert(shifts).values({ date, period: period as "Lunch" | "Dinner", status: "draft" }).returning()
-    )[0];
+    const [existing] = await db
+      .select()
+      .from(shifts)
+      .where(and(eq(shifts.date, date), eq(shifts.period, period as "Lunch" | "Dinner")));
+
+    if (existing) {
+      return {
+        error: null,
+        existing: { id: existing.id, status: existing.status as "draft" | "finalized", date, period },
+      };
+    }
+
+    const [shift] = await db
+      .insert(shifts)
+      .values({ date, period: period as "Lunch" | "Dinner", status: "draft" })
+      .returning();
     await seedRosterFromPublishedPlan(shift.id, date, period as "Lunch" | "Dinner");
+    shiftId = shift.id;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
 
   revalidatePath("/shifts");
-  redirect(`/shifts/${shift.id}/roster`);
+  redirect(`/shifts/${shiftId}/roster`);
 }
 
 export async function addRosterEntry(formData: FormData): Promise<ActionResult> {

@@ -257,10 +257,19 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                   {(["Lunch", "Dinner"] as const).map((period) => {
                     const shift = byPeriod[period];
                     if (!shift) {
+                      // "+ Create" instead of a dash (Oliver, 2026-08-24:
+                      // "it will be more intuitive") -- lands on the new-
+                      // shift form prefilled with this date and period, so
+                      // the manager only confirms. Dashed border says
+                      // "empty slot", not a third status colour.
                       return (
-                        <span key={period} className="text-xs text-[var(--ink-400)]">
-                          —
-                        </span>
+                        <Link
+                          key={period}
+                          href={`/shifts/new?date=${date}&period=${period}`}
+                          className="flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]"
+                        >
+                          + Create
+                        </Link>
                       );
                     }
                     return (
