@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import {
   shifts, shiftSales, onlinePlatforms, onlinePlatformSalesRecords,
   metricDefinitions, positionMetrics, metricValues, shiftWageAdjustments,
-  restaurantSettings,
+  restaurantSettings, shiftRosterEntries,
 } from "@/db/schema";
 import { loadShiftCalcData, type TipPoolGroup } from "@/lib/shift/loadRosterForCalc";
 
@@ -33,6 +33,11 @@ export interface PointValueRow {
   positionName: string;
   tipPoolGroups: TipPoolGroup[];
   pointValue: number; // current resolved value (override if set, else standing value)
+  /** True when a per-shift override row is actually saved -- the closing
+   * report uses this to keep the collapsed Tip points card from hiding a
+   * bump that is in effect (2026-08-24). pointValue alone can't tell,
+   * since it already resolves override-over-standing. */
+  hasOverride: boolean;
 }
 
 /** One "enter a number for this metric, for this person" input on the
@@ -161,6 +166,11 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
   });
 
   const calcData = await loadShiftCalcData(shiftId);
+  const overrideEntries = await db
+    .select({ id: shiftRosterEntries.id, pointValueOverride: shiftRosterEntries.pointValueOverride })
+    .from(shiftRosterEntries)
+    .where(eq(shiftRosterEntries.shiftId, shiftId));
+  const overrideByEntry = new Map(overrideEntries.map((r) => [r.id, r.pointValueOverride]));
   const pointValueRows: PointValueRow[] = calcData.roster
     .filter((r) => r.tipPoolGroups.length > 0)
     .map((r) => ({
@@ -169,6 +179,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       positionName: r.positionName,
       tipPoolGroups: r.tipPoolGroups,
       pointValue: r.pointValue,
+      hasOverride: overrideByEntry.get(r.rosterEntryId) != null,
     }));
 
   // "Bonus metrics" section: enabled EMPLOYEE_SHIFT metrics collected at

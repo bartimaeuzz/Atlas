@@ -64,6 +64,9 @@ export function ClosingReportForm({
   // section must never hide money that is actually in effect. The
   // inputs stay in the DOM while collapsed, so the single-form post is
   // unchanged.
+  const hasTipBumps = data.pointValueRows.some((r) => r.hasOverride);
+  const hasBonusMetrics =
+    data.shiftMetricRows.some((r) => r.currentValue !== 0) || data.metricRows.some((r) => r.currentValue !== 0);
   const hasWageAdjustments = data.wageAdjustmentRows.some(
     (r) => r.wageOverrideAmount != null || r.extraPayAmount !== 0 || r.reason
   );
@@ -145,8 +148,15 @@ export function ClosingReportForm({
       </Card>
 
       <Card>
-      <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Tip points</legend>
+      <details open={hasTipBumps} className="group">
+        <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            Tip points
+            {hasTipBumps && <span className="text-xs font-normal text-[var(--ink-500)]">— has entries</span>}
+          </span>
+          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90 transition-transform group-open:rotate-0" />
+        </summary>
+        <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
           Bump someone&apos;s point value for today only — e.g. they upsold a ton of drinks, or
           covered for someone. Defaults to their standing value; leave alone to change nothing.
@@ -175,12 +185,20 @@ export function ClosingReportForm({
             </tbody>
           </table>
         )}
-      </fieldset>
+        </fieldset>
+      </details>
       </Card>
 
       <Card>
-      <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Bonus metrics</legend>
+      <details open={hasBonusMetrics} className="group">
+        <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            Bonus metrics
+            {hasBonusMetrics && <span className="text-xs font-normal text-[var(--ink-500)]">— has entries</span>}
+          </span>
+          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90 transition-transform group-open:rotate-0" />
+        </summary>
+        <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
           Restaurant-configurable bonuses — today that's the host team&apos;s shared
           drink count (paid $ per drink, pulled off the top of Pool 1 before the
@@ -247,7 +265,8 @@ export function ClosingReportForm({
         {data.shiftMetricRows.length === 0 && data.metricRows.length === 0 && (
           <p className="text-sm text-[var(--ink-500)]">No bonus-eligible staff on the roster yet.</p>
         )}
-      </fieldset>
+        </fieldset>
+      </details>
       </Card>
 
       <Card>
@@ -260,7 +279,7 @@ export function ClosingReportForm({
             Wage adjustments
             {hasWageAdjustments && <span className="text-xs font-normal text-[var(--ink-500)]">— has entries</span>}
           </span>
-          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] transition-transform group-open:rotate-180" />
+          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90 transition-transform group-open:rotate-0" />
         </summary>
         <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
@@ -343,7 +362,7 @@ export function ClosingReportForm({
             Disciplinary deductions
             {hasDeductions && <span className="text-xs font-normal text-[var(--ink-500)]">— has entries</span>}
           </span>
-          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] transition-transform group-open:rotate-180" />
+          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90 transition-transform group-open:rotate-0" />
         </summary>
         <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
@@ -460,7 +479,7 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
       <div className="text-sm font-medium mb-2">{p.platformName}</div>
       <div className="grid sm:grid-cols-5 gap-3">
         <label className="text-sm block">
-          <span className="block text-[var(--ink-500)] mb-1">Sales amount (Net)</span>
+          <span className="block text-[var(--ink-500)] mb-1 min-h-10 flex items-end">Sales amount (Net)</span>
           <input
             type="number"
             step={0.01}
@@ -476,7 +495,7 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
         </label>
         <div>
           <label className="text-sm block">
-            <span className="block text-[var(--ink-500)] mb-1">Sales tax</span>
+            <span className="block text-[var(--ink-500)] mb-1 min-h-10 flex items-end">Sales tax</span>
             <input
               type="number"
               step={0.01}
@@ -491,18 +510,22 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
           </label>
           {!taxTouched && <p className="text-xs text-[var(--ink-400)] mt-1">Auto-calculated, edit if it differs.</p>}
         </div>
-        <Field label="Commission fee" name={`platform_${p.platformId}_commissionFee`} defaultValue={p.commissionFee} />
-        <Field label="Tip — platform courier" name={`platform_${p.platformId}_tipCourier`} defaultValue={p.tipAmountPlatformCourier} />
-        <Field label="Tip — restaurant delivery" name={`platform_${p.platformId}_tipRestaurantDelivery`} defaultValue={p.tipAmountRestaurantDelivery} />
+        <Field label="Commission fee" name={`platform_${p.platformId}_commissionFee`} defaultValue={p.commissionFee} alignLabel />
+        <Field label="Tip — platform courier" name={`platform_${p.platformId}_tipCourier`} defaultValue={p.tipAmountPlatformCourier} alignLabel />
+        <Field label="Tip — restaurant delivery" name={`platform_${p.platformId}_tipRestaurantDelivery`} defaultValue={p.tipAmountRestaurantDelivery} alignLabel />
       </div>
     </div>
   );
 }
 
-function Field({ label, name, defaultValue }: { label: string; name: string; defaultValue?: number }) {
+function Field({ label, name, defaultValue, alignLabel }: { label: string; name: string; defaultValue?: number; alignLabel?: boolean }) {
   return (
     <label className="text-sm block">
-      <span className="block text-[var(--ink-500)] mb-1">{label}</span>
+      {/* alignLabel: in the 5-across platform grid, labels wrap to one or
+          two lines (measured 20 vs 40px, 2026-08-24), leaving the input
+          boxes at two different heights. Reserving two line-slots and
+          bottom-aligning the text puts every input on one baseline. */}
+      <span className={"block text-[var(--ink-500)] mb-1" + (alignLabel ? " min-h-10 flex items-end" : "")}>{label}</span>
       <input
         type="number"
         step={0.01}
