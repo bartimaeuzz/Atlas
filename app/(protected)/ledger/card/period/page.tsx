@@ -6,6 +6,7 @@ import { TransactionsList } from "../TransactionsList";
 import { ReconcilePanel } from "../ReconcilePanel";
 import { PeriodHeaderForm } from "../PeriodHeaderForm";
 import { Badge } from "@/components/ui/Badge";
+import { LinkButton } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
@@ -47,6 +48,9 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
 
   const session = await getCurrentStaffSession();
   const isAdmin = session?.systemRole === "ADMIN";
+  // Statement-file import entry (2026-08-24) -- only for FA import
+  // holders; the import page and both its actions re-check.
+  const canImport = await hasCapability("FA_LEDGER_CARD_IMPORT");
   const reconciled = data.status === "reconciled";
   const editable = !reconciled || isAdmin;
   const matches = Math.abs(data.loggedTotal - data.statementTotal) < 0.01;
@@ -79,6 +83,14 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
         statementTotal={data.statementTotal}
         editable={editable}
       />
+
+      {editable && canImport && (
+        <div className="mb-4">
+          <LinkButton href={`/ledger/card/period/import?id=${data.id}`} variant="secondary" size="sm">
+            Import statement file (PDF/CSV)
+          </LinkButton>
+        </div>
+      )}
 
       {editable && (
         <AddTransactionForm

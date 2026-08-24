@@ -49,9 +49,9 @@ export interface CardActionState {
  *     addCardTransaction call includes a categoryId) would be a real
  *     access reduction for every manager who enters card transactions
  *     today -- not something to guess at. Flagged as an open registry
- *     gap for Oliver, not wired. FA_LEDGER_CARD_IMPORT has no
- *     corresponding action in this file at all (no CSV/bank import
- *     exists in v1 per this file's own header comment). */
+ *     gap for Oliver, not wired. FA_LEDGER_CARD_IMPORT is enforced in
+ *     lib/actions/cardImport.ts since 2026-08-24 (statement-file import);
+ *     it has no action in THIS file on purpose. */
 async function requireManagerAction() {
   const session = await getCurrentStaffSession();
   if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {

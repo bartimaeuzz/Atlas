@@ -88,6 +88,7 @@ export function describeType(type: string): { group: string; label: string } {
     "petty_cash.entry.deleted": { group: "Petty Cash", label: "Expense removed" },
     "petty_cash.day.finalized": { group: "Petty Cash", label: "Day finalized" },
     "petty_cash.day.reconciliation_edited": { group: "Petty Cash", label: "Reconciliation edited" },
+    "ledger_card.import.committed": { group: "Ledger Card", label: "Statement imported" },
   };
   if (KNOWN[type]) return KNOWN[type];
   const [group, ...rest] = type.split(".");

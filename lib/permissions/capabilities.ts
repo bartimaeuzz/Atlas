@@ -232,10 +232,11 @@ export const CAPABILITIES: CapabilityDef[] = [
     key: "FA_LEDGER_CARD_IMPORT",
     category: "FINANCIAL_AUDITOR",
     label: "Ledger Card: import",
-    description: "Import Ledger Card transactions.",
-    // There is no CSV/bank import feature to gate -- this key was defined
-    // ahead of the feature. Nothing to enforce until one exists.
-    notYetEnforced: true,
+    description: "Import Ledger Card transactions from a bank statement file (PDF/CSV).",
+    // Enforced since 2026-08-24: lib/actions/cardImport.ts gates both the
+    // parse and the commit of the statement-file import on this key. The
+    // key was defined ahead of the feature on 2026-08-23 and carried
+    // notYetEnforced until the feature landed.
     expirable: true,
     defaults: adminPartner(),
   },
