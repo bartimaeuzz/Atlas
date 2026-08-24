@@ -6,7 +6,7 @@ import { SupplierCheckReportTable } from "./SupplierCheckReportTable";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NoAccess } from "@/components/NoAccess";
 import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
-import { formatDayLabel } from "@/lib/format/formatDayLabel";
+import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
 import {
   PageHeader,
   Card,
@@ -228,7 +228,16 @@ export default async function ReportsPage({
           Still prose, deliberately NOT DayLabel: a fixed-width weekday box
           opens a visible gap mid-sentence. */}
       <h2 className="text-lg font-semibold text-[var(--ink-900)] mb-3">
-        {formatDayLabel(from)} — {formatDayLabel(to)}
+        {/* Long form on desktop, short on phone (Oliver, 2026-08-24:
+            "Thursday, 1 January 26 - Thursday, 31 December 26" and a
+            shorter version on mobile). Both variants render; CSS picks --
+            plain text, so no double-submit concern here. */}
+        <span className="hidden sm:inline">
+          {formatDayLabelLong(from)} — {formatDayLabelLong(to)}
+        </span>
+        <span className="sm:hidden">
+          {formatDayLabelShort(from)} — {formatDayLabelShort(to)}
+        </span>
       </h2>
 
       {report === "petty-cash" && pettyCashData ? (

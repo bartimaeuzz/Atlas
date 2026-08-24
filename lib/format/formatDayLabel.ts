@@ -31,3 +31,27 @@ export function weekdayOf(isoDate: string): string {
   if (Number.isNaN(d.getTime())) return "";
   return WEEKDAYS[d.getUTCDay()];
 }
+
+/** "Thursday, 1 January 26" — the Reports range heading's long form
+ * (2026-08-24, Oliver specified the exact style). Same UTC-noon pin as
+ * formatDayLabel above. */
+export function formatDayLabelLong(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  const weekday = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  const day = d.getUTCDate();
+  const month = d.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  const year = String(d.getUTCFullYear()).slice(-2);
+  return `${weekday}, ${day} ${month} ${year}`;
+}
+
+/** "Thu, 1 Jan 26" — the same heading's phone form. */
+export function formatDayLabelShort(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  const weekday = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+  const day = d.getUTCDate();
+  const month = d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+  const year = String(d.getUTCFullYear()).slice(-2);
+  return `${weekday}, ${day} ${month} ${year}`;
+}
