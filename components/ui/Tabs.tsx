@@ -15,9 +15,14 @@ export function Tab({ href, active, children }: { href: string; active: boolean;
       href={href}
       className={
         "px-3.5 py-2 rounded-[var(--radius-md)] font-medium transition-colors " +
+        // Inactive tabs get a REAL border, not a transparent one
+        // (2026-08-24, Oliver: "why do we have only one blue button box?").
+        // Bare text next to one filled box read as labels, not tappable
+        // options, on a phone -- same reasoning as the week view's day
+        // tabs, which box every day and mark the active one by fill.
         (active
-          ? "bg-[var(--primary)] text-white"
-          : "text-[var(--ink-700)] hover:bg-[var(--paper)] border border-transparent")
+          ? "bg-[var(--primary)] text-white border border-[var(--primary)]"
+          : "text-[var(--ink-700)] bg-[var(--card)] hover:bg-[var(--paper)] border border-[var(--border-strong)]")
       }
     >
       {children}
