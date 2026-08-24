@@ -8,6 +8,7 @@ import {
 import type { ClosingReportData, PlatformSalesRow as PlatformSalesRowData } from "@/lib/shift/loadClosingReportData";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ChevronDownIcon } from "@/components/ui/icons";
 
 const initialState: ClosingReportActionState = { error: null };
 
@@ -250,12 +251,16 @@ export function ClosingReportForm({
       </Card>
 
       <Card>
-      <details open={hasWageAdjustments}>
-        <summary className="cursor-pointer select-none text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center gap-2">
-          Wage adjustments
-          <span className="text-xs font-normal text-[var(--ink-500)]">
-            {hasWageAdjustments ? "— has entries" : "— optional, tap to open"}
+      <details open={hasWageAdjustments} className="group">
+        {/* Chevron instead of a "tap to open" sentence (Oliver, 2026-08-24);
+            list-none hides the UA disclosure triangle so there is one
+            indicator, not two. The chevron flips via group-open. */}
+        <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            Wage adjustments
+            {hasWageAdjustments && <span className="text-xs font-normal text-[var(--ink-500)]">— has entries</span>}
           </span>
+          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] transition-transform group-open:rotate-180" />
         </summary>
         <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
@@ -332,12 +337,13 @@ export function ClosingReportForm({
       </Card>
 
       <Card>
-      <details open={hasDeductions}>
-        <summary className="cursor-pointer select-none text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center gap-2">
-          Disciplinary deductions
-          <span className="text-xs font-normal text-[var(--ink-500)]">
-            {hasDeductions ? "— has entries" : "— optional, tap to open"}
+      <details open={hasDeductions} className="group">
+        <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            Disciplinary deductions
+            {hasDeductions && <span className="text-xs font-normal text-[var(--ink-500)]">— has entries</span>}
           </span>
+          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] transition-transform group-open:rotate-180" />
         </summary>
         <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
