@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db/client";
 import { shifts } from "@/db/schema";
@@ -57,7 +58,24 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      {preview && (
+      {preview && (() => {
+        // Grouped like the roster page (Oliver, 2026-08-24): Floor Manager
+        // first, then FOH, then BOH, each under a named header -- the same
+        // eyes scan both screens back to back during a close.
+        const sorted = sortPayoutsForDisplay(preview.result.employeePayouts, preview.employeeNames, preview.positionByEmployeeId);
+        const posOf = (employeeId: number) => preview.positionByEmployeeId[employeeId];
+        const payoutGroups = [
+          { header: "Floor Manager", items: sorted.filter((p) => posOf(p.employeeId)?.positionName === "Floor Manager") },
+          {
+            header: "FOH — Front of house",
+            items: sorted.filter((p) => posOf(p.employeeId)?.positionName !== "Floor Manager" && posOf(p.employeeId)?.positionCategory === "FOH"),
+          },
+          {
+            header: "BOH — Back of house",
+            items: sorted.filter((p) => posOf(p.employeeId)?.positionName !== "Floor Manager" && posOf(p.employeeId)?.positionCategory !== "FOH"),
+          },
+        ].filter((g) => g.items.length > 0);
+        return (
         <>
           <section className="mb-8 grid sm:grid-cols-3 gap-3">
             <StatCard label="Total sales" value={preview.sales.totalSales} />
@@ -94,7 +112,11 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
              * unreadable at phone width no matter how it's compressed.
              * Desktop: the full comparison table. */}
             <div className="lg:hidden space-y-2">
-              {sortPayoutsForDisplay(preview.result.employeePayouts, preview.employeeNames, preview.positionByEmployeeId).map((p) => (
+              {payoutGroups.map((g) => (
+                <div key={g.header}>
+                  <h3 className="text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase mb-1.5 mt-3 first:mt-0">{g.header}</h3>
+                  <div className="space-y-2">
+              {g.items.map((p) => (
                 <Card key={p.employeeId} className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div>
@@ -122,6 +144,9 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                     )}
                   </dl>
                 </Card>
+              ))}
+                  </div>
+                </div>
               ))}
               <Card className="p-4 bg-[var(--paper)]">
                 <div className="flex items-center justify-between font-semibold text-[var(--ink-900)]">
@@ -157,7 +182,14 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                 </tr>
               </thead>
               <tbody>
-                {sortPayoutsForDisplay(preview.result.employeePayouts, preview.employeeNames, preview.positionByEmployeeId).map((p) => (
+                {payoutGroups.map((g) => (
+                  <Fragment key={g.header}>
+                  <tr className="border-b border-[var(--border)] bg-[var(--paper)]">
+                    <td colSpan={13} className="py-1.5 px-3 text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase">
+                      {g.header}
+                    </td>
+                  </tr>
+                {g.items.map((p) => (
                   <tr key={p.employeeId} className="border-b border-[var(--border)]">
                     <td className="py-2 px-3 text-[var(--ink-900)]">{preview!.employeeNames[p.employeeId] ?? `#${p.employeeId}`}</td>
                     <td className="py-2 px-3 text-[var(--ink-500)]">{preview!.positionByEmployeeId[p.employeeId]?.positionName ?? "—"}</td>
@@ -175,6 +207,8 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                     </td>
                     <td className="py-2 px-3 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
                   </tr>
+                ))}
+                  </Fragment>
                 ))}
               </tbody>
               <tfoot>
@@ -197,7 +231,8 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
             <ConfirmFinalizeButton shiftId={shiftId} />
           </section>
         </>
-      )}
+        );
+      })()}
     </main>
   );
 }
