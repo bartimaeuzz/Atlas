@@ -238,12 +238,21 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
             <div className="divide-y divide-[var(--border)]">
               {shiftsByDate.map(({ date, byPeriod }) => (
                 <div key={date} className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 items-center">
-                  {/* Weekday on a fixed-width span so every date starts at
-                      the same x whether the day name is "Fri" or "Wed"
-                      (Oliver, 2026-08-24: "with proper indent alignment"). */}
+                  {/* Phone: calendar-tab style, weekday over day number --
+                      the month is already named above the list, so the full
+                      ISO date was three redundant tokens (Oliver,
+                      2026-08-24). Desktop keeps weekday + full date on the
+                      fixed-width column from earlier the same day. Both are
+                      plain text; CSS picks. */}
                   <span className="text-sm text-[var(--ink-900)]">
-                    <span className="inline-block w-9 text-[var(--ink-500)]">{DAY_LABELS[dayOfWeek(date)]}</span>
-                    {date}
+                    <span className="lg:hidden block leading-tight">
+                      <span className="block text-[11px] text-[var(--ink-500)]">{DAY_LABELS[dayOfWeek(date)]}</span>
+                      <span className="block font-medium">{Number(date.slice(8, 10))}</span>
+                    </span>
+                    <span className="hidden lg:inline">
+                      <span className="inline-block w-9 text-[var(--ink-500)]">{DAY_LABELS[dayOfWeek(date)]}</span>
+                      {date}
+                    </span>
                   </span>
                   {(["Lunch", "Dinner"] as const).map((period) => {
                     const shift = byPeriod[period];
