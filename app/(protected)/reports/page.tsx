@@ -221,11 +221,15 @@ export default async function ReportsPage({
         </div>
       </Card>
 
-      {/* Prose, deliberately NOT DayLabel: a fixed-width weekday box opens
-          a visible gap mid-sentence. There is no column to align to here. */}
-      <p className="text-sm text-[var(--ink-500)] mb-3">
-        {formatDayLabel(from)} to {formatDayLabel(to)}
-      </p>
+      {/* A real heading, not a quiet caption (2026-08-24, Oliver: "make
+          this one look more like header for easier eyeball screening") --
+          this line is the answer to "what am I looking at", so it should
+          be findable at a glance when scanning past the control card.
+          Still prose, deliberately NOT DayLabel: a fixed-width weekday box
+          opens a visible gap mid-sentence. */}
+      <h2 className="text-lg font-semibold text-[var(--ink-900)] mb-3">
+        {formatDayLabel(from)} — {formatDayLabel(to)}
+      </h2>
 
       {report === "petty-cash" && pettyCashData ? (
         <PettyCashReportTable data={pettyCashData} />
