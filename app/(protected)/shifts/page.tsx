@@ -3,7 +3,6 @@ import { loadShiftsList } from "@/lib/shift/loadShiftsList";
 import { dayOfWeek } from "@/lib/schedule/weekMath";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/Badge";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -54,14 +53,15 @@ export default async function ShiftsListPage() {
         <EmptyState message="No shifts yet." action={<LinkButton href="/shifts/new" size="sm">+ New shift</LinkButton>} />
       ) : (
         <>
-          {/* Phone: Date | Lunch | Dinner card table (2026-08-24, Oliver) --
-           * same shape the week view got. One row per DATE, not per shift:
-           * the old stacked cards gave a two-service day two full cards, so
-           * "did we close both services on the 15th" meant finding both and
-           * matching the date by eye. Here both periods sit on one line, and
-           * each period's shift is a small tappable card that goes where the
-           * old card went (summary when finalized, roster otherwise). */}
-          <div className="lg:hidden rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
+          {/* Date | Lunch | Dinner card table (2026-08-24, Oliver) -- same
+           * shape the week view got, and since later the same day the ONLY
+           * layout: the desktop one-row-per-shift table is gone ("add card
+           * table to whole data"). One row per DATE, not per shift -- a
+           * two-service day used to get two entries, so "did we close both
+           * services on the 15th" meant finding both and matching the date
+           * by eye. Each period's shift is a 44px tappable card going where
+           * the old row linked (summary when finalized, roster otherwise). */}
+          <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
             <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
               <span>Date</span>
               <span>Lunch</span>
@@ -111,39 +111,6 @@ export default async function ShiftsListPage() {
             </div>
           </div>
 
-          {/* Desktop: table */}
-          <table className="hidden lg:table w-full text-sm border-collapse">
-            <thead>
-              <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
-                <th className="py-2.5 font-medium">Date</th>
-                <th className="py-2.5 font-medium">Period</th>
-                <th className="py-2.5 font-medium">Status</th>
-                <th className="py-2.5"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {shifts.map((s) => (
-                <tr key={s.id} className="border-b border-[var(--border)]">
-                  <td className="py-3 text-[var(--ink-900)]">{s.date}</td>
-                  <td className="py-3 text-[var(--ink-700)]">{s.period}</td>
-                  <td className="py-3">
-                    <StatusBadge status={s.status} />
-                  </td>
-                  <td className="py-3 text-right">
-                    {s.status === "finalized" ? (
-                      <Link href={`/shifts/${s.id}/summary`} className="text-[var(--primary)] font-medium hover:underline">
-                        View summary →
-                      </Link>
-                    ) : (
-                      <Link href={`/shifts/${s.id}/roster`} className="text-[var(--primary)] font-medium hover:underline">
-                        Continue →
-                      </Link>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </>
       )}
     </main>

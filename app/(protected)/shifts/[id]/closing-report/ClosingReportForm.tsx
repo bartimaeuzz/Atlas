@@ -54,6 +54,19 @@ export function ClosingReportForm({
   // value was already saved before (salesTaxIsAuto === false), so
   // reopening an already-filled-in report never silently overwrites a
   // prior manual correction.
+  // Wage adjustments and disciplinary deductions start COLLAPSED
+  // (2026-08-24, Oliver): both are exception paths ("leave blank to
+  // change nothing"), so on the everyday close they are two long
+  // per-employee lists standing between the manager and Save. Each one
+  // opens itself when it already carries saved data -- a collapsed
+  // section must never hide money that is actually in effect. The
+  // inputs stay in the DOM while collapsed, so the single-form post is
+  // unchanged.
+  const hasWageAdjustments = data.wageAdjustmentRows.some(
+    (r) => r.wageOverrideAmount != null || r.extraPayAmount !== 0 || r.reason
+  );
+  const hasDeductions = data.wageAdjustmentRows.some((r) => r.deductionAmount !== 0 || r.deductionReason);
+
   const [totalSales, setTotalSales] = useState(s?.totalSales ?? 0);
   const [salesTax, setSalesTax] = useState(s?.salesTax ?? 0);
   const [taxTouched, setTaxTouched] = useState(s ? !s.salesTaxIsAuto : false);
@@ -226,8 +239,14 @@ export function ClosingReportForm({
         )}
       </fieldset>
 
-      <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Wage adjustments</legend>
+      <details open={hasWageAdjustments}>
+        <summary className="cursor-pointer select-none text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center gap-2">
+          Wage adjustments
+          <span className="text-xs font-normal text-[var(--ink-500)]">
+            {hasWageAdjustments ? "— has entries" : "— optional, tap to open"}
+          </span>
+        </summary>
+        <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
           Optional, for shift-coverage situations — e.g. Erika works Host but covers Aey&apos;s
           Bartender shift when Aey calls in sick. &quot;Override&quot; replaces the system&apos;s
@@ -297,10 +316,17 @@ export function ClosingReportForm({
             </div>
           </div>
         )}
-      </fieldset>
+        </fieldset>
+      </details>
 
-      <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Disciplinary deductions</legend>
+      <details open={hasDeductions}>
+        <summary className="cursor-pointer select-none text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center gap-2">
+          Disciplinary deductions
+          <span className="text-xs font-normal text-[var(--ink-500)]">
+            {hasDeductions ? "— has entries" : "— optional, tap to open"}
+          </span>
+        </summary>
+        <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
           Optional, for disciplinary/correction issues (late, property damage, etc.) — since wages
           are flat-rate, a deduction can&apos;t come out of hours worked, so it&apos;s a direct dollar
@@ -351,7 +377,8 @@ export function ClosingReportForm({
             </div>
           </div>
         )}
-      </fieldset>
+        </fieldset>
+      </details>
 
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Online platform sales</legend>
