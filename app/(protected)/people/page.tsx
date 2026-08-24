@@ -15,7 +15,7 @@ export default async function PeopleListPage() {
   const viewerIsAdmin = session?.systemRole === "ADMIN";
 
   return (
-    <main className="max-w-4xl mx-auto p-6 sm:p-8">
+    <main className="max-w-4xl mx-auto p-4 sm:p-8">
       <PageHeader
         title="People"
         description="Create and edit staff — which positions they can work, their standing tip point value, and (for BOH) their per-employee wage rate. Retiring someone keeps every past shift they worked intact; it just stops offering them when staffing new ones."

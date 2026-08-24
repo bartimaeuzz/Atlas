@@ -7,6 +7,8 @@ import { EmployeeToggleActiveButton } from "./EmployeeToggleActiveButton";
 import { GenerateLoginIdControl } from "./GenerateLoginIdControl";
 import { Select } from "@/components/ui/Field";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { TableCard } from "@/components/ui/Table";
+import { ChevronDownIcon } from "@/components/ui/icons";
 
 type SortKey = "name" | "primaryPosition" | "positions" | "role";
 type SortDir = "asc" | "desc";
@@ -107,52 +109,55 @@ export function PeopleTable({
 
       <div className="lg:hidden space-y-3">
         {sorted.map((e) => {
-          const primaryPositionCategory =
-            e.positions.find((p) => p.positionId === e.primaryPositionId)?.positionCategory ?? null;
+          // Phone card is VIEW-ONLY, tap to expand (Oliver, 2026-08-24:
+          // "click card show detail but block edit"). Staff records get
+          // edited on a desktop; the phone answers "who is this and what
+          // do they work" without offering writes -- so no Edit link, no
+          // retire toggle, no login-ID generate/reset down here, just the
+          // facts. Chevron right-when-closed / down-when-open, same as
+          // the Closing Report's collapsible cards.
           return (
-            <div
+            <details
               key={e.id}
-              className={"bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4" + (e.active ? "" : " opacity-50")}
+              className={"group bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)]" + (e.active ? "" : " opacity-50")}
             >
-              <div className="flex items-start justify-between gap-2 mb-2">
+              <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between gap-2 p-4 min-h-11">
                 <div>
                   <div className="font-semibold text-[var(--ink-900)]">
                     {e.nickname}
                     {!e.active && <span className="ml-2 text-xs text-[var(--ink-500)] font-normal">(retired)</span>}
                   </div>
-                  <div className="text-xs text-[var(--ink-500)] mt-0.5">{e.systemRole}</div>
+                  <div className="text-xs text-[var(--ink-500)] mt-0.5">
+                    {e.systemRole}
+                    {e.primaryPositionName ? ` · ${e.primaryPositionName}` : ""}
+                  </div>
                 </div>
+                <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90 transition-transform group-open:rotate-0" />
+              </summary>
+              <div className="px-4 pb-4 border-t border-[var(--border)] pt-3 space-y-1.5 text-sm text-[var(--ink-700)]">
+                <div>
+                  <span className="text-[var(--ink-500)]">Primary: </span>
+                  {e.primaryPositionName ?? "—"}
+                </div>
+                <div>
+                  <span className="text-[var(--ink-500)]">Positions: </span>
+                  {e.positions.length === 0 ? "—" : e.positions.map((p) => p.positionName).join(", ")}
+                </div>
+                <div>
+                  <span className="text-[var(--ink-500)]">Login ID: </span>
+                  {e.loginId ?? "—"}
+                </div>
+                <p className="text-xs text-[var(--ink-400)] pt-1">Editing staff records is done on a desktop.</p>
               </div>
-              <div className="text-sm text-[var(--ink-700)] mb-1">
-                <span className="text-[var(--ink-500)]">Primary: </span>
-                {e.primaryPositionName ?? "—"}
-              </div>
-              <div className="text-sm text-[var(--ink-700)] mb-3">
-                <span className="text-[var(--ink-500)]">Positions: </span>
-                {e.positions.length === 0 ? "—" : e.positions.map((p) => p.positionName).join(", ")}
-              </div>
-              <div className="mb-3">
-                <GenerateLoginIdControl
-                  employeeId={e.id}
-                  loginId={e.loginId}
-                  isPartner={e.isPartner}
-                  primaryPositionCategory={primaryPositionCategory}
-                  viewerIsAdmin={viewerIsAdmin}
-                />
-              </div>
-              <div className="flex items-center justify-between border-t border-[var(--border)] pt-2.5">
-                <Link href={`/people/${e.id}/edit`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
-                  Edit
-                </Link>
-                <EmployeeToggleActiveButton employeeId={e.id} active={e.active} />
-              </div>
-            </div>
+            </details>
           );
         })}
       </div>
 
-      {/* Desktop: table */}
-      <table className="hidden lg:table w-full text-sm border-collapse">
+      {/* Desktop: table, in the shared TableCard border (2026-08-24
+          standard). TableCard owns the hidden lg:block split. */}
+      <TableCard>
+      <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
             <SortableHeader label="Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
@@ -165,9 +170,9 @@ export function PeopleTable({
             />
             <SortableHeader label="Positions" sortKey="positions" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
             <SortableHeader label="Role" sortKey="role" activeKey={sortKey} dir={sortDir} onSort={handleSort} />
-            <th className="py-2 font-medium">Login ID</th>
-            <th className="py-2"></th>
-            <th className="py-2"></th>
+            <th className="py-2 px-3 font-medium">Login ID</th>
+            <th className="py-2 px-3"></th>
+            <th className="py-2 px-3"></th>
           </tr>
         </thead>
         <tbody>
@@ -176,16 +181,16 @@ export function PeopleTable({
               e.positions.find((p) => p.positionId === e.primaryPositionId)?.positionCategory ?? null;
             return (
               <tr key={e.id} className={"border-b border-[var(--border)]" + (e.active ? "" : " opacity-50")}>
-                <td className="py-2 text-[var(--ink-900)]">
+                <td className="py-2 px-3 text-[var(--ink-900)]">
                   {e.nickname}
                   {!e.active && <span className="ml-2 text-xs text-[var(--ink-500)]">(retired)</span>}
                 </td>
-                <td className="py-2 text-[var(--ink-700)]">{e.primaryPositionName ?? "—"}</td>
-                <td className="py-2 text-[var(--ink-700)]">
+                <td className="py-2 px-3 text-[var(--ink-700)]">{e.primaryPositionName ?? "—"}</td>
+                <td className="py-2 px-3 text-[var(--ink-700)]">
                   {e.positions.length === 0 ? "—" : e.positions.map((p) => p.positionName).join(", ")}
                 </td>
-                <td className="py-2 text-[var(--ink-700)]">{e.systemRole}</td>
-                <td className="py-2">
+                <td className="py-2 px-3 text-[var(--ink-700)]">{e.systemRole}</td>
+                <td className="py-2 px-3">
                   <GenerateLoginIdControl
                     employeeId={e.id}
                     loginId={e.loginId}
@@ -194,12 +199,12 @@ export function PeopleTable({
                     viewerIsAdmin={viewerIsAdmin}
                   />
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-2 px-3 text-right">
                   <Link href={`/people/${e.id}/edit`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
                     Edit
                   </Link>
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-2 px-3 text-right">
                   <EmployeeToggleActiveButton employeeId={e.id} active={e.active} />
                 </td>
               </tr>
@@ -207,6 +212,7 @@ export function PeopleTable({
           })}
         </tbody>
       </table>
+      </TableCard>
     </div>
   );
 }
@@ -226,7 +232,7 @@ function SortableHeader({
 }) {
   const isActive = sortKey === activeKey;
   return (
-    <th className="py-2 font-medium">
+    <th className="py-2 px-3 font-medium">
       <button
         type="button"
         onClick={() => onSort(sortKey)}
