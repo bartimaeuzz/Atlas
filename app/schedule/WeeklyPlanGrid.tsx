@@ -365,12 +365,15 @@ export function WeeklyPlanGrid({
                         >
                           {assignments.length === 0 && readOnly ? (
                             // Same box as an AssignmentPill, minus the visible
-                            // border and fill -- an 11px bare span sat 6px below
+                            // border and fill. block, not inline-block: inline
+                            // would sit on the baseline of the parent's 16/24px
+                            // line box and land 2px lower than the block-level
+                            // pills. Before this, an 11px bare span sat 6px below
                             // the position name and 3.5px below a real name in
                             // the next column, so a row with a dash on one side
                             // and a person on the other had its three cells at
                             // three different heights.
-                            <span className="inline-block border border-transparent px-1.5 py-0.5 text-xs text-[var(--ink-400)]">—</span>
+                            <span className="block w-fit border border-transparent px-1.5 py-0.5 text-xs text-[var(--ink-400)]">—</span>
                           ) : (
                             <div className="space-y-1.5">
                               {assignments.map((a) => {
