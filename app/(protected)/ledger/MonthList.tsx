@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { PettyCashReportData } from "@/lib/reports/loadPettyCashReport";
 import { Badge } from "@/components/ui/Badge";
 import { formatMoney } from "./formatMoney";
+import { weekdayOf } from "@/lib/format/formatDayLabel";
 import { MonthRow } from "./MonthRow";
 
 /** One row per day in the selected month, for the new /ledger landing
@@ -33,6 +34,10 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
             <>
               <div className="flex items-center justify-between mb-1">
                 <span className={"font-semibold " + (isFuture ? "text-[var(--ink-500)]" : "text-[var(--ink-900)]")}>
+                  {/* Weekday on a fixed-width span so every date starts at
+                      the same x down the list (Oliver, 2026-08-24) -- same
+                      treatment as the shifts list. */}
+                  <span className="inline-block w-9 font-normal text-[var(--ink-500)]">{weekdayOf(day.date)}</span>
                   {day.date}
                   {isToday && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">Today</span>}
                 </span>
@@ -93,9 +98,13 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
               <>
                 <td className="py-2">
                   {isFuture ? (
-                    <span className="text-[var(--ink-500)] opacity-60">{day.date}</span>
+                    <span className="text-[var(--ink-500)] opacity-60">
+                      <span className="inline-block w-9">{weekdayOf(day.date)}</span>
+                      {day.date}
+                    </span>
                   ) : (
                     <Link href={`/ledger/day?date=${day.date}`} className="hover:underline font-medium text-[var(--ink-900)]">
+                      <span className="inline-block w-9 font-normal text-[var(--ink-500)]">{weekdayOf(day.date)}</span>
                       {day.date}
                       {isToday && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">Today</span>}
                     </Link>
