@@ -38,7 +38,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
   return (
     <form action={formAction} className="space-y-8 max-w-2xl">
       {state.error && (
-        <div className="border border-red-300 bg-red-50 text-red-700 rounded p-4 text-sm whitespace-pre-line">
+        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded p-4 text-sm whitespace-pre-line">
           <div className="font-medium mb-1">Couldn&apos;t save.</div>
           {state.error}
         </div>
@@ -51,7 +51,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         <legend className="text-lg font-medium mb-3">Tips</legend>
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="text-sm block">
-            <span className="block text-neutral-500 mb-1">CC tip deduction rate</span>
+            <span className="block text-[var(--ink-500)] mb-1">CC tip deduction rate</span>
             <div className="relative w-32">
               <input
                 type="number"
@@ -62,14 +62,14 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
                 defaultValue={settings.ccTipDeductionRate * 100}
                 className={`border rounded pl-3 pr-6 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
               />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">%</span>
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">%</span>
             </div>
-            <span className="block text-xs text-neutral-400 mt-1">e.g. 4.5 for 4.5% — processor cut off card tips</span>
+            <span className="block text-xs text-[var(--ink-400)] mt-1">e.g. 4.5 for 4.5% — processor cut off card tips</span>
           </label>
           <label className="text-sm block">
-            <span className="block text-neutral-500 mb-1">Host drink bonus, $/drink</span>
+            <span className="block text-[var(--ink-500)] mb-1">Host drink bonus, $/drink</span>
             <div className="relative w-32">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">$</span>
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">$</span>
               <input
                 type="number"
                 step="0.01"
@@ -79,7 +79,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
                 className={`border rounded pl-6 pr-3 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
               />
             </div>
-            <span className="block text-xs text-neutral-400 mt-1">0 turns the bonus off entirely</span>
+            <span className="block text-xs text-[var(--ink-400)] mt-1">0 turns the bonus off entirely</span>
           </label>
         </div>
       </fieldset>
@@ -88,7 +88,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         <legend className="text-lg font-medium mb-3">Sales tax</legend>
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="text-sm block">
-            <span className="block text-neutral-500 mb-1">Default sales tax rate</span>
+            <span className="block text-[var(--ink-500)] mb-1">Default sales tax rate</span>
             <div className="relative w-32">
               <input
                 type="number"
@@ -99,9 +99,9 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
                 defaultValue={settings.defaultSalesTaxRate * 100}
                 className={`border rounded pl-3 pr-6 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
               />
-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 text-sm pointer-events-none">%</span>
+              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">%</span>
             </div>
-            <span className="block text-xs text-neutral-400 mt-1">
+            <span className="block text-xs text-[var(--ink-400)] mt-1">
               NYC&apos;s combined rate is 8.875% — used to auto-fill the Sales tax field on each
               Closing Report; a manager can always edit it per shift if Toast&apos;s real number differs
             </span>
@@ -111,7 +111,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
 
       <fieldset>
         <legend className="text-lg font-medium mb-3">Staff login</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           How staff sign in on the <Link href="/login" className="underline">/login</Link> page. &quot;Login ID&quot;
           uses the YK ID generated per person on the <Link href="/people" className="underline">People</Link> page
           instead of picking a name from a list.
@@ -144,15 +144,15 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         <legend className="text-lg font-medium mb-3">Tip pools</legend>
         <Link
           href="/settings/tip-pools"
-          className="flex items-center justify-between gap-3 border rounded-lg p-4 hover:bg-neutral-50 hover:border-neutral-300"
+          className="flex items-center justify-between gap-3 border rounded-lg p-4 hover:bg-[var(--paper)] hover:border-[var(--border-strong)]"
         >
           <span>
             <span className="block text-sm font-medium">Manage tip pool assignment &amp; split method</span>
-            <span className="block text-xs text-neutral-500 mt-0.5">
+            <span className="block text-xs text-[var(--ink-500)] mt-0.5">
               Which positions are in Pool 1 / 2 / 3, and whether each pool splits point-weighted or equal
             </span>
           </span>
-          <span className="text-neutral-400 text-lg" aria-hidden>
+          <span className="text-[var(--ink-400)] text-lg" aria-hidden>
             →
           </span>
         </Link>
@@ -160,14 +160,14 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
 
       <fieldset>
         <legend className="text-lg font-medium mb-3">Roster — peer earnings visibility</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Whether STAFF can see a peer&apos;s tip share / wage on the roster (self always visible; leadership pay
           always hidden regardless of these). Tip and wage are independent toggles — you can show one without the
           other.
         </p>
         <div className="grid sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
           <div className="space-y-2">
-            <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Tip share</div>
+            <div className="text-xs font-medium text-[var(--ink-400)] uppercase tracking-wide">Tip share</div>
             <label className="flex items-center gap-2 min-h-11">
               <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerTipFOH" defaultChecked={settings.rosterShowPeerTipFOH} />
               Show FOH peer tip share
@@ -178,7 +178,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
             </label>
           </div>
           <div className="space-y-2">
-            <div className="text-xs font-medium text-neutral-400 uppercase tracking-wide">Wage</div>
+            <div className="text-xs font-medium text-[var(--ink-400)] uppercase tracking-wide">Wage</div>
             <label className="flex items-center gap-2 min-h-11">
               <input type="checkbox" className={DISABLED_TOGGLE} name="rosterShowPeerWageFOH" defaultChecked={settings.rosterShowPeerWageFOH} />
               Show FOH peer wage
@@ -193,7 +193,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
 
       <fieldset>
         <legend className="text-lg font-medium mb-3">Roster &amp; schedule — coworker list visibility</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Whether STAFF see who else is on the list at all — names and positions, not just the $ figures. Covers
           both My Pay&apos;s &quot;Also worked this shift&quot; list and the &quot;who&apos;s working this day&quot;
           preview staff can open from My Schedule&apos;s calendar. When off, staff only see their own pay / their
@@ -215,7 +215,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
 
       <fieldset>
         <legend className="text-lg font-medium mb-3">Roster & schedule — category visibility</legend>
-        <p className="text-xs text-neutral-500 mb-3">
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Whether STAFF are restricted to seeing only their own category&apos;s entries (FOH sees FOH, BOH sees
           BOH), plus always-visible positions like Floor Manager. Applies to both the day-of roster and the
           schedule &quot;who&apos;s working this day&quot; preview on My Schedule — one policy, both places.
@@ -236,7 +236,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
       <button
         type="submit"
         disabled={isPending}
-        className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 text-sm disabled:opacity-50"
+        className="bg-[var(--primary)] text-white px-4 py-2 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-600)] text-sm disabled:opacity-50"
       >
         {isPending ? "Saving…" : "Save settings"}
       </button>

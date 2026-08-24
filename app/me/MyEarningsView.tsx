@@ -28,7 +28,7 @@ export function MyEarningsView({
   return (
     <div>
       <div className="flex items-center gap-2 mb-6">
-        <span className="text-xs text-neutral-500 mr-1">View by</span>
+        <span className="text-xs text-[var(--ink-500)] mr-1">View by</span>
         <ToggleButton active={viewMode === "week"} onClick={() => setViewMode("week")}>
           Week
         </ToggleButton>
@@ -47,7 +47,7 @@ export function MyEarningsView({
             <div className="space-y-4">
               {group.days.map((day) => (
                 <div key={day.date}>
-                  <div className="flex items-baseline justify-between text-sm text-neutral-500 mb-2">
+                  <div className="flex items-baseline justify-between text-sm text-[var(--ink-500)] mb-2">
                     <span>{day.label}</span>
                     <span className="tabular-nums">${day.subtotal.toFixed(2)}</span>
                   </div>
@@ -73,8 +73,8 @@ function ToggleButton({ active, onClick, children }: { active: boolean; onClick:
       onClick={onClick}
       className={
         active
-          ? "px-3 py-1 rounded bg-black text-white text-sm"
-          : "px-3 py-1 rounded border text-sm text-neutral-600 hover:bg-neutral-50"
+          ? "px-3 py-1 min-h-9 rounded-[var(--radius-md)] bg-[var(--primary)] text-white text-sm"
+          : "px-3 py-1 rounded border text-sm text-[var(--ink-700)] hover:bg-[var(--paper)]"
       }
     >
       {children}
@@ -104,11 +104,11 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
         {p.extraPayAmount > 0 && <Row label="Extra pay" value={`$${p.extraPayAmount.toFixed(2)}`} />}
         {p.incentiveAmount > 0 && <Row label="Incentive" value={`$${p.incentiveAmount.toFixed(2)}`} />}
         {p.deductionAmount > 0 && (
-          <Row label="Deduction" value={`-$${p.deductionAmount.toFixed(2)}`} valueClassName="text-red-600" />
+          <Row label="Deduction" value={`-$${p.deductionAmount.toFixed(2)}`} valueClassName="text-[var(--danger-700)]" />
         )}
       </dl>
       {p.pointValueUsed !== null && (
-        <p className="text-xs text-neutral-400 -mt-2 mb-3">
+        <p className="text-xs text-[var(--ink-400)] -mt-2 mb-3">
           Your point value sets your share of the point-weighted tip pool that shift — a higher
           number means a bigger slice of Pool 1/2 relative to your coworkers.
         </p>
@@ -116,21 +116,21 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
 
       {shift.coworkers.length > 1 && (
         <div className="border-t pt-3">
-          <div className="text-xs text-neutral-500 mb-2">Also worked this shift</div>
+          <div className="text-xs text-[var(--ink-500)] mb-2">Also worked this shift</div>
           <ul className="text-sm space-y-1">
             {shift.coworkers
               .filter((c) => c.employeeId !== viewerEmployeeId)
               .map((c) => (
                 <li key={c.employeeId} className="flex justify-between">
                   <span>
-                    {c.employeeName} <span className="text-neutral-400">— {c.positionName}</span>
+                    {c.employeeName} <span className="text-[var(--ink-400)]">— {c.positionName}</span>
                   </span>
                   {/* Tip and wage are shown/hidden independently now
                       (2026-08-10 split) — a coworker's row may show just
                       one, both, or neither, depending on the restaurant's
                       Tip/Wage visibility settings for that category. */}
                   {(typeof c.tipShare === "number" || typeof c.flatWage === "number") && (
-                    <span className="tabular-nums text-neutral-500">
+                    <span className="tabular-nums text-[var(--ink-500)]">
                       {typeof c.tipShare === "number" && `$${(c.tipShare as number).toFixed(2)} tip`}
                       {typeof c.tipShare === "number" && typeof c.flatWage === "number" && " + "}
                       {typeof c.flatWage === "number" && `$${(c.flatWage as number).toFixed(2)} wage`}
@@ -148,7 +148,7 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
 function Row({ label, value, valueClassName }: { label: string; value: string; valueClassName?: string }) {
   return (
     <div className="contents">
-      <dt className="text-neutral-500">{label}</dt>
+      <dt className="text-[var(--ink-500)]">{label}</dt>
       <dd className={`text-right tabular-nums ${valueClassName ?? ""}`}>{value}</dd>
     </div>
   );

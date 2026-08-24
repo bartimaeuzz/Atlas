@@ -18,17 +18,17 @@ export default async function LeavePage() {
   return (
     <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
       <MarkSeenOnMount section="leave_requests" />
-      <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
+      <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Schedule
       </Link>
       <h1 className="text-2xl font-semibold mt-2 mb-1">Leave requests</h1>
-      <p className="text-neutral-500 text-sm mb-6">
+      <p className="text-[var(--ink-500)] text-sm mb-6">
         Every upcoming or currently-active leave, logged by staff themselves once already agreed
         with you. Nothing here needs approval — it&apos;s a log, not a queue.
       </p>
 
       {requests.length === 0 ? (
-        <p className="text-sm text-neutral-400 border rounded p-4">No upcoming leave logged.</p>
+        <p className="text-sm text-[var(--ink-400)] border rounded p-4">No upcoming leave logged.</p>
       ) : (
         <ul className="divide-y border rounded text-sm">
           {requests.map((r) => (
@@ -36,14 +36,14 @@ export default async function LeavePage() {
               <div>
                 <div className="font-medium">
                   {r.employeeName}
-                  <span className="text-neutral-500 font-normal">
+                  <span className="text-[var(--ink-500)] font-normal">
                     {" "}
                     — {r.startDate}
                     {r.endDate !== r.startDate ? ` to ${r.endDate}` : ""}
                   </span>
                 </div>
-                {r.note && <div className="text-neutral-500 text-xs mt-0.5">{r.note}</div>}
-                <div className="text-neutral-400 text-[11px] mt-0.5">logged {r.loggedAt.slice(0, 10)}</div>
+                {r.note && <div className="text-[var(--ink-500)] text-xs mt-0.5">{r.note}</div>}
+                <div className="text-[var(--ink-400)] text-[11px] mt-0.5">logged {r.loggedAt.slice(0, 10)}</div>
               </div>
               <CancelLeaveButton requestId={r.id} employeeName={r.employeeName} />
             </li>

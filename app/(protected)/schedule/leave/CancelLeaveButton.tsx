@@ -14,7 +14,7 @@ export function CancelLeaveButton({ requestId, employeeName }: { requestId: numb
       type="button"
       disabled={isPending}
       onClick={() => startTransition(() => deleteLeaveRequest(requestId))}
-      className="text-xs text-neutral-400 hover:text-red-600 disabled:opacity-50 shrink-0"
+      className="text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0"
       aria-label={`Cancel ${employeeName}'s leave request`}
     >
       Cancel

@@ -81,7 +81,7 @@ const POOLS: { key: TipPoolGroup; label: string; title: string; hint: string; co
 const COLOR = {
   pool1: { dot: "bg-blue-600", chip: "bg-blue-600", border: "border-blue-600", text: "text-blue-600", ring: "ring-blue-400 bg-blue-50" },
   pool2: { dot: "bg-emerald-600", chip: "bg-emerald-600", border: "border-emerald-600", text: "text-emerald-600", ring: "ring-emerald-400 bg-emerald-50" },
-  pool3: { dot: "bg-amber-600", chip: "bg-amber-600", border: "border-amber-600", text: "text-amber-600", ring: "ring-amber-400 bg-amber-50" },
+  pool3: { dot: "bg-amber-600", chip: "bg-amber-600", border: "border-amber-600", text: "text-amber-600", ring: "ring-amber-400 bg-[var(--warning-tint)]" },
 } as const;
 
 type PoolColorKey = keyof typeof COLOR;

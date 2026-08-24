@@ -123,7 +123,7 @@ export function CalculatorForm({
     <div className="space-y-8">
       <section>
         <h2 className="text-lg font-medium mb-3">Roster this shift</h2>
-        <p className="text-xs text-neutral-500 mb-3">
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Points are editable — try changing Erika&apos;s Pool 1 point to see how her
           share changes. Wage is looked up automatically (FOH: shared position rate,
           BOH: individual employee rate) and only counted once per person even if they
@@ -139,7 +139,7 @@ export function CalculatorForm({
 
       <section>
         <h2 className="text-lg font-medium mb-3">Pool split method</h2>
-        <p className="text-xs text-neutral-500 mb-3">
+        <p className="text-xs text-[var(--ink-500)] mb-3">
           Per-restaurant setting, not a fixed rule — point-weighted rewards higher point
           values, equal split ignores points entirely for that pool.
         </p>
@@ -166,7 +166,7 @@ export function CalculatorForm({
       {hosts.length > 0 && (
         <section>
           <h2 className="text-lg font-medium mb-3">Host team cocktail/mocktail bonus</h2>
-          <p className="text-xs text-neutral-500 mb-3">
+          <p className="text-xs text-[var(--ink-500)] mb-3">
             One shared count for the whole host team&apos;s waiting-area drink sales this shift —
             split equally among {hosts.map((h) => h.employeeName).join(", ")}, not entered per person.
           </p>
@@ -179,13 +179,13 @@ export function CalculatorForm({
 
       <button
         onClick={handleCalculate}
-        className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800"
+        className="bg-[var(--primary)] text-white px-4 py-2 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-600)]"
       >
         Calculate
       </button>
 
       {error && (
-        <div className="border border-red-300 bg-red-50 text-red-700 rounded p-4 text-sm">
+        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded p-4 text-sm">
           {error}
         </div>
       )}
@@ -231,7 +231,7 @@ export function CalculatorForm({
           />
 
           {totalPayoutByEmployee && (
-            <div className="border rounded p-4 bg-neutral-50">
+            <div className="border rounded p-4 bg-[var(--paper)]">
               <div className="font-medium mb-2">Total estimated payout (tips + wage)</div>
               <table className="text-sm w-full max-w-md">
                 <tbody>
@@ -240,7 +240,7 @@ export function CalculatorForm({
                     .map(([id, total]) => (
                       <tr key={id} className="border-t">
                         <td className="py-1">{employeeNameById.get(id) ?? `#${id}`}</td>
-                        <td className="py-1 text-neutral-500">
+                        <td className="py-1 text-[var(--ink-500)]">
                           {flatWageByEmployee.has(id) ? `wage $${flatWageByEmployee.get(id)!.toFixed(2)} + tips` : "tips only"}
                         </td>
                         <td className="py-1 text-right tabular-nums font-medium">${total.toFixed(2)}</td>
@@ -248,7 +248,7 @@ export function CalculatorForm({
                     ))}
                 </tbody>
               </table>
-              <p className="text-xs text-neutral-500 mt-2">
+              <p className="text-xs text-[var(--ink-500)] mt-2">
                 Doesn&apos;t include Manager/Floor Manager commission — that lives in the
                 Incentive Rules engine, which isn&apos;t built yet.
               </p>
@@ -258,7 +258,7 @@ export function CalculatorForm({
       )}
 
       {hasCalculated && !result && !error && (
-        <p className="text-neutral-500 text-sm">No result.</p>
+        <p className="text-[var(--ink-500)] text-sm">No result.</p>
       )}
     </div>
   );
@@ -310,28 +310,28 @@ function RosterTable({
           : baseLabels[key];
         return (
           <div key={key} className="border rounded p-3">
-            <div className="text-xs font-medium text-neutral-500 mb-2">{label}</div>
+            <div className="text-xs font-medium text-[var(--ink-500)] mb-2">{label}</div>
             <table className="text-sm w-full">
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.rosterEntryId} title={r.wageNote ?? undefined}>
                     <td className="py-0.5">{r.employeeName}</td>
-                    <td className="py-0.5 text-neutral-500">{r.positionName}</td>
+                    <td className="py-0.5 text-[var(--ink-500)]">{r.positionName}</td>
                     <td className="py-0.5 text-right">
                       {key === "NONE" ? (
-                        <span className="text-neutral-400">—</span>
+                        <span className="text-[var(--ink-400)]">—</span>
                       ) : (
                         <input
                           type="number"
                           step={0.1}
                           disabled={method === "EQUAL_SPLIT"}
-                          className="border rounded px-1 py-0.5 w-16 text-right tabular-nums disabled:bg-neutral-100 disabled:text-neutral-400"
+                          className="border rounded px-1 py-0.5 w-16 text-right tabular-nums disabled:bg-[var(--paper)] disabled:text-[var(--ink-400)]"
                           value={points[r.rosterEntryId] ?? r.pointValue}
                           onChange={(e) => onPointChange(r.rosterEntryId, Number(e.target.value))}
                         />
                       )}
                     </td>
-                    <td className="py-0.5 pl-2 text-right tabular-nums text-neutral-500 whitespace-nowrap">
+                    <td className="py-0.5 pl-2 text-right tabular-nums text-[var(--ink-500)] whitespace-nowrap">
                       {r.flatWage != null ? `$${r.flatWage.toFixed(2)}` : r.wageNote ? "—*" : ""}
                     </td>
                   </tr>
@@ -356,7 +356,7 @@ function SplitMethodField({
 }) {
   return (
     <label className="text-sm block">
-      <span className="block text-neutral-500 mb-1">{label}</span>
+      <span className="block text-[var(--ink-500)] mb-1">{label}</span>
       <select
         className="border rounded px-2 py-1 w-full"
         value={value}
@@ -393,7 +393,7 @@ function PoolResult({
       <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1 mb-3 max-w-md">
         {lines.map(([label, value]) => (
           <div key={label} className="contents">
-            <dt className="text-neutral-500">{label}</dt>
+            <dt className="text-[var(--ink-500)]">{label}</dt>
             <dd className="text-right tabular-nums">${value.toFixed(2)}</dd>
           </div>
         ))}
@@ -405,7 +405,7 @@ function PoolResult({
               <td className="py-1">{employeeNameById.get(id) ?? `#${id}`}</td>
               <td className="py-1 text-right tabular-nums">${shares[id].toFixed(2)}</td>
               {extraShares?.[id] ? (
-                <td className="py-1 text-right tabular-nums text-neutral-500">
+                <td className="py-1 text-right tabular-nums text-[var(--ink-500)]">
                   {extraLabel} ${extraShares[id].toFixed(2)}
                 </td>
               ) : (
@@ -432,7 +432,7 @@ function NumberField({
 }) {
   return (
     <label className="text-sm block">
-      <span className="block text-neutral-500 mb-1">{label}</span>
+      <span className="block text-[var(--ink-500)] mb-1">{label}</span>
       <input
         type="number"
         step={step}

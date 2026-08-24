@@ -50,7 +50,7 @@ export function TargetsForm({
   return (
     <form action={formAction} className="space-y-6">
       {state.error && (
-        <div className="border border-red-300 bg-red-50 text-red-700 rounded p-4 text-sm whitespace-pre-line">
+        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded p-4 text-sm whitespace-pre-line">
           <div className="font-medium mb-1">Couldn&apos;t save.</div>
           {state.error}
         </div>
@@ -96,7 +96,7 @@ export function TargetsForm({
       <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         <table className="w-full lg:min-w-[820px] text-sm border-collapse">
           <thead>
-            <tr className="text-left text-neutral-500 border-b">
+            <tr className="text-left text-[var(--ink-500)] border-b">
               <th className="py-1.5 pr-2 border-r">Position</th>
               <th className="py-1.5 pr-2">Period</th>
               {/* Desktop only (2026-08-23). Measured at 390px: Position 107px
@@ -141,7 +141,7 @@ export function TargetsForm({
       <button
         type="submit"
         disabled={isPending}
-        className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 text-sm disabled:opacity-50"
+        className="bg-[var(--primary)] text-white px-4 py-2 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-600)] text-sm disabled:opacity-50"
       >
         {isPending ? "Saving…" : "Save targets"}
       </button>
@@ -190,10 +190,10 @@ function PositionTargetRows({
           {periodIndex === 0 && (
             <td rowSpan={2} className="py-1.5 pr-2 align-top whitespace-nowrap border-r">
               <div className="font-medium">{position.name}</div>
-              <div className="text-xs text-neutral-400">({position.category})</div>
+              <div className="text-xs text-[var(--ink-400)]">({position.category})</div>
             </td>
           )}
-          <td className="py-1.5 pr-2 text-neutral-500 whitespace-nowrap align-top pt-2.5">{period}</td>
+          <td className="py-1.5 pr-2 text-[var(--ink-500)] whitespace-nowrap align-top pt-2.5">{period}</td>
           <td className="hidden lg:table-cell py-1.5 pr-3 align-top pt-2">
             <MasterStepper onBump={(delta) => bumpRow(period, delta)} />
           </td>
@@ -230,7 +230,7 @@ function MasterStepper({ onBump }: { onBump: (delta: number) => void }) {
       <button
         type="button"
         onClick={() => onBump(-1)}
-        className="size-11 lg:size-6 flex items-center justify-center rounded-full bg-neutral-200 text-neutral-700 text-sm font-bold hover:bg-neutral-300 active:scale-90 transition-transform"
+        className="size-11 lg:size-6 flex items-center justify-center rounded-full bg-[var(--border)] text-[var(--ink-700)] text-sm font-bold hover:bg-[var(--border-strong)] active:scale-90 transition-transform"
         tabIndex={-1}
         aria-label="Decrease every day in this row by 1"
       >
@@ -239,7 +239,7 @@ function MasterStepper({ onBump }: { onBump: (delta: number) => void }) {
       <button
         type="button"
         onClick={() => onBump(1)}
-        className="size-11 lg:size-6 flex items-center justify-center rounded-full bg-black text-white text-sm font-bold hover:bg-neutral-800 active:scale-90 transition-transform"
+        className="size-11 lg:size-6 flex items-center justify-center rounded-full bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary-600)] active:scale-90 transition-transform"
         tabIndex={-1}
         aria-label="Increase every day in this row by 1"
       >
@@ -275,7 +275,7 @@ function TargetStepper({
       <button
         type="button"
         onClick={() => onChange(value - 1)}
-        className="w-9 h-11 lg:w-5 lg:h-6 flex items-center justify-center text-neutral-500 hover:bg-neutral-100 disabled:opacity-30"
+        className="w-9 h-11 lg:w-5 lg:h-6 flex items-center justify-center text-[var(--ink-500)] hover:bg-[var(--paper)] disabled:opacity-30"
         disabled={value <= 0}
         tabIndex={-1}
         aria-label="Decrease"
@@ -294,7 +294,7 @@ function TargetStepper({
       <button
         type="button"
         onClick={() => onChange(value + 1)}
-        className="w-9 h-11 lg:w-5 lg:h-6 flex items-center justify-center text-neutral-500 hover:bg-neutral-100"
+        className="w-9 h-11 lg:w-5 lg:h-6 flex items-center justify-center text-[var(--ink-500)] hover:bg-[var(--paper)]"
         tabIndex={-1}
         aria-label="Increase"
       >

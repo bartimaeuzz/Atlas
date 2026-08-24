@@ -81,11 +81,11 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
   return (
     <div className="border rounded p-4">
       <h3 className="font-medium mb-3">
-        {group.positionName} <span className="text-xs text-neutral-400">({group.positionCategory})</span>
+        {group.positionName} <span className="text-xs text-[var(--ink-400)]">({group.positionCategory})</span>
       </h3>
 
       {rows.length === 0 ? (
-        <p className="text-sm text-neutral-400 mb-3">Nobody assigned yet.</p>
+        <p className="text-sm text-[var(--ink-400)] mb-3">Nobody assigned yet.</p>
       ) : (
         <>
         <StackedCardList className="mb-3">
@@ -109,10 +109,10 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
         <table className="text-sm border-collapse w-full min-w-[34rem]">
           <thead>
             <tr>
-              <th className="text-left text-neutral-500 font-normal pb-1 pr-2">Name</th>
+              <th className="text-left text-[var(--ink-500)] font-normal pb-1 pr-2">Name</th>
               <th className="w-6"></th>
               {DISPLAY_DAYS.map((d) => (
-                <th key={d} className="text-neutral-500 font-normal pb-1 px-1 w-11">
+                <th key={d} className="text-[var(--ink-500)] font-normal pb-1 px-1 w-11">
                   {DAY_SHORT[d]}
                 </th>
               ))}
@@ -279,7 +279,7 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
   const { checked, editing, setEditing, toggle, error, isPending } = useTemplateCells(group, employee);
 
   const isVacant = employee.vacancyReason !== null;
-  const rowBg = isVacant ? "bg-red-50" : "";
+  const rowBg = isVacant ? "bg-[var(--danger-tint)]" : "";
   const checkboxClass = "w-4 h-4" + (editing ? "" : " opacity-40 cursor-not-allowed");
   // The whole cell is the tap target, not the 16px box (2026-08-23 visual
   // audit -- WCAG 2.5.8 wants 24x24 minimum and this measured 16x16 in a
@@ -295,13 +295,13 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
         <td rowSpan={2} className="align-top pr-2 py-1 border-t">
           <div className={"font-medium" + (isPending ? " opacity-50" : "")}>{employee.employeeName}</div>
           {isVacant && (
-            <div className="text-[10px] text-red-700">
+            <div className="text-[10px] text-[var(--danger-700)]">
               {VACANCY_LABELS[employee.vacancyReason ?? ""] ?? employee.vacancyReason} · {employee.vacancyStartsOn}
             </div>
           )}
-          {error && <div className="text-[10px] text-red-600 mt-0.5">{error}</div>}
+          {error && <div className="text-[10px] text-[var(--danger-700)] mt-0.5">{error}</div>}
         </td>
-        <td className="text-[10px] text-neutral-400 border-t">L</td>
+        <td className="text-[10px] text-[var(--ink-400)] border-t">L</td>
         {DISPLAY_DAYS.map((d) => (
           <td key={d} className="text-center p-0 border-t">
             <label className={cellTargetClass}>
@@ -321,7 +321,7 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
         </td>
       </tr>
       <tr className={rowBg}>
-        <td className="text-[10px] text-neutral-400">D</td>
+        <td className="text-[10px] text-[var(--ink-400)]">D</td>
         {DISPLAY_DAYS.map((d) => (
           <td key={d} className="text-center p-0">
             <label className={cellTargetClass}>
@@ -376,7 +376,7 @@ function PersonPicker({
           if (emp) onPick(emp);
           setValue("");
         }}
-        className="text-sm underline text-neutral-500 hover:text-black disabled:opacity-40 disabled:no-underline"
+        className="text-sm underline text-[var(--ink-500)] hover:text-[var(--ink-900)] disabled:opacity-40 disabled:no-underline"
       >
         Add
       </button>
@@ -417,7 +417,7 @@ function EmployeeEdit({
       <button
         type="button"
         onClick={() => setEditing(!editing)}
-        className="text-xs text-neutral-500 hover:text-black border rounded px-2 py-1"
+        className="text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] border rounded px-2 py-1"
       >
         {editing ? "Done" : "Edit"}
       </button>
@@ -432,7 +432,7 @@ function EmployeeEdit({
                   if (anyTemplateId) await clearTemplateVacancy(anyTemplateId);
                 })
               }
-              className="text-neutral-500 hover:text-black underline disabled:opacity-40 disabled:no-underline"
+              className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline disabled:opacity-40 disabled:no-underline"
             >
               Clear vacancy
             </button>
@@ -441,7 +441,7 @@ function EmployeeEdit({
               type="button"
               disabled={!anyTemplateId}
               onClick={() => setShowVacancyForm(true)}
-              className="text-neutral-500 hover:text-black underline disabled:opacity-40 disabled:no-underline"
+              className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline disabled:opacity-40 disabled:no-underline"
             >
               Mark vacating…
             </button>
@@ -450,7 +450,7 @@ function EmployeeEdit({
             type="button"
             disabled={isPending || !anyTemplateId}
             onClick={() => setConfirmingRetire(true)}
-            className="text-red-700 hover:underline disabled:opacity-40 disabled:no-underline"
+            className="text-[var(--danger-700)] hover:underline disabled:opacity-40 disabled:no-underline"
           >
             Retire
           </button>
@@ -502,7 +502,7 @@ function VacancyPopoverForm({
   return (
     <div className="absolute right-0 z-20 mt-1 w-72 bg-white border rounded shadow-lg p-3 text-sm text-left">
       <label className="block mb-2">
-        <span className="block text-neutral-500 mb-1 text-xs">Reason</span>
+        <span className="block text-[var(--ink-500)] mb-1 text-xs">Reason</span>
         <select value={reason} onChange={(e) => setReason(e.target.value as typeof reason)} className="border rounded px-2 py-1 w-full">
           <option value="RESIGNATION">Resigning</option>
           <option value="PROMOTION">Promoted/moved to another position</option>
@@ -510,10 +510,10 @@ function VacancyPopoverForm({
         </select>
       </label>
       <label className="block mb-2">
-        <span className="block text-neutral-500 mb-1 text-xs">Starts on</span>
+        <span className="block text-[var(--ink-500)] mb-1 text-xs">Starts on</span>
         <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className="border rounded px-2 py-1 w-full" />
       </label>
-      <p className="text-[11px] text-neutral-400 mb-2">{scopeHint[reason]}</p>
+      <p className="text-[11px] text-[var(--ink-400)] mb-2">{scopeHint[reason]}</p>
       <div className="flex items-center gap-3">
         <button
           type="button"
@@ -524,11 +524,11 @@ function VacancyPopoverForm({
               onDone();
             })
           }
-          className="bg-red-700 text-white px-3 py-1 rounded text-xs hover:bg-red-800 disabled:opacity-50"
+          className="bg-[var(--danger)] text-white px-3 py-1 min-h-9 rounded-[var(--radius-md)] text-xs hover:bg-[var(--danger-700)] disabled:opacity-50"
         >
           {isPending ? "Saving…" : "Set"}
         </button>
-        <button type="button" onClick={onCancel} className="text-xs text-neutral-500 underline">
+        <button type="button" onClick={onCancel} className="text-xs text-[var(--ink-500)] underline">
           Cancel
         </button>
       </div>

@@ -37,7 +37,7 @@ export default async function SettingsPage() {
   return (
     <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
       <h1 className="text-2xl font-semibold mb-1">Settings</h1>
-      <p className="text-neutral-500 text-sm mb-6">Restaurant-wide configuration for tips, pools, and roster visibility.</p>
+      <p className="text-[var(--ink-500)] text-sm mb-6">Restaurant-wide configuration for tips, pools, and roster visibility.</p>
       {!canEdit && (
         <div className="mb-6">
           <Banner

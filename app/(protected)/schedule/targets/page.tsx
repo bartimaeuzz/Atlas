@@ -7,11 +7,11 @@ export default async function StaffingTargetsPage() {
 
   return (
     <main className="max-w-4xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/schedule" className="text-sm text-neutral-500 hover:text-black">
+      <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; Schedule Planner
       </Link>
       <h1 className="text-2xl font-semibold mt-2 mb-1">Staffing targets</h1>
-      <p className="text-neutral-500 text-sm mb-6">
+      <p className="text-[var(--ink-500)] text-sm mb-6">
         How many people you need in each position, by day of week and period. This is the
         baseline the weekly schedule grid uses to flag under-staffed days at a glance. Leave a
         cell blank or 0 if you don&apos;t normally staff that position that day/period. Each
@@ -20,7 +20,7 @@ export default async function StaffingTargetsPage() {
       </p>
 
       {data.positions.length === 0 ? (
-        <p className="text-neutral-500 text-sm">No active positions yet — add some in Positions first.</p>
+        <p className="text-[var(--ink-500)] text-sm">No active positions yet — add some in Positions first.</p>
       ) : (
         <TargetsForm positions={data.positions} targets={data.targets} />
       )}
