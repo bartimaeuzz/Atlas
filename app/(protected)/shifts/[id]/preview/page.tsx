@@ -7,6 +7,10 @@ import { computeFinalizationPreview } from "@/lib/shift/computeFinalizationPrevi
 import { sortPayoutsForDisplay } from "@/lib/shift/payoutSort";
 import { ConfirmFinalizeButton } from "./ConfirmFinalizeButton";
 import { Card, Section } from "@/components/ui/Card";
+import { TableCard } from "@/components/ui/Table";
+import { StatusBadge } from "@/components/ui/Badge";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
 import { Banner } from "@/components/ui/Banner";
 
 export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -28,13 +32,20 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-8 py-8">
       <p className="text-sm mb-2">
-        <Link href={`/shifts/${shiftId}/closing-report`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href={`/shifts/${shiftId}/closing-report`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           ← Back to Closing Report
         </Link>
       </p>
-      <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1.5">
-        Preview — {shift.date} ({shift.period})
-      </h1>
+      <div className="flex items-center gap-2.5 mb-1.5">
+        <h1 className="text-[24px] font-bold text-[var(--ink-900)]">
+          {/* Long date on sm+, short on phones -- same pair as the roster
+              and Reports headings (2026-08-24 standard). */}
+          <span className="hidden sm:inline">Preview — {formatDayLabelLong(shift.date)} ({shift.period})</span>
+          <span className="sm:hidden">Preview — {formatDayLabelShort(shift.date)} ({shift.period})</span>
+        </h1>
+        {/* Always draft here: finalized shifts redirect to /summary above. */}
+        <StatusBadge status="draft" />
+      </div>
       <p className="text-sm text-[var(--ink-500)] mb-8">
         Nothing is saved yet. These numbers are computed live from the current roster and closing report — go back and change
         anything, then come back here to see it update before you finalize.
@@ -122,55 +133,61 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
               </Card>
             </div>
 
-            <table className="hidden lg:table w-full text-sm border-collapse">
+            {/* TableCard border like every other desktop table (2026-08-24
+                standard); it owns the hidden lg:block split and the
+                overflow guard -- 13 columns scroll inside the card if a
+                narrow desktop needs it, never the page. */}
+            <TableCard>
+            <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
-                  <th className="py-2 font-medium">Employee</th>
-                  <th className="py-2 font-medium">Position</th>
-                  <th className="py-2 text-right font-medium">Point value</th>
-                  <th className="py-2 text-right font-medium" title="Pool 1 — dine-in">Pool 1</th>
-                  <th className="py-2 text-right font-medium" title="Pool 2 — takeout/online">Pool 2</th>
-                  <th className="py-2 text-right font-medium" title="Pool 3 — delivery">Pool 3</th>
-                  <th className="py-2 text-right font-medium">Drink bonus</th>
-                  <th className="py-2 text-right font-medium">Total tip</th>
-                  <th className="py-2 text-right font-medium">Flat wage</th>
-                  <th className="py-2 text-right font-medium">Extra pay</th>
-                  <th className="py-2 text-right font-medium">Incentive</th>
-                  <th className="py-2 text-right font-medium">Deduction</th>
-                  <th className="py-2 text-right font-medium">Total</th>
+                  <th className="py-2 px-3 font-medium">Employee</th>
+                  <th className="py-2 px-3 font-medium">Position</th>
+                  <th className="py-2 px-3 text-right font-medium">Point value</th>
+                  <th className="py-2 px-3 text-right font-medium" title="Pool 1 — dine-in">Pool 1</th>
+                  <th className="py-2 px-3 text-right font-medium" title="Pool 2 — takeout/online">Pool 2</th>
+                  <th className="py-2 px-3 text-right font-medium" title="Pool 3 — delivery">Pool 3</th>
+                  <th className="py-2 px-3 text-right font-medium">Drink bonus</th>
+                  <th className="py-2 px-3 text-right font-medium">Total tip</th>
+                  <th className="py-2 px-3 text-right font-medium">Flat wage</th>
+                  <th className="py-2 px-3 text-right font-medium">Extra pay</th>
+                  <th className="py-2 px-3 text-right font-medium">Incentive</th>
+                  <th className="py-2 px-3 text-right font-medium">Deduction</th>
+                  <th className="py-2 px-3 text-right font-medium">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {sortPayoutsForDisplay(preview.result.employeePayouts, preview.employeeNames, preview.positionByEmployeeId).map((p) => (
                   <tr key={p.employeeId} className="border-b border-[var(--border)]">
-                    <td className="py-2 text-[var(--ink-900)]">{preview!.employeeNames[p.employeeId] ?? `#${p.employeeId}`}</td>
-                    <td className="py-2 text-[var(--ink-500)]">{preview!.positionByEmployeeId[p.employeeId]?.positionName ?? "—"}</td>
-                    <td className="py-2 text-right tabular-nums">{p.pointValueUsed ?? "—"}</td>
-                    <td className="py-2 text-right tabular-nums">{p.pool1Share > 0 ? `$${p.pool1Share.toFixed(2)}` : "—"}</td>
-                    <td className="py-2 text-right tabular-nums">{p.pool2Share > 0 ? `$${p.pool2Share.toFixed(2)}` : "—"}</td>
-                    <td className="py-2 text-right tabular-nums">{p.pool3Share > 0 ? `$${p.pool3Share.toFixed(2)}` : "—"}</td>
-                    <td className="py-2 text-right tabular-nums">{p.hostUpsellTipShare > 0 ? `$${p.hostUpsellTipShare.toFixed(2)}` : "—"}</td>
-                    <td className="py-2 text-right tabular-nums font-medium">${p.totalTip.toFixed(2)}</td>
-                    <td className="py-2 text-right tabular-nums">${p.flatWageAmount.toFixed(2)}</td>
-                    <td className="py-2 text-right tabular-nums">{p.extraPayAmount > 0 ? `$${p.extraPayAmount.toFixed(2)}` : "—"}</td>
-                    <td className="py-2 text-right tabular-nums">{p.incentiveAmount > 0 ? `$${p.incentiveAmount.toFixed(2)}` : "—"}</td>
-                    <td className="py-2 text-right tabular-nums text-[var(--danger)]">
+                    <td className="py-2 px-3 text-[var(--ink-900)]">{preview!.employeeNames[p.employeeId] ?? `#${p.employeeId}`}</td>
+                    <td className="py-2 px-3 text-[var(--ink-500)]">{preview!.positionByEmployeeId[p.employeeId]?.positionName ?? "—"}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{p.pointValueUsed ?? "—"}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{p.pool1Share > 0 ? `$${p.pool1Share.toFixed(2)}` : "—"}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{p.pool2Share > 0 ? `$${p.pool2Share.toFixed(2)}` : "—"}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{p.pool3Share > 0 ? `$${p.pool3Share.toFixed(2)}` : "—"}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{p.hostUpsellTipShare > 0 ? `$${p.hostUpsellTipShare.toFixed(2)}` : "—"}</td>
+                    <td className="py-2 px-3 text-right tabular-nums font-medium">${p.totalTip.toFixed(2)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">${p.flatWageAmount.toFixed(2)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{p.extraPayAmount > 0 ? `$${p.extraPayAmount.toFixed(2)}` : "—"}</td>
+                    <td className="py-2 px-3 text-right tabular-nums">{p.incentiveAmount > 0 ? `$${p.incentiveAmount.toFixed(2)}` : "—"}</td>
+                    <td className="py-2 px-3 text-right tabular-nums text-[var(--danger)]">
                       {p.deductionAmount > 0 ? `-$${p.deductionAmount.toFixed(2)}` : "—"}
                     </td>
-                    <td className="py-2 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
+                    <td className="py-2 px-3 text-right tabular-nums font-medium">${p.totalCorePayout.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-[var(--border-strong)] font-semibold">
-                  <td className="py-2.5">Total</td>
+                  <td className="py-2.5 px-3">Total</td>
                   <td colSpan={10}></td>
-                  <td className="py-2.5 text-right tabular-nums">
+                  <td className="py-2.5 px-3 text-right tabular-nums">
                     ${preview.result.employeePayouts.reduce((a, p) => a + p.totalCorePayout, 0).toFixed(2)}
                   </td>
                 </tr>
               </tfoot>
             </table>
+            </TableCard>
           </Section>
 
           <section className="border-t border-[var(--border)] pt-6">
