@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadRosterPageData } from "@/lib/shift/loadRosterPageData";
 import { RosterGrid } from "./RosterGrid";
-import { LinkButton } from "@/components/ui/Button";
+import { NextToClosingReport } from "./NextToClosingReport";
 import { Banner } from "@/components/ui/Banner";
 import { StatusBadge } from "@/components/ui/Badge";
 import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
@@ -72,9 +72,22 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
         />
       </section>
 
-      <LinkButton href={`/shifts/${shiftId}/closing-report`}>
-        Next: Closing Report →
-      </LinkButton>
+      <NextToClosingReport
+        shiftId={shiftId}
+        // Finalized shifts skip the warning: the roster is locked, there is
+        // nothing left to fix here.
+        understaffed={
+          isFinalized
+            ? []
+            : data.allPositions
+                .map((p) => {
+                  const target = data.targets[p.id] ?? 0;
+                  const count = data.roster.filter((r) => r.positionId === p.id).length;
+                  return target > 0 && count < target ? `${p.name} ${count}/${target}` : null;
+                })
+                .filter((x): x is string => x !== null)
+        }
+      />
     </main>
   );
 }

@@ -64,11 +64,26 @@ export function RosterGrid({
     return map;
   }, [positions, allEmployees, employeeAssignedPositionIds]);
 
+  // Floor Manager leads (Oliver, 2026-08-24): the shift's responsible
+  // person reads first, then the two kitchens-of-work. Grouped by name
+  // because "Floor Manager" is a position row, not a category of its own.
+  const floorManagers = positions.filter((p) => p.name === "Floor Manager");
+  const rest = positions.filter((p) => p.name !== "Floor Manager");
+  const groups: { header: string; items: typeof positions }[] = [
+    { header: "Floor Manager", items: floorManagers },
+    { header: "FOH — Front of house", items: rest.filter((p) => p.category === "FOH") },
+    { header: "BOH — Back of house", items: rest.filter((p) => p.category === "BOH") },
+  ].filter((g) => g.items.length > 0);
+
   return (
     <div className="space-y-2">
-      {positions.map((p, i) => {
-        const prevCategory = i > 0 ? positions[i - 1].category : null;
-        const showCategoryBreak = p.category !== prevCategory;
+      {groups.map((group, gi) => (
+        <div key={group.header}>
+          <h3 className={"text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase mb-1.5" + (gi > 0 ? " mt-4" : "")}>
+            {group.header}
+          </h3>
+          <div className="space-y-2">
+      {group.items.map((p) => {
         const cellEntries = roster.filter((r) => r.positionId === p.id);
         const target = targets[p.id] ?? 0;
         const underTarget = target > 0 && cellEntries.length < target;
@@ -79,13 +94,6 @@ export function RosterGrid({
 
         return (
           <div key={p.id}>
-            {/* Named FOH/BOH section headers instead of a bare divider line
-                (Oliver, 2026-08-24: "so it easier for human eyes"). */}
-            {showCategoryBreak && (
-              <h3 className={"text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase mb-1.5" + (i > 0 ? " mt-4" : "")}>
-                {p.category === "FOH" ? "FOH — Front of house" : "BOH — Back of house"}
-              </h3>
-            )}
             <div
               className={
                 "border rounded-[var(--radius-lg)] p-3.5 " +
@@ -143,6 +151,9 @@ export function RosterGrid({
           </div>
         );
       })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -251,30 +262,41 @@ function RosterQuickAdd({
 
   function handleAddClick() {
     if (selectedId === "") return;
+    const employeeName = allEmployees.find((e) => e.id === selectedId)?.name ?? "This person";
     const existingPositions = roster.filter((r) => r.employeeId === selectedId).map((r) => r.positionName);
     const overTarget = target > 0 && currentCount >= target;
-    const overSentence = `${positionName} is already at ${currentCount}/${target} — adding one more makes it ${currentCount + 1}/${target}. Fine for a busy day, just checking it's on purpose.`;
+    // "Other" optgroup = not one of this person's capable positions
+    // (Oliver, 2026-08-24: same warn-don't-block dialog as over-target).
+    const offPosition = employees.other.some((e) => e.id === selectedId);
 
+    // One dialog for however many of the three warnings apply -- two or
+    // three sequential popups for a single tap would be worse than any of
+    // the warnings.
+    const sentences: string[] = [];
     if (existingPositions.length > 0) {
-      const employeeName = allEmployees.find((e) => e.id === selectedId)?.name ?? "This person";
-      setPendingConfirm({
-        title: "Add a second role?",
-        description:
-          `${employeeName} is already rostered as ${existingPositions.join(", ")} this shift. Add another role too? They'll be paid for all roles combined into one paycheck.` +
-          (overTarget ? ` Also: ${overSentence}` : ""),
-        confirmLabel: "Add role",
-      });
-      return;
+      sentences.push(
+        `${employeeName} is already rostered as ${existingPositions.join(", ")} this shift — they'll be paid for all roles combined into one paycheck.`
+      );
+    }
+    if (offPosition) {
+      sentences.push(`${positionName} isn't one of ${employeeName}'s usual positions.`);
     }
     if (overTarget) {
-      setPendingConfirm({
-        title: "Already at target",
-        description: overSentence,
-        confirmLabel: "Add anyway",
-      });
+      sentences.push(
+        `${positionName} is already at ${currentCount}/${target} — adding one more makes it ${currentCount + 1}/${target}. Fine for a busy day.`
+      );
+    }
+
+    if (sentences.length === 0) {
+      performAdd();
       return;
     }
-    performAdd();
+    setPendingConfirm({
+      title:
+        existingPositions.length > 0 ? "Add a second role?" : offPosition ? "Not their usual position" : "Already at target",
+      description: sentences.join(" ") + " Just checking it's on purpose.",
+      confirmLabel: existingPositions.length > 0 ? "Add role" : "Add anyway",
+    });
   }
 
   return (
