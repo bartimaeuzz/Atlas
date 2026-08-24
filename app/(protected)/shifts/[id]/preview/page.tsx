@@ -90,8 +90,11 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
           </section>
 
           <Section title="Tip pools">
-            <Card>
-              <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5 max-w-md">
+            {/* max-w-md on the CARD, not just the dl -- after the page
+                widened to 6xl the card stretched to 1152px around a 448px
+                list, reading as broken (Oliver, 2026-08-24). */}
+            <Card className="max-w-md">
+              <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
                 <Row label="Deduction rate" value={`${(preview.result.tipPoolCalculation.deductionRate * 100).toFixed(1)}%`} />
                 <Row label="Net CC tip (after deduction)" value={`$${preview.result.tipPoolCalculation.netCcTip.toFixed(2)}`} />
                 {preview.sales.cashTip > 0 && (
@@ -220,7 +223,10 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
               <tfoot>
                 <tr className="border-t-2 border-[var(--border-strong)] font-semibold">
                   <td className="py-2.5 px-3">Total</td>
-                  <td colSpan={10}></td>
+                  {/* 13 columns: label + 11 spanned + the amount. colSpan was
+                      10, which parked the total under Deduction (Oliver's
+                      screenshot, 2026-08-24). */}
+                  <td colSpan={11}></td>
                   <td className="py-2.5 px-3 text-right tabular-nums">
                     ${preview.result.employeePayouts.reduce((a, p) => a + p.totalCorePayout, 0).toFixed(2)}
                   </td>
