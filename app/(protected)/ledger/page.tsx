@@ -60,7 +60,14 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   const data = await loadPettyCashReport(start, end);
 
   return (
-    <main className="max-w-lg mx-auto p-4 sm:p-8">
+    <main
+      // max-w-3xl on desktop, not the Ledger tree's usual max-w-lg (Oliver,
+      // 2026-08-24: "why only ledger page has smallest table width") -- this
+      // landing now carries a 5-column desktop table, and at 512px the Floor
+      // Manager column was clipping. The entry pages (day, supplier, card)
+      // keep max-w-lg; they are single-column forms.
+      className="max-w-lg lg:max-w-3xl mx-auto p-4 sm:p-8"
+    >
       <PageHeader title="Ledger" description="Pick a day below to log petty cash or review its reconciliation." />
 
       <LedgerTabs active="petty-cash" showOverview showCard={showCard} />
