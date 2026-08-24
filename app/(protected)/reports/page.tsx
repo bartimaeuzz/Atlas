@@ -143,63 +143,80 @@ export default async function ReportsPage({
         )}
       </Tabs>
 
+      {/* Three labelled boxes instead of one loose row (2026-08-24,
+          Oliver: "create box for button") -- quick ranges, the custom
+          range form, and export each get their own bordered group so the
+          controls read as three jobs, not eight sibling buttons. */}
       <Card className="mb-6">
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="flex flex-wrap gap-2">
-            <LinkButton
-              href={`/reports?report=${report}&from=${presets.week.from}&to=${presets.week.to}`}
-              variant="secondary"
-              size="sm"
-            >
-              This week
-            </LinkButton>
-            <LinkButton
-              href={`/reports?report=${report}&from=${presets.month.from}&to=${presets.month.to}`}
-              variant="secondary"
-              size="sm"
-            >
-              This month
-            </LinkButton>
-            <LinkButton
-              href={`/reports?report=${report}&from=${presets.year.from}&to=${presets.year.to}`}
-              variant="secondary"
-              size="sm"
-            >
-              This year
-            </LinkButton>
+        <div className="flex flex-col lg:flex-row lg:items-stretch gap-3">
+          <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)]">
+            <div className="text-xs font-medium text-[var(--ink-500)] mb-2">Quick ranges</div>
+            <div className="flex flex-wrap gap-2">
+              <LinkButton
+                href={`/reports?report=${report}&from=${presets.week.from}&to=${presets.week.to}`}
+                variant="secondary"
+                size="sm"
+              >
+                This week
+              </LinkButton>
+              <LinkButton
+                href={`/reports?report=${report}&from=${presets.month.from}&to=${presets.month.to}`}
+                variant="secondary"
+                size="sm"
+              >
+                This month
+              </LinkButton>
+              <LinkButton
+                href={`/reports?report=${report}&from=${presets.year.from}&to=${presets.year.to}`}
+                variant="secondary"
+                size="sm"
+              >
+                This year
+              </LinkButton>
+            </div>
           </div>
-          <form className="flex flex-wrap items-end gap-2" action="/reports">
-            <input type="hidden" name="report" value={report} />
-            <label className="text-sm">
-              <span className="block text-[var(--ink-500)] mb-1.5">From</span>
-              <input
-                type="date"
-                name="from"
-                defaultValue={from}
-                className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)]"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="block text-[var(--ink-500)] mb-1.5">To</span>
-              <input
-                type="date"
-                name="to"
-                defaultValue={to}
-                className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)]"
-              />
-            </label>
-            <Button type="submit" size="sm">
-              View
-            </Button>
-          </form>
+
+          <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)]">
+            <div className="text-xs font-medium text-[var(--ink-500)] mb-2">Custom range</div>
+            <form className="flex flex-wrap items-end gap-2" action="/reports">
+              <input type="hidden" name="report" value={report} />
+              <label className="text-sm">
+                <span className="block text-[var(--ink-500)] mb-1.5">From</span>
+                <input
+                  type="date"
+                  name="from"
+                  defaultValue={from}
+                  className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)]"
+                />
+              </label>
+              <label className="text-sm">
+                <span className="block text-[var(--ink-500)] mb-1.5">To</span>
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={to}
+                  className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)]"
+                />
+              </label>
+              <Button type="submit" size="sm">
+                View
+              </Button>
+            </form>
+          </div>
+
           {/* Export is a plain <a> (DownloadLinkButton), deliberately not
               LinkButton: next/link prefetches, and prefetching a download
               route fires it without its required from/to params -> a 400 on
               every page view. See DownloadLinkButton's doc comment. */}
           {(report === "sales-tax" || report === "supplier-check") && (
-            <DownloadLinkButton href={exportHref} variant="brand" size="sm" className="sm:ml-auto">
-              Export .xlsx
-            </DownloadLinkButton>
+            <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)] lg:ml-auto flex flex-col">
+              <div className="text-xs font-medium text-[var(--ink-500)] mb-2">Export</div>
+              <div className="mt-auto">
+                <DownloadLinkButton href={exportHref} variant="brand" size="sm">
+                  Export .xlsx
+                </DownloadLinkButton>
+              </div>
+            </div>
           )}
         </div>
       </Card>
