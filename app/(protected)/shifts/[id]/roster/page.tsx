@@ -5,6 +5,7 @@ import { RosterGrid } from "./RosterGrid";
 import { LinkButton } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { StatusBadge } from "@/components/ui/Badge";
+import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
 
 /** Redesigned 2026-08-11 (Oliver: wanted this to read like the Schedule
  * Planner's weekly grid) — a Position-per-row layout with headcount
@@ -33,7 +34,10 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
       </p>
       <div className="flex items-center gap-2.5 mb-1">
         <h1 className="text-[24px] font-bold text-[var(--ink-900)]">
-          Roster — {data.shift.date} ({data.shift.period})
+          {/* Long date (Oliver, 2026-08-24), same pair as the Reports
+              heading: full weekday on sm+, short on a phone. */}
+          <span className="hidden sm:inline">Roster — {formatDayLabelLong(data.shift.date)} ({data.shift.period})</span>
+          <span className="sm:hidden">Roster — {formatDayLabelShort(data.shift.date)} ({data.shift.period})</span>
         </h1>
         <StatusBadge status={data.shift.status === "finalized" ? "finalized" : "draft"} />
       </div>

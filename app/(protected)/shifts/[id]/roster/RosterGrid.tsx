@@ -72,9 +72,20 @@ export function RosterGrid({
         const cellEntries = roster.filter((r) => r.positionId === p.id);
         const target = targets[p.id] ?? 0;
         const underTarget = target > 0 && cellEntries.length < target;
+        // Over target warns, never blocks (Oliver, 2026-08-24) -- extra
+        // coverage on a busy day is legitimate, it just should not pass
+        // silently.
+        const overTarget = target > 0 && cellEntries.length > target;
 
         return (
-          <div key={p.id} className={showCategoryBreak && i > 0 ? "pt-3 mt-1 border-t border-[var(--border)]" : ""}>
+          <div key={p.id}>
+            {/* Named FOH/BOH section headers instead of a bare divider line
+                (Oliver, 2026-08-24: "so it easier for human eyes"). */}
+            {showCategoryBreak && (
+              <h3 className={"text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase mb-1.5" + (i > 0 ? " mt-4" : "")}>
+                {p.category === "FOH" ? "FOH — Front of house" : "BOH — Back of house"}
+              </h3>
+            )}
             <div
               className={
                 "border rounded-[var(--radius-lg)] p-3.5 " +
@@ -86,8 +97,20 @@ export function RosterGrid({
                   {p.name} <span className="text-xs font-normal text-[var(--ink-400)]">({p.category})</span>
                 </div>
                 {target > 0 && (
-                  <span className={"text-xs font-medium " + (underTarget ? "text-[var(--danger-700)]" : "text-[var(--ink-500)]")}>
-                    {cellEntries.length}/{target}
+                  <span className="flex items-center gap-1.5">
+                    {overTarget && <Badge tone="warning">Over target</Badge>}
+                    <span
+                      className={
+                        "text-xs font-medium " +
+                        (underTarget
+                          ? "text-[var(--danger-700)]"
+                          : overTarget
+                            ? "text-[var(--warning-700)]"
+                            : "text-[var(--ink-500)]")
+                      }
+                    >
+                      {cellEntries.length}/{target}
+                    </span>
                   </span>
                 )}
               </div>
@@ -107,6 +130,9 @@ export function RosterGrid({
                 <RosterQuickAdd
                   shiftId={shiftId}
                   positionId={p.id}
+                  positionName={p.name}
+                  target={target}
+                  currentCount={cellEntries.length}
                   employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
                   alreadyAssignedIds={new Set(cellEntries.map((r) => r.employeeId))}
                   roster={roster}
@@ -170,6 +196,9 @@ function RosterPill({
 function RosterQuickAdd({
   shiftId,
   positionId,
+  positionName,
+  target,
+  currentCount,
   employees,
   alreadyAssignedIds,
   roster,
@@ -177,6 +206,9 @@ function RosterQuickAdd({
 }: {
   shiftId: number;
   positionId: number;
+  positionName: string;
+  target: number;
+  currentCount: number;
   employees: { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] };
   alreadyAssignedIds: Set<number>;
   roster: RosterPageEntry[];
@@ -186,7 +218,12 @@ function RosterQuickAdd({
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
-  const [pendingConfirm, setPendingConfirm] = useState<{ employeeName: string; existingPositions: string[] } | null>(null);
+  // Two confirmations share one dialog slot: adding a second role to the
+  // same person (the original guard) and pushing a position past its
+  // target (Oliver, 2026-08-24: warn with cancel | add anyway, never
+  // block). When both apply, one dialog says both -- two sequential
+  // popups for one tap would be worse than either warning.
+  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; description: string; confirmLabel: string } | null>(null);
 
   const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
   const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
@@ -215,9 +252,26 @@ function RosterQuickAdd({
   function handleAddClick() {
     if (selectedId === "") return;
     const existingPositions = roster.filter((r) => r.employeeId === selectedId).map((r) => r.positionName);
+    const overTarget = target > 0 && currentCount >= target;
+    const overSentence = `${positionName} is already at ${currentCount}/${target} — adding one more makes it ${currentCount + 1}/${target}. Fine for a busy day, just checking it's on purpose.`;
+
     if (existingPositions.length > 0) {
       const employeeName = allEmployees.find((e) => e.id === selectedId)?.name ?? "This person";
-      setPendingConfirm({ employeeName, existingPositions });
+      setPendingConfirm({
+        title: "Add a second role?",
+        description:
+          `${employeeName} is already rostered as ${existingPositions.join(", ")} this shift. Add another role too? They'll be paid for all roles combined into one paycheck.` +
+          (overTarget ? ` Also: ${overSentence}` : ""),
+        confirmLabel: "Add role",
+      });
+      return;
+    }
+    if (overTarget) {
+      setPendingConfirm({
+        title: "Already at target",
+        description: overSentence,
+        confirmLabel: "Add anyway",
+      });
       return;
     }
     performAdd();
@@ -268,13 +322,9 @@ function RosterQuickAdd({
           setPendingConfirm(null);
           performAdd();
         }}
-        title="Add a second role?"
-        description={
-          pendingConfirm
-            ? `${pendingConfirm.employeeName} is already rostered as ${pendingConfirm.existingPositions.join(", ")} this shift. Add another role too? They'll be paid for all roles combined into one paycheck.`
-            : undefined
-        }
-        confirmLabel="Add role"
+        title={pendingConfirm?.title ?? ""}
+        description={pendingConfirm?.description}
+        confirmLabel={pendingConfirm?.confirmLabel ?? "Confirm"}
       />
     </div>
   );
