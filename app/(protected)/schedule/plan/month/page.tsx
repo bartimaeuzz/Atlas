@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadMonthOverview } from "@/lib/schedule/loadMonthOverview";
 import { shiftMonth, toIso, weekStartFor } from "@/lib/schedule/weekMath";
 import { PageHeader } from "@/components/ui/Card";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -24,8 +25,8 @@ export default async function MonthOverviewPage({
   const nextMonth = shiftMonth(monthAnchor, 1);
 
   return (
-    <main className="max-w-5xl mx-auto p-8 font-sans">
-      <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+    <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
+      <Link href="/schedule" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Schedule Planner
       </Link>
 
@@ -45,15 +46,15 @@ export default async function MonthOverviewPage({
       />
 
       <div className="flex items-center gap-3 mb-4 text-sm">
-        <Link href={`/schedule/plan/month?month=${prevMonth}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/schedule/plan/month?month=${prevMonth}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           &larr; Previous month
         </Link>
-        <Link href={`/schedule/plan/month?month=${nextMonth}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/schedule/plan/month?month=${nextMonth}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           Next month &rarr;
         </Link>
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-[var(--ink-500)] mb-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--ink-500)] mb-3">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-[var(--success)] inline-block" /> Published
         </span>
