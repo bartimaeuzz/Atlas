@@ -7,6 +7,7 @@ import {
 } from "@/lib/actions/shift";
 import type { ClosingReportData, PlatformSalesRow as PlatformSalesRowData } from "@/lib/shift/loadClosingReportData";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 const initialState: ClosingReportActionState = { error: null };
 
@@ -72,7 +73,7 @@ export function ClosingReportForm({
   const [taxTouched, setTaxTouched] = useState(s ? !s.salesTaxIsAuto : false);
 
   return (
-    <form className="space-y-8">
+    <form className="space-y-4">
       <input type="hidden" name="shiftId" value={shiftId} />
 
       {error && (
@@ -82,6 +83,10 @@ export function ClosingReportForm({
         </div>
       )}
 
+      {/* Each topic is its own Card (2026-08-24, Oliver) -- six sections of
+          very different kinds (money entry, per-person bumps, exceptions)
+          used to share one undivided column. */}
+      <Card>
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Sales</legend>
         <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
@@ -136,7 +141,9 @@ export function ClosingReportForm({
           same meaning it&apos;s always had, tax is now tracked separately.
         </p>
       </fieldset>
+      </Card>
 
+      <Card>
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Tip points</legend>
         <p className="text-xs text-[var(--ink-500)] mb-3">
@@ -168,7 +175,9 @@ export function ClosingReportForm({
           </table>
         )}
       </fieldset>
+      </Card>
 
+      <Card>
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Bonus metrics</legend>
         <p className="text-xs text-[var(--ink-500)] mb-3">
@@ -207,7 +216,7 @@ export function ClosingReportForm({
               {data.metricRows.map((r) => (
                 <div
                   key={`${r.metricDefinitionId}_${r.employeeId}`}
-                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] p-3 text-sm lg:grid-cols-[1.3fr_1.3fr_1fr] lg:items-center lg:border-0 lg:p-0"
+                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--paper)] p-3 text-sm lg:grid-cols-[1.3fr_1.3fr_1fr] lg:items-center lg:border-0 lg:p-0"
                 >
                   <div className="col-span-2 lg:col-span-1">
                     {r.employeeName}
@@ -238,7 +247,9 @@ export function ClosingReportForm({
           <p className="text-sm text-[var(--ink-500)]">No bonus-eligible staff on the roster yet.</p>
         )}
       </fieldset>
+      </Card>
 
+      <Card>
       <details open={hasWageAdjustments}>
         <summary className="cursor-pointer select-none text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center gap-2">
           Wage adjustments
@@ -269,7 +280,7 @@ export function ClosingReportForm({
               {data.wageAdjustmentRows.map((r) => (
                 <div
                   key={r.employeeId}
-                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] p-3 text-sm lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:items-center lg:border-0 lg:p-0"
+                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--paper)] p-3 text-sm lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:items-center lg:border-0 lg:p-0"
                 >
                   <div className="col-span-2 lg:col-span-1">
                     {r.employeeName}
@@ -318,7 +329,9 @@ export function ClosingReportForm({
         )}
         </fieldset>
       </details>
+      </Card>
 
+      <Card>
       <details open={hasDeductions}>
         <summary className="cursor-pointer select-none text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center gap-2">
           Disciplinary deductions
@@ -347,7 +360,7 @@ export function ClosingReportForm({
               {data.wageAdjustmentRows.map((r) => (
                 <div
                   key={r.employeeId}
-                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] p-3 text-sm lg:grid-cols-[1.3fr_1fr_1.7fr] lg:items-center lg:border-0 lg:p-0"
+                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--paper)] p-3 text-sm lg:grid-cols-[1.3fr_1fr_1.7fr] lg:items-center lg:border-0 lg:p-0"
                 >
                   <div className="col-span-2 lg:col-span-1 self-center">{r.employeeName}</div>
                   <label className="block">
@@ -379,7 +392,9 @@ export function ClosingReportForm({
         )}
         </fieldset>
       </details>
+      </Card>
 
+      <Card>
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Online platform sales</legend>
         <p className="text-xs text-[var(--ink-500)] mb-3">
@@ -392,6 +407,7 @@ export function ClosingReportForm({
           ))}
         </div>
       </fieldset>
+      </Card>
 
       {!isFinalized && (
         <div className="flex flex-col sm:flex-row gap-3">
@@ -434,7 +450,7 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
   const [taxTouched, setTaxTouched] = useState(!p.taxAmountIsAuto);
 
   return (
-    <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--card)]">
+    <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)]">
       <div className="text-sm font-medium mb-2">{p.platformName}</div>
       <div className="grid sm:grid-cols-5 gap-3">
         <label className="text-sm block">
