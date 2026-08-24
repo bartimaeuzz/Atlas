@@ -170,7 +170,17 @@ export function FinalizeStep({ data, seen, locked }: { data: PettyCashDayData; s
               className="flex-1"
               loading={isPending}
               disabled={!hasCount || !data.shiftsReady || data.reconciliationId == null}
-              onClick={() => run(() => finalizePettyCashDay(data.date, counted!, note || null))}
+              onClick={() =>
+                run(async () => {
+                  const result = await finalizePettyCashDay(data.date, counted!, note || null);
+                  // Back to the month list once the day locks (Oliver,
+                  // 2026-08-24) -- the list is where the freshly-green
+                  // Finalized badge answers "did that work", and the next
+                  // task starts there, not on the now-locked day.
+                  if (!result.error) router.push("/ledger");
+                  return result;
+                })
+              }
             >
               Finalize day
             </Button>
