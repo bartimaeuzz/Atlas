@@ -8,6 +8,7 @@ import type { WeeklyPlanData } from "@/lib/schedule/loadWeeklyPlan";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 /**
  * "Edit published schedule" gate (2026-08-14, Oliver's own idea): a
@@ -45,6 +46,12 @@ export function PublishedEditGate({
   employeeAssignedPositionIds: Record<number, number[]>;
 }) {
   const [unlocked, setUnlocked] = useState(!isPublished);
+  // Unlocking now takes a ConfirmDialog (2026-08-24, Oliver's call): the
+  // consequence used to live only in the button label, which a manager
+  // taps through without reading. The dialog states it as a question the
+  // manager has to answer, and focus lands on Cancel (ConfirmDialog's own
+  // rule), so a stray Enter dismisses instead of unlocking.
+  const [confirming, setConfirming] = useState(false);
   const locked = isPublished && !unlocked;
 
   return (
@@ -56,9 +63,20 @@ export function PublishedEditGate({
             viewing it read-only below; removing someone is logged automatically, adding someone
             isn&apos;t.
           </p>
-          <Button variant="secondary" className="shrink-0" onClick={() => setUnlocked(true)}>
-            Edit published schedule (changes are visible to staff right away)
+          <Button variant="secondary" className="shrink-0" onClick={() => setConfirming(true)}>
+            Edit published schedule
           </Button>
+          <ConfirmDialog
+            open={confirming}
+            onClose={() => setConfirming(false)}
+            onConfirm={() => {
+              setUnlocked(true);
+              setConfirming(false);
+            }}
+            title="Edit the published schedule?"
+            description="Staff can already see this week on their own My Schedule. Anyone you add or remove will see the change right away."
+            confirmLabel="Edit schedule"
+          />
         </Card>
       ) : (
         isPublished && (
