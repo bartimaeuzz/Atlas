@@ -179,9 +179,13 @@ function NavItem({
   active: boolean;
   collapsed: boolean;
 }) {
+  // shrink-0: in the flex-column nav, a short viewport (landscape phone,
+  // 390px tall) was compressing every item to ~20px -- under WCAG 2.5.8's
+  // 24px floor and visibly unusable (Oliver, 2026-08-24). Items keep their
+  // 44px and the nav's own overflow-y-auto scrolls instead.
   const sizeClasses = collapsed
-    ? "mx-auto w-11 h-11 justify-center px-0"
-    : "mx-auto sm:mx-0 w-11 h-11 sm:w-auto justify-center sm:justify-start px-0 sm:px-3";
+    ? "shrink-0 mx-auto w-11 h-11 justify-center px-0"
+    : "shrink-0 mx-auto sm:mx-0 w-11 h-11 sm:w-auto justify-center sm:justify-start px-0 sm:px-3";
   const { ref: tooltipRef, handlers: tooltipHandlers, tooltip } = useCollapsedTooltip<HTMLAnchorElement>(label, collapsed);
   return (
     <>

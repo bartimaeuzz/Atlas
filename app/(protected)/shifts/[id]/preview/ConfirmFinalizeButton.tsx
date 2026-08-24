@@ -30,12 +30,14 @@ export function ConfirmFinalizeButton({ shiftId }: { shiftId: number }) {
         </div>
       )}
       <div className="flex items-center gap-3">
-        <Button type="button" variant="brand" loading={isPending} onClick={() => setConfirming(true)}>
-          {isPending ? "Finalizing…" : "Finalize"}
-        </Button>
+        {/* Back on the LEFT (Oliver, 2026-08-24) -- matches reading order:
+            the retreat before the commit. */}
         <LinkButton href={`/shifts/${shiftId}/closing-report`} variant="secondary">
           ← Back
         </LinkButton>
+        <Button type="button" variant="brand" loading={isPending} onClick={() => setConfirming(true)}>
+          {isPending ? "Finalizing…" : "Finalize"}
+        </Button>
       </div>
 
       <ConfirmDialog
