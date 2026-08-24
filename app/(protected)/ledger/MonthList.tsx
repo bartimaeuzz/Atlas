@@ -88,7 +88,7 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
       <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
-            <th className="py-2 px-3 font-medium">Date</th>
+            <th className="py-2 px-3 font-medium whitespace-nowrap">Date</th>
             <th className="py-2 px-3 font-medium text-right">Entries</th>
             <th className="py-2 px-3 font-medium text-right">Spent</th>
             <th className="py-2 px-3 font-medium text-right">Status</th>
@@ -101,7 +101,7 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
             const isToday = day.date === todayIso;
             const cells = (
               <>
-                <td className="py-2 px-3 px-3">
+                <td className="py-2 px-3 whitespace-nowrap">
                   {isFuture ? (
                     <span className="text-[var(--ink-500)] opacity-60">
                       <span className="inline-block w-9">{weekdayOf(day.date)}</span>
