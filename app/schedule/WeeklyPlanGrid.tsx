@@ -360,7 +360,7 @@ export function WeeklyPlanGrid({
                           {assignments.length === 0 && readOnly ? (
                             <span className="text-[11px] text-[var(--ink-400)]">—</span>
                           ) : (
-                            <div className="space-y-1">
+                            <div className="space-y-1.5">
                               {assignments.map((a) => {
                                 const slotKey = `${a.employeeId}:${date}:${period}`;
                                 const otherPositionIds = hideDiagnostics
@@ -541,8 +541,16 @@ function AssignmentPill({
     <div
       title={[leaveTitle, vacancyTitle, swapTitle].filter(Boolean).join(" · ") || undefined}
       className={
-        "flex items-center justify-between gap-1 rounded-[var(--radius-sm)] px-1.5 py-0.5 text-xs " +
-        (assignment.isExtraCoverage ? "bg-[var(--warning-tint)] text-[var(--warning-700)]" : "bg-[var(--paper)] text-[var(--ink-700)]") +
+        // Each person is a card with a visible edge (2026-08-24). They were
+        // already on separate lines -- measured 20px tall, 2px apart -- but
+        // with no border and a --paper fill against a --card cell, two of
+        // them read as one grey lump with a hairline through it. Oliver saw
+        // that as "people on the same line", and the line break was never
+        // the missing part: the boundary was.
+        "flex items-center justify-between gap-1 rounded-[var(--radius-sm)] border px-1.5 py-0.5 text-xs " +
+        (assignment.isExtraCoverage
+          ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border-[var(--warning-border)]"
+          : "bg-[var(--paper)] text-[var(--ink-700)] border-[var(--border-strong)]") +
         (vacatingSoon ? " ring-1 ring-[var(--danger)]" : "") +
         (onLeave ? " ring-1 ring-purple-400" : "") +
         (swap?.status === "completed" ? " ring-1 ring-[var(--success)]" : "") +
