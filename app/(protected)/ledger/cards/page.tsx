@@ -38,19 +38,17 @@ export default async function LedgerCardsPage() {
       ) : (
         <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-lg)] mb-6 text-sm bg-[var(--card)]">
           {cards.map((c) => (
-            <li key={c.id} className={"px-3 py-2.5 flex items-center justify-between gap-3" + (c.active ? "" : " opacity-50")}>
-              {canManage ? (
-                // The name IS the field for manage-holders (2026-08-24) --
-                // no reveal step. key= remounts the uncontrolled input when
-                // a save comes back with a new name.
-                <RenameCardControl key={c.name} cardId={c.id} currentName={c.name} />
-              ) : (
-                <span className="text-[var(--ink-900)]">{c.name}</span>
-              )}
-              <span className="flex items-center gap-3 shrink-0">
-                {!c.active && <span className="text-xs text-[var(--ink-500)]">(retired)</span>}
-                {canManage && <ToggleCardActiveButton cardId={c.id} nextActive={!c.active} />}
+            <li key={c.id} className={"px-3 py-2.5 flex items-center justify-between" + (c.active ? "" : " opacity-50")}>
+              <span className="text-[var(--ink-900)]">
+                {c.name}
+                {!c.active && <span className="ml-2 text-xs text-[var(--ink-500)]">(retired)</span>}
               </span>
+              {canManage && (
+                <span className="flex items-center gap-3">
+                  <RenameCardControl cardId={c.id} currentName={c.name} />
+                  <ToggleCardActiveButton cardId={c.id} nextActive={!c.active} />
+                </span>
+              )}
             </li>
           ))}
         </ul>
