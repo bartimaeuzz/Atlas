@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import {
   saveClosingReportSales, saveClosingReportAndPreview,
   type ClosingReportActionState,
@@ -41,6 +41,19 @@ export function ClosingReportForm({
   isFinalized: boolean;
 }) {
   const [saveState, saveFormAction, isSaving] = useActionState(saveClosingReportSales, initialState);
+  // "Saved ✓" flash after a successful draft save (2026-08-24, Oliver).
+  // Derived, not set: justSaved is true while the latest savedAt nonce
+  // hasn't been cleared, and the effect's ONLY job is the 2s timer that
+  // clears it -- no synchronous setState in the effect body, which the
+  // set-state-in-effect lint rule rightly rejects.
+  const [clearedSavedAt, setClearedSavedAt] = useState<number | null>(null);
+  const justSaved = !!saveState.savedAt && saveState.savedAt !== clearedSavedAt;
+  useEffect(() => {
+    if (!saveState.savedAt || saveState.savedAt === clearedSavedAt) return;
+    const savedAt = saveState.savedAt;
+    const t = setTimeout(() => setClearedSavedAt(savedAt), 2000);
+    return () => clearTimeout(t);
+  }, [saveState.savedAt, clearedSavedAt]);
   const [previewState, previewFormAction, isGoingToPreview] = useActionState(saveClosingReportAndPreview, initialState);
   const s = data.sales;
   const error = saveState.error ?? previewState.error;
@@ -447,7 +460,7 @@ export function ClosingReportForm({
             loading={isSaving}
             disabled={isGoingToPreview}
           >
-            {isSaving ? "Saving…" : "Save (draft)"}
+            {isSaving ? "Saving…" : justSaved ? "Saved ✓" : "Save (draft)"}
           </Button>
           <Button
             type="submit"

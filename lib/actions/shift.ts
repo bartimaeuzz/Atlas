@@ -168,6 +168,10 @@ export async function removeRosterEntry(formData: FormData): Promise<ActionResul
 
 export interface ClosingReportActionState {
   error: string | null;
+  /** Stamp of the last successful draft save -- the form flips its button
+   * to "Saved" for a moment when this changes (2026-08-24, Oliver). A
+   * nonce, not a display value; each save returns a fresh one. */
+  savedAt?: number;
 }
 
 /** Upserts the one ShiftSales row + all four OnlinePlatformSalesRecord rows
@@ -195,7 +199,7 @@ export async function saveClosingReportSales(
   }
 
   revalidatePath(`/shifts/${shiftId}/closing-report`);
-  return { error: null };
+  return { error: null, savedAt: Date.now() };
 }
 
 /** "Save & Preview" from the closing report form — persists whatever's in
