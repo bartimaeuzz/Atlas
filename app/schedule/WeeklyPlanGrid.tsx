@@ -341,7 +341,13 @@ export function WeeklyPlanGrid({
               <div className="divide-y divide-[var(--border)]">
                 {rows.map(({ position, lunch, dinner }) => (
                   <div key={position.id} className={PHONE_COLS + " py-2 items-start"}>
-                    <span className="text-xs text-[var(--ink-700)] leading-snug">{position.name}</span>
+                    {/* pt-[3px] is not a magic number: it is an AssignmentPill's
+                        1px border plus its py-0.5, so the position name sits on
+                        the same text line as the first staff card beside it
+                        rather than 2.5px above it (measured, 2026-08-24). The
+                        row reads left-to-right as one line, so the three
+                        columns have to share a baseline. */}
+                    <span className="text-xs text-[var(--ink-700)] leading-snug pt-[3px]">{position.name}</span>
                     {(["Lunch", "Dinner"] as const).map((period) => {
                       const { assignments, target } = period === "Lunch" ? lunch : dinner;
                       const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
@@ -358,7 +364,13 @@ export function WeeklyPlanGrid({
                           }
                         >
                           {assignments.length === 0 && readOnly ? (
-                            <span className="text-[11px] text-[var(--ink-400)]">—</span>
+                            // Same box as an AssignmentPill, minus the visible
+                            // border and fill -- an 11px bare span sat 6px below
+                            // the position name and 3.5px below a real name in
+                            // the next column, so a row with a dash on one side
+                            // and a person on the other had its three cells at
+                            // three different heights.
+                            <span className="inline-block border border-transparent px-1.5 py-0.5 text-xs text-[var(--ink-400)]">—</span>
                           ) : (
                             <div className="space-y-1.5">
                               {assignments.map((a) => {
