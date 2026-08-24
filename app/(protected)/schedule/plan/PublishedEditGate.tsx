@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { AddPlannedAssignmentForm } from "./AddPlannedAssignmentForm";
 import { AutoFillWeekButton } from "./AutoFillWeekButton";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import type { WeeklyPlanData } from "@/lib/schedule/loadWeeklyPlan";
@@ -35,14 +34,12 @@ export function PublishedEditGate({
   data,
   weekId,
   allEmployees,
-  allPositions,
   employeeAssignedPositionIds,
 }: {
   isPublished: boolean;
   data: WeeklyPlanData;
   weekId: number;
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
-  allPositions: { id: number; name: string; category: "FOH" | "BOH" }[];
   employeeAssignedPositionIds: Record<number, number[]>;
 }) {
   const [unlocked, setUnlocked] = useState(!isPublished);
@@ -86,26 +83,12 @@ export function PublishedEditGate({
         )
       )}
 
-      {!locked && (
-        <>
-          <AutoFillWeekButton weekId={weekId} />
-
-          <Card className="mb-8">
-            <h2 className="text-sm font-semibold text-[var(--ink-900)] mb-3">Add to a slot</h2>
-            {allEmployees.length === 0 || allPositions.length === 0 ? (
-              <p className="text-sm text-[var(--ink-500)]">Add active employees and positions first.</p>
-            ) : (
-              <AddPlannedAssignmentForm
-                weekId={weekId}
-                dates={data.dates}
-                allEmployees={allEmployees}
-                allPositions={allPositions}
-                employeeAssignedPositionIds={employeeAssignedPositionIds}
-              />
-            )}
-          </Card>
-        </>
-      )}
+      {/* The "Add to a slot" card that used to sit here was removed
+          2026-08-24 (Oliver: duplicate). Every cell in the grid has its own
+          QuickAddCell, which is the same addPlannedAssignment action with
+          the date/period/position already known -- the standalone form made
+          the manager re-pick all three from dropdowns. */}
+      {!locked && <AutoFillWeekButton weekId={weekId} />}
 
       <WeeklyPlanGrid
         data={data}

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
-import { loadEmployeesList, loadAllPositionsForAssignment, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
+import { loadEmployeesList, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
 import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
 import { GenerateWeekButton } from "./GenerateWeekButton";
 import { PublishedEditGate } from "./PublishedEditGate";
@@ -17,17 +17,15 @@ export default async function WeeklyPlanPage({
   const params = await searchParams;
   const weekStartDate = params.week || weekStartFor(toIso(new Date()));
 
-  const [data, employeeList, allPositions, employeeAssignedPositionIds] = await Promise.all([
+  const [data, employeeList, employeeAssignedPositionIds] = await Promise.all([
     loadWeeklyPlan(weekStartDate),
     loadEmployeesList(),
-    loadAllPositionsForAssignment(),
     loadEmployeeAssignedPositionIds(),
   ]);
 
   const activeEmployees = employeeList
     .filter((e) => e.active)
     .map((e) => ({ id: e.id, name: e.nickname, primaryPositionId: e.primaryPositionId }));
-  const activePositions = allPositions.filter((p) => p.active);
 
   const prevWeek = shiftWeek(weekStartDate, -1);
   const nextWeek = shiftWeek(weekStartDate, 1);
@@ -94,7 +92,6 @@ export default async function WeeklyPlanPage({
             data={data}
             weekId={data.week.id}
             allEmployees={activeEmployees}
-            allPositions={activePositions}
             employeeAssignedPositionIds={employeeAssignedPositionIds}
           />
 
