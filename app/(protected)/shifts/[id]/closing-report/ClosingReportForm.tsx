@@ -13,6 +13,20 @@ function round2(n: number): number {
   return Math.round((n + 1e-9) * 100) / 100;
 }
 
+/* Phone retrofit 2026-08-24. Two shared fragments:
+
+   INPUT -- every field is min-h-11 (44px): this is money entry on a phone
+   at closing time, the old py-1 boxes measured 30px tall.
+
+   The three per-employee input tables (wage adjustments, deductions,
+   per-person bonus metrics) are now ONE adaptive grid each instead of a
+   phone-card + desktop-table pair, because this form posts as a single
+   <form> and display:none inputs still submit -- duplicating the inputs
+   across two layouts would double-post every field. Phone: each employee
+   is a bordered card with labelled fields; lg: the same nodes lay out as
+   table-ish rows under a header row that is hidden on phone. */
+const INPUT = "border rounded px-2 py-1 min-h-11 w-full disabled:bg-neutral-100";
+
 export function ClosingReportForm({
   shiftId,
   data,
@@ -68,7 +82,7 @@ export function ClosingReportForm({
                 setTotalSales(val);
                 if (!taxTouched) setSalesTax(round2(val * taxRate));
               }}
-              className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+              className={INPUT}
             />
           </label>
           <div>
@@ -83,7 +97,7 @@ export function ClosingReportForm({
                   setSalesTax(Number(e.target.value) || 0);
                   setTaxTouched(true);
                 }}
-                className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+                className={INPUT}
               />
             </label>
             {!taxTouched && (
@@ -130,7 +144,7 @@ export function ClosingReportForm({
                       step={0.1}
                       name={`point_${r.rosterEntryId}`}
                       defaultValue={r.pointValue}
-                      className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                      className={INPUT + " max-w-28"}
                     />
                   </td>
                 </tr>
@@ -160,7 +174,7 @@ export function ClosingReportForm({
                   min={0}
                   name={`metric_shift_${r.metricDefinitionId}`}
                   defaultValue={r.currentValue}
-                  className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                  className={INPUT + " max-w-28"}
                 />
               </label>
             ))}
@@ -168,35 +182,41 @@ export function ClosingReportForm({
         )}
 
         {data.metricRows.length > 0 && (
-          <table className="text-sm border-collapse">
-            <thead>
-              <tr className="text-neutral-500">
-                <th className="text-left font-normal pr-4 pb-1">Employee</th>
-                <th className="text-left font-normal pr-4 pb-1">Position</th>
-                <th className="text-left font-normal pr-4 pb-1">Metric</th>
-                <th className="text-left font-normal pr-4 pb-1">Value</th>
-              </tr>
-            </thead>
-            <tbody>
+          <div>
+            <div className="hidden lg:grid lg:grid-cols-[1.3fr_1.3fr_1fr] lg:gap-3 text-sm text-neutral-500 pb-1">
+              <span>Employee</span>
+              <span>Metric</span>
+              <span>Value</span>
+            </div>
+            <div className="space-y-3 lg:space-y-2">
               {data.metricRows.map((r) => (
-                <tr key={`${r.metricDefinitionId}_${r.employeeId}`}>
-                  <td className="pr-4 py-1">{r.employeeName}</td>
-                  <td className="pr-4 py-1 text-neutral-500">{r.positionName}</td>
-                  <td className="pr-4 py-1 text-neutral-500">{r.metricLabel}</td>
-                  <td className="pr-4 py-1">
+                <div
+                  key={`${r.metricDefinitionId}_${r.employeeId}`}
+                  className="grid grid-cols-2 gap-3 rounded border p-3 text-sm lg:grid-cols-[1.3fr_1.3fr_1fr] lg:items-center lg:border-0 lg:p-0"
+                >
+                  <div className="col-span-2 lg:col-span-1">
+                    {r.employeeName}
+                    <span className="block text-xs text-neutral-500">{r.positionName}</span>
+                  </div>
+                  <div className="text-neutral-500 self-center">
+                    <span className="lg:hidden text-xs block">Metric</span>
+                    {r.metricLabel}
+                  </div>
+                  <label className="block">
+                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Value</span>
                     <input
                       type="number"
                       step={1}
                       min={0}
                       name={`metric_emp_${r.metricDefinitionId}_${r.employeeId}`}
                       defaultValue={r.currentValue}
-                      className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                      className={INPUT}
                     />
-                  </td>
-                </tr>
+                  </label>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
         )}
 
         {data.shiftMetricRows.length === 0 && data.metricRows.length === 0 && (
@@ -216,59 +236,64 @@ export function ClosingReportForm({
         {data.wageAdjustmentRows.length === 0 ? (
           <p className="text-sm text-neutral-500">Nobody on the roster yet.</p>
         ) : (
-          <table className="text-sm border-collapse">
-            <thead>
-              <tr className="text-neutral-500">
-                <th className="text-left font-normal pr-4 pb-1">Employee</th>
-                <th className="text-left font-normal pr-4 pb-1">Auto wage</th>
-                <th className="text-left font-normal pr-4 pb-1">Override</th>
-                <th className="text-left font-normal pr-4 pb-1">Extra pay</th>
-                <th className="text-left font-normal pr-4 pb-1">Reason</th>
-              </tr>
-            </thead>
-            <tbody>
+          <div>
+            <div className="hidden lg:grid lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:gap-3 text-sm text-neutral-500 pb-1">
+              <span>Employee</span>
+              <span>Auto wage</span>
+              <span>Override</span>
+              <span>Extra pay</span>
+              <span>Reason</span>
+            </div>
+            <div className="space-y-3 lg:space-y-2">
               {data.wageAdjustmentRows.map((r) => (
-                <tr key={r.employeeId}>
-                  <td className="pr-4 py-1">
+                <div
+                  key={r.employeeId}
+                  className="grid grid-cols-2 gap-3 rounded border p-3 text-sm lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:items-center lg:border-0 lg:p-0"
+                >
+                  <div className="col-span-2 lg:col-span-1">
                     {r.employeeName}
                     <span className="block text-xs text-neutral-500">{r.wageBearingPositionName}</span>
-                  </td>
-                  <td className="pr-4 py-1 text-neutral-500">
+                  </div>
+                  <div className="text-neutral-500 self-center">
+                    <span className="lg:hidden text-xs block">Auto wage</span>
                     {r.autoResolvedWage != null ? `$${r.autoResolvedWage.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="pr-4 py-1">
+                  </div>
+                  <label className="block">
+                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Override</span>
                     <input
                       type="number"
                       step={0.01}
                       name={`wageOverride_${r.employeeId}`}
                       defaultValue={r.wageOverrideAmount ?? ""}
                       placeholder="auto"
-                      className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                      className={INPUT}
                     />
-                  </td>
-                  <td className="pr-4 py-1">
+                  </label>
+                  <label className="block col-span-2 lg:col-span-1">
+                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Extra pay</span>
                     <input
                       type="number"
                       step={0.01}
                       name={`extraPay_${r.employeeId}`}
                       defaultValue={r.extraPayAmount || ""}
                       placeholder="0"
-                      className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                      className={INPUT}
                     />
-                  </td>
-                  <td className="pr-4 py-1">
+                  </label>
+                  <label className="block col-span-2 lg:col-span-1">
+                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Reason</span>
                     <input
                       type="text"
                       name={`wageReason_${r.employeeId}`}
                       defaultValue={r.reason ?? ""}
                       placeholder="optional note"
-                      className="border rounded px-2 py-1 w-40 disabled:bg-neutral-100"
+                      className={INPUT}
                     />
-                  </td>
-                </tr>
+                  </label>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
         )}
       </fieldset>
 
@@ -284,19 +309,21 @@ export function ClosingReportForm({
         {data.wageAdjustmentRows.length === 0 ? (
           <p className="text-sm text-neutral-500">Nobody on the roster yet.</p>
         ) : (
-          <table className="text-sm border-collapse">
-            <thead>
-              <tr className="text-neutral-500">
-                <th className="text-left font-normal pr-4 pb-1">Employee</th>
-                <th className="text-left font-normal pr-4 pb-1">Deduction</th>
-                <th className="text-left font-normal pr-4 pb-1">Reason</th>
-              </tr>
-            </thead>
-            <tbody>
+          <div>
+            <div className="hidden lg:grid lg:grid-cols-[1.3fr_1fr_1.7fr] lg:gap-3 text-sm text-neutral-500 pb-1">
+              <span>Employee</span>
+              <span>Deduction</span>
+              <span>Reason</span>
+            </div>
+            <div className="space-y-3 lg:space-y-2">
               {data.wageAdjustmentRows.map((r) => (
-                <tr key={r.employeeId}>
-                  <td className="pr-4 py-1">{r.employeeName}</td>
-                  <td className="pr-4 py-1">
+                <div
+                  key={r.employeeId}
+                  className="grid grid-cols-2 gap-3 rounded border p-3 text-sm lg:grid-cols-[1.3fr_1fr_1.7fr] lg:items-center lg:border-0 lg:p-0"
+                >
+                  <div className="col-span-2 lg:col-span-1 self-center">{r.employeeName}</div>
+                  <label className="block">
+                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Deduction</span>
                     <input
                       type="number"
                       step={0.01}
@@ -304,22 +331,23 @@ export function ClosingReportForm({
                       name={`deduction_${r.employeeId}`}
                       defaultValue={r.deductionAmount || ""}
                       placeholder="0"
-                      className="border rounded px-2 py-1 w-24 disabled:bg-neutral-100"
+                      className={INPUT}
                     />
-                  </td>
-                  <td className="pr-4 py-1">
+                  </label>
+                  <label className="block">
+                    <span className="lg:hidden text-xs text-neutral-500 block mb-1">Reason</span>
                     <input
                       type="text"
                       name={`deductionReason_${r.employeeId}`}
                       defaultValue={r.deductionReason ?? ""}
                       placeholder="e.g. 45 min late"
-                      className="border rounded px-2 py-1 w-40 disabled:bg-neutral-100"
+                      className={INPUT}
                     />
-                  </td>
-                </tr>
+                  </label>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </div>
         )}
       </fieldset>
 
@@ -337,18 +365,18 @@ export function ClosingReportForm({
       </fieldset>
 
       {!isFinalized && (
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-3">
           <button
             formAction={saveFormAction}
             disabled={isSaving || isGoingToPreview}
-            className="border border-neutral-300 px-4 py-2 rounded hover:bg-neutral-50 disabled:opacity-50"
+            className="border border-neutral-300 px-4 py-2 min-h-11 rounded hover:bg-neutral-50 disabled:opacity-50"
           >
             {isSaving ? "Saving…" : "Save (draft)"}
           </button>
           <button
             formAction={previewFormAction}
             disabled={isSaving || isGoingToPreview}
-            className="bg-black text-white px-4 py-2 rounded hover:bg-neutral-800 disabled:opacity-50"
+            className="bg-black text-white px-4 py-2 min-h-11 rounded hover:bg-neutral-800 disabled:opacity-50"
           >
             {isGoingToPreview ? "Saving…" : "Save & Preview →"}
           </button>
@@ -384,7 +412,7 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
               setSalesAmount(val);
               if (!taxTouched) setTaxAmount(round2(val * taxRate));
             }}
-            className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+            className={INPUT}
           />
         </label>
         <div>
@@ -399,7 +427,7 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
                 setTaxAmount(Number(e.target.value) || 0);
                 setTaxTouched(true);
               }}
-              className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+              className={INPUT}
             />
           </label>
           {!taxTouched && <p className="text-xs text-neutral-400 mt-1">Auto-calculated, edit if it differs.</p>}
@@ -421,7 +449,7 @@ function Field({ label, name, defaultValue }: { label: string; name: string; def
         step={0.01}
         name={name}
         defaultValue={defaultValue ?? 0}
-        className="border rounded px-2 py-1 w-full disabled:bg-neutral-100"
+        className={INPUT}
       />
     </label>
   );

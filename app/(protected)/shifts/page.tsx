@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { loadShiftsList } from "@/lib/shift/loadShiftsList";
+import { dayOfWeek } from "@/lib/schedule/weekMath";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/Badge";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default async function ShiftsListPage() {
   // Phase C (2026-08-21): Settings is behind VIEW_SETTINGS, which
@@ -67,7 +70,13 @@ export default async function ShiftsListPage() {
             <div className="divide-y divide-[var(--border)]">
               {shiftsByDate.map(({ date, byPeriod }) => (
                 <div key={date} className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 items-center">
-                  <span className="text-sm text-[var(--ink-900)]">{date}</span>
+                  {/* Weekday on a fixed-width span so every date starts at
+                      the same x whether the day name is "Fri" or "Wed"
+                      (Oliver, 2026-08-24: "with proper indent alignment"). */}
+                  <span className="text-sm text-[var(--ink-900)]">
+                    <span className="inline-block w-9 text-[var(--ink-500)]">{DAY_LABELS[dayOfWeek(date)]}</span>
+                    {date}
+                  </span>
                   {(["Lunch", "Dinner"] as const).map((period) => {
                     const shift = byPeriod[period];
                     if (!shift) {
@@ -78,15 +87,22 @@ export default async function ShiftsListPage() {
                       );
                     }
                     return (
+                      // ONE layer of chrome (Oliver, 2026-08-24): the bordered
+                      // 44px card IS the control, so the status inside is
+                      // plain text in the badge's tone, not a second pill
+                      // inside a border. Status is carried by the word itself,
+                      // never colour alone. The blue arrow is gone with it.
                       <Link
                         key={period}
                         href={shift.status === "finalized" ? `/shifts/${shift.id}/summary` : `/shifts/${shift.id}/roster`}
-                        className="flex min-h-11 items-center justify-between gap-1 rounded-[var(--radius-sm)] border border-[var(--border-strong)] bg-[var(--paper)] px-2 py-1"
+                        className={
+                          "flex min-h-11 items-center rounded-[var(--radius-sm)] border px-2 py-1 text-xs font-medium " +
+                          (shift.status === "finalized"
+                            ? "border-[var(--success-border)] bg-[var(--success-tint)] text-[var(--success-700)]"
+                            : "border-[var(--warning-border)] bg-[var(--warning-tint)] text-[var(--warning-700)]")
+                        }
                       >
-                        <StatusBadge status={shift.status} />
-                        <span className="text-xs text-[var(--primary)] font-medium" aria-hidden>
-                          →
-                        </span>
+                        {shift.status === "finalized" ? "Finalized" : "Draft"}
                       </Link>
                     );
                   })}
