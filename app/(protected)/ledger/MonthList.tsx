@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { formatMoney } from "./formatMoney";
 import { weekdayOf } from "@/lib/format/formatDayLabel";
 import { MonthRow } from "./MonthRow";
+import { TableCard } from "@/components/ui/Table";
 
 /** One row per day in the selected month, for the new /ledger landing
  * (2026-08-14 restructure). Reuses the same PettyCashReportData shape
@@ -79,15 +80,19 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
         })}
       </div>
 
-      {/* Desktop: table */}
-      <table className="hidden lg:table w-full text-sm border-collapse">
+      {/* Desktop: table, inside the standard TableCard border like every
+          other desktop table in the app (Oliver, 2026-08-24). TableCard
+          already carries the hidden lg:block split, so the table itself
+          drops its own breakpoint classes. */}
+      <TableCard>
+      <table className="w-full text-sm border-collapse">
         <thead>
           <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
-            <th className="py-2 font-medium">Date</th>
-            <th className="py-2 font-medium text-right">Entries</th>
-            <th className="py-2 font-medium text-right">Spent</th>
-            <th className="py-2 font-medium text-right">Status</th>
-            <th className="py-2 font-medium">Floor Manager</th>
+            <th className="py-2 px-3 font-medium">Date</th>
+            <th className="py-2 px-3 font-medium text-right">Entries</th>
+            <th className="py-2 px-3 font-medium text-right">Spent</th>
+            <th className="py-2 px-3 font-medium text-right">Status</th>
+            <th className="py-2 px-3 font-medium">Floor Manager</th>
           </tr>
         </thead>
         <tbody>
@@ -96,7 +101,7 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
             const isToday = day.date === todayIso;
             const cells = (
               <>
-                <td className="py-2">
+                <td className="py-2 px-3 px-3">
                   {isFuture ? (
                     <span className="text-[var(--ink-500)] opacity-60">
                       <span className="inline-block w-9">{weekdayOf(day.date)}</span>
@@ -110,14 +115,14 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
                     </Link>
                   )}
                 </td>
-                <td className="py-2 text-right tabular-nums text-[var(--ink-700)]">{isFuture ? "—" : day.entryCount || "—"}</td>
-                <td className="py-2 text-right tabular-nums text-[var(--ink-900)]">
+                <td className="py-2 px-3 text-right tabular-nums text-[var(--ink-700)]">{isFuture ? "—" : day.entryCount || "—"}</td>
+                <td className="py-2 px-3 text-right tabular-nums text-[var(--ink-900)]">
                   {isFuture ? "—" : day.totalSpent > 0 ? formatMoney(day.totalSpent) : "—"}
                 </td>
-                <td className="py-2 text-right">
+                <td className="py-2 px-3 text-right">
                   {isFuture ? <span className="text-[var(--ink-500)] opacity-60 text-xs">Not yet</span> : <DayStatusBadge day={day} />}
                 </td>
-                <td className="py-2 text-[var(--ink-700)]">{isFuture ? "—" : day.finalizedByName || "—"}</td>
+                <td className="py-2 px-3 text-[var(--ink-700)]">{isFuture ? "—" : day.finalizedByName || "—"}</td>
               </>
             );
             // A future day is deliberately not interactive at all -- Oliver's
@@ -136,6 +141,7 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
           })}
         </tbody>
       </table>
+      </TableCard>
     </>
   );
 }
