@@ -274,12 +274,14 @@ export function WeeklyPlanGrid({
         <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-4 px-4">
           {data.dates.map((date) => {
             const active = date === selectedDate;
+            const isToday = date === todayIso;
             return (
               <button
                 key={date}
                 type="button"
                 onClick={() => setSelectedDate(date)}
                 aria-current={active ? "date" : undefined}
+                aria-label={`${DAY_LABELS[dayOfWeekFor(date)]} ${Number(date.slice(8, 10))}${isToday ? ", today" : ""}`}
                 className={
                   // focus-visible:outline-2, not outline-2, and the offset on
                   // the base: Button.tsx records why -- in Tailwind v4 a
@@ -293,7 +295,12 @@ export function WeeklyPlanGrid({
                   "outline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)] " +
                   (active
                     ? "bg-[var(--primary)] text-white border-[var(--primary)] font-semibold"
-                    : "bg-[var(--card)] text-[var(--ink-700)] border-[var(--border-strong)]")
+                    : // Today keeps a primary edge even when another day is
+                      // selected (2026-08-25 legibility pass — same "today must
+                      // be findable" call as My Schedule's calendar, e7cf846).
+                      isToday
+                      ? "bg-[var(--primary-tint)] text-[var(--primary-700)] border-[var(--primary-border)] font-medium"
+                      : "bg-[var(--card)] text-[var(--ink-700)] border-[var(--border-strong)]")
                 }
               >
                 <span className="block text-[11px] opacity-80">{DAY_LABELS[dayOfWeekFor(date)]}</span>
@@ -383,7 +390,7 @@ export function WeeklyPlanGrid({
                         rather than 2.5px above it (measured, 2026-08-24). The
                         row reads left-to-right as one line, so the three
                         columns have to share a baseline. */}
-                    <span className="text-xs text-[var(--ink-700)] leading-snug pt-[3px]">{position.name}</span>
+                    <span className="text-xs font-medium text-[var(--ink-900)] leading-snug pt-[3px]">{position.name}</span>
                     {(["Lunch", "Dinner"] as const).map((period) => {
                       const { assignments, target } = period === "Lunch" ? lunch : dinner;
                       const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
@@ -437,7 +444,7 @@ export function WeeklyPlanGrid({
                             </div>
                           )}
                           {!hideDiagnostics && target > 0 && (
-                            <div className={"text-[11px] mt-0.5" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-400)]")}>
+                            <div className={"text-xs mt-0.5" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-500)]")}>
                               {assignments.length}/{target}
                             </div>
                           )}
@@ -474,12 +481,20 @@ export function WeeklyPlanGrid({
             <thead>
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
                 <th className="py-1.5 pr-2 sticky left-0 z-[1] bg-[var(--card)]">Position</th>
-                {data.dates.map((d) => (
-                  <th key={d} className="py-1.5 text-left align-bottom">
-                    <div>{DAY_LABELS[dayOfWeekFor(d)]}</div>
-                    <div className="text-xs font-normal text-[var(--ink-400)]">{d.slice(5)}</div>
-                  </th>
-                ))}
+                {data.dates.map((d) => {
+                  const isToday = d === toIso(new Date());
+                  return (
+                    <th key={d} className="py-1.5 text-left align-bottom">
+                      <div className={isToday ? "text-[var(--primary-700)] font-semibold" : "text-[var(--ink-700)]"}>
+                        {DAY_LABELS[dayOfWeekFor(d)]}
+                      </div>
+                      <div className={"text-xs font-normal " + (isToday ? "text-[var(--primary-700)]" : "text-[var(--ink-500)]")}>
+                        {d.slice(5)}
+                        {isToday && <span className="ml-1">· today</span>}
+                      </div>
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody>
@@ -525,7 +540,7 @@ export function WeeklyPlanGrid({
                               );
                             })}
                             {!hideDiagnostics && target > 0 && (
-                              <div className={"text-xs" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-400)]")}>
+                              <div className={"text-xs" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-500)]")}>
                                 {cellAssignments.length}/{target}
                               </div>
                             )}
@@ -611,10 +626,13 @@ function AssignmentPill({
         // them read as one grey lump with a hairline through it. Oliver saw
         // that as "people on the same line", and the line break was never
         // the missing part: the boundary was.
-        "flex items-center justify-between gap-1 rounded-[var(--radius-sm)] border px-1.5 py-0.5 text-xs " +
+        // font-medium ink-900 (2026-08-25 legibility pass, same complaint
+        // and fix as My Schedule's calendar in e7cf846: 12px grey-on-grey
+        // names were too faint to read at a glance).
+        "flex items-center justify-between gap-1 rounded-[var(--radius-sm)] border px-1.5 py-0.5 text-xs font-medium " +
         (assignment.isExtraCoverage
           ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border-[var(--warning-border)]"
-          : "bg-[var(--paper)] text-[var(--ink-700)] border-[var(--border-strong)]") +
+          : "bg-[var(--paper)] text-[var(--ink-900)] border-[var(--border-strong)]") +
         (vacatingSoon ? " ring-1 ring-[var(--danger)]" : "") +
         (onLeave ? " ring-1 ring-purple-400" : "") +
         (swap?.status === "completed" ? " ring-1 ring-[var(--success)]" : "") +
