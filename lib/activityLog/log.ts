@@ -36,12 +36,13 @@ export type ActivityType =
   | "petty_cash.entry.deleted"
   | "petty_cash.day.finalized"
   | "petty_cash.day.reconciliation_edited"
-  | "ledger_card.import.committed";
+  | "ledger_card.import.committed"
+  | "ledger_card.card.deleted";
 
 export interface ActivityEntry {
   actorEmployeeId: number;
   type: ActivityType;
-  entityType: "petty_cash_entry" | "daily_cash_reconciliation" | "card_statement_period";
+  entityType: "petty_cash_entry" | "daily_cash_reconciliation" | "card_statement_period" | "ledger_card";
   /** Text, not a number: some subjects are keyed by date ("2026-08-22"). */
   entityId: string;
   /** Pre-rendered and frozen at write time. The log has to stay readable

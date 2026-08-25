@@ -17,6 +17,7 @@ import { ledgerCards, cardStatementPeriods, cardTransactions } from "@/db/schema
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { requireCapability } from "@/lib/permissions/requireCapability";
 import { cardReconcileMismatch, cardSideTotals } from "@/lib/ledger/cardReconcile";
+import { logActivityStatement } from "@/lib/activityLog/log";
 import { validateSplitParts, isSplitFailure } from "@/lib/ledger/cardSplit";
 
 export interface CardActionState {
@@ -130,24 +131,51 @@ export async function deleteLedgerCard(cardId: number): Promise<ActionResult> {
     const [card] = await db.select().from(ledgerCards).where(eq(ledgerCards.id, cardId));
     if (!card) throw new Error("Card not found");
 
-    const periodIds = (
-      await db
-        .select({ id: cardStatementPeriods.id })
-        .from(cardStatementPeriods)
-        .where(eq(cardStatementPeriods.cardId, cardId))
-    ).map((p) => p.id);
+    const periods = await db
+      .select({ id: cardStatementPeriods.id, periodStart: cardStatementPeriods.periodStart })
+      .from(cardStatementPeriods)
+      .where(eq(cardStatementPeriods.cardId, cardId));
+    const periodIds = periods.map((p) => p.id);
+    const txCount =
+      periodIds.length > 0
+        ? (
+            await db
+              .select({ id: cardTransactions.id })
+              .from(cardTransactions)
+              .where(inArray(cardTransactions.statementPeriodId, periodIds))
+          ).length
+        : 0;
+    const earliest = periods.length ? periods.reduce((min, p) => (p.periodStart < min ? p.periodStart : min), periods[0].periodStart) : null;
 
-    // One batch: transactions, periods, card commit together or not at
-    // all -- a partial delete here would orphan money rows. (db.batch's
-    // type wants a non-empty literal tuple, hence the branch.)
+    // The log sentence is frozen at write time on purpose -- after this
+    // batch runs, the rows it describes no longer exist to reconstruct
+    // it from (see lib/activityLog/log.ts).
+    const logStatement = logActivityStatement({
+      actorEmployeeId: session.id,
+      type: "ledger_card.card.deleted",
+      entityType: "ledger_card",
+      entityId: String(cardId),
+      summary:
+        periods.length > 0
+          ? `Deleted card ${card.name} and everything under it — ${periods.length} statement period${periods.length === 1 ? "" : "s"} and ${txCount} transaction${txCount === 1 ? "" : "s"} since ${earliest}`
+          : `Deleted card ${card.name} (no statement periods)`,
+      detail: { cardName: card.name, periodCount: periods.length, transactionCount: txCount, earliestPeriodStart: earliest },
+    });
+
+    // One batch: transactions, periods, card, and the log row commit
+    // together or not at all -- a partial delete would orphan money rows,
+    // and an erased card without its log row is exactly the silent-miss
+    // the activity log exists to prevent. (db.batch's type wants a
+    // non-empty literal tuple, hence the branch.)
     if (periodIds.length > 0) {
       await db.batch([
         db.delete(cardTransactions).where(inArray(cardTransactions.statementPeriodId, periodIds)),
         db.delete(cardStatementPeriods).where(eq(cardStatementPeriods.cardId, cardId)),
         db.delete(ledgerCards).where(eq(ledgerCards.id, cardId)),
+        logStatement,
       ]);
     } else {
-      await db.delete(ledgerCards).where(eq(ledgerCards.id, cardId));
+      await db.batch([db.delete(ledgerCards).where(eq(ledgerCards.id, cardId)), logStatement]);
     }
 
     revalidatePath("/ledger/cards");
