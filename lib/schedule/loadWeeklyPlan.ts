@@ -63,6 +63,10 @@ export interface WeeklyPlanData {
   /** Same sparse lookup convention as loadStaffingTargets — key
    * `${positionId}:${dayOfWeek}:${period}`, missing = target 0. */
   targets: Record<string, number>;
+  /** employeeId -> their non-denied leave ranges touching this week —
+   * powers quick-add's "on leave that day" confirm (Oliver, 2026-08-25).
+   * Plain object, not a Map: this crosses the server/client boundary. */
+  leaveByEmployee: Record<number, { startDate: string; endDate: string; note: string | null }[]>;
 }
 
 /** Powers /schedule/plan?week=YYYY-MM-DD. Returns everything the weekly
@@ -88,7 +92,7 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
   }
 
   if (!weekRow) {
-    return { weekStartDate, dates, week: null, assignments: [], positions: activePositions, targets };
+    return { weekStartDate, dates, week: null, assignments: [], positions: activePositions, targets, leaveByEmployee: {} };
   }
 
   const rows = await db
@@ -192,5 +196,6 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
     assignments,
     positions: activePositions,
     targets,
+    leaveByEmployee: Object.fromEntries(leaveByEmployee),
   };
 }

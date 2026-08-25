@@ -521,6 +521,7 @@ export function WeeklyPlanGrid({
                               positionName={position.name}
                               dayLoad={dayLoadByEmployee.get(date)}
                               target={target}
+                              leaveByEmployee={data.leaveByEmployee}
                             />
                             </div>
                           )}
@@ -714,6 +715,7 @@ export function WeeklyPlanGrid({
                                       positionName={p.name}
                                       dayLoad={dayLoadByEmployee.get(date)}
                                       target={target}
+                                      leaveByEmployee={data.leaveByEmployee}
                                     />
                                   </div>
                                 )}
@@ -1091,6 +1093,7 @@ function QuickAddCell({
   positionName,
   dayLoad,
   target = 0,
+  leaveByEmployee,
 }: {
   weekId: number;
   date: string;
@@ -1103,6 +1106,8 @@ function QuickAddCell({
   dayLoad?: Map<number, string[]>;
   /** Staffing target for this cell — 0 when none set. */
   target?: number;
+  /** employeeId -> leave ranges touching the week (from WeeklyPlanData). */
+  leaveByEmployee?: Record<number, { startDate: string; endDate: string; note: string | null }[]>;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -1111,6 +1116,7 @@ function QuickAddCell({
   const [error, setError] = useState<string | null>(null);
   const [confirmingDouble, setConfirmingDouble] = useState(false);
   const [askingExtra, setAskingExtra] = useState(false);
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
 
   const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
   const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
@@ -1119,6 +1125,10 @@ function QuickAddCell({
   const selectedName =
     selectedId === "" ? "" : ([...employees.eligible, ...employees.other].find((e) => e.id === selectedId)?.name ?? "This person");
   const existingToday = selectedId === "" ? [] : (dayLoad?.get(selectedId) ?? []);
+  const selectedLeave =
+    selectedId === ""
+      ? null
+      : ((leaveByEmployee?.[selectedId] ?? []).find((l) => l.startDate <= date && l.endDate >= date) ?? null);
 
   const overTarget = target > 0 && alreadyAssignedIds.size >= target;
 
@@ -1129,6 +1139,26 @@ function QuickAddCell({
   // carries the double-shift note too, so only one popup ever shows.
   function requestAdd() {
     if (selectedId === "") return;
+    // Leave first — it's the "are you sure this person is even here?"
+    // question, ahead of staffing-shape questions (Oliver, 2026-08-25).
+    if (selectedLeave) {
+      setConfirmingLeave(true);
+      return;
+    }
+    if (overTarget && !isExtraCoverage) {
+      setAskingExtra(true);
+      return;
+    }
+    if (existingToday.length > 0) {
+      setConfirmingDouble(true);
+      return;
+    }
+    handleAdd();
+  }
+
+  /** Continues the gate chain after the leave confirm. */
+  function afterLeaveConfirmed() {
+    setConfirmingLeave(false);
     if (overTarget && !isExtraCoverage) {
       setAskingExtra(true);
       return;
@@ -1227,6 +1257,14 @@ function QuickAddCell({
         )}
       </div>
       {error && <div className="text-[9px] text-[var(--danger-700)] mt-0.5">{error}</div>}
+      <ConfirmDialog
+        open={confirmingLeave}
+        onClose={() => setConfirmingLeave(false)}
+        onConfirm={afterLeaveConfirmed}
+        title={`${selectedName} is on leave that day`}
+        description={`${selectedName} has leave covering ${date}${selectedLeave?.note ? ` ("${selectedLeave.note}")` : ""}. They may not be available — add them anyway?`}
+        confirmLabel="Add anyway"
+      />
       <ConfirmDialog
         open={confirmingDouble}
         onClose={() => setConfirmingDouble(false)}
