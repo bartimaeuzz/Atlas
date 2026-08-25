@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment } from "@/lib/actions/schedule";
 import { Modal } from "@/components/ui/Modal";
-import { Button } from "@/components/ui/Button";
+import { Button, LinkButton } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { WeeklyPlanData, PlannedAssignmentRow } from "@/lib/schedule/loadWeeklyPlan";
@@ -398,8 +398,14 @@ export function WeeklyPlanGrid({
           return (
             <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
               <div className="divide-y divide-[var(--border)]">
-                {rows.map(({ position, lunch, dinner }) => (
-                  <div key={position.id} className={PHONE_COLS + " py-2 items-start"}>
+                {rows.map(({ position, lunch, dinner }, ri) => (
+                  <Fragment key={position.id}>
+                  {(ri === 0 || rows[ri - 1].position.category !== position.category) && (
+                    <div className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wide uppercase text-[var(--ink-500)] bg-[var(--paper)]">
+                      {position.category === "FOH" ? "FOH — Front of house" : "BOH — Back of house"}
+                    </div>
+                  )}
+                  <div className={PHONE_COLS + " py-2 items-start"}>
                     {/* pt-[3px] is not a magic number: it is an AssignmentPill's
                         1px border plus its py-0.5, so the position name sits on
                         the same text line as the first staff card beside it
@@ -484,6 +490,7 @@ export function WeeklyPlanGrid({
                       );
                     })}
                   </div>
+                  </Fragment>
                 ))}
               </div>
             </div>
@@ -527,10 +534,21 @@ export function WeeklyPlanGrid({
                 const prevCategory = i > 0 ? data.positions[i - 1].category : null;
                 const showCategoryBreak = p.category !== prevCategory;
                 return (
-                  <tr key={p.id} className={"border-b border-[var(--border)] align-top" + (showCategoryBreak && i > 0 ? " border-t-2 border-t-[var(--border-strong)]" : "")}>
+                  <Fragment key={p.id}>
+                  {/* Labeled section rows (Oliver, 2026-08-25) — the old
+                      thicker border marked the FOH/BOH boundary without
+                      saying so; per-position "(FOH)" suffixes are gone in
+                      favor of one header each. */}
+                  {showCategoryBreak && (
+                    <tr className="border-b border-[var(--border)]">
+                      <td colSpan={8} className="pt-3 pb-1 text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase sticky left-0">
+                        {p.category === "FOH" ? "FOH — Front of house" : "BOH — Back of house"}
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="border-b border-[var(--border)] align-top">
                     <td className="py-1.5 pr-2 whitespace-nowrap sticky left-0 z-[1] bg-[var(--card)]">
                       {p.name}
-                      <span className="text-xs text-[var(--ink-400)] ml-1">({p.category})</span>
                     </td>
                     {data.dates.map((date) => {
                       const dayOfWeek = dayOfWeekFor(date);
@@ -594,6 +612,7 @@ export function WeeklyPlanGrid({
                       );
                     })}
                   </tr>
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -647,10 +666,18 @@ function AssignmentPill({
         ? `${assignment.employeeName} accepted a swap from ${swap.requestingEmployeeName}, awaiting manager approval (shift is within 3 days)`
         : undefined;
 
+  const pillTitle = [leaveTitle, vacancyTitle, swapTitle].filter(Boolean).join(" · ") || undefined;
+  const PillTag = replaceCandidates ? "button" : "div";
   return (
-    <div
-      title={[leaveTitle, vacancyTitle, swapTitle].filter(Boolean).join(" · ") || undefined}
+    <>
+    <PillTag
+      type={replaceCandidates ? "button" : undefined}
+      onClick={replaceCandidates ? () => setReplacing(true) : undefined}
+      title={pillTitle ?? (replaceCandidates ? `Tap for options — remove ${assignment.employeeName} or hand this shift to someone else` : undefined)}
       className={
+        // Whole box is the tap target in edit mode (Oliver, 2026-08-25 —
+        // was just the name).
+        (replaceCandidates ? "w-full text-left cursor-pointer hover:brightness-95 " : "") +
         // Each person is a card with a visible edge (2026-08-24). They were
         // already on separate lines -- measured 20px tall, 2px apart -- but
         // with no border and a --paper fill against a --card cell, two of
@@ -673,22 +700,11 @@ function AssignmentPill({
       }
     >
       <span className="flex items-center gap-1">
-        {replaceCandidates ? (
-          // Editable: the name is the door to the actions popup (remove /
-          // replace) — the old inline × was getting crowded out by the
-          // warning badges (Oliver, 2026-08-25). Dotted underline signals
-          // it's tappable.
-          <button
-            type="button"
-            onClick={() => setReplacing(true)}
-            className="underline decoration-dotted underline-offset-2 hover:opacity-80 text-left"
-            title={`Tap for options — remove ${assignment.employeeName} or hand this shift to someone else`}
-          >
-            {assignment.employeeName}
-          </button>
-        ) : (
-          assignment.employeeName
-        )}
+        {/* Dotted underline kept as the "this is tappable" cue even though
+            the whole box is now the button (Oliver, 2026-08-25). */}
+        <span className={replaceCandidates ? "underline decoration-dotted underline-offset-2" : undefined}>
+          {assignment.employeeName}
+        </span>
         {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-[var(--danger)] shrink-0" />}
         {onLeave && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />}
         {/* Text badge, not just the old 1.5px dot (Oliver, 2026-08-25: the
@@ -710,6 +726,7 @@ function AssignmentPill({
           </span>
         )}
       </span>
+    </PillTag>
       {replaceCandidates && (
         <AssignmentActionsDialog
           open={replacing}
@@ -721,7 +738,7 @@ function AssignmentPill({
           conflictPositionNames={conflictPositionNames}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -799,7 +816,15 @@ function AssignmentActionsDialog({
             </span>
           )}
         </p>
-        <div className="mb-3">
+        <div className="mb-3 space-y-2">
+          <LinkButton
+            href={`/schedule/plan/person?employeeId=${assignment.employeeId}&month=${assignment.date}`}
+            variant="secondary"
+            size="sm"
+            className="w-full"
+          >
+            View {assignment.employeeName}&apos;s month schedule
+          </LinkButton>
           <Button variant="destructive-outline" size="sm" disabled={isPending} onClick={remove} className="w-full">
             Remove from this shift
           </Button>
