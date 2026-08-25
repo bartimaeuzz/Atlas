@@ -243,29 +243,41 @@ export function EmployeeForm({
               defaultValue={existing?.hrSensitive?.zipCode ?? ""}
             />
           </div>
-          <div className="max-w-xs relative">
-            {/* Eye INSIDE the field box, right edge (Oliver, 2026-08-24) --
-                bottom-anchored so it rides the input row, not the label. */}
-            <button
-              type="button"
-              onClick={() => setSsnRevealed((r) => !r)}
-              aria-label={ssnRevealed ? "Hide SSN" : "Reveal SSN"}
-              className="absolute right-0 bottom-0 h-11 min-w-11 flex items-center justify-center text-[var(--ink-500)] hover:text-[var(--ink-900)] z-[1]"
-            >
-              {ssnRevealed ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-            </button>
-            <TextInput
-              type={ssnRevealed ? "text" : "password"}
-              name="ssnOrItin"
-              label="SSN or ITIN"
-              value={ssn}
-              onChange={(e) => setSsn(formatSsn(e.target.value))}
-              inputMode="numeric"
-              maxLength={11}
-              className="pr-11"
-              placeholder="XXX-XX-XXXX"
-              hint="SSN is generally required for a W-2 employee; ITIN generally applies to people who aren't authorized as a W-2 employee. Check with your accountant or payroll provider before relying on this field for actual tax filing — Atlas doesn't validate or distinguish the two."
-            />
+          <div className="max-w-xs">
+            {/* Hand-rolled field (not TextInput) so the eye can anchor to
+                the INPUT itself -- TextInput bundles label+input+hint in
+                one box, and this field's long hint pushed a wrapper-
+                anchored eye off the input row (measured live,
+                2026-08-24). Classes mirror TextInput's fieldShell. */}
+            <label className="block text-sm font-medium text-[var(--ink-700)] mb-1.5" htmlFor="ssnOrItin">
+              SSN or ITIN
+            </label>
+            <div className="relative">
+              <input
+                id="ssnOrItin"
+                type={ssnRevealed ? "text" : "password"}
+                name="ssnOrItin"
+                value={ssn}
+                onChange={(e) => setSsn(formatSsn(e.target.value))}
+                inputMode="numeric"
+                maxLength={11}
+                placeholder="XXX-XX-XXXX"
+                className="w-full box-sizing-border-box border rounded-[var(--radius-md)] px-3 py-2.5 pr-11 text-base bg-[var(--card)] text-[var(--ink-900)] min-h-11 focus:outline-none focus:ring-2 focus:ring-[var(--primary-border)] focus:border-[var(--primary)] border-[var(--border-strong)]"
+              />
+              <button
+                type="button"
+                onClick={() => setSsnRevealed((r) => !r)}
+                aria-label={ssnRevealed ? "Hide SSN" : "Reveal SSN"}
+                className="absolute right-0 top-0 h-full min-w-11 flex items-center justify-center text-[var(--ink-500)] hover:text-[var(--ink-900)]"
+              >
+                {ssnRevealed ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-[var(--ink-500)] mt-1.5">
+              SSN is generally required for a W-2 employee; ITIN generally applies to people who aren&apos;t authorized as a W-2
+              employee. Check with your accountant or payroll provider before relying on this field for actual tax filing — Atlas
+              doesn&apos;t validate or distinguish the two.
+            </p>
           </div>
         </fieldset>
       )}
