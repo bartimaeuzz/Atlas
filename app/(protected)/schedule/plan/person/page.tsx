@@ -100,7 +100,7 @@ export default async function EmployeeSchedulePage({
         <thead>
           <tr>
             {DAY_LABELS.map((label) => (
-              <th key={label} className="text-left text-[var(--ink-500)] pb-2 font-normal text-xs">
+              <th key={label} className="text-left text-[var(--ink-700)] pb-2 font-medium text-xs">
                 {label}
               </th>
             ))}
@@ -109,14 +109,32 @@ export default async function EmployeeSchedulePage({
         <tbody>
           {data.weeks.map((week, i) => (
             <tr key={i}>
-              {week.map((day) => (
+              {week.map((day) => {
+                const isToday = day.date === toIso(new Date());
+                return (
                 <td key={day.date} className="align-top border border-[var(--border)] p-0">
                   <Link
                     href={`/schedule/plan?week=${weekStartFor(day.date)}`}
-                    className={"block min-h-24 p-1.5 hover:bg-[var(--paper)]" + (day.inMonth ? "" : " opacity-40")}
+                    className={
+                      "block min-h-24 p-1.5 hover:bg-[var(--paper)]" +
+                      (day.inMonth ? "" : " opacity-40") +
+                      // Today wash + filled day number: same convention as My
+                      // Schedule's calendar (e7cf846) and the plan grid's day
+                      // tabs — "today must be findable" (Oliver, 2026-08-25).
+                      (isToday ? " bg-[var(--primary-tint)]" : "")
+                    }
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-[var(--ink-700)]">{Number(day.date.slice(8))}</span>
+                      {isToday ? (
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--primary)] text-white text-sm font-medium">
+                          {Number(day.date.slice(8))}
+                          <span className="sr-only"> today</span>
+                        </span>
+                      ) : (
+                        <span className={"text-sm " + (day.inMonth ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-500)]")}>
+                          {Number(day.date.slice(8))}
+                        </span>
+                      )}
                       {day.shifts.length > 0 && (
                         // title= kept as a desktop hover hint only; see note in month/page.tsx
                         // -- still on the repo-wide title= tooltip migration backlog.
@@ -129,7 +147,7 @@ export default async function EmployeeSchedulePage({
                                 : "Projected — not generated yet"
                           }
                           className={
-                            "w-1.5 h-1.5 rounded-full shrink-0 " +
+                            "w-2 h-2 rounded-full shrink-0 " +
                             (day.weekStatus === "published"
                               ? "bg-[var(--success)]"
                               : day.weekStatus === "draft"
@@ -141,11 +159,19 @@ export default async function EmployeeSchedulePage({
                     </div>
                     <div className="space-y-0.5 mt-1">
                       {day.shifts.map((s, si) => (
+                        // 12px medium bordered chips, not 10px grey-on-grey
+                        // (e7cf846's exact fix on My Schedule). Published days
+                        // get the primary-tint fill; draft/projected stay on
+                        // --paper so the fill echoes the status dot + legend.
                         <div
                           key={si}
                           className={
-                            "text-[10px] rounded px-1 py-0.5 " +
-                            (s.isExtraCoverage ? "bg-[var(--warning-tint)] text-[var(--warning-700)]" : "bg-[var(--paper)] text-[var(--ink-700)]")
+                            "text-xs font-medium rounded border px-1 py-0.5 " +
+                            (s.isExtraCoverage
+                              ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border-[var(--warning-border)]"
+                              : day.weekStatus === "published"
+                                ? "bg-[var(--primary-tint)] text-[var(--primary-700)] border-[var(--primary-border)]"
+                                : "bg-[var(--paper)] text-[var(--ink-700)] border-[var(--border-strong)]")
                           }
                         >
                           {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
@@ -154,7 +180,8 @@ export default async function EmployeeSchedulePage({
                     </div>
                   </Link>
                 </td>
-              ))}
+                );
+              })}
             </tr>
           ))}
         </tbody>
