@@ -61,7 +61,7 @@ export function SwapBoardPanel({
       {acceptable.length > 0 && (
         <div className="mb-3">
           <p className="text-xs text-[var(--ink-500)] mb-1.5">Open requests you can accept</p>
-          <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
+          <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] bg-[var(--card)] text-sm">
             {acceptable.map((r) => (
               <AcceptableRow key={r.id} request={r} />
             ))}
@@ -72,7 +72,7 @@ export function SwapBoardPanel({
       {mine.length > 0 && (
         <div>
           <p className="text-xs text-[var(--ink-500)] mb-1.5">Your swap requests</p>
-          <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
+          <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] bg-[var(--card)] text-sm">
             {mine.map((r) => (
               <MyRequestRow key={r.id} request={r} />
             ))}

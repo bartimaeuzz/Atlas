@@ -102,7 +102,7 @@ export default async function MyScheduleView({
             <p className="text-xs text-[var(--ink-500)] mb-3">
               A manager removed these shifts after the schedule was already published.
             </p>
-            <div className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
+            <div className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] bg-[var(--card)] text-sm">
               {recentChanges.map((c) => (
                 <div key={`${c.id}-${c.date}-${c.positionName}-${c.period}`} className="px-3 py-2">
                   <div className="flex items-center justify-between">
@@ -134,6 +134,10 @@ export default async function MyScheduleView({
         </span>
       </div>
 
+      {/* The month grid sits on its own filled card (2026-08-25, Oliver's
+          call) — an unfilled table on the page background read as a
+          wireframe next to the app's carded surfaces. */}
+      <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-1)] p-3 overflow-x-auto">
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
@@ -209,6 +213,7 @@ export default async function MyScheduleView({
           ))}
         </tbody>
       </table>
+      </div>
 
     </main>
   );

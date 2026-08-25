@@ -86,7 +86,7 @@ function DaySection({
       {entries.length === 0 ? (
         <EmptyState message="Nobody scheduled." />
       ) : (
-        <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
+        <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] bg-[var(--card)] text-sm">
           {entries.map((e) => (
             <li key={`${e.employeeId}-${e.positionId}`} className="px-3 py-2 flex items-center justify-between">
               <span className={e.employeeId === viewerEmployeeId ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-700)]"}>

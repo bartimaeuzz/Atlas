@@ -14,11 +14,12 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 const initialState: LeaveRequestActionState = { error: null };
 
 /** Self-service leave logging on My Schedule (2026-08-16, Schedule
- * Planner Phase D). No approval step -- confirmed with Oliver: by the
- * time an employee submits this, they've already told the manager
- * informally, this just pushes it into the manager's log/calendar (see
- * /schedule/leave) and flags any already-generated Weekly Plan slots
- * that overlap it. Form remounts (clearing its fields) whenever
+ * Planner Phase D; approval flow added 2026-08-24 — Oliver reversed the
+ * original no-approval design). A new request starts "pending" and a
+ * SCHEDULE_MANAGE holder approves/denies it on /schedule/leave; the
+ * status chip on each row below is the employee's view of that
+ * decision. Pending and approved leave both flag any already-generated
+ * Weekly Plan slots that overlap. Form remounts (clearing its fields) whenever
  * `requests.length` changes, same trick AddEntryForm/AddTransactionForm
  * use elsewhere in this app -- a successful submit revalidates the page,
  * which grows the list and remounts the form via its `key`. */
@@ -43,7 +44,7 @@ export function LeaveRequestsPanel({ requests }: { requests: LeaveRequestView[] 
       {requests.length === 0 ? (
         <EmptyState message="No leave logged." />
       ) : (
-        <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] text-sm">
+        <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)] bg-[var(--card)] text-sm">
           {requests.map((r) => (
             <LeaveRequestRow key={r.id} request={r} />
           ))}
