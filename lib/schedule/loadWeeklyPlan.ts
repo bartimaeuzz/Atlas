@@ -22,7 +22,7 @@ export interface PlannedAssignmentRow {
   positionCategory: "FOH" | "BOH";
   date: string;
   period: "Lunch" | "Dinner";
-  sourceType: "FROM_TEMPLATE" | "MANUAL_ADD";
+  sourceType: "FROM_TEMPLATE" | "MANUAL_ADD" | "AUTO_FILL" | "REASSIGNED";
   isExtraCoverage: boolean;
   /** Set when this employee's recurring slot for this exact
    * position/day-of-week/period is marked vacating (resignation or
@@ -146,7 +146,7 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
       ...r,
       positionCategory: r.positionCategory as "FOH" | "BOH",
       period: r.period as "Lunch" | "Dinner",
-      sourceType: r.sourceType as "FROM_TEMPLATE" | "MANUAL_ADD",
+      sourceType: r.sourceType as "FROM_TEMPLATE" | "MANUAL_ADD" | "AUTO_FILL" | "REASSIGNED",
       vacatingSoon: vacancy && r.date <= vacancy.startsOn ? vacancy : null,
       onLeave: activeLeave ? { note: activeLeave.note } : null,
       swap,

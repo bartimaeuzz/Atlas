@@ -509,6 +509,7 @@ export function WeeklyPlanGrid({
                               alreadyAssignedIds={new Set(assignments.map((a) => a.employeeId))}
                               positionName={position.name}
                               dayLoad={dayLoadByEmployee.get(date)}
+                              target={target}
                             />
                           )}
                         </div>
@@ -659,6 +660,7 @@ export function WeeklyPlanGrid({
                                     alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
                                     positionName={p.name}
                                     dayLoad={dayLoadByEmployee.get(date)}
+                                    target={target}
                                   />
                                 )}
                               </div>
@@ -780,6 +782,14 @@ function AssignmentPill({
         {swap?.status === "completed" && (
           <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--success-tint)] text-[var(--success-700)] border border-[var(--success-border)] shrink-0">
             swapped
+          </span>
+        )}
+        {/* Teal, a categorical color like purple/orange (no token — three
+            uses now): manager-forced change on a published week, distinct
+            from green "swapped" = staff traded voluntarily. */}
+        {assignment.sourceType === "REASSIGNED" && (
+          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300 shrink-0">
+            reassigned
           </span>
         )}
         {swap?.status === "pending_manager_approval" && (
@@ -951,6 +961,7 @@ function QuickAddCell({
   alreadyAssignedIds,
   positionName,
   dayLoad,
+  target = 0,
 }: {
   weekId: number;
   date: string;
@@ -961,6 +972,8 @@ function QuickAddCell({
   positionName?: string;
   /** employeeId -> what they already work this date ("Server · Dinner"). */
   dayLoad?: Map<number, string[]>;
+  /** Staffing target for this cell — 0 when none set. */
+  target?: number;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -968,6 +981,7 @@ function QuickAddCell({
   const [isExtraCoverage, setIsExtraCoverage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmingDouble, setConfirmingDouble] = useState(false);
+  const [askingExtra, setAskingExtra] = useState(false);
 
   const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
   const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
@@ -977,11 +991,19 @@ function QuickAddCell({
     selectedId === "" ? "" : ([...employees.eligible, ...employees.other].find((e) => e.id === selectedId)?.name ?? "This person");
   const existingToday = selectedId === "" ? [] : (dayLoad?.get(selectedId) ?? []);
 
-  // Confirm before double-booking someone within the same day (Oliver,
-  // 2026-08-25: adding the same person twice in a day sailed through
-  // with no warning — the orange badge only appeared after the fact).
+  const overTarget = target > 0 && alreadyAssignedIds.size >= target;
+
+  // Two ask-first gates before an add lands (Oliver, 2026-08-25):
+  // over-target asks "is this an extra?" (the human decides, the app
+  // still never guesses — his 2026-08-11 rule); a same-day double
+  // booking asks for confirmation. When both apply, the extra dialog
+  // carries the double-shift note too, so only one popup ever shows.
   function requestAdd() {
     if (selectedId === "") return;
+    if (overTarget && !isExtraCoverage) {
+      setAskingExtra(true);
+      return;
+    }
     if (existingToday.length > 0) {
       setConfirmingDouble(true);
       return;
@@ -989,7 +1011,7 @@ function QuickAddCell({
     handleAdd();
   }
 
-  function handleAdd() {
+  function handleAdd(extraOverride?: boolean) {
     if (selectedId === "") return;
     const formData = new FormData();
     formData.set("weekId", String(weekId));
@@ -997,7 +1019,7 @@ function QuickAddCell({
     formData.set("positionId", String(positionId));
     formData.set("date", date);
     formData.set("period", period);
-    if (isExtraCoverage) formData.set("isExtraCoverage", "on");
+    if (extraOverride ?? isExtraCoverage) formData.set("isExtraCoverage", "on");
     setError(null);
     startTransition(async () => {
       const result = await addPlannedAssignment({ error: null }, formData);
@@ -1088,6 +1110,48 @@ function QuickAddCell({
         description={`${selectedName} is already working this day: ${existingToday.join(", ")}. Adding them here (${positionName ?? "this position"} · ${period}) means a double shift.`}
         confirmLabel="Add anyway"
       />
+      <Modal open={askingExtra} onClose={() => setAskingExtra(false)} labelledBy="ask-extra-title" width={380}>
+        <div className="p-4">
+          <h2 id="ask-extra-title" className="text-base font-semibold text-[var(--ink-900)] mb-1">
+            Is {selectedName} an extra?
+          </h2>
+          <p className="text-sm text-[var(--ink-500)] mb-3">
+            {positionName ?? "This position"} is already at {alreadyAssignedIds.size}/{target} for this{" "}
+            {period.toLowerCase()}. An extra (yellow) means busy-day coverage on top of the normal
+            staffing.
+            {existingToday.length > 0 &&
+              ` Note: ${selectedName} is already working this day (${existingToday.join(", ")}), so this is also a double shift.`}
+          </p>
+          <div className="space-y-2">
+            <Button
+              size="sm"
+              className="w-full"
+              disabled={isPending}
+              onClick={() => {
+                setAskingExtra(false);
+                handleAdd(true);
+              }}
+            >
+              Yes — add as extra
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full"
+              disabled={isPending}
+              onClick={() => {
+                setAskingExtra(false);
+                handleAdd(false);
+              }}
+            >
+              No — regular add
+            </Button>
+            <Button size="sm" variant="ghost" className="w-full" disabled={isPending} onClick={() => setAskingExtra(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

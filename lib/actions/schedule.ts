@@ -690,9 +690,14 @@ export async function replacePlannedAssignment(
       throw new Error("That shift has already been finalized and payroll for it is locked — adjust it by hand instead");
     }
 
+    const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, assignment.weekId));
+
     await db
       .update(plannedShiftAssignments)
-      .set({ employeeId: newEmployeeId, sourceType: "MANUAL_ADD" })
+      // REASSIGNED marks a manager-forced change on an already-published
+      // week (teal badge on the grid); pre-publish replacement is just
+      // planning and stays MANUAL_ADD (Oliver, 2026-08-25).
+      .set({ employeeId: newEmployeeId, sourceType: week?.status === "published" ? "REASSIGNED" : "MANUAL_ADD" })
       .where(eq(plannedShiftAssignments.id, assignmentId));
 
     if (realShift) {
@@ -710,7 +715,6 @@ export async function replacePlannedAssignment(
 
     // The outgoing person loses a published slot — that's exactly what
     // the staff-facing "Recent changes" feed exists to tell them.
-    const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, assignment.weekId));
     if (week?.status === "published") {
       await logScheduleChange({
         weekId: assignment.weekId,
