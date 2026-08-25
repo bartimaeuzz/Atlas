@@ -216,6 +216,17 @@ export function WeeklyPlanGrid({
     return map;
   }, [data.assignments, positionNameById]);
 
+  // Desktop merged table: per-position collapse (default expanded — a
+  // collapsed row keeps its own short-staffed flag, see below).
+  const [collapsedPositions, setCollapsedPositions] = useState<Set<number>>(new Set());
+  const togglePosition = (id: number) =>
+    setCollapsedPositions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   // PHONE SHOWS ONE DAY AT A TIME (2026-08-23, Oliver). At 390px the
   // editing grid measured 728px wide against 310px of visible width --
   // 450px of the week, 62% of it, behind a horizontal scroll, with a
@@ -499,16 +510,15 @@ export function WeeklyPlanGrid({
         </div>
       </div>
 
-      {(["Lunch", "Dinner"] as const).map((period) => (
-        // hidden below lg (2026-08-24): the phone now shows one card table
-        // with Lunch and Dinner as columns, so a "Lunch" heading above it
-        // would name a period the table already names twice.
-        <section key={period} className="hidden lg:block">
-          <h2 className="text-lg font-medium mb-3 text-[var(--ink-900)]">{period}</h2>
-          {/* Card shell matching TableCard (Oliver, 2026-08-25: the desktop
-              table sat bare on the page background while every other table
-              in the app lives in a bordered card). */}
-          <div className="hidden lg:block overflow-x-auto bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-1)] p-4">
+      {/* Desktop: ONE table with Lunch/Dinner as collapsible sub-rows per
+          position (Oliver, 2026-08-25 — replaces the two stacked period
+          tables; same shape as the Staffing Targets grid, so the two
+          screens read as one tool). Collapse is per position, default
+          expanded, and a collapsed row keeps its own diagnostics: the
+          summary cell stays red with a "short" flag whenever either
+          period is under target, so collapsing can never hide a gap. */}
+      <section className="hidden lg:block">
+        <div className="overflow-x-auto bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-1)] p-4">
           <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
@@ -533,12 +543,18 @@ export function WeeklyPlanGrid({
               {data.positions.map((p, i) => {
                 const prevCategory = i > 0 ? data.positions[i - 1].category : null;
                 const showCategoryBreak = p.category !== prevCategory;
+                const isCollapsed = collapsedPositions.has(p.id);
+                const cellDataFor = (date: string, period: "Lunch" | "Dinner") => {
+                  const dayOfWeek = dayOfWeekFor(date);
+                  const target = data.targets[`${p.id}:${dayOfWeek}:${period}`] ?? 0;
+                  const cellAssignments = data.assignments.filter(
+                    (a) => a.positionId === p.id && a.date === date && a.period === period
+                  );
+                  const underTarget = !hideDiagnostics && target > 0 && cellAssignments.length < target;
+                  return { target, cellAssignments, underTarget };
+                };
                 return (
                   <Fragment key={p.id}>
-                  {/* Labeled section rows (Oliver, 2026-08-25) — the old
-                      thicker border marked the FOH/BOH boundary without
-                      saying so; per-position "(FOH)" suffixes are gone in
-                      favor of one header each. */}
                   {showCategoryBreak && (
                     <tr className="border-b border-[var(--border)]">
                       <td colSpan={8} className="pt-3 pb-1 text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase sticky left-0">
@@ -546,80 +562,104 @@ export function WeeklyPlanGrid({
                       </td>
                     </tr>
                   )}
-                  <tr className="border-b border-[var(--border)] align-top">
-                    <td className="py-1.5 pr-2 whitespace-nowrap sticky left-0 z-[1] bg-[var(--card)]">
-                      {p.name}
+                  {/* Position header row — the whole first cell toggles. */}
+                  <tr className={"align-top" + (isCollapsed ? " border-b border-[var(--border)]" : "")}>
+                    <td className="py-1 pr-2 whitespace-nowrap sticky left-0 z-[1] bg-[var(--card)]">
+                      <button
+                        type="button"
+                        onClick={() => togglePosition(p.id)}
+                        aria-expanded={!isCollapsed}
+                        className="flex items-center gap-1 font-medium text-[var(--ink-900)] min-h-6 hover:text-[var(--primary-700)]"
+                      >
+                        <span aria-hidden className="text-[10px] text-[var(--ink-400)] w-3">
+                          {isCollapsed ? "▸" : "▾"}
+                        </span>
+                        {p.name}
+                      </button>
                     </td>
                     {data.dates.map((date) => {
-                      const dayOfWeek = dayOfWeekFor(date);
-                      const target = data.targets[`${p.id}:${dayOfWeek}:${period}`] ?? 0;
-                      const cellAssignments = data.assignments.filter(
-                        (a) => a.positionId === p.id && a.date === date && a.period === period
-                      );
-                      const underTarget = !hideDiagnostics && target > 0 && cellAssignments.length < target;
+                      if (!isCollapsed) return <td key={date} />;
+                      const lunch = cellDataFor(date, "Lunch");
+                      const dinner = cellDataFor(date, "Dinner");
+                      const total = lunch.cellAssignments.length + dinner.cellAssignments.length;
+                      const short = lunch.underTarget || dinner.underTarget;
                       return (
-                        <td key={date} className={"py-1.5 px-1 align-top" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
-                          <div className="space-y-0.5">
-                            {/* Same dash placeholder the phone layout uses, so an
-                                empty cell keeps box → count → add stacking
-                                (2026-08-25, Oliver: the 0/1 sat above the add box
-                                while every staffed cell shows it under the name). */}
-                            {cellAssignments.length === 0 && (
-                              <span className="block w-fit border border-transparent px-1.5 py-0.5 text-xs text-[var(--ink-400)]">
-                                —
-                              </span>
-                            )}
-                            {cellAssignments.map((a) => {
-                              const slotKey = `${a.employeeId}:${date}:${period}`;
-                              const otherPositionIds = hideDiagnostics
-                                ? []
-                                : (slotPositionsByEmployee.get(slotKey) ?? []).filter((id) => id !== a.positionId);
-                              const conflictPositionNames = [...new Set(otherPositionIds)].map(
-                                (id) => positionNameById.get(id) ?? "?"
-                              );
-                              return (
-                                <AssignmentPill
-                                  key={a.id}
-                                  assignment={a}
-                                  conflictPositionNames={conflictPositionNames}
-                                  vacatingSoon={a.vacatingSoon}
-                                  onLeave={a.onLeave}
-                                  swap={a.swap}
-                                  positionName={p.name}
-                                  replaceCandidates={!readOnly ? replaceCandidatesFor(a) : null}
-                                />
-                              );
-                            })}
-                            {!hideDiagnostics && target > 0 && (
-                              <div className={"text-xs" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-500)]")}>
-                                {cellAssignments.length}/{target}
-                              </div>
-                            )}
-                            {!readOnly && weekId !== undefined && (
-                              <QuickAddCell
-                                weekId={weekId}
-                                date={date}
-                                period={period}
-                                positionId={p.id}
-                                employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
-                                alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
-                                positionName={p.name}
-                                dayLoad={dayLoadByEmployee.get(date)}
-                              />
-                            )}
-                          </div>
+                        <td key={date} className={"py-1 px-1 text-xs" + (short ? " bg-[var(--danger-tint)]" : "")}>
+                          <span className={short ? "text-[var(--danger-700)] font-medium" : "text-[var(--ink-500)]"}>
+                            {total}
+                            {short && " · short"}
+                          </span>
                         </td>
                       );
                     })}
                   </tr>
+                  {!isCollapsed &&
+                    (["Lunch", "Dinner"] as const).map((period, pi) => (
+                      <tr key={period} className={"align-top" + (pi === 1 ? " border-b border-[var(--border)]" : "")}>
+                        <td className="py-1.5 pr-2 pl-4 whitespace-nowrap sticky left-0 z-[1] bg-[var(--card)] text-xs text-[var(--ink-500)]">
+                          {period}
+                        </td>
+                        {data.dates.map((date) => {
+                          const { target, cellAssignments, underTarget } = cellDataFor(date, period);
+                          return (
+                            <td key={date} className={"py-1.5 px-1 align-top" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
+                              <div className="space-y-0.5">
+                                {cellAssignments.length === 0 && (
+                                  <span className="block w-fit border border-transparent px-1.5 py-0.5 text-xs text-[var(--ink-400)]">
+                                    —
+                                  </span>
+                                )}
+                                {cellAssignments.map((a) => {
+                                  const slotKey = `${a.employeeId}:${date}:${period}`;
+                                  const otherPositionIds = hideDiagnostics
+                                    ? []
+                                    : (slotPositionsByEmployee.get(slotKey) ?? []).filter((id) => id !== a.positionId);
+                                  const conflictPositionNames = [...new Set(otherPositionIds)].map(
+                                    (id) => positionNameById.get(id) ?? "?"
+                                  );
+                                  return (
+                                    <AssignmentPill
+                                      key={a.id}
+                                      assignment={a}
+                                      conflictPositionNames={conflictPositionNames}
+                                      vacatingSoon={a.vacatingSoon}
+                                      onLeave={a.onLeave}
+                                      swap={a.swap}
+                                      positionName={p.name}
+                                      replaceCandidates={!readOnly ? replaceCandidatesFor(a) : null}
+                                    />
+                                  );
+                                })}
+                                {!hideDiagnostics && target > 0 && (
+                                  <div className={"text-xs" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-500)]")}>
+                                    {cellAssignments.length}/{target}
+                                  </div>
+                                )}
+                                {!readOnly && weekId !== undefined && (
+                                  <QuickAddCell
+                                    weekId={weekId}
+                                    date={date}
+                                    period={period}
+                                    positionId={p.id}
+                                    employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
+                                    alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
+                                    positionName={p.name}
+                                    dayLoad={dayLoadByEmployee.get(date)}
+                                  />
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
                   </Fragment>
                 );
               })}
             </tbody>
           </table>
-          </div>
-        </section>
-      ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -705,8 +745,20 @@ function AssignmentPill({
         <span className={replaceCandidates ? "underline decoration-dotted underline-offset-2" : undefined}>
           {assignment.employeeName}
         </span>
-        {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-[var(--danger)] shrink-0" />}
-        {onLeave && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />}
+        {/* Status text badges, not 1.5px dots (Oliver, 2026-08-25 — same
+            call as the "swapped" badge: a word survives where a dot is
+            invisible; fills keep meaning kind-of-shift, badges mean
+            something needs attention). */}
+        {vacatingSoon && (
+          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--danger-tint)] text-[var(--danger-700)] border border-[var(--danger-border)] shrink-0">
+            leaving
+          </span>
+        )}
+        {onLeave && (
+          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-purple-100 text-purple-700 border border-purple-300 shrink-0">
+            on leave
+          </span>
+        )}
         {/* Text badge, not just the old 1.5px dot (Oliver, 2026-08-25: the
             dot+ring was invisible to him — "should be highlight somehow so
             we can identify it was swapped by staff"). Word + color, never
@@ -716,7 +768,11 @@ function AssignmentPill({
             swapped
           </span>
         )}
-        {swap?.status === "pending_manager_approval" && <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] shrink-0" />}
+        {swap?.status === "pending_manager_approval" && (
+          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--primary-tint)] text-[var(--primary-700)] border border-[var(--primary-border)] shrink-0">
+            swap pending
+          </span>
+        )}
         {hasConflict && (
           <span
             title={`Also scheduled as ${conflictPositionNames.join(", ")} in this same slot — double check this is intentional.`}
