@@ -77,6 +77,19 @@ export interface CreateShiftState {
    * shift's roster, which read as "created" when nothing was. The form
    * shows a dialog -- Cancel | Go to that shift -- so the manager knows. */
   existing?: { id: number; status: "draft" | "finalized"; date: string; period: string };
+  /** Set instead of creating when the date has already passed and the
+   * submit didn't carry confirmPast (2026-08-25, Oliver: "warn create
+   * shifts on days that passed") -- the form asks first, same ask-first
+   * gate shape as the planner's quick-add. Future dates are refused
+   * outright, not confirmed: a shift is a record of a service, and the
+   * ledger's "not be editable before day comes" rule applies here too. */
+  pastConfirm?: { date: string; period: "Lunch" | "Dinner" };
+}
+
+/** Same UTC convention as every other place date math happens in this app
+ * (see lib/schedule/weekMath.ts and lib/actions/ledger.ts). */
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 export async function createShift(_prev: CreateShiftState, formData: FormData): Promise<CreateShiftState> {
@@ -86,8 +99,12 @@ export async function createShift(_prev: CreateShiftState, formData: FormData): 
 
     const date = String(formData.get("date") ?? "");
     const period = String(formData.get("period") ?? "");
-    if (!date || (period !== "Lunch" && period !== "Dinner")) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || (period !== "Lunch" && period !== "Dinner")) {
       throw new Error("Date and period (Lunch/Dinner) are required");
+    }
+
+    if (date > todayIso()) {
+      throw new Error("Can't create a shift for a day that hasn't happened yet.");
     }
 
     const [existing] = await db
@@ -100,6 +117,10 @@ export async function createShift(_prev: CreateShiftState, formData: FormData): 
         error: null,
         existing: { id: existing.id, status: existing.status as "draft" | "finalized", date, period },
       };
+    }
+
+    if (date < todayIso() && !formData.get("confirmPast")) {
+      return { error: null, pastConfirm: { date, period } };
     }
 
     const [shift] = await db

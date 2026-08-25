@@ -11,7 +11,11 @@ export default async function NewShiftPage({
 }) {
   const params = await searchParams;
   const today = new Date().toISOString().slice(0, 10);
-  const defaultDate = params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) ? params.date : today;
+  // A future ?date= is clamped to today rather than prefilled -- future
+  // days can't have shifts (2026-08-25, Oliver; the action refuses them
+  // server-side, the form's date input is capped at today).
+  const defaultDate =
+    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) && params.date <= today ? params.date : today;
   const defaultPeriod = params.period === "Lunch" ? "Lunch" : "Dinner";
 
   return (
@@ -26,7 +30,7 @@ export default async function NewShiftPage({
         One record per meal period — pick the date and Lunch or Dinner, then build the roster.
       </p>
 
-      <NewShiftForm defaultDate={defaultDate} defaultPeriod={defaultPeriod} />
+      <NewShiftForm defaultDate={defaultDate} defaultPeriod={defaultPeriod} maxDate={today} />
     </main>
   );
 }

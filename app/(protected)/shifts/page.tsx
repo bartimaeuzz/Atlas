@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { loadShiftsList } from "@/lib/shift/loadShiftsList";
 import { dayOfWeek } from "@/lib/schedule/weekMath";
-import { PageHeader, EmptyState } from "@/components/ui/Card";
+import { PageHeader } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { toIso } from "@/lib/schedule/weekMath";
@@ -29,7 +29,9 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
   // Dinner card table.
   const params = await searchParams;
   const todayIso = toIso(new Date());
-  const month = params.month && /^\d{4}-\d{2}$/.test(params.month) ? params.month : null;
+  // 01-12 only -- a "month" like 2026-13 used to slip past \d{2} and
+  // render an undefined month name in the header.
+  const month = params.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month) ? params.month : null;
 
   if (!month) {
     const year = params.year && /^\d{4}$/.test(params.year) ? Number(params.year) : Number(todayIso.slice(0, 4));
@@ -43,10 +45,12 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
         count: inMonth.length,
         finalized: inMonth.filter((s) => s.status === "finalized").length,
         isCurrent: m === currentMonth,
-        // Clickable when there is something to see (or it is the working
-        // month). An empty past month has no list to show; a future month
-        // follows the ledger picker's not-yet rule.
-        clickable: inMonth.length > 0 || m === currentMonth,
+        isFuture: m > currentMonth,
+        // Every current-or-past month opens -- since the month view shows
+        // every day (2026-08-25, Oliver), an empty past month is a page of
+        // backfillable days, not a dead end. A future month follows the
+        // ledger picker's not-yet rule: visible, never clickable.
+        clickable: m <= currentMonth || inMonth.length > 0,
       };
     });
 
@@ -108,7 +112,9 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
               <div key={m.month} className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4 opacity-60">
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[var(--ink-500)]">{m.name}</span>
-                  <span className="text-xs text-[var(--ink-500)]">No shifts</span>
+                  {/* Only future months are non-clickable now, so the label
+                      says why -- same wording as the ledger pickers. */}
+                  <span className="text-xs text-[var(--ink-500)]">Not yet</span>
                 </div>
               </div>
             )
@@ -144,7 +150,7 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                   <td className="py-2 px-3 text-right tabular-nums text-[var(--ink-700)]">{m.count ? m.finalized : "—"}</td>
                   <td className="py-2 px-3 text-right">
                     {m.count === 0 ? (
-                      <span className="text-[var(--ink-500)] opacity-60 text-xs">—</span>
+                      <span className="text-[var(--ink-500)] opacity-60 text-xs">{m.isFuture ? "Not yet" : "—"}</span>
                     ) : m.finalized === m.count ? (
                       <Badge tone="success">All finalized</Badge>
                     ) : (
@@ -175,19 +181,23 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
 
   const shifts = allShifts.filter((s) => s.date.startsWith(month));
 
-  // Phone card table groups the flat list by date, keeping the loader's
-  // date-desc order. A date never has two shifts of the same period --
-  // shifts are unique per date+period by construction (see db/schema.ts's
-  // note above the shifts table) -- so a plain per-period slot is safe.
-  const shiftsByDate: { date: string; byPeriod: Partial<Record<"Lunch" | "Dinner", (typeof shifts)[number]>> }[] = [];
+  // Every day of the month gets a row (2026-08-25, Oliver: "show everyday
+  // as default, user create shifts later"), in calendar order like the
+  // ledger's month list -- not just the days that already have shifts. A
+  // date never has two shifts of the same period -- shifts are unique per
+  // date+period by construction (see db/schema.ts's note above the shifts
+  // table) -- so a plain per-period slot is safe.
+  const byDate = new Map<string, Partial<Record<"Lunch" | "Dinner", (typeof shifts)[number]>>>();
   for (const s of shifts) {
-    let row = shiftsByDate.find((r) => r.date === s.date);
-    if (!row) {
-      row = { date: s.date, byPeriod: {} };
-      shiftsByDate.push(row);
-    }
-    row.byPeriod[s.period as "Lunch" | "Dinner"] = s;
+    const row = byDate.get(s.date) ?? {};
+    row[s.period as "Lunch" | "Dinner"] = s;
+    byDate.set(s.date, row);
   }
+  const daysInMonth = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).getUTCDate();
+  const shiftsByDate = Array.from({ length: daysInMonth }, (_, i) => {
+    const date = `${month}-${String(i + 1).padStart(2, "0")}`;
+    return { date, byPeriod: byDate.get(date) ?? {} };
+  });
 
   return (
     <main className="max-w-2xl mx-auto px-4 sm:px-8 py-8">
@@ -217,11 +227,7 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
         <span className="ml-3 font-medium text-sm text-[var(--ink-900)]">{MONTH_NAMES[Number(month.slice(5, 7)) - 1]} {month.slice(0, 4)}</span>
       </div>
 
-      {shifts.length === 0 ? (
-        <EmptyState message="No shifts this month." action={<LinkButton href="/shifts/new" size="sm">+ New shift</LinkButton>} />
-      ) : (
-        <>
-          {/* Date | Lunch | Dinner card table (2026-08-24, Oliver) -- same
+      {/* Date | Lunch | Dinner card table (2026-08-24, Oliver) -- same
            * shape the week view got, and since later the same day the ONLY
            * layout: the desktop one-row-per-shift table is gone ("add card
            * table to whole data"). One row per DATE, not per shift -- a
@@ -236,27 +242,55 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
               <span>Dinner</span>
             </div>
             <div className="divide-y divide-[var(--border)]">
-              {shiftsByDate.map(({ date, byPeriod }) => (
-                <div key={date} className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 items-center">
+              {shiftsByDate.map(({ date, byPeriod }) => {
+                const isFuture = date > todayIso;
+                const isToday = date === todayIso;
+                return (
+                <div
+                  key={date}
+                  className={
+                    "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 items-center" +
+                    (isToday ? " bg-[var(--warning-tint)]" : "")
+                  }
+                >
                   {/* Phone: calendar-tab style, weekday over day number --
                       the month is already named above the list, so the full
                       ISO date was three redundant tokens (Oliver,
                       2026-08-24). Desktop keeps weekday + full date on the
                       fixed-width column from earlier the same day. Both are
-                      plain text; CSS picks. */}
-                  <span className="text-sm text-[var(--ink-900)]">
+                      plain text; CSS picks. Today swaps the weekday for the
+                      word itself ("today must be findable", 2026-08-25
+                      conventions); future days go muted like the ledger's
+                      not-yet rows. */}
+                  <span className={"text-sm " + (isFuture ? "text-[var(--ink-500)] opacity-60" : "text-[var(--ink-900)]")}>
                     <span className="lg:hidden block leading-tight">
-                      <span className="block text-[11px] text-[var(--ink-500)]">{DAY_LABELS[dayOfWeek(date)]}</span>
+                      <span className={"block text-[11px] " + (isToday ? "font-medium text-[var(--warning-700)]" : "text-[var(--ink-500)]")}>
+                        {isToday ? "Today" : DAY_LABELS[dayOfWeek(date)]}
+                      </span>
                       <span className="block font-medium">{Number(date.slice(8, 10))}</span>
                     </span>
                     <span className="hidden lg:inline">
                       <span className="inline-block w-9 text-[var(--ink-500)]">{DAY_LABELS[dayOfWeek(date)]}</span>
                       {date}
+                      {isToday && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-medium">Today</span>}
                     </span>
                   </span>
                   {(["Lunch", "Dinner"] as const).map((period) => {
                     const shift = byPeriod[period];
                     if (!shift) {
+                      // A day that hasn't happened has nothing to create a
+                      // record OF -- same "not be editable before day
+                      // comes" rule as the ledger (2026-08-25, Oliver:
+                      // "block create shifts on day yet to come"). Not a
+                      // disabled-looking control: a plain dash, so it never
+                      // reads as clickable-and-refusing.
+                      if (isFuture) {
+                        return (
+                          <span key={period} className="flex min-h-11 items-center justify-center text-xs text-[var(--ink-500)] opacity-60">
+                            —
+                          </span>
+                        );
+                      }
                       // "+ Create" instead of a dash (Oliver, 2026-08-24:
                       // "it will be more intuitive") -- lands on the new-
                       // shift form prefilled with this date and period, so
@@ -293,12 +327,10 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                     );
                   })}
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
-
-        </>
-      )}
     </main>
   );
 }
