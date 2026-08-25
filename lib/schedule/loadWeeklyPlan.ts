@@ -50,7 +50,7 @@ export interface PlannedAssignmentRow {
    * from swapRequests, same convention as onLeave/vacatingSoon above.
    * requestingEmployeeName is who originally held this slot before the
    * swap (the current employeeName on this row is whoever has it now). */
-  swap: { status: "pending_manager_approval" | "completed"; requestingEmployeeName: string } | null;
+  swap: { status: "open" | "pending_manager_approval" | "completed"; requestingEmployeeName: string } | null;
 }
 
 export interface WeeklyPlanData {

@@ -538,6 +538,7 @@ export function WeeklyPlanGrid({
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> On leave</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--danger)] inline-block" /> Leaving</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--success)] inline-block" /> Swapped</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full border border-dashed border-[var(--primary)] inline-block" /> Offered for swap</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--primary)] inline-block" /> Swap pending</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block" /> Reassigned</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-[3px] bg-[var(--warning-tint)] border border-[var(--warning-border)] inline-block" /> Extra coverage</span>
@@ -645,7 +646,18 @@ export function WeeklyPlanGrid({
                   </tr>
                   {!isCollapsed &&
                     (["Lunch", "Dinner"] as const).map((period, pi) => (
-                      <tr key={period} className={"align-top" + (pi === 1 ? " border-b border-[var(--border)]" : "")}>
+                      <tr
+                        key={period}
+                        className={
+                          "align-top border-b " +
+                          (pi === 1
+                            ? "border-[var(--border)]"
+                            : // Dashed line between the Lunch and Dinner
+                              // sub-rows (Oliver, 2026-08-25) — softer than
+                              // the solid border that closes the position.
+                              "border-dashed border-[var(--border)]")
+                        }
+                      >
                         <td className="py-1.5 pr-2 pl-4 whitespace-nowrap sticky left-0 z-[1] bg-[var(--card)] text-xs text-[var(--ink-500)]">
                           {period}
                         </td>
@@ -758,7 +770,9 @@ function AssignmentPill({
     ? `${assignment.employeeName} is ${VACANCY_REASON_LABEL[vacatingSoon.reason]} as of ${vacatingSoon.startsOn} — this slot will need a replacement`
     : undefined;
   const swapTitle =
-    swap?.status === "completed"
+    swap?.status === "open"
+      ? `${assignment.employeeName} has offered this shift for swap — nobody has taken it yet`
+      : swap?.status === "completed"
       ? `Covering for ${swap.requestingEmployeeName} via a completed shift swap`
       : swap?.status === "pending_manager_approval"
         ? `${assignment.employeeName} accepted a swap from ${swap.requestingEmployeeName}, awaiting manager approval (shift is within 3 days)`
@@ -799,6 +813,10 @@ function AssignmentPill({
         (onLeave ? " ring-1 ring-purple-400" : "") +
         (swap?.status === "completed" ? " ring-1 ring-[var(--success)]" : "") +
         (swap?.status === "pending_manager_approval" ? " ring-1 ring-[var(--primary-border)]" : "") +
+        // Dashed outline = "still floating": the shift is offered for
+        // swap and nobody has taken it yet (Oliver, 2026-08-25). Same
+        // blue family as swap-pending, one step earlier.
+        (swap?.status === "open" ? " outline-dashed outline-1 outline-[var(--primary)] outline-offset-1" : "") +
         (assignment.sourceType === "REASSIGNED" ? " ring-1 ring-teal-400" : "")
       }
     >
@@ -852,6 +870,14 @@ function AssignmentPill({
             <span aria-label="reassigned" className="lg:hidden w-2 h-2 rounded-full bg-teal-500 shrink-0" />
             <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300 shrink-0">
               reassigned
+            </span>
+          </>
+        )}
+        {swap?.status === "open" && (
+          <>
+            <span aria-label="offered for swap" className="lg:hidden w-2 h-2 rounded-full border border-dashed border-[var(--primary)] shrink-0" />
+            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--card)] text-[var(--primary-700)] border border-dashed border-[var(--primary)] shrink-0">
+              offered
             </span>
           </>
         )}
@@ -989,6 +1015,11 @@ function AssignmentActionsDialog({
           {swap?.status === "pending_manager_approval" && (
             <span className="block text-[var(--primary-700)] mt-0.5">
               Accepted a swap from {swap.requestingEmployeeName} — awaiting manager approval.
+            </span>
+          )}
+          {swap?.status === "open" && (
+            <span className="block text-[var(--primary-700)] mt-0.5">
+              Has offered this shift for swap — nobody has taken it yet.
             </span>
           )}
           {vacatingSoon && (

@@ -166,7 +166,7 @@ export async function loadUnseenSwapCount(managerEmployeeId: number, todayIso: s
     .select({ respondedAt: swapRequests.respondedAt })
     .from(swapRequests)
     .innerJoin(plannedShiftAssignments, eq(swapRequests.assignmentId, plannedShiftAssignments.id))
-    .where(and(gte(plannedShiftAssignments.date, todayIso), inArray(swapRequests.status, ["pending_manager_approval", "completed"])));
+    .where(and(gte(plannedShiftAssignments.date, todayIso), inArray(swapRequests.status, ["open", "pending_manager_approval", "completed"])));
 
   const rows = responded.filter((r): r is { respondedAt: string } => r.respondedAt !== null);
   if (!seenRow) return rows.length;
@@ -181,7 +181,7 @@ export async function loadUnseenSwapCount(managerEmployeeId: number, todayIso: s
  * changed who's actually on the slot, nothing to flag on the grid. */
 export async function loadSwapStatusByAssignmentForWeek(
   weekId: number
-): Promise<Map<number, { status: "pending_manager_approval" | "completed"; requestingEmployeeName: string }>> {
+): Promise<Map<number, { status: "open" | "pending_manager_approval" | "completed"; requestingEmployeeName: string }>> {
   const rows = await db
     .select({
       assignmentId: swapRequests.assignmentId,
@@ -192,13 +192,13 @@ export async function loadSwapStatusByAssignmentForWeek(
     .innerJoin(plannedShiftAssignments, eq(swapRequests.assignmentId, plannedShiftAssignments.id))
     .innerJoin(employees, eq(swapRequests.requestingEmployeeId, employees.id))
     .where(
-      and(eq(plannedShiftAssignments.weekId, weekId), inArray(swapRequests.status, ["pending_manager_approval", "completed"]))
+      and(eq(plannedShiftAssignments.weekId, weekId), inArray(swapRequests.status, ["open", "pending_manager_approval", "completed"]))
     );
 
-  const byAssignment = new Map<number, { status: "pending_manager_approval" | "completed"; requestingEmployeeName: string }>();
+  const byAssignment = new Map<number, { status: "open" | "pending_manager_approval" | "completed"; requestingEmployeeName: string }>();
   for (const r of rows) {
     byAssignment.set(r.assignmentId, {
-      status: r.status as "pending_manager_approval" | "completed",
+      status: r.status as "open" | "pending_manager_approval" | "completed",
       requestingEmployeeName: r.requestingEmployeeName,
     });
   }
