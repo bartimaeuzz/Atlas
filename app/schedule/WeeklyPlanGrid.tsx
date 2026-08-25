@@ -449,7 +449,7 @@ export function WeeklyPlanGrid({
                         <div
                           key={period}
                           className={
-                            "-my-1 -mx-1 px-1 py-1 rounded-[var(--radius-sm)] " +
+                            "-my-1 -mx-1 px-1 py-1 rounded-[var(--radius-sm)] flex flex-col " +
                             (underTarget ? "bg-[var(--danger-tint)]" : "")
                           }
                         >
@@ -500,7 +500,8 @@ export function WeeklyPlanGrid({
                             </div>
                           )}
                           {!readOnly && weekId !== undefined && (
-                            <QuickAddCell
+                            <div className="mt-auto">
+<QuickAddCell
                               weekId={weekId}
                               date={date}
                               period={period}
@@ -511,6 +512,7 @@ export function WeeklyPlanGrid({
                               dayLoad={dayLoadByEmployee.get(date)}
                               target={target}
                             />
+                            </div>
                           )}
                         </div>
                       );
@@ -626,9 +628,14 @@ export function WeeklyPlanGrid({
                         </td>
                         {data.dates.map((date) => {
                           const { target, cellAssignments, underTarget } = cellDataFor(date, period);
+                          // h-px + h-full: the standard table-cell trick so the
+                          // inner flex column can fill the row height and pin
+                          // + Add to the bottom edge (Oliver, 2026-08-25 — cells
+                          // with different pill counts left the add controls at
+                          // ragged heights across a row).
                           return (
-                            <td key={date} className={"py-1.5 px-1.5 align-top border-l border-[var(--border)]" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
-                              <div className="space-y-0.5">
+                            <td key={date} className={"h-px py-1.5 px-1.5 align-top border-l border-[var(--border)]" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
+                              <div className="h-full flex flex-col gap-0.5">
                                 {cellAssignments.length === 0 && (
                                   <span className="block w-fit border border-transparent px-1.5 py-0.5 text-xs text-[var(--ink-400)]">
                                     —
@@ -661,17 +668,19 @@ export function WeeklyPlanGrid({
                                   </div>
                                 )}
                                 {!readOnly && weekId !== undefined && (
-                                  <QuickAddCell
-                                    weekId={weekId}
-                                    date={date}
-                                    period={period}
-                                    positionId={p.id}
-                                    employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
-                                    alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
-                                    positionName={p.name}
-                                    dayLoad={dayLoadByEmployee.get(date)}
-                                    target={target}
-                                  />
+                                  <div className="mt-auto">
+                                    <QuickAddCell
+                                      weekId={weekId}
+                                      date={date}
+                                      period={period}
+                                      positionId={p.id}
+                                      employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
+                                      alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
+                                      positionName={p.name}
+                                      dayLoad={dayLoadByEmployee.get(date)}
+                                      target={target}
+                                    />
+                                  </div>
                                 )}
                               </div>
                             </td>

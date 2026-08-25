@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { clearDay, deleteWeek, type DangerZoneActionState } from "@/lib/actions/schedule";
+import { formatDayLabel } from "@/lib/format/formatDayLabel";
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
@@ -78,7 +79,7 @@ export function DangerZone({
             >
               {dates.map((d) => (
                 <option key={d} value={d}>
-                  {d}
+                  {formatDayLabel(d)}
                 </option>
               ))}
             </Select>
