@@ -125,7 +125,13 @@ export default async function MyScheduleView({
         )}
       </div>
 
-      <div className="flex items-center gap-4 text-xs text-[var(--ink-500)] mb-3">
+      <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--ink-500)] mb-3">
+        <span className="flex items-center gap-1">
+          <span className="w-2.5 h-2.5 rounded-full bg-[var(--primary)] inline-block" /> Today
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-sm bg-[var(--primary-tint)] border border-[var(--primary-border)] inline-block" /> Your shift
+        </span>
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-sm bg-[var(--paper)] border border-[var(--border-strong)] inline-block" /> Day off
         </span>
@@ -142,7 +148,7 @@ export default async function MyScheduleView({
         <thead>
           <tr>
             {DAY_LABELS.map((label) => (
-              <th key={label} className="text-left text-[var(--ink-500)] pb-2 font-normal text-xs">
+              <th key={label} className="text-left text-[var(--ink-700)] pb-2 font-medium text-xs">
                 {label}
               </th>
             ))}
@@ -153,32 +159,45 @@ export default async function MyScheduleView({
             <tr key={i}>
               {week.map((day) => {
                 const isPublished = day.weekStatus === "published";
+                const isToday = day.date === today;
                 const shifts = isPublished ? day.shifts : [];
                 const dayNumber = Number(day.date.slice(8));
 
+                // Legibility pass 2026-08-25 (Oliver: "detail in calendar
+                // was so hard to identify"): day numbers up from 12px faint
+                // to 14px ink-900, shift chips up from 10px grey-on-grey to
+                // 12px primary-tinted, today marked with the filled-circle
+                // convention every phone calendar uses.
                 const cellInner = (
                   <>
-                    <span className={"text-xs " + (isPublished ? "text-[var(--ink-700)]" : "text-[var(--ink-400)]")}>
-                      {dayNumber}
-                    </span>
+                    {isToday ? (
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[var(--primary)] text-white text-xs font-semibold">
+                        {dayNumber}
+                        <span className="sr-only"> — today</span>
+                      </span>
+                    ) : (
+                      <span className={"text-sm " + (isPublished ? "text-[var(--ink-900)] font-medium" : "text-[var(--ink-400)]")}>
+                        {dayNumber}
+                      </span>
+                    )}
                     {isPublished && (
-                      <div className="space-y-0.5 mt-1">
+                      <div className="space-y-1 mt-1">
                         {shifts.length > 0 ? (
                           shifts.map((s, si) => (
                             <div
                               key={si}
                               className={
-                                "text-[10px] rounded-[var(--radius-sm)] px-1 py-0.5 " +
+                                "text-xs font-medium rounded-[var(--radius-sm)] px-1.5 py-1 " +
                                 (s.isExtraCoverage
-                                  ? "bg-[var(--warning-tint)] text-[var(--warning-700)]"
-                                  : "bg-[var(--paper)] text-[var(--ink-700)]")
+                                  ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border border-[var(--warning-border)]"
+                                  : "bg-[var(--primary-tint)] text-[var(--primary-700)] border border-[var(--primary-border)]")
                               }
                             >
                               {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
                             </div>
                           ))
                         ) : (
-                          <div className="text-[10px] rounded-[var(--radius-sm)] px-1 py-0.5 border border-[var(--border)] text-[var(--ink-400)] text-center">
+                          <div className="text-xs rounded-[var(--radius-sm)] px-1.5 py-1 bg-[var(--paper)] text-[var(--ink-500)] text-center">
                             Day off
                           </div>
                         )}
@@ -190,7 +209,10 @@ export default async function MyScheduleView({
                 return (
                   <td
                     key={day.date}
-                    className={"align-top border border-[var(--border)] p-1.5" + (isPublished ? "" : " bg-[var(--paper)]")}
+                    className={
+                      "align-top border border-[var(--border)] p-1.5" +
+                      (isToday ? " bg-[var(--primary-tint)]" : isPublished ? "" : " bg-[var(--paper)]")
+                    }
                   >
                     {isPublished ? (
                       // Published days are clickable -- see who's working
