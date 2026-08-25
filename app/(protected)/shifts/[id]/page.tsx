@@ -1,51 +1,12 @@
-import { eq } from "drizzle-orm";
-import { db } from "@/db/client";
-import { metricDefinitions, positionMetrics } from "@/db/schema";
-import { loadShiftCalcData } from "@/lib/shift/loadRosterForCalc";
-import { CalculatorForm } from "./CalculatorForm";
-import { notFound } from "next/navigation";
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
+/** Retired 2026-08-25 (Oliver: "remove it") -- this was the standalone
+ * what-if tip calculator, a scratchpad predating the real closing-report
+ * -> payout flow, orphaned from all navigation and still assuming one
+ * point value per person after points went per-pool (a2ac906). The
+ * Payout page covers the job against real saved data. Route kept so a
+ * bare /shifts/<id> URL lands on the shift's roster instead of a 404. */
 export default async function ShiftPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const shiftId = Number(id);
-  const data = await loadShiftCalcData(shiftId);
-
-  if (!data.shift) notFound();
-
-  // Which positions are eligible for the host drink bonus — driven by the
-  // positionMetrics table now, not a positionName.startsWith("Host") string
-  // match (that hack predates this table; the real closing report uses the
-  // same source of truth via loadClosingReportData).
-  const [hostMetric] = await db
-    .select()
-    .from(metricDefinitions)
-    .where(eq(metricDefinitions.key, "host_qualifying_drink_count"));
-  const hostBonusEligiblePositionIds = hostMetric
-    ? (await db.select().from(positionMetrics).where(eq(positionMetrics.metricDefinitionId, hostMetric.id))).map(
-        (r) => r.positionId
-      )
-    : [];
-
-  return (
-    <main className="max-w-4xl mx-auto p-4 sm:p-8 font-sans">
-      <p className="text-sm mb-1">
-        <Link href="/shifts" className="text-[var(--ink-500)] hover:underline">← All shifts</Link>
-      </p>
-      <h1 className="text-2xl font-semibold mb-1">
-        Shift #{data.shift.id} — {data.shift.date} ({data.shift.period})
-      </h1>
-      <p className="text-sm text-[var(--ink-500)] mb-8">
-        Status: {data.shift.status}. This page runs the real, unit-tested tip-pool
-        calculation engine (<code>lib/calc/tipPool.ts</code>) against the roster below —
-        nothing here is mocked or simplified.
-      </p>
-
-      <CalculatorForm
-        roster={data.roster}
-        initialCcTipTotal={data.sales?.ccTipTotal ?? 0}
-        hostBonusEligiblePositionIds={hostBonusEligiblePositionIds}
-      />
-    </main>
-  );
+  redirect(`/shifts/${Number(id)}/roster`);
 }
