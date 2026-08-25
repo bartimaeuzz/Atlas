@@ -75,82 +75,92 @@ export function RosterGrid({
     { header: "BOH — Back of house", items: rest.filter((p) => p.category === "BOH") },
   ].filter((g) => g.items.length > 0);
 
+  // Card-table shell since 2026-08-25 (Oliver: "try change data into
+  // table") -- same visual language as the shifts month view and the
+  // ledger lists: one bordered card, a Position | People header row,
+  // labeled FOH/BOH section rows inside the table per the locked
+  // calendar/grid conventions. The per-row "(FOH)" suffix is gone --
+  // the section row it sits under already says it. The 2026-08-16
+  // stacked-cards note above predates that language; superseded.
   return (
-    <div className="space-y-2">
-      {groups.map((group, gi) => (
+    <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
+      <div className="grid grid-cols-[minmax(96px,1fr)_minmax(0,2.2fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
+        <span>Position</span>
+        <span>People</span>
+      </div>
+      {groups.map((group) => (
         <div key={group.header}>
-          <h3 className={"text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase mb-1.5" + (gi > 0 ? " mt-4" : "")}>
+          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)] border-b border-[var(--border)]">
             {group.header}
-          </h3>
-          <div className="space-y-2">
-      {group.items.map((p) => {
-        const cellEntries = roster.filter((r) => r.positionId === p.id);
-        const target = targets[p.id] ?? 0;
-        const underTarget = target > 0 && cellEntries.length < target;
-        // Over target warns, never blocks (Oliver, 2026-08-24) -- extra
-        // coverage on a busy day is legitimate, it just should not pass
-        // silently.
-        const overTarget = target > 0 && cellEntries.length > target;
-
-        return (
-          <div key={p.id}>
-            <div
-              className={
-                "border rounded-[var(--radius-lg)] p-3.5 " +
-                (underTarget ? "border-[var(--danger-border)] bg-[var(--danger-tint)]" : "border-[var(--border)] bg-[var(--card)]")
-              }
-            >
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm font-semibold text-[var(--ink-900)]">
-                  {p.name} <span className="text-xs font-normal text-[var(--ink-400)]">({p.category})</span>
-                </div>
-                {target > 0 && (
-                  <span className="flex items-center gap-1.5">
-                    {overTarget && <Badge tone="warning">Over target</Badge>}
-                    <span
-                      className={
-                        "text-xs font-medium " +
-                        (underTarget
-                          ? "text-[var(--danger-700)]"
-                          : overTarget
-                            ? "text-[var(--warning-700)]"
-                            : "text-[var(--ink-500)]")
-                      }
-                    >
-                      {cellEntries.length}/{target}
-                    </span>
-                  </span>
-                )}
-              </div>
-
-              {cellEntries.length === 0 && target === 0 && (
-                <p className="text-xs text-[var(--ink-500)] mb-2">Nobody added yet.</p>
-              )}
-
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {cellEntries.map((r) => {
-                  const roleCount = roleCountByEmployee.get(r.employeeId) ?? 1;
-                  return <RosterPill key={r.rosterEntryId} entry={r} roleCount={roleCount} shiftId={shiftId} readOnly={readOnly} />;
-                })}
-              </div>
-
-              {!readOnly && (
-                <RosterQuickAdd
-                  shiftId={shiftId}
-                  positionId={p.id}
-                  positionName={p.name}
-                  target={target}
-                  currentCount={cellEntries.length}
-                  employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
-                  alreadyAssignedIds={new Set(cellEntries.map((r) => r.employeeId))}
-                  roster={roster}
-                  allEmployees={allEmployees}
-                />
-              )}
-            </div>
           </div>
-        );
-      })}
+          <div className="divide-y divide-[var(--border)] border-b border-[var(--border)] last:border-b-0">
+            {group.items.map((p) => {
+              const cellEntries = roster.filter((r) => r.positionId === p.id);
+              const target = targets[p.id] ?? 0;
+              const underTarget = target > 0 && cellEntries.length < target;
+              // Over target warns, never blocks (Oliver, 2026-08-24) --
+              // extra coverage on a busy day is legitimate, it just
+              // should not pass silently.
+              const overTarget = target > 0 && cellEntries.length > target;
+
+              return (
+                <div
+                  key={p.id}
+                  className={
+                    "grid grid-cols-[minmax(96px,1fr)_minmax(0,2.2fr)] gap-2 px-3 py-2.5 " +
+                    (underTarget ? "bg-[var(--danger-tint)]" : "bg-[var(--card)]")
+                  }
+                >
+                  <div>
+                    <div className="text-sm font-semibold text-[var(--ink-900)]">{p.name}</div>
+                    {target > 0 && (
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        <span
+                          className={
+                            "text-xs font-medium " +
+                            (underTarget
+                              ? "text-[var(--danger-700)]"
+                              : overTarget
+                                ? "text-[var(--warning-700)]"
+                                : "text-[var(--ink-500)]")
+                          }
+                        >
+                          {cellEntries.length}/{target}
+                        </span>
+                        {overTarget && <Badge tone="warning">Over target</Badge>}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    {cellEntries.length === 0 && target === 0 && (
+                      <p className="text-xs text-[var(--ink-500)] mb-2">Nobody added yet.</p>
+                    )}
+                    {cellEntries.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {cellEntries.map((r) => {
+                          const roleCount = roleCountByEmployee.get(r.employeeId) ?? 1;
+                          return <RosterPill key={r.rosterEntryId} entry={r} roleCount={roleCount} shiftId={shiftId} readOnly={readOnly} />;
+                        })}
+                      </div>
+                    )}
+                    {!readOnly && (
+                      <RosterQuickAdd
+                        shiftId={shiftId}
+                        positionId={p.id}
+                        positionName={p.name}
+                        target={target}
+                        currentCount={cellEntries.length}
+                        employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
+                        alreadyAssignedIds={new Set(cellEntries.map((r) => r.employeeId))}
+                        roster={roster}
+                        allEmployees={allEmployees}
+                      />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       ))}

@@ -127,7 +127,13 @@ export async function createShift(_prev: CreateShiftState, formData: FormData): 
       .insert(shifts)
       .values({ date, period: period as "Lunch" | "Dinner", status: "draft" })
       .returning();
-    await seedRosterFromPublishedPlan(shift.id, date, period as "Lunch" | "Dinner");
+    // rosterSource "fresh" starts with an empty roster (2026-08-25,
+    // Oliver: the create popup offers "pull data from assignment or
+    // start fresh"). Anything else keeps the long-standing default of
+    // seeding from the published weekly plan.
+    if (String(formData.get("rosterSource") ?? "plan") !== "fresh") {
+      await seedRosterFromPublishedPlan(shift.id, date, period as "Lunch" | "Dinner");
+    }
     shiftId = shift.id;
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };

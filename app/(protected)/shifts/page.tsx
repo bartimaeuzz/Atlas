@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { loadShiftsList } from "@/lib/shift/loadShiftsList";
+import { loadPublishedPlanCounts } from "@/lib/shift/loadPublishedPlanCounts";
 import { dayOfWeek } from "@/lib/schedule/weekMath";
 import { PageHeader } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
@@ -178,6 +179,9 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
   }
 
   const shifts = allShifts.filter((s) => s.date.startsWith(month));
+  // Per-slot headcount in the PUBLISHED weekly plan, so the create popup
+  // can offer "Pull from schedule" only where there is one to pull.
+  const planCounts = await loadPublishedPlanCounts(month);
 
   // Every day of the month gets a row (2026-08-25, Oliver: "show everyday
   // as default, user create shifts later"), in calendar order like the
@@ -291,7 +295,15 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                       // here behind a confirm popup instead of routing
                       // through the retired /shifts/new form. Dashed border
                       // says "empty slot", not a third status colour.
-                      return <CreateShiftSlot key={period} date={date} period={period} isPast={date < todayIso} />;
+                      return (
+                        <CreateShiftSlot
+                          key={period}
+                          date={date}
+                          period={period}
+                          isPast={date < todayIso}
+                          plannedCount={planCounts[`${date}|${period}`] ?? 0}
+                        />
+                      );
                     }
                     return (
                       // ONE layer of chrome (Oliver, 2026-08-24): the bordered

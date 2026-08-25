@@ -1,12 +1,16 @@
 "use client";
 
-import { startTransition, useActionState, useState } from "react";
+import { startTransition, useActionState, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createShift, type CreateShiftState } from "@/lib/actions/shift";
 import { Banner } from "@/components/ui/Banner";
+import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Modal } from "@/components/ui/Modal";
 
 const initialState: CreateShiftState = { error: null };
+
+type RosterSource = "plan" | "fresh";
 
 /** The month view's "+ Create" slot (2026-08-25, Oliver: with every day
  * on the grid the standalone /shifts/new form had nothing left to ask,
@@ -17,14 +21,37 @@ const initialState: CreateShiftState = { error: null };
  * Future days never render this component at all, and the server
  * refuses them regardless.
  *
+ * When the published weekly plan has people for this slot, the same
+ * dialog offers the choice (Oliver, later 2026-08-25: "creating shift
+ * popup offer pull data from assignment or start fresh") -- "Pull from
+ * schedule" seeds the roster from the plan as before, "Start fresh"
+ * creates it empty. With no published plan there is no choice to offer
+ * and the single Create button stays.
+ *
  * The action redirects to the new shift's roster on success. If the
  * shift meanwhile exists (stale page, second terminal), the action
  * reports it and a second dialog offers to open it -- same
  * identity-dismissal pattern the old form used. */
-export function CreateShiftSlot({ date, period, isPast }: { date: string; period: "Lunch" | "Dinner"; isPast: boolean }) {
+export function CreateShiftSlot({
+  date,
+  period,
+  isPast,
+  plannedCount,
+}: {
+  date: string;
+  period: "Lunch" | "Dinner";
+  isPast: boolean;
+  plannedCount: number;
+}) {
   const [state, formAction, isPending] = useActionState(createShift, initialState);
   const router = useRouter();
+  const titleId = useId();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  // Remembered so the midnight-edge pastConfirm resubmit (below) keeps
+  // the source the manager already chose instead of silently reverting
+  // to the default, and so only the tapped button shows its spinner.
+  const [chosenSource, setChosenSource] = useState<RosterSource>("plan");
   // Dismissal by object identity: every submit returns a fresh `existing`
   // object, so a re-tap reopens the dialog while Cancel keeps THIS result
   // closed. (Action state outlives the UI that used it.)
@@ -36,6 +63,16 @@ export function CreateShiftSlot({ date, period, isPast }: { date: string; period
   const [dismissedPast, setDismissedPast] = useState<CreateShiftState["pastConfirm"] | null>(null);
   const pastConfirm = state.pastConfirm && state.pastConfirm !== dismissedPast ? state.pastConfirm : undefined;
 
+  function submit(source: RosterSource, confirmPast: boolean) {
+    setChosenSource(source);
+    const fd = new FormData();
+    fd.set("date", date);
+    fd.set("period", period);
+    fd.set("rosterSource", source);
+    if (confirmPast) fd.set("confirmPast", "1");
+    startTransition(() => formAction(fd));
+  }
+
   return (
     <>
       <button
@@ -46,26 +83,43 @@ export function CreateShiftSlot({ date, period, isPast }: { date: string; period
         + Create
       </button>
 
-      <ConfirmDialog
-        open={open && !existing && !pastConfirm}
-        onClose={() => setOpen(false)}
-        onConfirm={() => {
-          const fd = new FormData();
-          fd.set("date", date);
-          fd.set("period", period);
-          if (isPast) fd.set("confirmPast", "1");
-          startTransition(() => formAction(fd));
-        }}
-        title={isPast ? "That day has already passed" : `Create ${period} shift?`}
-        description={
-          isPast
+      <Modal open={open && !existing && !pastConfirm} onClose={() => setOpen(false)} labelledBy={titleId} initialFocus={cancelRef}>
+        <div id={titleId} className="text-base font-bold text-[var(--ink-900)] mb-1.5">
+          {isPast ? "That day has already passed" : `Create ${period} shift?`}
+        </div>
+        <p className="text-sm text-[var(--ink-700)] mb-4">
+          {isPast
             ? `${date} (${period}) is in the past. Create it only to backfill a shift that was missed.`
-            : `${date} (${period}) — you'll build the roster next.`
-        }
-        confirmLabel={isPast ? "Create anyway" : "Create shift"}
-        loading={isPending}
-        body={state.error ? <Banner tone="danger" title="Couldn't create the shift" description={state.error} /> : undefined}
-      />
+            : `${date} (${period}) — you'll build the roster next.`}
+          {plannedCount > 0 &&
+            ` The published schedule has ${plannedCount} ${plannedCount === 1 ? "person" : "people"} planned for this shift.`}
+        </p>
+        {state.error && (
+          <div className="mb-4">
+            <Banner tone="danger" title="Couldn't create the shift" description={state.error} />
+          </div>
+        )}
+        {/* Buttons wrap on a phone -- three labels don't fit one 360px row. */}
+        <div className="flex flex-wrap gap-2 justify-end">
+          <Button ref={cancelRef} variant="secondary" size="sm" onClick={() => setOpen(false)} disabled={isPending}>
+            Cancel
+          </Button>
+          {plannedCount > 0 ? (
+            <>
+              <Button variant="secondary" size="sm" onClick={() => submit("fresh", isPast)} loading={isPending && chosenSource === "fresh"} disabled={isPending}>
+                Start fresh
+              </Button>
+              <Button variant="primary" size="sm" onClick={() => submit("plan", isPast)} loading={isPending && chosenSource === "plan"} disabled={isPending}>
+                Pull from schedule
+              </Button>
+            </>
+          ) : (
+            <Button variant="primary" size="sm" onClick={() => submit("fresh", isPast)} loading={isPending}>
+              {isPast ? "Create anyway" : "Create shift"}
+            </Button>
+          )}
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={!!pastConfirm}
@@ -75,12 +129,8 @@ export function CreateShiftSlot({ date, period, isPast }: { date: string; period
         }}
         onConfirm={() => {
           if (!pastConfirm) return;
-          const fd = new FormData();
-          fd.set("date", pastConfirm.date);
-          fd.set("period", pastConfirm.period);
-          fd.set("confirmPast", "1");
           setDismissedPast(state.pastConfirm ?? null);
-          startTransition(() => formAction(fd));
+          submit(chosenSource, true);
         }}
         title="That day has already passed"
         description={pastConfirm ? `${pastConfirm.date} (${pastConfirm.period}) is in the past. Create it only to backfill a shift that was missed.` : ""}
