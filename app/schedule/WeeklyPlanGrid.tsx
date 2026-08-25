@@ -427,8 +427,11 @@ export function WeeklyPlanGrid({
             );
           }
 
+          // bg-card, not transparent (Oliver, 2026-08-25): the page's
+          // --paper ground was showing through the bordered box while the
+          // desktop table sits on a white card — same shell both sizes.
           return (
-            <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
+            <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-1)] overflow-hidden">
               <div className="divide-y divide-[var(--border)]">
                 {rows.map(({ position, lunch, dinner }, ri) => (
                   <Fragment key={position.id}>
