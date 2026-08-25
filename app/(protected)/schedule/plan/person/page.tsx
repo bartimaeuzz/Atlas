@@ -73,6 +73,17 @@ export default async function EmployeeSchedulePage({
         </Link>
       </div>
 
+      {/* Month totals (Oliver, 2026-08-25). Numbers come from
+          loadEmployeeSchedule's stats block, not computed here, so other
+          surfaces can reuse the same definitions. */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+        <StatTile label="Planned shifts" value={data.stats.planned} />
+        <StatTile label="Published shifts" value={data.stats.published} />
+        <StatTile label="Swapped in" value={data.stats.swappedIn} />
+        <StatTile label="Extra coverage" value={data.stats.coverage} />
+        <StatTile label="Leave days" value={data.stats.leaveDays} />
+      </div>
+
       <div className="flex items-center gap-4 text-xs text-[var(--ink-500)] mb-3">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-[var(--success)] inline-block" /> Published
@@ -149,6 +160,15 @@ export default async function EmployeeSchedulePage({
         </tbody>
       </table>
     </main>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: number }) {
+  return (
+    <Card className="!p-3">
+      <div className="text-xl font-semibold tabular-nums text-[var(--ink-900)]">{value}</div>
+      <div className="text-xs text-[var(--ink-500)] mt-0.5">{label}</div>
+    </Card>
   );
 }
 

@@ -1,6 +1,6 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, ne, lte, gte } from "drizzle-orm";
 import { db } from "@/db/client";
-import { scheduleWeeks, plannedShiftAssignments, employeeScheduleTemplates, employees, positions } from "@/db/schema";
+import { scheduleWeeks, plannedShiftAssignments, employeeScheduleTemplates, employees, positions, swapRequests, leaveRequests } from "@/db/schema";
 import { addDays, dayOfWeek, monthLabel, monthStart, shiftMonth, weekStartFor } from "@/lib/schedule/weekMath";
 import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
 
@@ -21,12 +21,35 @@ export interface EmployeeScheduleDay {
   shifts: EmployeeScheduleShift[];
 }
 
+/** Month totals for one person (Oliver, 2026-08-25: "person schedule …
+ * shows counts planned shifts | published shifts | swapped shifts |
+ * coverage shifts | leave. data will be usable somewhere else").
+ * Computed here in the loader — not in the page — precisely so another
+ * surface (My Schedule, payroll prep, a report) can reuse the same
+ * numbers without re-deriving the definitions:
+ *   - planned:   every shift on the month's calendar — generated weeks
+ *                (draft + published) plus template projections.
+ *   - published: the subset falling in weeks staff can already see.
+ *   - swappedIn: shifts this person holds via a completed staff swap.
+ *   - coverage:  shifts flagged extra-coverage (the yellow busy-day add).
+ *   - leaveDays: days of the month covered by a non-denied leave request.
+ * In-month days only — the calendar grid's leading/trailing spill days
+ * don't count. */
+export interface EmployeeScheduleStats {
+  planned: number;
+  published: number;
+  swappedIn: number;
+  coverage: number;
+  leaveDays: number;
+}
+
 export interface EmployeeScheduleData {
   employeeId: number;
   employeeName: string;
   monthAnchor: string;
   monthLabel: string;
   weeks: EmployeeScheduleDay[][];
+  stats: EmployeeScheduleStats;
 }
 
 /** The "zoom in on one person" view (2026-08-11, Oliver) — a calendar
@@ -135,5 +158,53 @@ export async function loadEmployeeSchedule(employeeId: number, monthAnchor: stri
     );
   }
 
-  return { employeeId, employeeName, monthAnchor, monthLabel: monthLabel(monthAnchor), weeks };
+  // ---- Month stats (see EmployeeScheduleStats doc above) ----
+  const [swappedInRows, leaveRows] = await Promise.all([
+    // Completed swaps this person accepted, whose slot falls in the
+    // month AND is still theirs (a later manual replacement could have
+    // moved it on again — then it isn't their swapped-in shift anymore).
+    db
+      .select({ date: plannedShiftAssignments.date })
+      .from(swapRequests)
+      .innerJoin(plannedShiftAssignments, eq(swapRequests.assignmentId, plannedShiftAssignments.id))
+      .where(
+        and(
+          eq(swapRequests.status, "completed"),
+          eq(swapRequests.acceptingEmployeeId, employeeId),
+          eq(plannedShiftAssignments.employeeId, employeeId),
+          gte(plannedShiftAssignments.date, firstOfMonth),
+          lte(plannedShiftAssignments.date, lastOfMonth)
+        )
+      ),
+    db
+      .select({ startDate: leaveRequests.startDate, endDate: leaveRequests.endDate })
+      .from(leaveRequests)
+      .where(
+        and(
+          eq(leaveRequests.employeeId, employeeId),
+          ne(leaveRequests.status, "denied"),
+          lte(leaveRequests.startDate, lastOfMonth),
+          gte(leaveRequests.endDate, firstOfMonth)
+        )
+      ),
+  ]);
+
+  const leaveDaySet = new Set<string>();
+  for (const l of leaveRows) {
+    const from = l.startDate > firstOfMonth ? l.startDate : firstOfMonth;
+    const to = l.endDate < lastOfMonth ? l.endDate : lastOfMonth;
+    for (let d = from; d <= to; d = addDays(d, 1)) leaveDaySet.add(d);
+  }
+
+  const stats: EmployeeScheduleStats = { planned: 0, published: 0, swappedIn: swappedInRows.length, coverage: 0, leaveDays: leaveDaySet.size };
+  for (const week of weeks) {
+    for (const day of week) {
+      if (!day.inMonth) continue;
+      stats.planned += day.shifts.length;
+      if (day.weekStatus === "published") stats.published += day.shifts.length;
+      stats.coverage += day.shifts.filter((s) => s.isExtraCoverage).length;
+    }
+  }
+
+  return { employeeId, employeeName, monthAnchor, monthLabel: monthLabel(monthAnchor), weeks, stats };
 }
