@@ -850,6 +850,8 @@ function AssignmentPill({
           candidates={replaceCandidates}
           onLeaveNote={onLeave ? (onLeave.note ?? "on leave") : null}
           conflictPositionNames={conflictPositionNames}
+          swap={swap}
+          vacatingSoon={vacatingSoon}
         />
       )}
     </>
@@ -871,6 +873,8 @@ function AssignmentActionsDialog({
   candidates,
   onLeaveNote,
   conflictPositionNames,
+  swap,
+  vacatingSoon,
 }: {
   open: boolean;
   onClose: () => void;
@@ -879,6 +883,8 @@ function AssignmentActionsDialog({
   candidates: { id: number; name: string; weekShifts: number }[];
   onLeaveNote: string | null;
   conflictPositionNames: string[];
+  swap: PlannedAssignmentRow["swap"];
+  vacatingSoon: PlannedAssignmentRow["vacatingSoon"];
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -927,6 +933,36 @@ function AssignmentActionsDialog({
           {conflictPositionNames.length > 0 && (
             <span className="block text-orange-700 mt-0.5">
               Also scheduled as {conflictPositionNames.join(", ")} in this same slot.
+            </span>
+          )}
+          {/* Every status the pill can wear gets its sentence here too
+              (Oliver, 2026-08-25) — the popup is where a phone user reads
+              what a dot means. */}
+          {assignment.sourceType === "REASSIGNED" && (
+            <span className="block text-teal-700 mt-0.5">
+              Was reassigned{assignment.reassignedFromName ? ` from ${assignment.reassignedFromName}` : ""} to{" "}
+              {assignment.employeeName} by a manager after the week was published.
+            </span>
+          )}
+          {assignment.isExtraCoverage && (
+            <span className="block text-[var(--warning-700)] mt-0.5">
+              Was added as extra coverage (on top of the normal staffing).
+            </span>
+          )}
+          {swap?.status === "completed" && (
+            <span className="block text-[var(--success-700)] mt-0.5">
+              Got this shift via a swap from {swap.requestingEmployeeName}.
+            </span>
+          )}
+          {swap?.status === "pending_manager_approval" && (
+            <span className="block text-[var(--primary-700)] mt-0.5">
+              Accepted a swap from {swap.requestingEmployeeName} — awaiting manager approval.
+            </span>
+          )}
+          {vacatingSoon && (
+            <span className="block text-[var(--danger-700)] mt-0.5">
+              Is {VACANCY_REASON_LABEL[vacatingSoon.reason]} as of {vacatingSoon.startsOn} — this slot
+              will need a replacement.
             </span>
           )}
         </p>

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and, like } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   scheduleWeeks,
@@ -7,6 +7,7 @@ import {
   positions,
   positionStaffingTargets,
   employeeScheduleTemplates,
+  scheduleChangeLog,
 } from "@/db/schema";
 import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
 import type { StaffingTargetPosition } from "@/lib/schedule/loadStaffingTargets";
@@ -23,6 +24,10 @@ export interface PlannedAssignmentRow {
   date: string;
   period: "Lunch" | "Dinner";
   sourceType: "FROM_TEMPLATE" | "MANUAL_ADD" | "AUTO_FILL" | "REASSIGNED";
+  /** For a REASSIGNED slot: who held it before the manager swapped it,
+   * read back from the schedule change log ("Replaced by X" entries).
+   * null when the log has no matching entry. */
+  reassignedFromName: string | null;
   isExtraCoverage: boolean;
   /** Set when this employee's recurring slot for this exact
    * position/day-of-week/period is marked vacating (resignation or
@@ -128,6 +133,31 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
   }
 
   const leaveByEmployee = await loadLeaveByEmployeeForRange(dates[0], dates[dates.length - 1]);
+
+  // date:period:positionId -> the last person a manager replaced out of
+  // that slot after publish — powers the popup's "reassigned from X"
+  // line. Names come from the change-log JSON itself (denormalized at
+  // write time), so nothing needs reconstructing.
+  const replacedLog = await db
+    .select({ removedAssignments: scheduleChangeLog.removedAssignments, createdAt: scheduleChangeLog.createdAt })
+    .from(scheduleChangeLog)
+    .where(
+      and(
+        eq(scheduleChangeLog.weekId, weekRow.id),
+        eq(scheduleChangeLog.action, "REMOVED_ASSIGNMENT"),
+        like(scheduleChangeLog.reason, "Replaced by %")
+      )
+    )
+    .orderBy(scheduleChangeLog.createdAt);
+  const reassignedFromBySlot = new Map<string, string>();
+  for (const row of replacedLog) {
+    try {
+      const removed: { employeeName: string; positionId: number; date: string; period: string }[] = JSON.parse(row.removedAssignments);
+      for (const r of removed) reassignedFromBySlot.set(`${r.date}:${r.period}:${r.positionId}`, r.employeeName);
+    } catch {
+      // a malformed log row shouldn't take the plan down
+    }
+  }
   const swapByAssignment = await loadSwapStatusByAssignmentForWeek(weekRow.id);
 
   const assignments: PlannedAssignmentRow[] = rows.map((r) => {
@@ -147,6 +177,8 @@ export async function loadWeeklyPlan(weekStartDate: string): Promise<WeeklyPlanD
       positionCategory: r.positionCategory as "FOH" | "BOH",
       period: r.period as "Lunch" | "Dinner",
       sourceType: r.sourceType as "FROM_TEMPLATE" | "MANUAL_ADD" | "AUTO_FILL" | "REASSIGNED",
+      reassignedFromName:
+        r.sourceType === "REASSIGNED" ? (reassignedFromBySlot.get(`${r.date}:${r.period}:${r.positionId}`) ?? null) : null,
       vacatingSoon: vacancy && r.date <= vacancy.startsOn ? vacancy : null,
       onLeave: activeLeave ? { note: activeLeave.note } : null,
       swap,
