@@ -9,6 +9,7 @@ import { Select } from "@/components/ui/Field";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { TableCard } from "@/components/ui/Table";
 import { ChevronDownIcon } from "@/components/ui/icons";
+import { MonthRow } from "@/app/(protected)/ledger/MonthRow";
 
 type SortKey = "name" | "primaryPosition" | "positions" | "role";
 type SortDir = "asc" | "desc";
@@ -164,7 +165,11 @@ export function PeopleTable({
             const primaryPositionCategory =
               e.positions.find((p) => p.positionId === e.primaryPositionId)?.positionCategory ?? null;
             return (
-              <tr key={e.id} className={"border-b border-[var(--border)]" + (e.active ? "" : " opacity-50")}>
+              // Whole row clickable with a pointer (Oliver, 2026-08-24),
+              // same shared MonthRow as the Ledger/Shifts pickers; the name
+              // link stays the keyboard tab stop, and the row's own
+              // buttons/selects keep their behaviour.
+              <MonthRow key={e.id} href={`/people/${e.id}`} isToday={false} className={e.active ? "" : "opacity-50"}>
                 <td className="py-2 px-3 text-[var(--ink-900)]">
                   <Link href={`/people/${e.id}`} className="font-medium hover:underline">
                     {e.nickname}
@@ -193,7 +198,7 @@ export function PeopleTable({
                 <td className="py-2 px-3 text-right">
                   <EmployeeToggleActiveButton employeeId={e.id} active={e.active} />
                 </td>
-              </tr>
+              </MonthRow>
             );
           })}
         </tbody>

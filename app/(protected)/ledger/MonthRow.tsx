@@ -25,10 +25,13 @@ import type { ReactNode } from "react";
 export function MonthRow({
   href,
   isToday,
+  className = "",
   children,
 }: {
   href: string;
   isToday: boolean;
+  /** Extra row classes -- e.g. People dims retired rows. */
+  className?: string;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -38,13 +41,16 @@ export function MonthRow({
         // Let a real click on the inner link (or a modified click meant for
         // a new tab) behave normally instead of double-navigating.
         const target = e.target as HTMLElement;
-        if (target.closest("a")) return;
+        // Any interactive child keeps its own behaviour -- the People rows
+        // (2026-08-24) carry buttons and selects, not just links.
+        if (target.closest("a, button, select, input, label")) return;
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
         router.push(href);
       }}
       className={
         "border-b border-[var(--border)] cursor-pointer transition-colors hover:bg-[var(--primary-tint)] " +
-        (isToday ? "bg-[var(--warning-tint)]" : "")
+        (isToday ? "bg-[var(--warning-tint)] " : "") +
+        className
       }
     >
       {children}
