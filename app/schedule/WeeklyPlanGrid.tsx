@@ -16,7 +16,7 @@ const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
  * header row lives in the sticky block and the body rows live in the card
  * below it -- two elements that must agree on column widths, so they must
  * not each carry their own copy of this string. */
-const PHONE_COLS = "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-2";
+const PHONE_COLS = "grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-2 divide-x divide-[var(--border)]";
 
 function dayOfWeekFor(dateIso: string): number {
   // Pinned to UTC noon, same convention as lib/schedule/weekMath.ts.
@@ -551,7 +551,7 @@ export function WeeklyPlanGrid({
                 {data.dates.map((d) => {
                   const isToday = d === toIso(new Date());
                   return (
-                    <th key={d} className="py-1.5 text-left align-bottom">
+                    <th key={d} className="py-1.5 px-1.5 text-left align-bottom border-l border-[var(--border)]">
                       <div className={isToday ? "text-[var(--primary-700)] font-semibold" : "text-[var(--ink-700)]"}>
                         {DAY_LABELS[dayOfWeekFor(d)]}
                       </div>
@@ -603,13 +603,13 @@ export function WeeklyPlanGrid({
                       </button>
                     </td>
                     {data.dates.map((date) => {
-                      if (!isCollapsed) return <td key={date} />;
+                      if (!isCollapsed) return <td key={date} className="border-l border-[var(--border)]" />;
                       const lunch = cellDataFor(date, "Lunch");
                       const dinner = cellDataFor(date, "Dinner");
                       const total = lunch.cellAssignments.length + dinner.cellAssignments.length;
                       const short = lunch.underTarget || dinner.underTarget;
                       return (
-                        <td key={date} className={"py-1 px-1 text-xs" + (short ? " bg-[var(--danger-tint)]" : "")}>
+                        <td key={date} className={"py-1 px-1.5 text-xs border-l border-[var(--border)]" + (short ? " bg-[var(--danger-tint)]" : "")}>
                           <span className={short ? "text-[var(--danger-700)] font-medium" : "text-[var(--ink-500)]"}>
                             {total}
                             {short && " · short"}
@@ -627,7 +627,7 @@ export function WeeklyPlanGrid({
                         {data.dates.map((date) => {
                           const { target, cellAssignments, underTarget } = cellDataFor(date, period);
                           return (
-                            <td key={date} className={"py-1.5 px-1 align-top" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
+                            <td key={date} className={"py-1.5 px-1.5 align-top border-l border-[var(--border)]" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
                               <div className="space-y-0.5">
                                 {cellAssignments.length === 0 && (
                                   <span className="block w-fit border border-transparent px-1.5 py-0.5 text-xs text-[var(--ink-400)]">
