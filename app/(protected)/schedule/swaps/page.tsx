@@ -70,7 +70,11 @@ export default async function SwapsPage() {
       <div className="mt-2">
         <PageHeader
           title="Shift swaps"
-          description="Every swap staff have posted or accepted for an upcoming shift. Swaps more than 3 days away finalize as soon as a coworker accepts — you're just told. Swaps within 3 days need your approval before the shift actually changes hands."
+          description={
+            canDecide
+              ? "Every swap staff have posted or accepted for an upcoming shift. Swaps more than 3 days away finalize as soon as a coworker accepts — you're just told. Swaps within 3 days need your approval before the shift actually changes hands."
+              : "Every swap staff have posted or accepted for an upcoming shift. Swaps within 3 days of the shift are approved by whoever manages the schedule."
+          }
         />
       </div>
 

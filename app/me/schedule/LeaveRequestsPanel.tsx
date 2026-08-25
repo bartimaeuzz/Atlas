@@ -99,7 +99,7 @@ function LeaveRequestRow({ request }: { request: LeaveRequestView }) {
         type="button"
         disabled={isPending}
         onClick={() => startTransition(() => deleteLeaveRequest(request.id))}
-        className="text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0"
+        className={`text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0 ${TAP_TARGET_PAD}`}
       >
         Cancel
       </button>

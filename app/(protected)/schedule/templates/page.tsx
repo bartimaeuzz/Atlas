@@ -36,7 +36,12 @@ export default async function ScheduleTemplatesPage() {
               description="Changing template assignments is done by whoever holds the schedule-management permission."
             />
           </div>
-          <fieldset disabled>
+          {/* Same disabled-look treatment as /schedule/targets — see the
+              comment there. */}
+          <fieldset
+            disabled
+            className="[&_button]:opacity-50 [&_input]:opacity-50 [&_select]:opacity-50 [&_button]:cursor-not-allowed"
+          >
             <PositionTemplateGrid groups={groups} />
           </fieldset>
         </>

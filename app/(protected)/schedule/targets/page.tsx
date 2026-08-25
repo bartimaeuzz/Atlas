@@ -37,7 +37,14 @@ export default async function StaffingTargetsPage() {
               description="Changing staffing targets is done by whoever holds the schedule-management permission."
             />
           </div>
-          <fieldset disabled>
+          {/* The opacity classes exist because TargetsForm's own +/- buttons
+              have no disabled: styling — without this, an inert control keeps
+              its full active look and silently ignores taps (2026-08-25 audit
+              finding: affordance must not lie to a low-literacy user). */}
+          <fieldset
+            disabled
+            className="[&_button]:opacity-50 [&_input]:opacity-50 [&_select]:opacity-50 [&_button]:cursor-not-allowed"
+          >
             <TargetsForm positions={data.positions} targets={data.targets} />
           </fieldset>
         </>

@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { deleteLeaveRequest } from "@/lib/actions/leave";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** A manager can remove a leave request directly from the log -- e.g.
  * plans changed, or it was logged in error. No confirm dialog (this
@@ -14,7 +15,7 @@ export function CancelLeaveButton({ requestId, employeeName }: { requestId: numb
       type="button"
       disabled={isPending}
       onClick={() => startTransition(() => deleteLeaveRequest(requestId))}
-      className="text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0"
+      className={`text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0 ${TAP_TARGET_PAD}`}
       aria-label={`Cancel ${employeeName}'s leave request`}
     >
       Cancel
