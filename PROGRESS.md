@@ -17,6 +17,9 @@
 **Suggested reading order for a cold start:** this file top-to-bottom (the dated changelog below), then `db/schema.ts`, then `lib/calc/tipPool.ts` and `lib/calc/finalizeShift.ts`, then `app/shifts/[id]/` to see how it's wired into actual pages.
 
 **Explicitly deferred — don't build these speculatively without checking first:**
+- (2026-08-25, Oliver) Shifts month view: show every day of the month (with create affordance) before any shift exists, not just days that already have shifts.
+- (2026-08-25, Oliver) /schedule/plan should land on the week view first (redirect), instead of the current default entry.
+- (2026-08-25, Oliver) The week view (/me/schedule/week and/or /schedule/weeks — confirm scope with Oliver first) needs a retrofit to the latest design standard (card shells, legibility pass, today marker, status badges — the 2026-08-25 conventions).
 - Position admin UI (create/edit positions with pool-membership checkboxes) — Oliver specifically asked to be reminded about this one.
 - Generic/restaurant-configurable tip pool structure (count, membership, funding beyond the fixed 3 pools) — confirmed backlog item, deliberately not built until there's a second real restaurant's requirements to design against.
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — the host drink bonus (2026-08-09) uses the engine's storage tables (MetricDefinition, MetricValue, the new positionMetrics) directly with hardcoded logic in finalizeShift.ts, not a generic rule evaluator. Build that dispatcher once a second bonus scenario (BOH sales-split, Manager weekly token) is actually being wired in — same "concrete first" sequencing already used for this engine.
