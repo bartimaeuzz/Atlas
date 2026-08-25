@@ -540,9 +540,6 @@ export function WeeklyPlanGrid({
         <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-[var(--ink-500)]">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> On leave</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--danger)] inline-block" /> Leaving</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--success)] inline-block" /> Swapped</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full border border-dashed border-[var(--primary)] inline-block" /> Offered for swap</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--primary)] inline-block" /> Swap pending</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block" /> Reassigned</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-[3px] bg-[var(--warning-tint)] border border-[var(--warning-border)] inline-block" /> Extra coverage</span>
         </div>
@@ -823,7 +820,7 @@ function AssignmentPill({
         (assignment.sourceType === "REASSIGNED" ? " ring-1 ring-teal-400" : "")
       }
     >
-      <span className="flex items-center gap-1">
+      <span className="flex flex-wrap items-center gap-1 min-w-0">
         {/* Dotted underline kept as the "this is tappable" cue even though
             the whole box is now the button (Oliver, 2026-08-25). */}
         <span className={replaceCandidates ? "underline decoration-dotted underline-offset-2" : undefined}>
@@ -858,12 +855,9 @@ function AssignmentPill({
             we can identify it was swapped by staff"). Word + color, never
             color alone. */}
         {swap?.status === "completed" && (
-          <>
-            <span aria-label="swapped" className="lg:hidden w-2 h-2 rounded-full bg-[var(--success)] shrink-0" />
-            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--success-tint)] text-[var(--success-700)] border border-[var(--success-border)] shrink-0">
-              swapped
-            </span>
-          </>
+          <span className="text-[11px] lg:text-[10px] font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--success-tint)] text-[var(--success-700)] border border-[var(--success-border)] shrink-0">
+            swapped
+          </span>
         )}
         {/* Teal, a categorical color like purple/orange (no token — three
             uses now): manager-forced change on a published week, distinct
@@ -876,21 +870,20 @@ function AssignmentPill({
             </span>
           </>
         )}
+        {/* Swap-family badges show the word on BOTH viewports (option C,
+            Oliver 2026-08-25) — short words, and the pill wraps instead of
+            overflowing. offered = white + thick dashed border + bold dark
+            text (the old thin 10px blue was unreadable); pending = solid
+            blue with white text; swapped keeps its green tint. */}
         {swap?.status === "open" && (
-          <>
-            <span aria-label="offered for swap" className="lg:hidden w-2 h-2 rounded-full border border-dashed border-[var(--primary)] shrink-0" />
-            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--card)] text-[var(--primary-700)] border border-dashed border-[var(--primary)] shrink-0">
-              offered
-            </span>
-          </>
+          <span className="text-[11px] lg:text-[10px] font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--card)] text-[var(--primary-700)] border-[1.5px] border-dashed border-[var(--primary)] shrink-0">
+            offered
+          </span>
         )}
         {swap?.status === "pending_manager_approval" && (
-          <>
-            <span aria-label="swap pending" className="lg:hidden w-2 h-2 rounded-full bg-[var(--primary)] shrink-0" />
-            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--primary-tint)] text-[var(--primary-700)] border border-[var(--primary-border)] shrink-0">
-              swap pending
-            </span>
-          </>
+          <span className="text-[11px] lg:text-[10px] font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--primary)] text-white shrink-0">
+            pending
+          </span>
         )}
         {hasConflict && (
           <span
