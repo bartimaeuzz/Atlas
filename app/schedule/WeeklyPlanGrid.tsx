@@ -545,6 +545,19 @@ export function WeeklyPlanGrid({
           summary cell stays red with a "short" flag whenever either
           period is under target, so collapsing can never hide a gap. */}
       <section className="hidden lg:block">
+        <div className="flex justify-end mb-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              setCollapsedPositions((prev) =>
+                prev.size === data.positions.length ? new Set() : new Set(data.positions.map((p) => p.id))
+              )
+            }
+          >
+            {collapsedPositions.size === data.positions.length ? "▾ Expand all" : "▸ Collapse all"}
+          </Button>
+        </div>
         <div className="overflow-x-auto bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-1)] p-4">
           <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
@@ -598,7 +611,10 @@ export function WeeklyPlanGrid({
                         aria-expanded={!isCollapsed}
                         className="flex items-center gap-1 font-medium text-[var(--ink-900)] min-h-6 hover:text-[var(--primary-700)]"
                       >
-                        <span aria-hidden className="text-[10px] text-[var(--ink-400)] w-3">
+                        {/* Was 10px (Oliver: too small to read as a control).
+                            14px + ink-500 keeps it subordinate to the name but
+                            visibly a disclosure arrow. */}
+                        <span aria-hidden className="text-sm leading-none text-[var(--ink-500)] w-4">
                           {isCollapsed ? "▸" : "▾"}
                         </span>
                         {p.name}
