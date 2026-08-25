@@ -55,3 +55,14 @@ export function formatDayLabelShort(isoDate: string): string {
   const year = String(d.getUTCFullYear()).slice(-2);
   return `${weekday}, ${day} ${month} ${year}`;
 }
+
+/** "12 May 1990" — dates of birth and other person-dates. Full year (a
+ * birth year matters), no weekday (nobody cares what day of the week it
+ * was). Same UTC-noon pin as everything above. */
+export function formatPersonDate(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  const day = d.getUTCDate();
+  const month = d.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+  return `${day} ${month} ${d.getUTCFullYear()}`;
+}

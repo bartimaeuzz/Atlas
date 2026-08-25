@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { loadEmployeeForEdit } from "@/lib/employees/loadEmployeesList";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { formatSystemRole } from "@/lib/format/formatSystemRole";
+import { formatPersonDate } from "@/lib/format/formatDayLabel";
+import { formatUsPhone } from "@/lib/format/formatUsPhone";
 import { Card, Section } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -52,7 +54,7 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
         <Card className="max-w-md">
           <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
             <ProfileRow label="Legal name" value={[employee.legalFirstName, employee.legalLastName].filter(Boolean).join(" ") || "—"} />
-            <ProfileRow label="Hire date" value={employee.hireDate ?? "—"} />
+            <ProfileRow label="Hire date" value={employee.hireDate ? formatPersonDate(employee.hireDate) : "—"} />
             <ProfileRow label="System role" value={formatSystemRole(employee.systemRole)} />
             <ProfileRow label="Login ID" value={employee.loginId ?? "—"} />
             <ProfileRow label="PIN" value={employee.hasPinSet ? "Set" : "Not set"} />
@@ -99,8 +101,17 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
         <Section title="Contact details">
           <Card className="max-w-md">
             <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
-              <ProfileRow label="Date of birth" value={employee.contactInfo.dateOfBirth ?? "—"} />
-              <ProfileRow label="Mobile phone" value={employee.contactInfo.mobilePhone ?? "—"} />
+              {/* Standard display formats (Oliver, 2026-08-24): dates read
+                  like the app's other dates, phones like the form's own
+                  input mask -- raw ISO / bare digits read as data dumps. */}
+              <ProfileRow
+                label="Date of birth"
+                value={employee.contactInfo.dateOfBirth ? formatPersonDate(employee.contactInfo.dateOfBirth) : "—"}
+              />
+              <ProfileRow
+                label="Mobile phone"
+                value={employee.contactInfo.mobilePhone ? formatUsPhone(employee.contactInfo.mobilePhone) : "—"}
+              />
               <ProfileRow label="Email" value={employee.contactInfo.email ?? "—"} />
             </dl>
           </Card>
