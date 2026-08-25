@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { togglePositionActive } from "@/lib/actions/positions";
 import { Banner, Button, ConfirmDialog } from "@/components/ui";
 
-/** Retire / Reactivate a position.
+/** Deactivate / Reactivate a position. ("Retire" -> "Deactivate", Oliver 2026-08-25.)
  *
  * BUG FIX 2026-08-22: this used to call togglePositionActive() directly from
  * onClick with no confirmation — one mis-tap retired a position, and on the
@@ -29,10 +29,13 @@ export function ToggleActiveButton({
   positionId,
   active,
   positionName,
+  fullWidth,
 }: {
   positionId: number;
   active: boolean;
   positionName: string;
+  /** Phone card footers lay Edit + this out as two equal columns. */
+  fullWidth?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
@@ -63,21 +66,22 @@ export function ToggleActiveButton({
           setConfirming(true);
         }}
         disabled={isPending}
+        className={fullWidth ? "w-full" : undefined}
       >
-        {active ? "Retire" : "Reactivate"}
+        {active ? "Deactivate" : "Reactivate"}
       </Button>
       <ConfirmDialog
         open={confirming}
         onClose={() => setConfirming(false)}
         onConfirm={confirm}
         loading={isPending}
-        title={active ? `Retire ${positionName}?` : `Reactivate ${positionName}?`}
+        title={active ? `Deactivate ${positionName}?` : `Reactivate ${positionName}?`}
         description={
           active
             ? "It stops appearing when you staff new shifts. Every past shift that used it stays exactly as it is, and you can reactivate it any time."
             : "It starts appearing again when you staff new shifts."
         }
-        confirmLabel={active ? "Retire position" : "Reactivate position"}
+        confirmLabel={active ? "Deactivate position" : "Reactivate position"}
         body={error ? <Banner tone="danger" title={error} /> : undefined}
       />
     </>

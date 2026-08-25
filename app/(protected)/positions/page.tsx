@@ -43,7 +43,7 @@ export default async function PositionsListPage() {
     <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
       <PageHeader
         title="Positions"
-        description="Create and edit job positions — which tip pool(s) they belong to, roster visibility, and (for FOH) their flat wage rate. Retiring a position keeps every past shift that used it intact; it just stops showing up when staffing new ones."
+        description="Create and edit job positions — which tip pool(s) they belong to, roster visibility, and (for FOH) their flat wage rate. Deactivating a position keeps every past shift that used it intact; it just stops showing up when staffing new ones."
         actions={<LinkButton href="/positions/new">+ New position</LinkButton>}
       />
 
@@ -65,83 +65,93 @@ export default async function PositionsListPage() {
         />
       ) : (
         <>
-          {/* Phone: stacked cards */}
-          <StackedCardList>
-            {positionList.map((p) => (
-              <StackedCard
-                key={p.id}
-                dimmed={!p.active}
-                title={
-                  <>
-                    {p.name}
-                    {!p.active && (
-                      <span className="ml-2 align-middle">
-                        <Badge tone="neutral">Retired</Badge>
-                      </span>
-                    )}
-                  </>
-                }
-                trailing={<Badge tone={p.category === "FOH" ? "primary" : "neutral"}>{p.category}</Badge>}
-                footer={
-                  <>
+          <PositionsGroup title={`Active (${positionList.filter((p) => p.active).length})`} rows={positionList.filter((p) => p.active)} />
+          {positionList.some((p) => !p.active) && (
+            <PositionsGroup
+              title={`Deactivated (${positionList.filter((p) => !p.active).length})`}
+              rows={positionList.filter((p) => !p.active)}
+            />
+          )}
+        </>
+      )}
+    </main>
+  );
+}
+
+type PositionRow = Awaited<ReturnType<typeof loadPositionsList>>[number];
+
+/** One status group — "Active (n)" / "Deactivated (n)" — rendering the
+ * phone stacked-card list and the desktop table for the same rows
+ * (Oliver, 2026-08-25: group by status with headers instead of mixing
+ * deactivated positions into the alphabetical list; the header now
+ * carries the status, so the old inline "Retired" badge is gone). */
+function PositionsGroup({ title, rows }: { title: string; rows: PositionRow[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section className="mb-8">
+      <h2 className="text-[19px] font-semibold text-[var(--ink-900)] mb-3">{title}</h2>
+
+      {/* Phone: stacked cards */}
+      <StackedCardList>
+        {rows.map((p) => (
+          <StackedCard
+            key={p.id}
+            dimmed={!p.active}
+            title={p.name}
+            trailing={<Badge tone={p.category === "FOH" ? "primary" : "neutral"}>{p.category}</Badge>}
+            footer={
+              /* Two equal columns so Edit + Deactivate line up identically
+                 on every card, whatever the label width. */
+              <div className="grid grid-cols-2 gap-2 w-full">
+                <LinkButton href={`/positions/${p.id}/edit`} variant="secondary" size="sm" className="w-full">
+                  Edit
+                </LinkButton>
+                <ToggleActiveButton positionId={p.id} active={p.active} positionName={p.name} fullWidth />
+              </div>
+            }
+          >
+            <StackedField label="Tip pools" value={poolSummary(p.tipPoolGroups)} />
+            <StackedField label="Rate (Lunch / Dinner)" value={rateSummary(p)} numeric={p.category === "FOH"} />
+          </StackedCard>
+        ))}
+      </StackedCardList>
+
+      {/* Desktop: table */}
+      <TableCard>
+        <Table minWidth={620}>
+          <THead>
+            <TR>
+              <TH>Name</TH>
+              <TH>Category</TH>
+              <TH>Tip pools</TH>
+              <TH numeric>Rate (L / D)</TH>
+              <TH>
+                <span className="sr-only">Actions</span>
+              </TH>
+            </TR>
+          </THead>
+          <TBody>
+            {rows.map((p) => (
+              <TR key={p.id} dimmed={!p.active}>
+                <TD emphasis>{p.name}</TD>
+                <TD>{p.category}</TD>
+                <TD muted={p.tipPoolGroups.length === 0}>{poolSummary(p.tipPoolGroups)}</TD>
+                <TD numeric muted={p.category !== "FOH"}>
+                  {rateSummary(p)}
+                </TD>
+                <TD className="text-right whitespace-nowrap">
+                  <span className="inline-flex items-center gap-2 justify-end">
                     <LinkButton href={`/positions/${p.id}/edit`} variant="secondary" size="sm">
                       Edit
                     </LinkButton>
                     <ToggleActiveButton positionId={p.id} active={p.active} positionName={p.name} />
-                  </>
-                }
-              >
-                <StackedField label="Tip pools" value={poolSummary(p.tipPoolGroups)} />
-                <StackedField label="Rate (Lunch / Dinner)" value={rateSummary(p)} numeric={p.category === "FOH"} />
-              </StackedCard>
+                  </span>
+                </TD>
+              </TR>
             ))}
-          </StackedCardList>
-
-          {/* Desktop: table */}
-          <TableCard>
-            <Table minWidth={620}>
-              <THead>
-                <TR>
-                  <TH>Name</TH>
-                  <TH>Category</TH>
-                  <TH>Tip pools</TH>
-                  <TH numeric>Rate (L / D)</TH>
-                  <TH>
-                    <span className="sr-only">Actions</span>
-                  </TH>
-                </TR>
-              </THead>
-              <TBody>
-                {positionList.map((p) => (
-                  <TR key={p.id} dimmed={!p.active}>
-                    <TD emphasis>
-                      {p.name}
-                      {!p.active && (
-                        <span className="ml-2 align-middle">
-                          <Badge tone="neutral">Retired</Badge>
-                        </span>
-                      )}
-                    </TD>
-                    <TD>{p.category}</TD>
-                    <TD muted={p.tipPoolGroups.length === 0}>{poolSummary(p.tipPoolGroups)}</TD>
-                    <TD numeric muted={p.category !== "FOH"}>
-                      {rateSummary(p)}
-                    </TD>
-                    <TD className="text-right whitespace-nowrap">
-                      <span className="inline-flex items-center gap-2 justify-end">
-                        <LinkButton href={`/positions/${p.id}/edit`} variant="secondary" size="sm">
-                          Edit
-                        </LinkButton>
-                        <ToggleActiveButton positionId={p.id} active={p.active} positionName={p.name} />
-                      </span>
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </TableCard>
-        </>
-      )}
-    </main>
+          </TBody>
+        </Table>
+      </TableCard>
+    </section>
   );
 }
