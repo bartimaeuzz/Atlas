@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { createEmployee, updateEmployee, type EmployeeActionState } from "@/lib/actions/employees";
+import { verifyUsAddress, type AddressVerifyResult } from "@/lib/actions/addressVerify";
 import type { EmployeeListRow, AssignablePosition } from "@/lib/employees/loadEmployeesList";
 import { TextInput, Select, Checkbox } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -53,6 +54,25 @@ export function EmployeeForm({
   // Phone formats itself as (555) 555-5555 while typing, same
   // error-prevention reasoning as the SSN mask (2026-08-24, Oliver).
   const [phone, setPhone] = useState(existing?.contactInfo?.mobilePhone ?? "");
+  // Address fields are controlled so a Smarty suggestion can fill them
+  // (2026-08-24). Verify answers; it never blocks Save.
+  const [addr1, setAddr1] = useState(existing?.hrSensitive?.addressLine1 ?? "");
+  const [addr2, setAddr2] = useState(existing?.hrSensitive?.addressLine2 ?? "");
+  const [city, setCity] = useState(existing?.hrSensitive?.city ?? "");
+  const [stateCode, setStateCode] = useState(existing?.hrSensitive?.state ?? "");
+  const [zip, setZip] = useState(existing?.hrSensitive?.zipCode ?? "");
+  const [verifying, setVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<AddressVerifyResult | null>(null);
+
+  function runVerify() {
+    setVerifyResult(null);
+    setVerifying(true);
+    startTransition(async () => {
+      const result = await verifyUsAddress({ addressLine1: addr1, addressLine2: addr2, city, state: stateCode, zipCode: zip });
+      setVerifyResult(result);
+      setVerifying(false);
+    });
+  }
   const formatPhone = (raw: string) => {
     const d = raw.replace(/\D/g, "").slice(0, 10);
     if (d.length <= 3) return d.length ? `(${d}` : "";
@@ -233,7 +253,8 @@ export function EmployeeForm({
               type="text"
               name="addressLine1"
               label="Address line 1"
-              defaultValue={existing?.hrSensitive?.addressLine1 ?? ""}
+              value={addr1}
+              onChange={(e) => setAddr1(e.target.value)}
             />
           </div>
           <div className="mb-4">
@@ -241,7 +262,8 @@ export function EmployeeForm({
               type="text"
               name="addressLine2"
               label="Address line 2 (optional)"
-              defaultValue={existing?.hrSensitive?.addressLine2 ?? ""}
+              value={addr2}
+              onChange={(e) => setAddr2(e.target.value)}
               placeholder="Apt, suite, unit, etc."
             />
           </div>
@@ -250,9 +272,10 @@ export function EmployeeForm({
               type="text"
               name="city"
               label="City"
-              defaultValue={existing?.hrSensitive?.city ?? ""}
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
             />
-            <Select name="state" label="State" defaultValue={existing?.hrSensitive?.state ?? ""}>
+            <Select name="state" label="State" value={stateCode} onChange={(e) => setStateCode(e.target.value)}>
               <option value="">— pick —</option>
               {US_STATES.map((st) => (
                 <option key={st} value={st}>
@@ -264,9 +287,64 @@ export function EmployeeForm({
               type="text"
               name="zipCode"
               label="ZIP code"
-              defaultValue={existing?.hrSensitive?.zipCode ?? ""}
+              value={zip}
+              onChange={(e) => setZip(e.target.value)}
             />
           </div>
+          {/* Verify against USPS data via Smarty (2026-08-24). Answers,
+              never blocks: Save works with or without verifying. */}
+          <div className="mb-4">
+            <Button type="button" variant="secondary" size="sm" onClick={runVerify} loading={verifying} disabled={verifying}>
+              {verifying ? "Checking…" : "Verify address"}
+            </Button>
+            {verifyResult?.error && (
+              <p className="text-xs text-[var(--danger-700)] mt-2">{verifyResult.error}</p>
+            )}
+            {verifyResult?.status === "verified" && (
+              <p className="text-xs text-[var(--success-700)] mt-2">✓ USPS-verified as typed.</p>
+            )}
+            {verifyResult?.status === "not_found" && (
+              <p className="text-xs text-[var(--warning-700)] mt-2">
+                USPS doesn&apos;t recognize this address. Double-check it — you can still save as typed.
+              </p>
+            )}
+            {verifyResult?.status === "corrected" && verifyResult.standardized && (
+              <div className="mt-2 border border-[var(--primary-border)] bg-[var(--primary-tint)] rounded-[var(--radius-md)] p-3 text-sm">
+                <p className="text-[var(--ink-700)] mb-1.5">USPS standardizes this address as:</p>
+                <p className="font-medium text-[var(--ink-900)] mb-2">
+                  {verifyResult.standardized.addressLine1}
+                  {verifyResult.standardized.addressLine2 ? `, ${verifyResult.standardized.addressLine2}` : ""},{" "}
+                  {verifyResult.standardized.city}, {verifyResult.standardized.state} {verifyResult.standardized.zipCode}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => setVerifyResult(null)}
+                  >
+                    Keep as typed
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      const st = verifyResult.standardized!;
+                      setAddr1(st.addressLine1);
+                      setAddr2(st.addressLine2);
+                      setCity(st.city);
+                      setStateCode(st.state);
+                      setZip(st.zipCode);
+                      setVerifyResult({ error: null, status: "verified" });
+                    }}
+                  >
+                    Use this address
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="max-w-xs">
             {/* Hand-rolled field (not TextInput) so the eye can anchor to
                 the INPUT itself -- TextInput bundles label+input+hint in
