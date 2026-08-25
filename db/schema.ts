@@ -465,6 +465,10 @@ export const shifts = sqliteTable(
     period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
     status: text("status", { enum: ["draft", "finalized"] }).notNull().default("draft"),
     finalizedAt: text("finalized_at"),
+    // Manager's free-text incident report for the shift (2026-08-25,
+    // Oliver) -- saved with the closing report, shown on Preview/record.
+    // Prose only; never read by any money calculation.
+    incidentReport: text("incident_report"),
   },
   (t) => ({
     uniqDatePeriod: uniqueIndex("uniq_date_period").on(t.date, t.period),

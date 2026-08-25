@@ -178,25 +178,7 @@ export function ClosingReportForm({
         {data.pointValueRows.length === 0 ? (
           <p className="text-sm text-[var(--ink-500)]">No tip-pool-eligible staff on the roster yet.</p>
         ) : (
-          <table className="text-sm border-collapse">
-            <tbody>
-              {data.pointValueRows.map((r) => (
-                <tr key={r.rosterEntryId}>
-                  <td className="pr-4 py-1">{r.employeeName}</td>
-                  <td className="pr-4 py-1 text-[var(--ink-500)]">{r.positionName}</td>
-                  <td className="pr-4 py-1">
-                    <input
-                      type="number"
-                      step={0.1}
-                      name={`point_${r.rosterEntryId}`}
-                      defaultValue={r.pointValue}
-                      className={INPUT + " max-w-28"}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TipPointsSection rows={data.pointValueRows} />
         )}
         </fieldset>
       </details>
@@ -305,63 +287,73 @@ export function ClosingReportForm({
         {data.wageAdjustmentRows.length === 0 ? (
           <p className="text-sm text-[var(--ink-500)]">Nobody on the roster yet.</p>
         ) : (
-          <div>
-            <div className="hidden lg:grid lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:gap-3 text-sm text-[var(--ink-500)] pb-1">
+          // Card-table shell with Floor Manager / FOH / BOH section rows
+          // (2026-08-25, Oliver: "use consistency header card") -- same
+          // grouping and visual language as the roster page's table.
+          <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
+            <div className="hidden lg:grid lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:gap-3 text-[11px] font-medium text-[var(--ink-500)] px-3 py-2 border-b border-[var(--border)] bg-[var(--card)]">
               <span>Employee</span>
               <span>Auto wage</span>
               <span>Override</span>
               <span>Extra pay</span>
               <span>Reason</span>
             </div>
-            <div className="space-y-3 lg:space-y-2">
-              {data.wageAdjustmentRows.map((r) => (
-                <div
-                  key={r.employeeId}
-                  className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--paper)] p-3 text-sm lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:items-center lg:border-0 lg:p-0"
-                >
-                  <div className="col-span-2 lg:col-span-1">
-                    {r.employeeName}
-                    <span className="block text-xs text-[var(--ink-500)]">{r.wageBearingPositionName}</span>
-                  </div>
-                  <div className="text-[var(--ink-500)] self-center">
-                    <span className="lg:hidden text-xs block">Auto wage</span>
-                    {r.autoResolvedWage != null ? `$${r.autoResolvedWage.toFixed(2)}` : "—"}
-                  </div>
-                  <label className="block">
-                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Override</span>
-                    <input
-                      type="number"
-                      step={0.01}
-                      name={`wageOverride_${r.employeeId}`}
-                      defaultValue={r.wageOverrideAmount ?? ""}
-                      placeholder="auto"
-                      className={INPUT}
-                    />
-                  </label>
-                  <label className="block col-span-2 lg:col-span-1">
-                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Extra pay</span>
-                    <input
-                      type="number"
-                      step={0.01}
-                      name={`extraPay_${r.employeeId}`}
-                      defaultValue={r.extraPayAmount || ""}
-                      placeholder="0"
-                      className={INPUT}
-                    />
-                  </label>
-                  <label className="block col-span-2 lg:col-span-1">
-                    <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Reason</span>
-                    <input
-                      type="text"
-                      name={`wageReason_${r.employeeId}`}
-                      defaultValue={r.reason ?? ""}
-                      placeholder="optional note"
-                      className={INPUT}
-                    />
-                  </label>
+            {groupWageRows(data.wageAdjustmentRows).map((group) => (
+              <div key={group.header}>
+                <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)] border-b border-[var(--border)]">
+                  {group.header}
                 </div>
-              ))}
-            </div>
+                <div className="divide-y divide-[var(--border)] border-b border-[var(--border)] last:border-b-0">
+                  {group.rows.map((r) => (
+                    <div
+                      key={r.employeeId}
+                      className="grid grid-cols-2 gap-3 bg-[var(--card)] p-3 text-sm lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:items-center lg:px-3 lg:py-2"
+                    >
+                      <div className="col-span-2 lg:col-span-1">
+                        {r.employeeName}
+                        <span className="block text-xs text-[var(--ink-500)]">{r.wageBearingPositionName}</span>
+                      </div>
+                      <div className="text-[var(--ink-500)] self-center">
+                        <span className="lg:hidden text-xs block">Auto wage</span>
+                        {r.autoResolvedWage != null ? `$${r.autoResolvedWage.toFixed(2)}` : "—"}
+                      </div>
+                      <label className="block">
+                        <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Override</span>
+                        <input
+                          type="number"
+                          step={0.01}
+                          name={`wageOverride_${r.employeeId}`}
+                          defaultValue={r.wageOverrideAmount ?? ""}
+                          placeholder="auto"
+                          className={INPUT}
+                        />
+                      </label>
+                      <label className="block col-span-2 lg:col-span-1">
+                        <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Extra pay</span>
+                        <input
+                          type="number"
+                          step={0.01}
+                          name={`extraPay_${r.employeeId}`}
+                          defaultValue={r.extraPayAmount || ""}
+                          placeholder="0"
+                          className={INPUT}
+                        />
+                      </label>
+                      <label className="block col-span-2 lg:col-span-1">
+                        <span className="lg:hidden text-xs text-[var(--ink-500)] block mb-1">Reason</span>
+                        <input
+                          type="text"
+                          name={`wageReason_${r.employeeId}`}
+                          defaultValue={r.reason ?? ""}
+                          placeholder="optional note"
+                          className={INPUT}
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
         </fieldset>
@@ -447,6 +439,24 @@ export function ClosingReportForm({
       </fieldset>
       </Card>
 
+      <Card>
+      <fieldset disabled={isFinalized}>
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Incident report</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
+          Anything worth remembering about this shift — an incident, a customer complaint, broken
+          equipment, why someone was out. Saves with the report, shows on the Preview, and stays on
+          the record. Leave blank if the day was uneventful.
+        </p>
+        <textarea
+          name="incidentReport"
+          defaultValue={data.shift?.incidentReport ?? ""}
+          rows={4}
+          placeholder="e.g. Bomb twisted an ankle mid-service — Carlos came in to cover Dinner."
+          className={INPUT + " max-w-xl min-h-24"}
+        />
+      </fieldset>
+      </Card>
+
       {!isFinalized && (
         <div className="flex flex-col sm:flex-row gap-3">
           {/* Secondary saves the draft, primary moves the flow forward --
@@ -474,6 +484,90 @@ export function ClosingReportForm({
         </div>
       )}
     </form>
+  );
+}
+
+/** Floor Manager leads, then FOH, then BOH -- same grouping rule as the
+ * roster page's card table (grouped by name because "Floor Manager" is a
+ * position, not a category of its own). */
+function groupWageRows(rows: ClosingReportData["wageAdjustmentRows"]) {
+  const fm = rows.filter((r) => r.wageBearingPositionName === "Floor Manager");
+  const rest = rows.filter((r) => r.wageBearingPositionName !== "Floor Manager");
+  return [
+    { header: "Floor Manager", rows: fm },
+    { header: "FOH — Front of house", rows: rest.filter((r) => r.wageBearingPositionCategory === "FOH") },
+    { header: "BOH — Back of house", rows: rest.filter((r) => r.wageBearingPositionCategory === "BOH") },
+  ].filter((g) => g.rows.length > 0);
+}
+
+const POOL_LABELS: Record<string, string> = {
+  POOL_1_DINE_IN: "Pool 1 · Dine-in",
+  POOL_2_TAKEOUT_ONLINE: "Pool 2 · Takeout & online",
+  POOL_3_DELIVERY: "Pool 3 · Delivery",
+};
+
+/** Tip points as a card table with each row's pools shown and a live
+ * per-pool point total underneath (2026-08-25, Oliver: "tip point
+ * override shows relative pots") -- a point value only means anything
+ * relative to the rest of its pool, so bumping someone shows the pool
+ * total move immediately. Inputs are controlled ONLY to feed that little
+ * sum; the posted field names are unchanged and the server still treats
+ * whatever is submitted as the override, exactly as before. */
+function TipPointsSection({ rows }: { rows: ClosingReportData["pointValueRows"] }) {
+  const [points, setPoints] = useState<Record<number, number>>(() =>
+    Object.fromEntries(rows.map((r) => [r.rosterEntryId, r.pointValue]))
+  );
+
+  const pools = Array.from(new Set(rows.flatMap((r) => r.tipPoolGroups)));
+  const poolTotals = pools.map((pool) => ({
+    pool,
+    total: rows.filter((r) => r.tipPoolGroups.includes(pool)).reduce((sum, r) => sum + (points[r.rosterEntryId] || 0), 0),
+    people: rows.filter((r) => r.tipPoolGroups.includes(pool)).length,
+  }));
+
+  return (
+    <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(88px,0.7fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
+        <span>Employee</span>
+        <span>Pools</span>
+        <span>Points</span>
+      </div>
+      <div className="divide-y divide-[var(--border)]">
+        {rows.map((r) => (
+          <div key={r.rosterEntryId} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(88px,0.7fr)] gap-2 px-3 py-2 items-center bg-[var(--card)]">
+            <div className="text-sm text-[var(--ink-900)]">
+              {r.employeeName}
+              <span className="block text-xs text-[var(--ink-500)]">{r.positionName}</span>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {r.tipPoolGroups.map((g) => (
+                <span key={g} className="text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-[var(--primary-tint)] text-[var(--primary-700)] border border-[var(--primary-border)]">
+                  {(POOL_LABELS[g] ?? g).split(" · ")[0]}
+                </span>
+              ))}
+            </div>
+            <input
+              type="number"
+              step={0.1}
+              name={`point_${r.rosterEntryId}`}
+              value={points[r.rosterEntryId] ?? 0}
+              onChange={(e) => setPoints((p) => ({ ...p, [r.rosterEntryId]: Number(e.target.value) || 0 }))}
+              className={INPUT}
+            />
+          </div>
+        ))}
+      </div>
+      {poolTotals.length > 0 && (
+        <div className="px-3 py-2 border-t border-[var(--border)] bg-[var(--paper)] flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--ink-700)]">
+          {poolTotals.map((t) => (
+            <span key={t.pool}>
+              {POOL_LABELS[t.pool] ?? t.pool}: <span className="font-medium tabular-nums">{t.total.toFixed(1)} pts</span>
+              <span className="text-[var(--ink-500)]"> / {t.people} {t.people === 1 ? "person" : "people"}</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

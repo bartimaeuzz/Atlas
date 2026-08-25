@@ -13,6 +13,8 @@ import { StatusBadge } from "@/components/ui/Badge";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
 import { Banner } from "@/components/ui/Banner";
+import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
+import { loadShiftAttendanceSummary } from "@/lib/shift/loadRosterPageData";
 
 export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,6 +23,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
   if (!shift) notFound();
   if (shift.status === "finalized") redirect(`/shifts/${shiftId}/summary`);
+  const attendance = await loadShiftAttendanceSummary(shiftId);
 
   let preview: Awaited<ReturnType<typeof computeFinalizationPreview>> | null = null;
   let error: string | null = null;
@@ -57,6 +60,24 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
         Nothing is saved yet. These numbers are computed live from the current roster and closing report — go back and change
         anything, then come back here to see it update before you finalize.
       </p>
+
+      {/* Day's record rides along in the review (2026-08-25, Oliver:
+          "preview page show incident report as well (include no show
+          staff, sub-staff and extra staff)"). Both render nothing when
+          the day was uneventful. */}
+      {(attendance.marks.length > 0 || attendance.coverage.length > 0 || shift.incidentReport) && (
+        <div className="space-y-4 mb-8">
+          <AttendanceCoverageCard attendance={attendance} />
+          {shift.incidentReport && (
+            <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+              <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--paper)]">
+                Incident report
+              </div>
+              <p className="px-3 py-2.5 text-sm text-[var(--ink-900)] whitespace-pre-line">{shift.incidentReport}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mb-6">

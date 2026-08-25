@@ -80,6 +80,10 @@ export interface WageAdjustmentRow {
   /** Which role's rate the system would use automatically, for context —
    * NOT necessarily what actually gets paid if an override is entered. */
   wageBearingPositionName: string;
+  /** Category of the wage-bearing role -- lets the form group rows under
+   * the same Floor Manager / FOH / BOH section rows the roster uses
+   * (2026-08-25, Oliver: "use consistency header card"). */
+  wageBearingPositionCategory: "FOH" | "BOH";
   /** The auto-resolved wage for reference, or null if no rate is set for
    * that position/period (shown so the manager knows what they're
    * overriding, or why an override might be needed). */
@@ -96,7 +100,7 @@ export interface WageAdjustmentRow {
 }
 
 export interface ClosingReportData {
-  shift: { id: number; date: string; period: string; status: string } | null;
+  shift: { id: number; date: string; period: string; status: string; incidentReport: string | null } | null;
   /** Restaurant's default sales tax rate (2026-08-10), passed down so the
    * client-side form can LIVE-recompute the suggested Sales tax figure as
    * the manager types Total sales, instead of only computing it once at
@@ -329,6 +333,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       employeeId,
       employeeName: wageBearingRow.employeeName,
       wageBearingPositionName: wageBearingRow.positionName,
+      wageBearingPositionCategory: wageBearingRow.positionCategory,
       autoResolvedWage: wageBearingRow.flatWage,
       wageOverrideAmount: adjustment?.wageOverrideAmount ?? null,
       extraPayAmount: adjustment?.extraPayAmount ?? 0,
@@ -340,7 +345,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
   wageAdjustmentRows.sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
   return {
-    shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
+    shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, incidentReport: shift.incidentReport },
     defaultSalesTaxRate: taxRate,
     sales: sales
       ? {

@@ -1,0 +1,1 @@
+ALTER TABLE `shifts` ADD `incident_report` text;

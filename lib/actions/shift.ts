@@ -427,6 +427,14 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData) {
   await upsertMetricValues(shiftId, formData);
   await upsertWageAdjustments(shiftId, formData);
 
+  // Incident report (2026-08-25, Oliver) -- free text on the shift
+  // itself, saved with every closing-report save so it can't be lost by
+  // choosing the "wrong" of the two save buttons.
+  await db
+    .update(shifts)
+    .set({ incidentReport: String(formData.get("incidentReport") ?? "").trim() || null })
+    .where(eq(shifts.id, shiftId));
+
   const num = (key: string) => Number(formData.get(key) ?? 0) || 0;
 
   const salesValues = {
