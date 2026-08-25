@@ -158,6 +158,7 @@ function AcceptableRow({ request }: { request: SwapRequestView }) {
 
 function MyRequestRow({ request }: { request: SwapRequestView }) {
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
   const label =
     request.status === "pending_manager_approval"
       ? `Accepted by ${request.acceptingEmployeeName} — awaiting manager approval`
@@ -177,23 +178,30 @@ function MyRequestRow({ request }: { request: SwapRequestView }) {
         </div>
         <div className="text-[var(--ink-500)] text-xs mt-0.5">{label}</div>
         {request.note && <div className="text-[var(--ink-400)] text-xs mt-0.5">&quot;{request.note}&quot;</div>}
+        {error && <div className="text-[var(--danger-700)] text-xs mt-0.5">{error}</div>}
       </div>
+      {/* A real Button, not a grey text link (Oliver, 2026-08-25: the old
+          text-link Cancel was unusable on his phone). Mirrors AcceptableRow's
+          Accept: full 36px+ target, visible affordance, and the { error }
+          result is now surfaced instead of discarded — a failed cancel used
+          to look identical to a dead button. */}
       {request.status === "open" && (
-        <button
+        <Button
           type="button"
-          disabled={isPending}
+          size="sm"
+          variant="secondary"
+          loading={isPending}
+          className="shrink-0"
           onClick={() =>
             startTransition(async () => {
-              // Discard the { error } result: cancelling your own open
-              // request has no expected failure a user can act on, and
-              // this row has no error surface.
-              await cancelSwapRequest(request.id);
+              setError(null);
+              const result = await cancelSwapRequest(request.id);
+              if (result.error) setError(result.error);
             })
           }
-          className={`text-xs text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50 shrink-0 ${TAP_TARGET_PAD}`}
         >
           Cancel
-        </button>
+        </Button>
       )}
     </li>
   );
