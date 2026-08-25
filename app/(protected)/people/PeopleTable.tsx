@@ -109,47 +109,31 @@ export function PeopleTable({
 
       <div className="lg:hidden space-y-3">
         {sorted.map((e) => {
-          // Phone card is VIEW-ONLY, tap to expand (Oliver, 2026-08-24:
-          // "click card show detail but block edit"). Staff records get
-          // edited on a desktop; the phone answers "who is this and what
-          // do they work" without offering writes -- so no Edit link, no
-          // retire toggle, no login-ID generate/reset down here, just the
-          // facts. Chevron right-when-closed / down-when-open, same as
-          // the Closing Report's collapsible cards.
+          // Card opens the person's PROFILE page (2026-08-24, Oliver's
+          // second pass: "i think we need a staff profile page" -- view
+          // first, Edit behind a button there). Replaced the same-day
+          // tap-to-expand accordion; the detail now has a real page.
           return (
-            <details
+            <Link
               key={e.id}
-              className={"group bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)]" + (e.active ? "" : " opacity-50")}
+              href={`/people/${e.id}`}
+              className={
+                "flex items-center justify-between gap-2 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4 min-h-11" +
+                (e.active ? "" : " opacity-50")
+              }
             >
-              <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between gap-2 p-4 min-h-11">
-                <div>
-                  <div className="font-semibold text-[var(--ink-900)]">
-                    {e.nickname}
-                    {!e.active && <span className="ml-2 text-xs text-[var(--ink-500)] font-normal">(retired)</span>}
-                  </div>
-                  <div className="text-xs text-[var(--ink-500)] mt-0.5">
-                    {e.systemRole}
-                    {e.primaryPositionName ? ` · ${e.primaryPositionName}` : ""}
-                  </div>
+              <div>
+                <div className="font-semibold text-[var(--ink-900)]">
+                  {e.nickname}
+                  {!e.active && <span className="ml-2 text-xs text-[var(--ink-500)] font-normal">(retired)</span>}
                 </div>
-                <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90 transition-transform group-open:rotate-0" />
-              </summary>
-              <div className="px-4 pb-4 border-t border-[var(--border)] pt-3 space-y-1.5 text-sm text-[var(--ink-700)]">
-                <div>
-                  <span className="text-[var(--ink-500)]">Primary: </span>
-                  {e.primaryPositionName ?? "—"}
+                <div className="text-xs text-[var(--ink-500)] mt-0.5">
+                  {e.systemRole}
+                  {e.primaryPositionName ? ` · ${e.primaryPositionName}` : ""}
                 </div>
-                <div>
-                  <span className="text-[var(--ink-500)]">Positions: </span>
-                  {e.positions.length === 0 ? "—" : e.positions.map((p) => p.positionName).join(", ")}
-                </div>
-                <div>
-                  <span className="text-[var(--ink-500)]">Login ID: </span>
-                  {e.loginId ?? "—"}
-                </div>
-                <p className="text-xs text-[var(--ink-400)] pt-1">Editing staff records is done on a desktop.</p>
               </div>
-            </details>
+              <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90" />
+            </Link>
           );
         })}
       </div>
@@ -182,7 +166,9 @@ export function PeopleTable({
             return (
               <tr key={e.id} className={"border-b border-[var(--border)]" + (e.active ? "" : " opacity-50")}>
                 <td className="py-2 px-3 text-[var(--ink-900)]">
-                  {e.nickname}
+                  <Link href={`/people/${e.id}`} className="font-medium hover:underline">
+                    {e.nickname}
+                  </Link>
                   {!e.active && <span className="ml-2 text-xs text-[var(--ink-500)]">(retired)</span>}
                 </td>
                 <td className="py-2 px-3 text-[var(--ink-700)]">{e.primaryPositionName ?? "—"}</td>
