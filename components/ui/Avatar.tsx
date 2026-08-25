@@ -7,7 +7,10 @@ function initialsFor(name: string): string {
 export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
   return (
     <div
-      className="rounded-[var(--radius-full)] bg-[var(--primary)] text-white font-medium flex items-center justify-center shrink-0"
+      // Brand indigo, not functional primary (2026-08-24, Oliver) -- the
+      // initials circle is identity chrome like the logo square above it,
+      // not an action, so it wears the same colour the logo does.
+      className="rounded-[var(--radius-full)] bg-[var(--brand)] text-white font-medium flex items-center justify-center shrink-0"
       style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
       {initialsFor(name)}
