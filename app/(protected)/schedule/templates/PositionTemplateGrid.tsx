@@ -515,7 +515,11 @@ function VacancyPopoverForm({
         <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className="border rounded px-2 py-1 w-full" />
       </label>
       <p className="text-[11px] text-[var(--ink-400)] mb-2">{scopeHint[reason]}</p>
+      {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
       <div className="flex items-center gap-3">
+        <button type="button" onClick={onCancel} className="text-xs text-[var(--ink-500)] underline">
+          Cancel
+        </button>
         <button
           type="button"
           disabled={isPending || !templateId}
@@ -528,9 +532,6 @@ function VacancyPopoverForm({
           className="bg-[var(--danger)] text-white px-3 py-1 min-h-9 rounded-[var(--radius-md)] text-xs hover:bg-[var(--danger-700)] disabled:opacity-50"
         >
           {isPending ? "Saving…" : "Set"}
-        </button>
-        <button type="button" onClick={onCancel} className="text-xs text-[var(--ink-500)] underline">
-          Cancel
         </button>
       </div>
     </div>

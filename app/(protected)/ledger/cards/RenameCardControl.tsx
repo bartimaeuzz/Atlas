@@ -49,11 +49,12 @@ export function RenameCardControl({ cardId, currentName }: { cardId: number; cur
         aria-label="Card name"
         className="border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 text-sm flex-1 min-w-32 max-w-64 bg-[var(--card)]"
       />
-      <Button type="submit" size="sm" loading={isPending}>
-        Save
-      </Button>
+      {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
       <Button type="button" size="sm" variant="secondary" onClick={() => setEditing(false)} disabled={isPending}>
         Cancel
+      </Button>
+      <Button type="submit" size="sm" loading={isPending}>
+        Save
       </Button>
       {state.error && <span className="text-xs text-[var(--danger-700)] w-full">{state.error}</span>}
     </form>

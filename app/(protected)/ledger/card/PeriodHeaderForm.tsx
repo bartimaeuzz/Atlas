@@ -73,6 +73,10 @@ export function PeriodHeaderForm({
         inputMode="decimal"
       />
       <div className="flex items-center gap-2">
+        {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
+        <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
+          Cancel
+        </Button>
         <Button
           type="button"
           size="sm"
@@ -89,9 +93,6 @@ export function PeriodHeaderForm({
           }}
         >
           {isPending ? "Saving…" : "Save"}
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={() => setEditing(false)}>
-          Cancel
         </Button>
       </div>
     </Card>

@@ -9,10 +9,12 @@ import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
  * all (the profile omits the whole HR section otherwise); this masking
  * is about shoulder surfing on a shared terminal, so it applies to
  * everyone — Admins included — and reveals only on an explicit tap. */
-export function MaskedValue({ value }: { value: string }) {
+export function MaskedValue({ value, kind = "ssn" }: { value: string; kind?: "ssn" | "text" }) {
   const [revealed, setRevealed] = useState(false);
   const last4 = value.replace(/\D/g, "").slice(-4);
-  const masked = last4 ? `•••-••-${last4}` : "••••";
+  // "text" masks everything (an address has no safe-to-show tail the way
+  // an SSN's last four is a convention).
+  const masked = kind === "ssn" && last4 ? `•••-••-${last4}` : "••••••••";
 
   return (
     <span className="inline-flex items-center gap-1.5">

@@ -244,11 +244,13 @@ export function EmployeeForm({
             />
           </div>
           <div className="max-w-xs relative">
+            {/* Eye INSIDE the field box, right edge (Oliver, 2026-08-24) --
+                bottom-anchored so it rides the input row, not the label. */}
             <button
               type="button"
               onClick={() => setSsnRevealed((r) => !r)}
               aria-label={ssnRevealed ? "Hide SSN" : "Reveal SSN"}
-              className="absolute right-0 top-0 min-w-11 min-h-11 flex items-center justify-center text-[var(--ink-500)] hover:text-[var(--ink-900)] z-[1]"
+              className="absolute right-0 bottom-0 h-11 min-w-11 flex items-center justify-center text-[var(--ink-500)] hover:text-[var(--ink-900)] z-[1]"
             >
               {ssnRevealed ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
             </button>
@@ -260,6 +262,7 @@ export function EmployeeForm({
               onChange={(e) => setSsn(formatSsn(e.target.value))}
               inputMode="numeric"
               maxLength={11}
+              className="pr-11"
               placeholder="XXX-XX-XXXX"
               hint="SSN is generally required for a W-2 employee; ITIN generally applies to people who aren't authorized as a W-2 employee. Check with your accountant or payroll provider before relying on this field for actual tax filing — Atlas doesn't validate or distinguish the two."
             />
@@ -347,15 +350,17 @@ export function EmployeeForm({
       </details>
       </Card>
 
+      {/* Cancel LEFT of the primary (2026-08-24 consistency decision):
+          dismissive-left/primary-right is what every ConfirmDialog, the
+          preview's Back|Finalize pair, and Apple HIG / Material both do --
+          five in-page forms had it backwards and were flipped together. */}
       <div className="flex items-center gap-3">
-        <Button type="submit" loading={isPending}>
-          {isPending ? "Saving…" : existing ? "Save changes" : "Create employee"}
-        </Button>
-        {/* Cancel = change of mind (2026-08-24, Oliver): back to the
-            profile (or the list when creating), nothing saved. */}
         <LinkButton href={existing ? `/people/${existing.id}` : "/people"} variant="secondary">
           Cancel
         </LinkButton>
+        <Button type="submit" loading={isPending}>
+          {isPending ? "Saving…" : existing ? "Save changes" : "Create employee"}
+        </Button>
       </div>
     </form>
   );

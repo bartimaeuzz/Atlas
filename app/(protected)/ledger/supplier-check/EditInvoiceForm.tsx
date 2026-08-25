@@ -116,12 +116,13 @@ export function EditInvoiceForm({
         />
       )}
       {error && <Banner tone="danger" title={error} />}
+      {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
       <div className="flex items-center gap-2 pt-1">
-        <Button type="button" size="sm" loading={isPending} onClick={handleSave}>
-          {isPending ? "Saving…" : "Save"}
-        </Button>
         <Button type="button" variant="ghost" size="sm" onClick={onDone}>
           Cancel
+        </Button>
+        <Button type="button" size="sm" loading={isPending} onClick={handleSave}>
+          {isPending ? "Saving…" : "Save"}
         </Button>
       </div>
     </div>

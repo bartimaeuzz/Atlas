@@ -111,14 +111,17 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
         <Section title="HR and payroll records">
           <Card className="max-w-md">
             <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
-              <ProfileRow
-                label="Address"
-                value={
-                  [employee.hrSensitive.addressLine1, employee.hrSensitive.addressLine2, employee.hrSensitive.city, employee.hrSensitive.state, employee.hrSensitive.zipCode]
-                    .filter(Boolean)
-                    .join(", ") || "—"
-                }
-              />
+              <div className="contents">
+                <dt className="text-[var(--ink-500)]">Address</dt>
+                <dd className="text-right text-[var(--ink-900)] break-words">
+                  {(() => {
+                    const addr = [employee.hrSensitive.addressLine1, employee.hrSensitive.addressLine2, employee.hrSensitive.city, employee.hrSensitive.state, employee.hrSensitive.zipCode]
+                      .filter(Boolean)
+                      .join(", ");
+                    return addr ? <MaskedValue value={addr} kind="text" /> : "—";
+                  })()}
+                </dd>
+              </div>
               <div className="contents">
                 <dt className="text-[var(--ink-500)]">SSN / ITIN</dt>
                 <dd className="text-right text-[var(--ink-900)]">
