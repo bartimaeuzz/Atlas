@@ -12,6 +12,17 @@ import { ChevronDownIcon, EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 
 const initialState: EmployeeActionState = { error: null };
 
+/** USPS two-letter codes, the set the payroll paperwork actually wants.
+ * A dropdown instead of free text (2026-08-24, Oliver: "state is fix
+ * amount input limited by USA state. why do not use drop down") --
+ * error prevention over validating typos after the fact. DC included;
+ * territories left out until a real hire needs one. */
+const US_STATES = [
+  "AL","AK","AZ","AR","CA","CO","CT","DE","DC","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME",
+  "MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI",
+  "SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY",
+] as const;
+
 export function EmployeeForm({
   existing,
   allPositions,
@@ -39,6 +50,15 @@ export function EmployeeForm({
   // shoulder-surfing protection on a shared terminal, distinct from the
   // capability gate that decides whether the field renders at all.
   const [ssnRevealed, setSsnRevealed] = useState(false);
+  // Phone formats itself as (555) 555-5555 while typing, same
+  // error-prevention reasoning as the SSN mask (2026-08-24, Oliver).
+  const [phone, setPhone] = useState(existing?.contactInfo?.mobilePhone ?? "");
+  const formatPhone = (raw: string) => {
+    const d = raw.replace(/\D/g, "").slice(0, 10);
+    if (d.length <= 3) return d.length ? `(${d}` : "";
+    if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  };
   const formatSsn = (raw: string) => {
     const d = raw.replace(/\D/g, "").slice(0, 9);
     if (d.length <= 3) return d;
@@ -183,7 +203,10 @@ export function EmployeeForm({
               type="tel"
               name="mobilePhone"
               label="Mobile phone"
-              defaultValue={existing?.contactInfo?.mobilePhone ?? ""}
+              value={phone}
+              onChange={(e) => setPhone(formatPhone(e.target.value))}
+              inputMode="tel"
+              maxLength={14}
               placeholder="(555) 555-5555"
             />
           </div>
@@ -229,13 +252,14 @@ export function EmployeeForm({
               label="City"
               defaultValue={existing?.hrSensitive?.city ?? ""}
             />
-            <TextInput
-              type="text"
-              name="state"
-              label="State"
-              defaultValue={existing?.hrSensitive?.state ?? ""}
-              placeholder="NY"
-            />
+            <Select name="state" label="State" defaultValue={existing?.hrSensitive?.state ?? ""}>
+              <option value="">— pick —</option>
+              {US_STATES.map((st) => (
+                <option key={st} value={st}>
+                  {st}
+                </option>
+              ))}
+            </Select>
             <TextInput
               type="text"
               name="zipCode"
