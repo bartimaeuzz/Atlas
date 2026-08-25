@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Fragment } from "react";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/db/client";
@@ -10,11 +9,11 @@ import { ConfirmFinalizeButton } from "./ConfirmFinalizeButton";
 import { Card, Section } from "@/components/ui/Card";
 import { TableCard } from "@/components/ui/Table";
 import { StatusBadge } from "@/components/ui/Badge";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
 import { Banner } from "@/components/ui/Banner";
 import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
 import { loadShiftAttendanceSummary } from "@/lib/shift/loadRosterPageData";
+import { ShiftStageNav } from "../ShiftStageNav";
 
 export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -41,21 +40,17 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
       // landing; phone and the summary/stat sections just center wider.
       className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-8 py-8"
     >
-      <p className="text-sm mb-2">
-        <Link href={`/shifts/${shiftId}/closing-report`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
-          ← Back to Closing Report
-        </Link>
-      </p>
       <div className="flex items-center gap-2.5 mb-1.5">
         <h1 className="text-[24px] font-bold text-[var(--ink-900)]">
           {/* Long date on sm+, short on phones -- same pair as the roster
               and Reports headings (2026-08-24 standard). */}
-          <span className="hidden sm:inline">Preview — {formatDayLabelLong(shift.date)} ({shift.period})</span>
-          <span className="sm:hidden">Preview — {formatDayLabelShort(shift.date)} ({shift.period})</span>
+          <span className="hidden sm:inline">Payout — {formatDayLabelLong(shift.date)} ({shift.period})</span>
+          <span className="sm:hidden">Payout — {formatDayLabelShort(shift.date)} ({shift.period})</span>
         </h1>
         {/* Always draft here: finalized shifts redirect to /summary above. */}
         <StatusBadge status="draft" />
       </div>
+      <ShiftStageNav shiftId={shiftId} current="payout" />
       <p className="text-sm text-[var(--ink-500)] mb-8">
         Nothing is saved yet. These numbers are computed live from the current roster and closing report — go back and change
         anything, then come back here to see it update before you finalize.

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { loadSummaryData } from "@/lib/shift/loadSummaryData";
 import { loadShiftAttendanceSummary } from "@/lib/shift/loadRosterPageData";
 import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
+import { ShiftStageNav } from "../ShiftStageNav";
 import { Fragment } from "react";
 import { Card, Section } from "@/components/ui/Card";
 import { TableCard } from "@/components/ui/Table";
@@ -47,8 +48,8 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
       className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-8 py-8"
     >
       <p className="text-sm mb-2">
-        <Link href="/shifts" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
-          ← All shifts
+        <Link href={`/shifts?month=${data.shift.date.slice(0, 7)}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+          ← Back to {data.shift.date.slice(0, 7)}
         </Link>
       </p>
       <div className="flex items-center gap-2.5 mb-1.5">
@@ -58,6 +59,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         </h1>
         <StatusBadge status="finalized" />
       </div>
+      <ShiftStageNav shiftId={shiftId} current="payout" />
       <p className="text-sm text-[var(--ink-500)] mb-8">
         Finalized {data.shift.finalizedAt ? formatDateTime(data.shift.finalizedAt) : ""} — figures below are a
         locked snapshot, not recalculated live.

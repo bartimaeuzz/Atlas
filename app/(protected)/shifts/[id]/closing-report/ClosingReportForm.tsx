@@ -479,7 +479,7 @@ export function ClosingReportForm({
             loading={isGoingToPreview}
             disabled={isSaving}
           >
-            {isGoingToPreview ? "Saving…" : "Save & Preview →"}
+            {isGoingToPreview ? "Saving…" : "Save & view payout →"}
           </Button>
         </div>
       )}

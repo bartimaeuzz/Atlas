@@ -5,6 +5,7 @@ import { loadRosterPageData } from "@/lib/shift/loadRosterPageData";
 import { RosterGrid } from "./RosterGrid";
 import { NextToClosingReport } from "./NextToClosingReport";
 import { RosterFooterActions } from "./RosterFooterActions";
+import { ShiftStageNav } from "../ShiftStageNav";
 import { Banner } from "@/components/ui/Banner";
 import { StatusBadge } from "@/components/ui/Badge";
 import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
@@ -46,6 +47,7 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
         </h1>
         <StatusBadge status={data.shift.status === "finalized" ? "finalized" : "draft"} />
       </div>
+      <ShiftStageNav shiftId={shiftId} current="roster" />
 
       {isFinalized && (
         <div className="mt-4 mb-6">
