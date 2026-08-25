@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { notFound } from "next/navigation";
 import { loadRosterPageData } from "@/lib/shift/loadRosterPageData";
 import { RosterGrid } from "./RosterGrid";
@@ -28,7 +29,7 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-8 py-8">
       <p className="text-sm mb-2">
-        <Link href="/shifts" className="text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href="/shifts" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           ← All shifts
         </Link>
       </p>

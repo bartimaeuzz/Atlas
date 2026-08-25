@@ -1,5 +1,6 @@
 "use client";
 
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { useActionState, useState } from "react";
 import { generateRecoveryCode, type GenerateRecoveryCodeState } from "@/lib/actions/recovery";
 import type { RecoveryCodeStatus } from "@/lib/settings/loadRestaurantSettings";
@@ -65,7 +66,7 @@ export function RecoveryCodeSection({ status, viewerIsAdmin }: { status: Recover
         <button
           type="button"
           onClick={() => setConfirmingRegenerate(true)}
-          className="text-sm underline text-[var(--ink-500)] hover:text-[var(--ink-900)]"
+          className={`text-sm underline text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
         >
           Regenerate recovery code
         </button>

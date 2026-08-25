@@ -731,7 +731,10 @@ function QuickAddCell({
               type="button"
               onClick={handleAdd}
               disabled={isPending}
-              className="text-[10px] bg-[var(--primary)] text-white rounded-[var(--radius-sm)] px-1 leading-tight disabled:opacity-50 hover:bg-[var(--primary-600)]"
+              // min 24px box (2026-08-24 audit -- it had no size guarantee
+              // at all); kept compact rather than 44 because the row is
+              // dense and the adjacent select is the primary control.
+              className="text-[10px] bg-[var(--primary)] text-white rounded-[var(--radius-sm)] px-2 min-h-6 min-w-6 leading-tight disabled:opacity-50 hover:bg-[var(--primary-600)]"
             >
               +
             </button>

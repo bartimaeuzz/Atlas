@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
 import { loadEmployeesList, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
 import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
@@ -32,7 +33,7 @@ export default async function WeeklyPlanPage({
 
   return (
     <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/schedule" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Schedule Planner
       </Link>
 
@@ -51,20 +52,20 @@ export default async function WeeklyPlanPage({
       />
 
       <div className="flex flex-wrap items-center gap-3 mb-6 text-sm">
-        <Link href={`/schedule/plan?week=${prevWeek}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/schedule/plan?week=${prevWeek}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           &larr; Previous week
         </Link>
-        <Link href={`/schedule/plan?week=${nextWeek}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/schedule/plan?week=${nextWeek}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           Next week &rarr;
         </Link>
         <span className="text-[var(--border-strong)]">|</span>
-        <Link href={`/schedule/plan/month?month=${weekStartDate}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/schedule/plan/month?month=${weekStartDate}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           Zoom out to month view
         </Link>
-        <Link href={`/schedule/plan/person?month=${weekStartDate}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/schedule/plan/person?month=${weekStartDate}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           View by person
         </Link>
-        <Link href="/schedule/weeks" className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href="/schedule/weeks" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           All weeks
         </Link>
       </div>

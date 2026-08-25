@@ -282,7 +282,7 @@ function SortableHeader({
       <button
         type="button"
         onClick={() => onSort(sortKey)}
-        className="flex items-center gap-1 font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)]"
+        className={`flex items-center gap-1 font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
       >
         {label}
         <span className="text-xs w-3 inline-block">{isActive ? (dir === "asc" ? "▲" : "▼") : ""}</span>

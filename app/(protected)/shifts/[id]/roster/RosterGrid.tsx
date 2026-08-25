@@ -194,7 +194,10 @@ function RosterPill({
               router.refresh();
             })
           }
-          className="text-[var(--ink-400)] hover:text-[var(--danger)] disabled:opacity-50 w-5 h-5 flex items-center justify-center"
+          // 44px hit box, glyph stays small -- the 20x20 version was under
+          // WCAG 2.5.8's 24px floor (2026-08-24 button-size audit); same
+          // fix the week view's remove got.
+          className="text-[var(--ink-400)] hover:text-[var(--danger)] disabled:opacity-50 min-w-11 min-h-11 -my-3 -mr-2 flex items-center justify-center"
           title="Remove"
         >
           <XIcon width={12} height={12} />

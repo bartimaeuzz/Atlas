@@ -10,6 +10,7 @@ import {
 import type { AssignedEmployeeGroup, PositionTemplateGroup, TemplateCell } from "@/lib/schedule/loadTemplatesByPosition";
 import { StackedCard, StackedCardList, StackedField } from "@/components/ui/Table";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 // Display order is Monday-first (matches the Weekly Plan grid and how
 // Oliver reads a real restaurant schedule) — the underlying dayOfWeek
@@ -517,7 +518,7 @@ function VacancyPopoverForm({
       <p className="text-[11px] text-[var(--ink-400)] mb-2">{scopeHint[reason]}</p>
       {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
       <div className="flex items-center gap-3">
-        <button type="button" onClick={onCancel} className="text-xs text-[var(--ink-500)] underline">
+        <button type="button" onClick={onCancel} className={`text-xs text-[var(--ink-500)] underline ${TAP_TARGET_PAD}`}>
           Cancel
         </button>
         <button
