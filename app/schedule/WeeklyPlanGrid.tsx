@@ -588,7 +588,15 @@ function AssignmentPill({
         {assignment.employeeName}
         {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-[var(--danger)] shrink-0" />}
         {onLeave && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />}
-        {swap?.status === "completed" && <span className="w-1.5 h-1.5 rounded-full bg-[var(--success)] shrink-0" />}
+        {/* Text badge, not just the old 1.5px dot (Oliver, 2026-08-25: the
+            dot+ring was invisible to him — "should be highlight somehow so
+            we can identify it was swapped by staff"). Word + color, never
+            color alone. */}
+        {swap?.status === "completed" && (
+          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--success-tint)] text-[var(--success-700)] border border-[var(--success-border)] shrink-0">
+            swapped
+          </span>
+        )}
         {swap?.status === "pending_manager_approval" && <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] shrink-0" />}
         {hasConflict && (
           <span

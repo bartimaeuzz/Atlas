@@ -106,13 +106,28 @@ function SwapRow({ request: r, canDecide }: { request: SwapRequestView; canDecid
     >
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-medium text-[var(--ink-900)]">{r.requestingEmployeeName}</div>
+          {/* "Erika → Meji" (Oliver, 2026-08-25): the direction of the hand-off
+              is the headline, not a sub-line. Declined/cancelled keep the plain
+              name — no transfer happened, an arrow would claim one did. */}
+          <div className="font-medium text-[var(--ink-900)]">
+            {r.acceptingEmployeeName && (r.status === "completed" || r.status === "pending_manager_approval") ? (
+              <>
+                {r.requestingEmployeeName}
+                <span className="text-[var(--ink-400)]" aria-hidden>
+                  {" "}
+                  &rarr;{" "}
+                </span>
+                <span className="sr-only"> to </span>
+                {r.acceptingEmployeeName}
+              </>
+            ) : (
+              r.requestingEmployeeName
+            )}
+          </div>
           <div className="text-sm text-[var(--ink-700)] mt-0.5">{shiftLabel}</div>
 
-          {r.acceptingEmployeeName && (
-            <div className="text-xs text-[var(--ink-500)] mt-1">
-              {r.status === "declined" ? "Was accepted by" : "Accepted by"} {r.acceptingEmployeeName}
-            </div>
+          {r.acceptingEmployeeName && r.status === "declined" && (
+            <div className="text-xs text-[var(--ink-500)] mt-1">Was accepted by {r.acceptingEmployeeName}</div>
           )}
           {r.note && <div className="text-xs text-[var(--ink-500)] mt-1 italic">&ldquo;{r.note}&rdquo;</div>}
 

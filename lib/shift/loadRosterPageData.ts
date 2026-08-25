@@ -1,6 +1,7 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db/client";
-import { shifts, shiftRosterEntries, employees, positions, positionStaffingTargets } from "@/db/schema";
+import { shifts, shiftRosterEntries, employees, positions, positionStaffingTargets, swapRequests, plannedShiftAssignments } from "@/db/schema";
 import { loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
 import { dayOfWeek } from "@/lib/schedule/weekMath";
 
@@ -12,6 +13,10 @@ export interface RosterPageEntry {
   positionName: string;
   positionCategory: "FOH" | "BOH";
   pointValueOverride: number | null;
+  /** Set when this person holds the slot via a completed staff shift
+   * swap (2026-08-25, Oliver: the roster must show a swapped-in shift
+   * isn't the person's original schedule). Value is who gave it up. */
+  swappedFromName: string | null;
 }
 
 export interface RosterPageData {
@@ -56,6 +61,32 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
     .innerJoin(positions, eq(shiftRosterEntries.positionId, positions.id))
     .where(eq(shiftRosterEntries.shiftId, shiftId));
 
+  // Completed staff swaps covering this exact date+period, keyed by who
+  // holds the slot now (accepter) + position — marks roster rows that
+  // aren't the person's original schedule. Derived from swapRequests at
+  // read time, same convention as loadWeeklyPlan's swap flag.
+  const requesters = alias(employees, "requesters");
+  const completedSwaps = await db
+    .select({
+      acceptingEmployeeId: swapRequests.acceptingEmployeeId,
+      positionId: plannedShiftAssignments.positionId,
+      requesterName: requesters.nickname,
+    })
+    .from(swapRequests)
+    .innerJoin(plannedShiftAssignments, eq(swapRequests.assignmentId, plannedShiftAssignments.id))
+    .innerJoin(requesters, eq(swapRequests.requestingEmployeeId, requesters.id))
+    .where(
+      and(
+        eq(swapRequests.status, "completed"),
+        eq(plannedShiftAssignments.date, shift.date),
+        eq(plannedShiftAssignments.period, shift.period)
+      )
+    );
+  const swappedFromByKey = new Map<string, string>();
+  for (const s of completedSwaps) {
+    if (s.acceptingEmployeeId != null) swappedFromByKey.set(`${s.acceptingEmployeeId}:${s.positionId}`, s.requesterName);
+  }
+
   const allEmployees = await db
     .select({ id: employees.id, name: employees.nickname, primaryPositionId: employees.primaryPositionId })
     .from(employees)
@@ -87,7 +118,11 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
 
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
-    roster: rows.map((r) => ({ ...r, positionCategory: r.positionCategory as "FOH" | "BOH" })),
+    roster: rows.map((r) => ({
+      ...r,
+      positionCategory: r.positionCategory as "FOH" | "BOH",
+      swappedFromName: swappedFromByKey.get(`${r.employeeId}:${r.positionId}`) ?? null,
+    })),
     allEmployees,
     allPositions,
     employeeAssignedPositionIds,

@@ -175,6 +175,14 @@ function RosterPill({
   return (
     <div className="flex items-center gap-1.5 rounded-[var(--radius-full)] pl-2.5 pr-1.5 py-1 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)]">
       <span>{entry.employeeName}</span>
+      {/* Swapped-in marker (Oliver, 2026-08-25): this slot isn't the
+          person's original schedule — a coworker gave it up via a swap.
+          Word + tooltip naming who, never color alone. */}
+      {entry.swappedFromName && (
+        <span title={`Covering for ${entry.swappedFromName} via a staff shift swap`}>
+          <Badge tone="success">swapped</Badge>
+        </span>
+      )}
       {roleCount > 1 && (
         <Badge tone="primary">{roleCount} roles</Badge>
       )}
