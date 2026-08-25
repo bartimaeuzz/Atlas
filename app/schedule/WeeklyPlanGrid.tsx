@@ -406,7 +406,12 @@ export function WeeklyPlanGrid({
                             (underTarget ? "bg-[var(--danger-tint)]" : "")
                           }
                         >
-                          {assignments.length === 0 && readOnly ? (
+                          {/* Dash placeholder in edit mode too (2026-08-25,
+                              Oliver: an empty cell floated its 0/1 count where
+                              the name box sits in every other cell — the
+                              placeholder keeps box → count → add stacking
+                              identical everywhere). */}
+                          {assignments.length === 0 ? (
                             // Same box as an AssignmentPill, minus the visible
                             // border and fill. block, not inline-block: inline
                             // would sit on the baseline of the parent's 16/24px
@@ -520,6 +525,15 @@ export function WeeklyPlanGrid({
                       return (
                         <td key={date} className={"py-1.5 px-1 align-top" + (underTarget ? " bg-[var(--danger-tint)]" : "")}>
                           <div className="space-y-0.5">
+                            {/* Same dash placeholder the phone layout uses, so an
+                                empty cell keeps box → count → add stacking
+                                (2026-08-25, Oliver: the 0/1 sat above the add box
+                                while every staffed cell shows it under the name). */}
+                            {cellAssignments.length === 0 && (
+                              <span className="block w-fit border border-transparent px-1.5 py-0.5 text-xs text-[var(--ink-400)]">
+                                —
+                              </span>
+                            )}
                             {cellAssignments.map((a) => {
                               const slotKey = `${a.employeeId}:${date}:${period}`;
                               const otherPositionIds = hideDiagnostics
