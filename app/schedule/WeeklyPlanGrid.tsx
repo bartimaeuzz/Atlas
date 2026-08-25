@@ -523,6 +523,16 @@ export function WeeklyPlanGrid({
           );
         })()}
         </div>
+        {/* Phone legend for the status dots (words live on desktop badges
+            and in the tap popup). */}
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-[var(--ink-500)]">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> On leave</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--danger)] inline-block" /> Leaving</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--success)] inline-block" /> Swapped</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--primary)] inline-block" /> Swap pending</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block" /> Reassigned</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-[3px] bg-[var(--warning-tint)] border border-[var(--warning-border)] inline-block" /> Extra coverage</span>
+        </div>
       </div>
 
       {/* Desktop: ONE table with Lunch/Dinner as collapsible sub-rows per
@@ -765,37 +775,56 @@ function AssignmentPill({
             call as the "swapped" badge: a word survives where a dot is
             invisible; fills keep meaning kind-of-shift, badges mean
             something needs attention). */}
+        {/* Phone: 8px status dot + legend below the grid (Oliver,
+            2026-08-25 — the word badges overflowed the chip on narrow
+            cells; the tap popup still spells the status out in words).
+            Desktop keeps the text badge. */}
         {vacatingSoon && (
-          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--danger-tint)] text-[var(--danger-700)] border border-[var(--danger-border)] shrink-0">
-            leaving
-          </span>
+          <>
+            <span aria-label="leaving" className="lg:hidden w-2 h-2 rounded-full bg-[var(--danger)] shrink-0" />
+            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--danger-tint)] text-[var(--danger-700)] border border-[var(--danger-border)] shrink-0">
+              leaving
+            </span>
+          </>
         )}
         {onLeave && (
-          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-purple-100 text-purple-700 border border-purple-300 shrink-0">
-            on leave
-          </span>
+          <>
+            <span aria-label="on leave" className="lg:hidden w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-purple-100 text-purple-700 border border-purple-300 shrink-0">
+              on leave
+            </span>
+          </>
         )}
         {/* Text badge, not just the old 1.5px dot (Oliver, 2026-08-25: the
             dot+ring was invisible to him — "should be highlight somehow so
             we can identify it was swapped by staff"). Word + color, never
             color alone. */}
         {swap?.status === "completed" && (
-          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--success-tint)] text-[var(--success-700)] border border-[var(--success-border)] shrink-0">
-            swapped
-          </span>
+          <>
+            <span aria-label="swapped" className="lg:hidden w-2 h-2 rounded-full bg-[var(--success)] shrink-0" />
+            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--success-tint)] text-[var(--success-700)] border border-[var(--success-border)] shrink-0">
+              swapped
+            </span>
+          </>
         )}
         {/* Teal, a categorical color like purple/orange (no token — three
             uses now): manager-forced change on a published week, distinct
             from green "swapped" = staff traded voluntarily. */}
         {assignment.sourceType === "REASSIGNED" && (
-          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300 shrink-0">
-            reassigned
-          </span>
+          <>
+            <span aria-label="reassigned" className="lg:hidden w-2 h-2 rounded-full bg-teal-500 shrink-0" />
+            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300 shrink-0">
+              reassigned
+            </span>
+          </>
         )}
         {swap?.status === "pending_manager_approval" && (
-          <span className="text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--primary-tint)] text-[var(--primary-700)] border border-[var(--primary-border)] shrink-0">
-            swap pending
-          </span>
+          <>
+            <span aria-label="swap pending" className="lg:hidden w-2 h-2 rounded-full bg-[var(--primary)] shrink-0" />
+            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--primary-tint)] text-[var(--primary-700)] border border-[var(--primary-border)] shrink-0">
+              swap pending
+            </span>
+          </>
         )}
         {hasConflict && (
           <span
