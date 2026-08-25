@@ -731,8 +731,12 @@ function AssignmentPill({
       : swap?.status === "pending_manager_approval"
         ? `${assignment.employeeName} accepted a swap from ${swap.requestingEmployeeName}, awaiting manager approval (shift is within 3 days)`
         : undefined;
+  const reassignedTitle =
+    assignment.sourceType === "REASSIGNED"
+      ? `${assignment.employeeName} was put on this shift by a manager after the week was published`
+      : undefined;
 
-  const pillTitle = [leaveTitle, vacancyTitle, swapTitle].filter(Boolean).join(" · ") || undefined;
+  const pillTitle = [leaveTitle, vacancyTitle, swapTitle, reassignedTitle].filter(Boolean).join(" · ") || undefined;
   const PillTag = replaceCandidates ? "button" : "div";
   return (
     <>
@@ -762,7 +766,8 @@ function AssignmentPill({
         (vacatingSoon ? " ring-1 ring-[var(--danger)]" : "") +
         (onLeave ? " ring-1 ring-purple-400" : "") +
         (swap?.status === "completed" ? " ring-1 ring-[var(--success)]" : "") +
-        (swap?.status === "pending_manager_approval" ? " ring-1 ring-[var(--primary-border)]" : "")
+        (swap?.status === "pending_manager_approval" ? " ring-1 ring-[var(--primary-border)]" : "") +
+        (assignment.sourceType === "REASSIGNED" ? " ring-1 ring-teal-400" : "")
       }
     >
       <span className="flex items-center gap-1">
