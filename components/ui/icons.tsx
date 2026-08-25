@@ -216,3 +216,26 @@ export function ShieldIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+/** Eye / eye-off (2026-08-24) — reveal-toggles for HR-sensitive values
+ * (SSN masking, Oliver's call: masked even for Admins until revealed).
+ * Same 24px canvas / stroke convention as the rest of this file. */
+export function EyeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+export function EyeOffIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a19.77 19.77 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A10.43 10.43 0 0 1 12 5c7 0 11 7 11 7a19.86 19.86 0 0 1-3.22 4.19" />
+      <path d="M14.12 14.12A3 3 0 1 1 9.88 9.88" />
+      <path d="M1 1l22 22" />
+    </svg>
+  );
+}

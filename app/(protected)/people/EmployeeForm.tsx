@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { LinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { ChevronDownIcon } from "@/components/ui/icons";
+import { ChevronDownIcon, EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 
 const initialState: EmployeeActionState = { error: null };
 
@@ -35,6 +35,10 @@ export function EmployeeForm({
   // Oliver). Digits only, dashes inserted, capped at 9 digits -- error
   // prevention over a validation message after the fact.
   const [ssn, setSsn] = useState(existing?.hrSensitive?.ssnOrItin ?? "");
+  // Masked even for Admins until the eye is tapped (2026-08-24, Oliver) --
+  // shoulder-surfing protection on a shared terminal, distinct from the
+  // capability gate that decides whether the field renders at all.
+  const [ssnRevealed, setSsnRevealed] = useState(false);
   const formatSsn = (raw: string) => {
     const d = raw.replace(/\D/g, "").slice(0, 9);
     if (d.length <= 3) return d;
@@ -239,9 +243,17 @@ export function EmployeeForm({
               defaultValue={existing?.hrSensitive?.zipCode ?? ""}
             />
           </div>
-          <div className="max-w-xs">
+          <div className="max-w-xs relative">
+            <button
+              type="button"
+              onClick={() => setSsnRevealed((r) => !r)}
+              aria-label={ssnRevealed ? "Hide SSN" : "Reveal SSN"}
+              className="absolute right-0 top-0 min-w-11 min-h-11 flex items-center justify-center text-[var(--ink-500)] hover:text-[var(--ink-900)] z-[1]"
+            >
+              {ssnRevealed ? <EyeOffIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+            </button>
             <TextInput
-              type="text"
+              type={ssnRevealed ? "text" : "password"}
               name="ssnOrItin"
               label="SSN or ITIN"
               value={ssn}

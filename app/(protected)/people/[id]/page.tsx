@@ -7,6 +7,7 @@ import { Card, Section } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { MaskedValue } from "../MaskedValue";
 
 /** Staff profile — VIEW first, edit behind a button (2026-08-24, Oliver:
  * "see that person information view only first but if you wanna edit ->
@@ -118,7 +119,12 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
                     .join(", ") || "—"
                 }
               />
-              <ProfileRow label="SSN / ITIN" value={employee.hrSensitive.ssnOrItin ?? "—"} />
+              <div className="contents">
+                <dt className="text-[var(--ink-500)]">SSN / ITIN</dt>
+                <dd className="text-right text-[var(--ink-900)]">
+                  {employee.hrSensitive.ssnOrItin ? <MaskedValue value={employee.hrSensitive.ssnOrItin} /> : "—"}
+                </dd>
+              </div>
             </dl>
           </Card>
         </Section>
