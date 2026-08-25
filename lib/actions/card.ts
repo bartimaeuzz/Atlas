@@ -11,7 +11,7 @@
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { ledgerCards, cardStatementPeriods, cardTransactions } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
@@ -109,6 +109,51 @@ export async function renameLedgerCard(_prevState: CardActionState, formData: Fo
   }
   revalidatePath("/ledger/cards");
   return { error: null };
+}
+
+/** Deletes a card AND everything under it -- statement periods
+ * (reconciled ones included) and their transactions (2026-08-25,
+ * Oliver: "card can be delete with popup destructive warning ...
+ * technically it won be severe but annoying" -- the statements can
+ * always be re-imported, so the data is recoverable-by-redoing, not
+ * gone forever). Gate is deliberately BOTH halves of his sentence:
+ * the LEDGER_CARD_MANAGE grant and the ADMIN role -- a manager holding
+ * the card-admin key can rename/retire but not erase history. The UI
+ * fronts this with a typed-word DangerConfirmDialog naming what dies. */
+export async function deleteLedgerCard(cardId: number): Promise<ActionResult> {
+  return asActionResult(async () => {
+    const session = await requireCapability("LEDGER_CARD_MANAGE");
+    if (session.systemRole !== "ADMIN") {
+      throw new Error("Only an admin account can delete a card. Retire it instead to stop new statement periods.");
+    }
+
+    const [card] = await db.select().from(ledgerCards).where(eq(ledgerCards.id, cardId));
+    if (!card) throw new Error("Card not found");
+
+    const periodIds = (
+      await db
+        .select({ id: cardStatementPeriods.id })
+        .from(cardStatementPeriods)
+        .where(eq(cardStatementPeriods.cardId, cardId))
+    ).map((p) => p.id);
+
+    // One batch: transactions, periods, card commit together or not at
+    // all -- a partial delete here would orphan money rows. (db.batch's
+    // type wants a non-empty literal tuple, hence the branch.)
+    if (periodIds.length > 0) {
+      await db.batch([
+        db.delete(cardTransactions).where(inArray(cardTransactions.statementPeriodId, periodIds)),
+        db.delete(cardStatementPeriods).where(eq(cardStatementPeriods.cardId, cardId)),
+        db.delete(ledgerCards).where(eq(ledgerCards.id, cardId)),
+      ]);
+    } else {
+      await db.delete(ledgerCards).where(eq(ledgerCards.id, cardId));
+    }
+
+    revalidatePath("/ledger/cards");
+    revalidatePath("/ledger/card");
+    revalidatePath("/ledger/card/period");
+  });
 }
 
 /* ---------------------------------------------------------------------- */

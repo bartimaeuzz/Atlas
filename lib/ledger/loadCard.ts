@@ -15,6 +15,48 @@ export async function loadLedgerCards() {
   return db.select().from(ledgerCards).orderBy(ledgerCards.name);
 }
 
+export interface LedgerCardWithStats {
+  id: number;
+  name: string;
+  active: boolean;
+  periodCount: number;
+  transactionCount: number;
+  /** Earliest period start across the card's statement periods -- the
+   * DATE the delete warning names ("all data since ..."). Null when the
+   * card has no periods yet. */
+  earliestPeriodStart: string | null;
+}
+
+/** Cards plus the blast-radius numbers the admin delete dialog needs
+ * (2026-08-25). Two grouped queries, joined in JS -- same shape as
+ * loadCardStatementPeriods' aggregation. */
+export async function loadLedgerCardsWithStats(): Promise<LedgerCardWithStats[]> {
+  const cards = await loadLedgerCards();
+  if (cards.length === 0) return [];
+
+  const periods = await db
+    .select({ id: cardStatementPeriods.id, cardId: cardStatementPeriods.cardId, periodStart: cardStatementPeriods.periodStart })
+    .from(cardStatementPeriods);
+  const txCounts = await db
+    .select({ statementPeriodId: cardTransactions.statementPeriodId })
+    .from(cardTransactions);
+
+  const txByPeriod = new Map<number, number>();
+  for (const t of txCounts) txByPeriod.set(t.statementPeriodId, (txByPeriod.get(t.statementPeriodId) ?? 0) + 1);
+
+  return cards.map((c) => {
+    const own = periods.filter((p) => p.cardId === c.id);
+    return {
+      id: c.id,
+      name: c.name,
+      active: c.active,
+      periodCount: own.length,
+      transactionCount: own.reduce((sum, p) => sum + (txByPeriod.get(p.id) ?? 0), 0),
+      earliestPeriodStart: own.length ? own.reduce((min, p) => (p.periodStart < min ? p.periodStart : min), own[0].periodStart) : null,
+    };
+  });
+}
+
 export interface CardStatementPeriodView extends CardSideTotals {
   id: number;
   cardId: number;

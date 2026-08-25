@@ -1,20 +1,31 @@
 import Link from "next/link";
-import { loadLedgerCards } from "@/lib/ledger/loadCard";
+import { loadLedgerCardsWithStats } from "@/lib/ledger/loadCard";
 import { CardForm } from "./CardForm";
 import { ToggleCardActiveButton } from "./ToggleCardActiveButton";
+import { DeleteCardButton } from "./DeleteCardButton";
 import { EmptyState } from "@/components/ui/Card";
 import { RenameCardControl } from "./RenameCardControl";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { getCurrentStaffSession } from "@/lib/auth/session";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
-/** Card admin (2026-08-16, Card v1) -- same retire-not-delete pattern as
- * Vendors/Categories. Youk Thai may have more than one card, each with
- * its own separate statement to reconcile. */
+/** Card admin (2026-08-16, Card v1) -- retire-not-delete as the everyday
+ * pattern (same as Vendors/Categories), plus an ADMIN-only hard delete
+ * since 2026-08-25 (Oliver): statements can always be re-imported, so
+ * losing a card's data is annoying rather than severe. Youk Thai may
+ * have more than one card, each with its own statement to reconcile. */
 export default async function LedgerCardsPage() {
-  const [cards, viewer] = await Promise.all([loadLedgerCards(), getViewerCapabilities()]);
+  const [cards, viewer, session] = await Promise.all([
+    loadLedgerCardsWithStats(),
+    getViewerCapabilities(),
+    getCurrentStaffSession(),
+  ]);
   // Card admin sits behind LEDGER_CARD_MANAGE since 2026-08-24 -- this
   // only decides what renders; every action re-checks independently.
   const canManage = viewer?.has("LEDGER_CARD_MANAGE") ?? false;
+  // Hard delete needs the role too, not just the grant -- a manager
+  // holding the card key can rename/retire but not erase history.
+  const canDelete = canManage && session?.systemRole === "ADMIN";
 
   return (
     <main className="max-w-2xl mx-auto p-6 sm:p-8">
@@ -49,6 +60,15 @@ export default async function LedgerCardsPage() {
               <span className="flex items-center gap-3 shrink-0">
                 {!c.active && <span className="text-xs text-[var(--ink-500)]">(retired)</span>}
                 {canManage && <ToggleCardActiveButton cardId={c.id} nextActive={!c.active} />}
+                {canDelete && (
+                  <DeleteCardButton
+                    cardId={c.id}
+                    cardName={c.name}
+                    periodCount={c.periodCount}
+                    transactionCount={c.transactionCount}
+                    earliestPeriodStart={c.earliestPeriodStart}
+                  />
+                )}
               </span>
             </li>
           ))}
