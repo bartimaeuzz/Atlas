@@ -901,7 +901,7 @@ function AssignmentActionsDialog({
               <li key={c.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                 <span className="text-[var(--ink-900)]">{c.name}</span>
                 <Button size="sm" variant="secondary" disabled={isPending} onClick={() => pick(c.id)}>
-                  Assign
+                  Swap
                 </Button>
               </li>
             ))}
