@@ -4627,3 +4627,30 @@ registry *default* needed to change, not just Aey's individual grant.
 reconfirmed at `6d6ab89` via `git ls-remote`.
 
 ---
+
+## 2026-08-25 — Schedule Planner UX marathon (leave approval → swap suite → the locked design language)
+
+~28 commits, all live. Headlines: leave approval flow (pending/approved/denied,
+decided by SCHEDULE_MANAGE; migration 0027 run by Oliver via atlas-db after the
+first attempt silently hit the local-file fallback — verify через Turso, never
+trust exit 0); SCHEDULE_MANAGE default dropped to per-person grants with a full
+view-only mode for every other manager; My Pay design-system retrofit + a
+3-finding visual audit (tap-target floor, disabled-look, viewer copy); the swap
+suite — "Erika → Meji" headers, word badges for offered/pending/swapped
+(option C, picked from a 4-option visual), teal "reassigned" provenance read
+back from the change log, a name-tap actions popup that narrates every status
+and swaps to the least-loaded capable candidate; quick-add ask-first gates
+(on leave → is-this-an-extra → double shift); desktop plan merged into one
+collapsible Lunch/Dinner table whose collapsed cells keep their red short
+flags; Done editing re-locks published weeks; Positions page grouped
+Active/Deactivated with the Retire→Deactivate rename.
+
+The durable part is the design language locked with Oliver, recorded as
+`project-atlas-design-conventions-2026-08-25` in project memory: fill = kind,
+badge-word = status, dashed = uncertain, teal = manager-forced, today always
+findable, card shells + invariant cell stacking, severity-ordered confirm
+gates. The backlogged month-view/week-view retrofits must follow it.
+
+Process lessons promoted into scrutinize's checklist: indicator coverage over
+the full status enum (open swaps were invisible), and scripted edits must
+assert every replacement (an unasserted replace shipped a phone-only feature).
