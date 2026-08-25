@@ -6,6 +6,7 @@ import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { WeeklyPlanData, PlannedAssignmentRow } from "@/lib/schedule/loadWeeklyPlan";
 import { toIso } from "@/lib/schedule/weekMath";
 
@@ -199,6 +200,21 @@ export function WeeklyPlanGrid({
     const busy = busyBySlot.get(`${a.date}:${a.period}`) ?? new Set<number>();
     return (employeesByPosition.get(a.positionId)?.eligible ?? []).filter((e) => !busy.has(e.id));
   };
+
+  // date -> employeeId -> ["Server · Dinner", ...] — feeds quick-add's
+  // "already working this day" confirm (Oliver, 2026-08-25: adding the
+  // same person twice in a day went through with no warning).
+  const dayLoadByEmployee = useMemo(() => {
+    const map = new Map<string, Map<number, string[]>>();
+    for (const a of data.assignments) {
+      const inner = map.get(a.date) ?? new Map<number, string[]>();
+      const labels = inner.get(a.employeeId) ?? [];
+      labels.push(`${positionNameById.get(a.positionId) ?? "?"} · ${a.period}`);
+      inner.set(a.employeeId, labels);
+      map.set(a.date, inner);
+    }
+    return map;
+  }, [data.assignments, positionNameById]);
 
   // PHONE SHOWS ONE DAY AT A TIME (2026-08-23, Oliver). At 390px the
   // editing grid measured 728px wide against 310px of visible width --
@@ -437,12 +453,11 @@ export function WeeklyPlanGrid({
                                     key={a.id}
                                     assignment={a}
                                     conflictPositionNames={conflictPositionNames}
-                                    readOnly={readOnly}
                                     vacatingSoon={a.vacatingSoon}
                                     onLeave={a.onLeave}
                                     swap={a.swap}
                                     positionName={position.name}
-                                    replaceCandidates={!readOnly && a.onLeave ? replaceCandidatesFor(a) : null}
+                                    replaceCandidates={!readOnly ? replaceCandidatesFor(a) : null}
                                   />
                                 );
                               })}
@@ -461,6 +476,8 @@ export function WeeklyPlanGrid({
                               positionId={position.id}
                               employees={employeesByPosition.get(position.id) ?? { eligible: [], other: [] }}
                               alreadyAssignedIds={new Set(assignments.map((a) => a.employeeId))}
+                              positionName={position.name}
+                              dayLoad={dayLoadByEmployee.get(date)}
                             />
                           )}
                         </div>
@@ -547,12 +564,11 @@ export function WeeklyPlanGrid({
                                   key={a.id}
                                   assignment={a}
                                   conflictPositionNames={conflictPositionNames}
-                                  readOnly={readOnly}
                                   vacatingSoon={a.vacatingSoon}
                                   onLeave={a.onLeave}
                                   swap={a.swap}
                                   positionName={p.name}
-                                  replaceCandidates={!readOnly && a.onLeave ? replaceCandidatesFor(a) : null}
+                                  replaceCandidates={!readOnly ? replaceCandidatesFor(a) : null}
                                 />
                               );
                             })}
@@ -569,6 +585,8 @@ export function WeeklyPlanGrid({
                                 positionId={p.id}
                                 employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
                                 alreadyAssignedIds={new Set(cellAssignments.map((a) => a.employeeId))}
+                                positionName={p.name}
+                                dayLoad={dayLoadByEmployee.get(date)}
                               />
                             )}
                           </div>
@@ -596,7 +614,6 @@ const VACANCY_REASON_LABEL: Record<"RESIGNATION" | "PROMOTION" | "OTHER", string
 function AssignmentPill({
   assignment,
   conflictPositionNames,
-  readOnly,
   vacatingSoon,
   onLeave,
   swap,
@@ -605,7 +622,6 @@ function AssignmentPill({
 }: {
   assignment: PlannedAssignmentRow;
   conflictPositionNames: string[];
-  readOnly: boolean;
   vacatingSoon: PlannedAssignmentRow["vacatingSoon"];
   onLeave: PlannedAssignmentRow["onLeave"];
   swap: PlannedAssignmentRow["swap"];
@@ -615,8 +631,6 @@ function AssignmentPill({
    * replacement popup (Oliver, 2026-08-25). */
   replaceCandidates?: { id: number; name: string }[] | null;
 }) {
-  const [isPending, startTransition] = useTransition();
-  const router = useRouter();
   const [replacing, setReplacing] = useState(false);
   const hasConflict = conflictPositionNames.length > 0;
 
@@ -660,14 +674,15 @@ function AssignmentPill({
     >
       <span className="flex items-center gap-1">
         {replaceCandidates ? (
-          // On-leave + editable: the name is the door to the replacement
-          // popup. Underline signals it's tappable; the purple dot next
-          // to it already marks why.
+          // Editable: the name is the door to the actions popup (remove /
+          // replace) — the old inline × was getting crowded out by the
+          // warning badges (Oliver, 2026-08-25). Dotted underline signals
+          // it's tappable.
           <button
             type="button"
             onClick={() => setReplacing(true)}
-            className="underline decoration-dotted underline-offset-2 hover:text-[var(--ink-900)] text-left"
-            title={`${assignment.employeeName} is on leave — tap to pick a replacement`}
+            className="underline decoration-dotted underline-offset-2 hover:opacity-80 text-left"
+            title={`Tap for options — remove ${assignment.employeeName} or hand this shift to someone else`}
           >
             {assignment.employeeName}
           </button>
@@ -695,57 +710,44 @@ function AssignmentPill({
           </span>
         )}
       </span>
-      {!readOnly && (
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() =>
-            startTransition(async () => {
-              await removePlannedAssignment(assignment.id);
-              router.refresh();
-            })
-          }
-          /* 7x16 CSS px before 2026-08-23 -- the smallest control in the
-             app, and it removes a person from a shift. 44px on a phone,
-             back to compact at lg where seven day-columns share the
-             width and the pointer is a mouse. */
-          className="inline-flex items-center justify-center min-h-11 min-w-11 lg:min-h-0 lg:min-w-0 shrink-0 text-[var(--ink-400)] hover:text-[var(--danger-700)] disabled:opacity-50"
-          title="Remove"
-          aria-label="Remove from this shift"
-        >
-          ×
-        </button>
-      )}
       {replaceCandidates && (
-        <ReplaceLeaveDialog
+        <AssignmentActionsDialog
           open={replacing}
           onClose={() => setReplacing(false)}
           assignment={assignment}
           positionName={positionName ?? ""}
           candidates={replaceCandidates}
+          onLeaveNote={onLeave ? (onLeave.note ?? "on leave") : null}
+          conflictPositionNames={conflictPositionNames}
         />
       )}
     </div>
   );
 }
 
-/** Popup for covering an on-leave slot (Oliver, 2026-08-25): every
- * person who is set up for this position and not already working that
- * date+period, one tap each. The server re-validates everything —
- * including the candidate's own leave, which the client can't see — so
- * a rejected pick surfaces here as a banner instead of failing silently. */
-function ReplaceLeaveDialog({
+/** Per-assignment actions popup (Oliver, 2026-08-25 — grew out of the
+ * on-leave replacement dialog the same day): tap a name in the editable
+ * grid to remove them from the slot or hand it to someone who is set up
+ * for the position and free that date+period. The server re-validates
+ * everything — including a candidate's own leave, which the client
+ * can't see — so a rejected pick surfaces here as a banner instead of
+ * failing silently. */
+function AssignmentActionsDialog({
   open,
   onClose,
   assignment,
   positionName,
   candidates,
+  onLeaveNote,
+  conflictPositionNames,
 }: {
   open: boolean;
   onClose: () => void;
   assignment: PlannedAssignmentRow;
   positionName: string;
   candidates: { id: number; name: string }[];
+  onLeaveNote: string | null;
+  conflictPositionNames: string[];
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -764,16 +766,45 @@ function ReplaceLeaveDialog({
     });
   }
 
+  function remove() {
+    setError(null);
+    startTransition(async () => {
+      try {
+        await removePlannedAssignment(assignment.id);
+        onClose();
+        router.refresh();
+      } catch {
+        setError("Couldn't remove them. Nothing was changed — try again.");
+      }
+    });
+  }
+
   return (
-    <Modal open={open} onClose={onClose} labelledBy="replace-leave-title" width={380}>
+    <Modal open={open} onClose={onClose} labelledBy="assignment-actions-title" width={380}>
       <div className="p-4">
-        <h2 id="replace-leave-title" className="text-base font-semibold text-[var(--ink-900)] mb-1">
-          Cover {assignment.employeeName}&apos;s shift
+        <h2 id="assignment-actions-title" className="text-base font-semibold text-[var(--ink-900)] mb-1">
+          {assignment.employeeName} — {positionName}
         </h2>
         <p className="text-sm text-[var(--ink-500)] mb-3">
-          {positionName} · {assignment.date} · {assignment.period}. {assignment.employeeName} is on
-          leave — pick who takes this shift instead.
+          {assignment.date} · {assignment.period}
+          {onLeaveNote && (
+            <span className="block text-purple-700 mt-0.5">
+              On leave this date{onLeaveNote !== "on leave" ? ` — "${onLeaveNote}"` : ""}. This slot
+              needs coverage.
+            </span>
+          )}
+          {conflictPositionNames.length > 0 && (
+            <span className="block text-orange-700 mt-0.5">
+              Also scheduled as {conflictPositionNames.join(", ")} in this same slot.
+            </span>
+          )}
         </p>
+        <div className="mb-3">
+          <Button variant="destructive-outline" size="sm" disabled={isPending} onClick={remove} className="w-full">
+            Remove from this shift
+          </Button>
+        </div>
+        <p className="text-xs text-[var(--ink-500)] mb-1.5">Or hand the shift to someone free:</p>
         {error && (
           <div className="mb-3">
             <Banner tone="danger" title="Couldn't reassign" description={error} />
@@ -782,7 +813,6 @@ function ReplaceLeaveDialog({
         {candidates.length === 0 ? (
           <p className="text-sm text-[var(--ink-500)] border border-dashed border-[var(--border-strong)] rounded-[var(--radius-md)] p-3">
             Nobody is both free this {assignment.period.toLowerCase()} and set up for {positionName}.
-            Add someone from the grid&apos;s own add control instead, or adjust in People.
           </p>
         ) : (
           <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)]">
@@ -819,6 +849,8 @@ function QuickAddCell({
   positionId,
   employees,
   alreadyAssignedIds,
+  positionName,
+  dayLoad,
 }: {
   weekId: number;
   date: string;
@@ -826,16 +858,36 @@ function QuickAddCell({
   positionId: number;
   employees: { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] };
   alreadyAssignedIds: Set<number>;
+  positionName?: string;
+  /** employeeId -> what they already work this date ("Server · Dinner"). */
+  dayLoad?: Map<number, string[]>;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<number | "">("");
   const [isExtraCoverage, setIsExtraCoverage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDouble, setConfirmingDouble] = useState(false);
 
   const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
   const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
   if (eligible.length === 0 && other.length === 0) return null;
+
+  const selectedName =
+    selectedId === "" ? "" : ([...employees.eligible, ...employees.other].find((e) => e.id === selectedId)?.name ?? "This person");
+  const existingToday = selectedId === "" ? [] : (dayLoad?.get(selectedId) ?? []);
+
+  // Confirm before double-booking someone within the same day (Oliver,
+  // 2026-08-25: adding the same person twice in a day sailed through
+  // with no warning — the orange badge only appeared after the fact).
+  function requestAdd() {
+    if (selectedId === "") return;
+    if (existingToday.length > 0) {
+      setConfirmingDouble(true);
+      return;
+    }
+    handleAdd();
+  }
 
   function handleAdd() {
     if (selectedId === "") return;
@@ -911,7 +963,7 @@ function QuickAddCell({
             </label>
             <button
               type="button"
-              onClick={handleAdd}
+              onClick={requestAdd}
               disabled={isPending}
               // min 24px box (2026-08-24 audit -- it had no size guarantee
               // at all); kept compact rather than 44 because the row is
@@ -924,6 +976,18 @@ function QuickAddCell({
         )}
       </div>
       {error && <div className="text-[9px] text-[var(--danger-700)] mt-0.5">{error}</div>}
+      <ConfirmDialog
+        open={confirmingDouble}
+        onClose={() => setConfirmingDouble(false)}
+        onConfirm={() => {
+          setConfirmingDouble(false);
+          handleAdd();
+        }}
+        loading={isPending}
+        title={`Add ${selectedName} again today?`}
+        description={`${selectedName} is already working this day: ${existingToday.join(", ")}. Adding them here (${positionName ?? "this position"} · ${period}) means a double shift.`}
+        confirmLabel="Add anyway"
+      />
     </div>
   );
 }
