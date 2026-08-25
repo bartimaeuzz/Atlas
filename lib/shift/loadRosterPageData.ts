@@ -1,7 +1,7 @@
 import { eq, and } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db/client";
-import { shifts, shiftRosterEntries, employees, positions, positionStaffingTargets, swapRequests, plannedShiftAssignments } from "@/db/schema";
+import { shifts, shiftRosterEntries, shiftAttendanceMarks, employees, positions, positionStaffingTargets, swapRequests, plannedShiftAssignments } from "@/db/schema";
 import { loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
 import { dayOfWeek } from "@/lib/schedule/weekMath";
 
@@ -17,6 +17,21 @@ export interface RosterPageEntry {
    * swap (2026-08-25, Oliver: the roster must show a swapped-in shift
    * isn't the person's original schedule). Value is who gave it up. */
   swappedFromName: string | null;
+  /** Day-of coverage record (2026-08-25): "extra" = over-target busy-day
+   * add, "substitute" = covering the named absent person. */
+  coverageKind: "extra" | "substitute" | null;
+  coverageNote: string | null;
+  coversEmployeeName: string | null;
+  /** "late" when this person has a late attendance mark on this shift
+   * (no_show/emergency people have no roster row — see `marks`). */
+  attendanceMark: "no_show" | "late" | "emergency" | null;
+}
+
+export interface RosterAttendanceMark {
+  employeeId: number;
+  employeeName: string;
+  mark: "no_show" | "late" | "emergency";
+  note: string | null;
 }
 
 export interface RosterPageData {
@@ -38,14 +53,60 @@ export interface RosterPageData {
    * page is always for one specific date+period. Powers the "N/target"
    * badge so the roster page reads the same way as the weekly plan grid. */
   targets: Record<number, number>;
+  /** Every attendance mark on this shift (2026-08-25). Roster rows carry
+   * their own `attendanceMark` for badges; this list is the full record,
+   * including no-show/emergency people who have no roster row -- powers
+   * the "Out today" undo list and the closing report. */
+  marks: RosterAttendanceMark[];
+}
+
+/** Compact attendance + coverage record for one shift -- the closing
+ * report shows it beside the deduction / extra-pay inputs as reminders
+ * (2026-08-25, Oliver: "when you close shift you will be able to see
+ * it"). Informational only; nothing applies money automatically. */
+export interface ShiftAttendanceSummary {
+  marks: RosterAttendanceMark[];
+  coverage: { employeeName: string; kind: "extra" | "substitute"; note: string | null; coversEmployeeName: string | null }[];
+}
+
+export async function loadShiftAttendanceSummary(shiftId: number): Promise<ShiftAttendanceSummary> {
+  const covers = alias(employees, "covers");
+  const [markRows, coverageRows] = await Promise.all([
+    db
+      .select({
+        employeeId: shiftAttendanceMarks.employeeId,
+        employeeName: employees.nickname,
+        mark: shiftAttendanceMarks.mark,
+        note: shiftAttendanceMarks.note,
+      })
+      .from(shiftAttendanceMarks)
+      .innerJoin(employees, eq(shiftAttendanceMarks.employeeId, employees.id))
+      .where(eq(shiftAttendanceMarks.shiftId, shiftId)),
+    db
+      .select({
+        employeeName: employees.nickname,
+        kind: shiftRosterEntries.coverageKind,
+        note: shiftRosterEntries.coverageNote,
+        coversEmployeeName: covers.nickname,
+      })
+      .from(shiftRosterEntries)
+      .innerJoin(employees, eq(shiftRosterEntries.employeeId, employees.id))
+      .leftJoin(covers, eq(shiftRosterEntries.coversEmployeeId, covers.id))
+      .where(eq(shiftRosterEntries.shiftId, shiftId)),
+  ]);
+  return {
+    marks: markRows,
+    coverage: coverageRows.filter((c): c is typeof c & { kind: "extra" | "substitute" } => c.kind != null),
+  };
 }
 
 export async function loadRosterPageData(shiftId: number): Promise<RosterPageData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
   if (!shift) {
-    return { shift: null, roster: [], allEmployees: [], allPositions: [], employeeAssignedPositionIds: {}, targets: {} };
+    return { shift: null, roster: [], allEmployees: [], allPositions: [], employeeAssignedPositionIds: {}, targets: {}, marks: [] };
   }
 
+  const covers = alias(employees, "covers");
   const rows = await db
     .select({
       rosterEntryId: shiftRosterEntries.id,
@@ -55,11 +116,27 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
       positionName: positions.name,
       positionCategory: positions.category,
       pointValueOverride: shiftRosterEntries.pointValueOverride,
+      coverageKind: shiftRosterEntries.coverageKind,
+      coverageNote: shiftRosterEntries.coverageNote,
+      coversEmployeeName: covers.nickname,
     })
     .from(shiftRosterEntries)
     .innerJoin(employees, eq(shiftRosterEntries.employeeId, employees.id))
     .innerJoin(positions, eq(shiftRosterEntries.positionId, positions.id))
+    .leftJoin(covers, eq(shiftRosterEntries.coversEmployeeId, covers.id))
     .where(eq(shiftRosterEntries.shiftId, shiftId));
+
+  const markRows = await db
+    .select({
+      employeeId: shiftAttendanceMarks.employeeId,
+      employeeName: employees.nickname,
+      mark: shiftAttendanceMarks.mark,
+      note: shiftAttendanceMarks.note,
+    })
+    .from(shiftAttendanceMarks)
+    .innerJoin(employees, eq(shiftAttendanceMarks.employeeId, employees.id))
+    .where(eq(shiftAttendanceMarks.shiftId, shiftId));
+  const markByEmployee = new Map(markRows.map((m) => [m.employeeId, m.mark]));
 
   // Completed staff swaps covering this exact date+period, keyed by who
   // holds the slot now (accepter) + position — marks roster rows that
@@ -122,10 +199,12 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
       ...r,
       positionCategory: r.positionCategory as "FOH" | "BOH",
       swappedFromName: swappedFromByKey.get(`${r.employeeId}:${r.positionId}`) ?? null,
+      attendanceMark: markByEmployee.get(r.employeeId) ?? null,
     })),
     allEmployees,
     allPositions,
     employeeAssignedPositionIds,
     targets,
+    marks: markRows,
   };
 }

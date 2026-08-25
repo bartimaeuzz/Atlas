@@ -479,7 +479,41 @@ export const shiftRosterEntries = sqliteTable("shift_roster_entries", {
   sectionId: integer("section_id").references(() => sections.id), // FOH only
   pointValueOverride: real("point_value_override"), // day-only override of EmployeePosition.tipPointValue
   overrideReason: text("override_reason"),
+  // Day-of coverage record (2026-08-25, Oliver's scenario: injury/no-show,
+  // someone volunteers or gets called in). "extra" = added over target on
+  // a busy day (the roster-side twin of plannedShiftAssignments'
+  // isExtraCoverage yellow flag); "substitute" = covering a specific
+  // absent person, named in coversEmployeeId. Informational only — tip
+  // pool and wage math never read these; rewarding a cover is still the
+  // manual extraPayAmount line on the closing report.
+  coverageKind: text("coverage_kind", { enum: ["extra", "substitute"] }),
+  coverageNote: text("coverage_note"), // free text, e.g. "A came to help"
+  coversEmployeeId: integer("covers_employee_id").references(() => employees.id),
 });
+
+// Attendance marks (2026-08-25, Oliver): no_show / late / emergency, one
+// per person per shift, recorded from the Roster page day-of. A separate
+// table rather than roster columns because a no-show has no roster row —
+// they didn't work, so they must never feed pay. Deliberately carries NO
+// money fields: the closing report shows these next to the deduction
+// input as reminders, and the manager types every number (rule 6).
+// Privacy: rendered only on the person's own schedule views and manager
+// surfaces — enforced in the loaders, not the pages.
+export const shiftAttendanceMarks = sqliteTable(
+  "shift_attendance_marks",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    shiftId: integer("shift_id").notNull().references(() => shifts.id),
+    employeeId: integer("employee_id").notNull().references(() => employees.id),
+    mark: text("mark", { enum: ["no_show", "late", "emergency"] }).notNull(),
+    note: text("note"),
+    markedByEmployeeId: integer("marked_by_employee_id").references(() => employees.id),
+    markedAt: text("marked_at").notNull(),
+  },
+  (t) => ({
+    uniqShiftEmployee: uniqueIndex("uniq_attendance_shift_employee").on(t.shiftId, t.employeeId),
+  })
+);
 
 // Handles shift-coverage situations (2026-08-10) — e.g. Erika works Host
 // but is asked to cover Aey's Bartender shift when Aey calls in sick. Tip

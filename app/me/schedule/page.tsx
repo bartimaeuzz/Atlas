@@ -180,6 +180,33 @@ export default async function MyScheduleView({
                         {dayNumber}
                       </span>
                     )}
+                    {/* Day-of records (2026-08-25): what actually happened
+                        -- no show / late / emergency, extra / substitute.
+                        Facts from shift records, not plans, so they render
+                        even on unpublished weeks; the loader only ever
+                        serves this person's own records (privacy rule). */}
+                    {day.dayRecords.length > 0 && (
+                      <div className="space-y-1 mt-1">
+                        {day.dayRecords.map((r, ri) => (
+                          <div
+                            key={ri}
+                            className={
+                              "text-[10px] font-medium rounded-[var(--radius-sm)] px-1.5 py-0.5 border " +
+                              (r.kind === "no_show"
+                                ? "bg-[var(--danger-tint)] text-[var(--danger-700)] border-[var(--danger-border)]"
+                                : r.kind === "late" || r.kind === "extra"
+                                  ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border-[var(--warning-border)]"
+                                  : r.kind === "emergency"
+                                    ? "bg-[var(--paper)] text-[var(--ink-700)] border-[var(--border-strong)]"
+                                    : "bg-teal-100 text-teal-700 border-teal-300")
+                            }
+                          >
+                            {r.kind === "no_show" ? "No show" : r.kind === "late" ? "Late" : r.kind === "emergency" ? "Emergency" : r.kind === "extra" ? "Extra" : "Sub"}
+                            {r.positionName ? ` — ${r.positionName}` : ""} ({r.period === "Lunch" ? "L" : "D"})
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {isPublished && (
                       <div className="space-y-1 mt-1">
                         {shifts.length > 0 ? (

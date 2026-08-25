@@ -1,14 +1,24 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, useId, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { addRosterEntry, removeRosterEntry } from "@/lib/actions/shift";
-import type { RosterPageEntry } from "@/lib/shift/loadRosterPageData";
-import { Select } from "@/components/ui/Field";
+import {
+  addRosterEntry,
+  removeRosterEntry,
+  setAttendanceMark,
+  clearAttendanceMark,
+  removeRosterEntryAbsent,
+  replaceWithSubstitute,
+} from "@/lib/actions/shift";
+import type { RosterPageEntry, RosterAttendanceMark } from "@/lib/shift/loadRosterPageData";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Modal } from "@/components/ui/Modal";
+import { Banner } from "@/components/ui/Banner";
 import { XIcon } from "@/components/ui/icons";
+
+type EmployeeOptionGroups = { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] };
 
 /** Position-grid redesign of the roster page (2026-08-11, Oliver: wanted
  * it to read like the Schedule Planner's weekly grid — headcount target
@@ -18,15 +28,16 @@ import { XIcon } from "@/components/ui/icons";
  * axis like the weekly grid has); each row shows who's assigned, the
  * target count, and a quick-add control.
  *
- * Restyled 2026-08-16 as stacked position cards rather than a table at any
- * width — this content (a position name + a wrapped list of pills) reads
- * better as sections than as a cramped two-column table, and it means
- * there's no separate mobile/desktop layout to keep in sync.
+ * The multi-role guard uses the shared <ConfirmDialog> instead of a
+ * raw window.confirm() — one of the 5 real gaps caught in the
+ * 2026-08-16 verification pass.
  *
- * The multi-role guard now uses the shared <ConfirmDialog> instead of a
- * raw window.confirm() — that was one of the 5 real gaps caught in the
- * 2026-08-16 verification pass (an unstyled OS popup breaking out of the
- * app's UI entirely). Same wording, same guard, just styled. */
+ * 2026-08-25 (Oliver's injury/no-show scenario): a person's chip is now
+ * a button opening the day-of attendance popup — Mark late, Replace with
+ * a substitute, or Absent-remove, the last two recording the fixed
+ * reason (No show / Emergency). The X keeps its old meaning: "added by
+ * mistake", removes without recording anything. Absence marks show in
+ * the "Out today" list below the table with an undo. */
 export function RosterGrid({
   shiftId,
   positions,
@@ -35,6 +46,7 @@ export function RosterGrid({
   allEmployees,
   employeeAssignedPositionIds,
   readOnly,
+  marks,
 }: {
   shiftId: number;
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
@@ -43,6 +55,7 @@ export function RosterGrid({
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   employeeAssignedPositionIds: Record<number, number[]>;
   readOnly: boolean;
+  marks: RosterAttendanceMark[];
 }) {
   const roleCountByEmployee = useMemo(() => {
     const map = new Map<number, number>();
@@ -51,7 +64,7 @@ export function RosterGrid({
   }, [roster]);
 
   const employeesByPosition = useMemo(() => {
-    const map = new Map<number, { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] }>();
+    const map = new Map<number, EmployeeOptionGroups>();
     for (const p of positions) {
       const eligible: { id: number; name: string }[] = [];
       const other: { id: number; name: string }[] = [];
@@ -63,6 +76,12 @@ export function RosterGrid({
     }
     return map;
   }, [positions, allEmployees, employeeAssignedPositionIds]);
+
+  // Absence marks belong to people no longer on the roster (no-show /
+  // emergency removed them); late people are still on it and carry their
+  // badge on the chip instead.
+  const rosteredIds = new Set(roster.map((r) => r.employeeId));
+  const outToday = marks.filter((m) => !rosteredIds.has(m.employeeId));
 
   // Floor Manager leads (Oliver, 2026-08-24): the shift's responsible
   // person reads first, then the two kitchens-of-work. Grouped by name
@@ -79,10 +98,9 @@ export function RosterGrid({
   // table") -- same visual language as the shifts month view and the
   // ledger lists: one bordered card, a Position | People header row,
   // labeled FOH/BOH section rows inside the table per the locked
-  // calendar/grid conventions. The per-row "(FOH)" suffix is gone --
-  // the section row it sits under already says it. The 2026-08-16
-  // stacked-cards note above predates that language; superseded.
+  // calendar/grid conventions.
   return (
+    <>
     <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
       <div className="grid grid-cols-[minmax(96px,1fr)_minmax(0,2.2fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
         <span>Position</span>
@@ -140,7 +158,17 @@ export function RosterGrid({
                       <div className="flex flex-wrap gap-1.5 mb-2">
                         {cellEntries.map((r) => {
                           const roleCount = roleCountByEmployee.get(r.employeeId) ?? 1;
-                          return <RosterPill key={r.rosterEntryId} entry={r} roleCount={roleCount} shiftId={shiftId} readOnly={readOnly} />;
+                          return (
+                            <RosterPill
+                              key={r.rosterEntryId}
+                              entry={r}
+                              roleCount={roleCount}
+                              shiftId={shiftId}
+                              readOnly={readOnly}
+                              employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
+                              alreadyAssignedIds={new Set(cellEntries.map((e) => e.employeeId))}
+                            />
+                          );
                         })}
                       </div>
                     )}
@@ -165,6 +193,70 @@ export function RosterGrid({
         </div>
       ))}
     </div>
+
+    {outToday.length > 0 && (
+      <div className="mt-3">
+        <h3 className="text-xs font-semibold tracking-wide text-[var(--ink-500)] uppercase mb-1.5">Out today</h3>
+        <div className="rounded-[var(--radius-md)] border border-[var(--border)] divide-y divide-[var(--border)] bg-[var(--card)]">
+          {outToday.map((m) => (
+            <OutTodayRow key={m.employeeId} mark={m} shiftId={shiftId} readOnly={readOnly} />
+          ))}
+        </div>
+      </div>
+    )}
+    </>
+  );
+}
+
+const MARK_LABELS: Record<RosterAttendanceMark["mark"], string> = {
+  no_show: "No show",
+  late: "Late",
+  emergency: "Emergency",
+};
+
+function OutTodayRow({ mark, shiftId, readOnly }: { mark: RosterAttendanceMark; shiftId: number; readOnly: boolean }) {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  return (
+    <div className="flex items-center justify-between px-3 py-2 text-sm">
+      <span className="flex items-center gap-2 text-[var(--ink-900)]">
+        {mark.employeeName}
+        <Badge tone={mark.mark === "emergency" ? "neutral" : "danger"}>{MARK_LABELS[mark.mark]}</Badge>
+        {mark.note && <span className="text-xs text-[var(--ink-500)]">“{mark.note}”</span>}
+      </span>
+      {!readOnly && (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() =>
+            startTransition(async () => {
+              const fd = new FormData();
+              fd.set("shiftId", String(shiftId));
+              fd.set("employeeId", String(mark.employeeId));
+              await clearAttendanceMark(fd);
+              router.refresh();
+            })
+          }
+          className="text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline min-h-11 px-2"
+        >
+          {isPending ? "Undoing…" : "Undo"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Teal = covering someone else's slot, same categorical color the
+ * planner uses for reassigned (manager-forced change). Word, never
+ * color alone. */
+function SubstituteBadge({ covers }: { covers: string | null }) {
+  return (
+    <span
+      title={covers ? `Substituting for ${covers}` : "Substitute"}
+      className="text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300"
+    >
+      sub{covers ? ` for ${covers}` : ""}
+    </span>
   );
 }
 
@@ -173,18 +265,22 @@ function RosterPill({
   roleCount,
   shiftId,
   readOnly,
+  employees,
+  alreadyAssignedIds,
 }: {
   entry: RosterPageEntry;
   roleCount: number;
   shiftId: number;
   readOnly: boolean;
+  employees: EmployeeOptionGroups;
+  alreadyAssignedIds: Set<number>;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const router = useRouter();
 
-  return (
-    <div className="flex items-center gap-1.5 rounded-[var(--radius-full)] pl-2.5 pr-1.5 py-1 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)]">
-      <span>{entry.employeeName}</span>
+  const badges = (
+    <>
       {/* Swapped-in marker (Oliver, 2026-08-25): this slot isn't the
           person's original schedule — a coworker gave it up via a swap.
           Word + tooltip naming who, never color alone. */}
@@ -193,35 +289,299 @@ function RosterPill({
           <Badge tone="success">swapped</Badge>
         </span>
       )}
-      {roleCount > 1 && (
-        <Badge tone="primary">{roleCount} roles</Badge>
+      {entry.coverageKind === "extra" && (
+        <span title={entry.coverageNote ? `Extra — ${entry.coverageNote}` : "Added as an extra for today"}>
+          <Badge tone="warning">extra</Badge>
+        </span>
       )}
-      {!readOnly && (
-        <button
-          type="button"
-          disabled={isPending}
-          onClick={() =>
-            startTransition(async () => {
-              const formData = new FormData();
-              formData.set("rosterEntryId", String(entry.rosterEntryId));
-              formData.set("shiftId", String(shiftId));
-              // No error surface in this pill; a failed remove leaves the
-              // row standing, which is itself the signal. (Before the
-              // 2026-08-24 sweep a failure here was an unhandled throw.)
-              await removeRosterEntry(formData);
-              router.refresh();
-            })
-          }
-          // 44px hit box, glyph stays small -- the 20x20 version was under
-          // WCAG 2.5.8's 24px floor (2026-08-24 button-size audit); same
-          // fix the week view's remove got.
-          className="text-[var(--ink-400)] hover:text-[var(--danger)] disabled:opacity-50 min-w-11 min-h-11 -my-3 -mr-2 flex items-center justify-center"
-          title="Remove"
-        >
-          <XIcon width={12} height={12} />
-        </button>
+      {entry.coverageKind === "substitute" && <SubstituteBadge covers={entry.coversEmployeeName} />}
+      {entry.attendanceMark === "late" && <Badge tone="warning">late</Badge>}
+      {roleCount > 1 && <Badge tone="primary">{roleCount} roles</Badge>}
+    </>
+  );
+
+  if (readOnly) {
+    return (
+      <div className="flex items-center gap-1.5 rounded-[var(--radius-full)] px-2.5 py-1 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)]">
+        <span>{entry.employeeName}</span>
+        {badges}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-[var(--radius-full)] pl-1 pr-1.5 py-1 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)]">
+      {/* The chip IS the control (2026-08-25, Oliver: "click at his box")
+          -- opens the day-of attendance popup. 44px hit height via
+          negative margins, same trick as the X. */}
+      <button
+        type="button"
+        onClick={() => setDialogOpen(true)}
+        className="flex items-center gap-1.5 min-h-11 -my-3 pl-1.5 rounded-[var(--radius-full)] hover:text-[var(--ink-900)]"
+        title={`${entry.employeeName} — late / substitute / absent`}
+      >
+        <span>{entry.employeeName}</span>
+        {badges}
+      </button>
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() =>
+          startTransition(async () => {
+            const formData = new FormData();
+            formData.set("rosterEntryId", String(entry.rosterEntryId));
+            formData.set("shiftId", String(shiftId));
+            // No error surface in this pill; a failed remove leaves the
+            // row standing, which is itself the signal. (Before the
+            // 2026-08-24 sweep a failure here was an unhandled throw.)
+            await removeRosterEntry(formData);
+            router.refresh();
+          })
+        }
+        // 44px hit box, glyph stays small -- the 20x20 version was under
+        // WCAG 2.5.8's 24px floor (2026-08-24 button-size audit); same
+        // fix the week view's remove got. This X means "added by
+        // mistake" -- it records nothing; absences go through the chip.
+        className="text-[var(--ink-400)] hover:text-[var(--danger)] disabled:opacity-50 min-w-11 min-h-11 -my-3 -mr-2 flex items-center justify-center"
+        title="Remove (added by mistake — records nothing)"
+      >
+        <XIcon width={12} height={12} />
+      </button>
+
+      {dialogOpen && (
+        <PersonActionDialog
+          entry={entry}
+          shiftId={shiftId}
+          employees={employees}
+          alreadyAssignedIds={alreadyAssignedIds}
+          onClose={() => setDialogOpen(false)}
+        />
       )}
     </div>
+  );
+}
+
+/** The day-of attendance popup (2026-08-25, Oliver's scenario). One
+ * dialog, steps chained -- never two popups at once:
+ *   menu -> [Mark late] done
+ *        -> [Replace with substitute] -> reason (No show / Emergency) -> pick sub -> commit
+ *        -> [Absent — remove] -> reason -> commit
+ * Replace commits three effects in ONE server batch: absent person off
+ * the roster, their reason recorded, substitute in their position. */
+function PersonActionDialog({
+  entry,
+  shiftId,
+  employees,
+  alreadyAssignedIds,
+  onClose,
+}: {
+  entry: RosterPageEntry;
+  shiftId: number;
+  employees: EmployeeOptionGroups;
+  alreadyAssignedIds: Set<number>;
+  onClose: () => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const titleId = useId();
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const [step, setStep] = useState<"menu" | "reason" | "sub">("menu");
+  const [action, setAction] = useState<"replace" | "remove">("remove");
+  const [reason, setReason] = useState<"no_show" | "emergency" | null>(null);
+  const [note, setNote] = useState("");
+  const [subId, setSubId] = useState<number | "">("");
+  const [error, setError] = useState<string | null>(null);
+
+  const isLate = entry.attendanceMark === "late";
+
+  function run(fn: () => Promise<{ error?: string | null }>) {
+    setError(null);
+    startTransition(async () => {
+      const result = await fn();
+      if (result.error) {
+        setError(result.error);
+      } else {
+        onClose();
+        router.refresh();
+      }
+    });
+  }
+
+  function toggleLate() {
+    run(async () => {
+      const fd = new FormData();
+      fd.set("shiftId", String(shiftId));
+      fd.set("employeeId", String(entry.employeeId));
+      if (isLate) return clearAttendanceMark(fd);
+      fd.set("mark", "late");
+      return setAttendanceMark(fd);
+    });
+  }
+
+  function commit() {
+    if (!reason) return;
+    run(async () => {
+      const fd = new FormData();
+      fd.set("shiftId", String(shiftId));
+      fd.set("rosterEntryId", String(entry.rosterEntryId));
+      fd.set("mark", reason);
+      fd.set("note", note);
+      if (action === "replace") {
+        fd.set("substituteEmployeeId", String(subId));
+        return replaceWithSubstitute(fd);
+      }
+      return removeRosterEntryAbsent(fd);
+    });
+  }
+
+  const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
+  const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
+
+  const menuButton =
+    "w-full text-left text-sm px-3 py-2.5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--paper)] text-[var(--ink-900)]";
+
+  return (
+    <Modal open onClose={onClose} labelledBy={titleId} initialFocus={closeRef}>
+      <div id={titleId} className="text-base font-bold text-[var(--ink-900)] mb-1.5">
+        {entry.employeeName} — {entry.positionName}
+      </div>
+
+      {error && (
+        <div className="mb-3">
+          <Banner tone="danger" title="That didn't save" description={error} />
+        </div>
+      )}
+
+      {step === "menu" && (
+        <div className="space-y-2">
+          <button type="button" className={menuButton} onClick={toggleLate} disabled={isPending}>
+            {isLate ? "Remove the late mark" : "Mark late"}
+            <span className="block text-xs text-[var(--ink-500)]">
+              {isLate ? "Marked late by mistake." : "Came to work, arrived late. Stays on the roster."}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={menuButton}
+            onClick={() => {
+              setAction("replace");
+              setStep("reason");
+            }}
+            disabled={isPending}
+          >
+            Replace with a substitute
+            <span className="block text-xs text-[var(--ink-500)]">Someone else takes this {entry.positionName} slot; why {entry.employeeName} is out gets recorded.</span>
+          </button>
+          <button
+            type="button"
+            className={menuButton}
+            onClick={() => {
+              setAction("remove");
+              setStep("reason");
+            }}
+            disabled={isPending}
+          >
+            Absent — remove from this shift
+            <span className="block text-xs text-[var(--ink-500)]">No replacement; why they&apos;re out gets recorded.</span>
+          </button>
+          <div className="flex justify-end pt-1">
+            <Button ref={closeRef} variant="secondary" size="sm" onClick={onClose} disabled={isPending}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {step === "reason" && (
+        <div className="space-y-2">
+          <p className="text-sm text-[var(--ink-700)]">Why is {entry.employeeName} out?</p>
+          {(
+            [
+              { value: "no_show" as const, label: "No show", hint: "Didn't come, didn't tell anyone." },
+              { value: "emergency" as const, label: "Emergency", hint: "Injury or an urgent event — excused." },
+            ]
+          ).map((r) => (
+            <button
+              key={r.value}
+              type="button"
+              className={
+                menuButton +
+                (reason === r.value ? " border-[var(--primary)] bg-[var(--primary-tint)]" : "")
+              }
+              onClick={() => setReason(r.value)}
+              disabled={isPending}
+            >
+              {r.label}
+              <span className="block text-xs text-[var(--ink-500)]">{r.hint}</span>
+            </button>
+          ))}
+          <label className="block text-xs text-[var(--ink-500)]">
+            Note (optional)
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder={action === "replace" ? "e.g. A came to help" : "e.g. called at 11am"}
+              className="mt-1 w-full text-sm border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
+            />
+          </label>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" size="sm" onClick={() => setStep("menu")} disabled={isPending}>
+              Back
+            </Button>
+            {action === "replace" ? (
+              <Button variant="primary" size="sm" onClick={() => setStep("sub")} disabled={!reason || isPending}>
+                Next: pick the substitute
+              </Button>
+            ) : (
+              <Button variant="primary" size="sm" onClick={commit} disabled={!reason} loading={isPending}>
+                Remove & record
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {step === "sub" && (
+        <div className="space-y-2">
+          <p className="text-sm text-[var(--ink-700)]">Who takes the {entry.positionName} slot?</p>
+          <select
+            value={subId}
+            disabled={isPending}
+            onChange={(e) => setSubId(e.target.value === "" ? "" : Number(e.target.value))}
+            className="w-full text-sm border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-2 bg-[var(--card)] text-[var(--ink-900)]"
+          >
+            <option value="">Pick someone…</option>
+            {eligible.length > 0 && (
+              <optgroup label="Usually this role">
+                {eligible.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {other.length > 0 && (
+              <optgroup label="Other">
+                {other.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" size="sm" onClick={() => setStep("reason")} disabled={isPending}>
+              Back
+            </Button>
+            <Button variant="primary" size="sm" onClick={commit} disabled={subId === ""} loading={isPending}>
+              Replace & record
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
@@ -241,7 +601,7 @@ function RosterQuickAdd({
   positionName: string;
   target: number;
   currentCount: number;
-  employees: { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] };
+  employees: EmployeeOptionGroups;
   alreadyAssignedIds: Set<number>;
   roster: RosterPageEntry[];
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
@@ -250,23 +610,31 @@ function RosterQuickAdd({
   const router = useRouter();
   const [selectedId, setSelectedId] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
-  // Two confirmations share one dialog slot: adding a second role to the
-  // same person (the original guard) and pushing a position past its
-  // target (Oliver, 2026-08-24: warn with cancel | add anyway, never
-  // block). When both apply, one dialog says both -- two sequential
-  // popups for one tap would be worse than either warning.
-  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; description: string; confirmLabel: string } | null>(null);
+  const [extraNote, setExtraNote] = useState("");
+  // Two-or-three confirmations share one dialog slot: adding a second
+  // role to the same person (the original guard), off-position, and
+  // pushing past target (Oliver, 2026-08-24: warn with cancel | add
+  // anyway, never block). When several apply, one dialog says all --
+  // sequential popups for one tap would be worse than either warning.
+  // Over-target now also ASKS "is this an extra?" and records the answer
+  // (2026-08-25, Oliver) -- asExtra on the pending confirm wires the
+  // coverage flag through performAdd.
+  const [pendingConfirm, setPendingConfirm] = useState<{ title: string; description: string; confirmLabel: string; asExtra: boolean } | null>(null);
 
   const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
   const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
   if (eligible.length === 0 && other.length === 0) return null;
 
-  function performAdd() {
+  function performAdd(asExtra: boolean, note: string) {
     if (selectedId === "") return;
     const formData = new FormData();
     formData.set("shiftId", String(shiftId));
     formData.set("employeeId", String(selectedId));
     formData.set("positionId", String(positionId));
+    if (asExtra) {
+      formData.set("coverageKind", "extra");
+      formData.set("coverageNote", note);
+    }
     setError(null);
     startTransition(async () => {
       // Return-value error -- thrown server-action errors get redacted to
@@ -276,6 +644,7 @@ function RosterQuickAdd({
         setError(result.error);
       } else {
         setSelectedId("");
+        setExtraNote("");
         router.refresh();
       }
     });
@@ -290,9 +659,6 @@ function RosterQuickAdd({
     // (Oliver, 2026-08-24: same warn-don't-block dialog as over-target).
     const offPosition = employees.other.some((e) => e.id === selectedId);
 
-    // One dialog for however many of the three warnings apply -- two or
-    // three sequential popups for a single tap would be worse than any of
-    // the warnings.
     const sentences: string[] = [];
     if (existingPositions.length > 0) {
       sentences.push(
@@ -304,19 +670,20 @@ function RosterQuickAdd({
     }
     if (overTarget) {
       sentences.push(
-        `${positionName} is already at ${currentCount}/${target} — adding one more makes it ${currentCount + 1}/${target}. Fine for a busy day.`
+        `${positionName} is already at ${currentCount}/${target} — is ${employeeName} an extra for today? Adding them records it as extra coverage.`
       );
     }
 
     if (sentences.length === 0) {
-      performAdd();
+      performAdd(false, "");
       return;
     }
     setPendingConfirm({
       title:
-        existingPositions.length > 0 ? "Add a second role?" : offPosition ? "Not their usual position" : "Already at target",
-      description: sentences.join(" ") + " Just checking it's on purpose.",
-      confirmLabel: existingPositions.length > 0 ? "Add role" : "Add anyway",
+        existingPositions.length > 0 ? "Add a second role?" : overTarget ? `Is ${employeeName} an extra?` : "Not their usual position",
+      description: sentences.join(" ") + (overTarget ? "" : " Just checking it's on purpose."),
+      confirmLabel: overTarget ? "Yes, add as extra" : existingPositions.length > 0 ? "Add role" : "Add anyway",
+      asExtra: overTarget,
     });
   }
 
@@ -362,12 +729,27 @@ function RosterQuickAdd({
         open={pendingConfirm !== null}
         onClose={() => setPendingConfirm(null)}
         onConfirm={() => {
+          const asExtra = pendingConfirm?.asExtra ?? false;
           setPendingConfirm(null);
-          performAdd();
+          performAdd(asExtra, extraNote);
         }}
         title={pendingConfirm?.title ?? ""}
         description={pendingConfirm?.description}
         confirmLabel={pendingConfirm?.confirmLabel ?? "Confirm"}
+        body={
+          pendingConfirm?.asExtra ? (
+            <label className="block text-xs text-[var(--ink-500)]">
+              Reason (optional)
+              <input
+                type="text"
+                value={extraNote}
+                onChange={(e) => setExtraNote(e.target.value)}
+                placeholder="e.g. came to help on a busy night"
+                className="mt-1 w-full text-sm border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
+              />
+            </label>
+          ) : undefined
+        }
       />
     </div>
   );

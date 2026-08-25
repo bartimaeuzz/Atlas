@@ -177,6 +177,27 @@ export default async function EmployeeSchedulePage({
                           {s.positionName} ({s.period === "Lunch" ? "L" : "D"})
                         </div>
                       ))}
+                      {/* Day-of records (2026-08-25): what actually
+                          happened -- attendance + coverage from shift
+                          data. Manager surface, so all of them show. */}
+                      {day.dayRecords.map((r, ri) => (
+                        <div
+                          key={`r-${ri}`}
+                          className={
+                            "text-[10px] font-medium rounded border px-1 py-0.5 " +
+                            (r.kind === "no_show"
+                              ? "bg-[var(--danger-tint)] text-[var(--danger-700)] border-[var(--danger-border)]"
+                              : r.kind === "late" || r.kind === "extra"
+                                ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border-[var(--warning-border)]"
+                                : r.kind === "emergency"
+                                ? "bg-[var(--paper)] text-[var(--ink-700)] border-[var(--border-strong)]"
+                                : "bg-teal-100 text-teal-700 border-teal-300")
+                          }
+                        >
+                          {r.kind === "no_show" ? "No show" : r.kind === "late" ? "Late" : r.kind === "emergency" ? "Emergency" : r.kind === "extra" ? "Extra" : "Sub"}
+                          {r.positionName ? ` — ${r.positionName}` : ""} ({r.period === "Lunch" ? "L" : "D"})
+                        </div>
+                      ))}
                     </div>
                   </Link>
                 </td>

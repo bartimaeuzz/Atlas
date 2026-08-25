@@ -8,7 +8,7 @@ import { db } from "@/db/client";
 import {
   shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
   onlinePlatforms, metricValues,
-  shiftWageAdjustments,
+  shiftWageAdjustments, shiftAttendanceMarks,
   scheduleWeeks, plannedShiftAssignments,
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
@@ -160,6 +160,13 @@ export async function addRosterEntry(formData: FormData): Promise<ActionResult> 
 
     await assertDraft(shiftId);
 
+    // Optional day-of coverage record (2026-08-25) -- "extra" comes from
+    // the over-target quick-add gate; anything else is ignored so a
+    // malformed value can never invent a coverage state.
+    const kindRaw = String(formData.get("coverageKind") ?? "");
+    const coverageKind = kindRaw === "extra" ? ("extra" as const) : null;
+    const coverageNote = String(formData.get("coverageNote") ?? "").trim() || null;
+
     // Point value override is NOT set here on purpose — it's a closing-time
     // judgment call ("did great today"), entered on the Closing Report page
     // right before Save, not a staffing decision made when building the
@@ -169,6 +176,8 @@ export async function addRosterEntry(formData: FormData): Promise<ActionResult> 
       shiftId,
       employeeId,
       positionId,
+      coverageKind,
+      coverageNote: coverageKind ? coverageNote : null,
     });
 
     revalidatePath(`/shifts/${shiftId}/roster`);
@@ -191,6 +200,137 @@ export async function removeRosterEntry(formData: FormData): Promise<ActionResul
     await db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
     revalidatePath(`/shifts/${shiftId}/roster`);
 });
+}
+
+/* ---------------------------------------------------------------------- */
+/* Attendance marks (2026-08-25, Oliver's injury/no-show scenario)         */
+/* ---------------------------------------------------------------------- */
+
+const ATTENDANCE_MARKS = ["no_show", "late", "emergency"] as const;
+type AttendanceMark = (typeof ATTENDANCE_MARKS)[number];
+
+function readMark(formData: FormData): AttendanceMark {
+  const mark = String(formData.get("mark") ?? "");
+  if (!(ATTENDANCE_MARKS as readonly string[]).includes(mark)) throw new Error("Unknown attendance mark");
+  return mark as AttendanceMark;
+}
+
+/** One mark per person per shift (unique index) -- marking again replaces,
+ * so "late" mis-tapped as "no show" is fixed by marking again, and
+ * clearAttendanceMark undoes entirely. Marks are informational: nothing
+ * in tip pool or wage math reads them (rule 6 -- the closing report shows
+ * them NEXT TO the deduction field, the manager types every number). */
+export async function setAttendanceMark(formData: FormData): Promise<ActionResult> {
+  return asActionResult(async () => {
+    const session = await requireManagerAction();
+    const shiftId = Number(formData.get("shiftId"));
+    const employeeId = Number(formData.get("employeeId"));
+    if (!shiftId || !employeeId) throw new Error("Missing shift or employee");
+    const mark = readMark(formData);
+    const note = String(formData.get("note") ?? "").trim() || null;
+
+    await assertDraft(shiftId);
+
+    await db
+      .insert(shiftAttendanceMarks)
+      .values({ shiftId, employeeId, mark, note, markedByEmployeeId: session.id, markedAt: new Date().toISOString() })
+      .onConflictDoUpdate({
+        target: [shiftAttendanceMarks.shiftId, shiftAttendanceMarks.employeeId],
+        set: { mark, note, markedByEmployeeId: session.id, markedAt: new Date().toISOString() },
+      });
+
+    revalidatePath(`/shifts/${shiftId}/roster`);
+  });
+}
+
+export async function clearAttendanceMark(formData: FormData): Promise<ActionResult> {
+  return asActionResult(async () => {
+    await requireManagerAction();
+    const shiftId = Number(formData.get("shiftId"));
+    const employeeId = Number(formData.get("employeeId"));
+    if (!shiftId || !employeeId) throw new Error("Missing shift or employee");
+
+    await assertDraft(shiftId);
+
+    await db
+      .delete(shiftAttendanceMarks)
+      .where(and(eq(shiftAttendanceMarks.shiftId, shiftId), eq(shiftAttendanceMarks.employeeId, employeeId)));
+    revalidatePath(`/shifts/${shiftId}/roster`);
+  });
+}
+
+/** Absent -- remove from the roster AND record why, in one commit
+ * (db.batch: the mark and the removal it explains must land together).
+ * Reason is one of the two fixed absence reasons; "late" is not valid
+ * here because a late person still works and stays on the roster. */
+export async function removeRosterEntryAbsent(formData: FormData): Promise<ActionResult> {
+  return asActionResult(async () => {
+    const session = await requireManagerAction();
+    const rosterEntryId = Number(formData.get("rosterEntryId"));
+    const shiftId = Number(formData.get("shiftId"));
+    if (!rosterEntryId || !shiftId) throw new Error("Missing roster entry");
+    const mark = readMark(formData);
+    if (mark === "late") throw new Error("A late person stays on the roster");
+    const note = String(formData.get("note") ?? "").trim() || null;
+
+    await assertDraft(shiftId);
+    const [entry] = await db.select().from(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
+    if (!entry || entry.shiftId !== shiftId) throw new Error("That roster entry is gone already");
+
+    await db.batch([
+      db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId)),
+      db
+        .insert(shiftAttendanceMarks)
+        .values({ shiftId, employeeId: entry.employeeId, mark, note, markedByEmployeeId: session.id, markedAt: new Date().toISOString() })
+        .onConflictDoUpdate({
+          target: [shiftAttendanceMarks.shiftId, shiftAttendanceMarks.employeeId],
+          set: { mark, note, markedByEmployeeId: session.id, markedAt: new Date().toISOString() },
+        }),
+    ]);
+    revalidatePath(`/shifts/${shiftId}/roster`);
+  });
+}
+
+/** Replace with a substitute -- one flow, three effects in one commit:
+ * the absent person leaves the roster, their absence reason is recorded,
+ * and the substitute takes the same position flagged as covering them. */
+export async function replaceWithSubstitute(formData: FormData): Promise<ActionResult> {
+  return asActionResult(async () => {
+    const session = await requireManagerAction();
+    const rosterEntryId = Number(formData.get("rosterEntryId"));
+    const shiftId = Number(formData.get("shiftId"));
+    const substituteEmployeeId = Number(formData.get("substituteEmployeeId"));
+    if (!rosterEntryId || !shiftId || !substituteEmployeeId) throw new Error("Missing roster entry or substitute");
+    const mark = readMark(formData);
+    if (mark === "late") throw new Error("A late person stays on the roster");
+    const note = String(formData.get("note") ?? "").trim() || null;
+
+    await assertDraft(shiftId);
+    const [entry] = await db.select().from(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
+    if (!entry || entry.shiftId !== shiftId) throw new Error("That roster entry is gone already");
+    if (substituteEmployeeId === entry.employeeId) throw new Error("Someone can't substitute for themselves");
+
+    await db.batch([
+      db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId)),
+      db
+        .insert(shiftAttendanceMarks)
+        .values({ shiftId, employeeId: entry.employeeId, mark, note, markedByEmployeeId: session.id, markedAt: new Date().toISOString() })
+        .onConflictDoUpdate({
+          target: [shiftAttendanceMarks.shiftId, shiftAttendanceMarks.employeeId],
+          set: { mark, note, markedByEmployeeId: session.id, markedAt: new Date().toISOString() },
+        }),
+      db.insert(shiftRosterEntries).values({
+        shiftId,
+        employeeId: substituteEmployeeId,
+        positionId: entry.positionId,
+        sectionId: entry.sectionId,
+        coverageKind: "substitute",
+        coverageNote: note,
+        coversEmployeeId: entry.employeeId,
+      }),
+    ]);
+    revalidatePath(`/shifts/${shiftId}/roster`);
+  });
 }
 
 export interface ClosingReportActionState {

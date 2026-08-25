@@ -70,6 +70,7 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
           allEmployees={data.allEmployees}
           employeeAssignedPositionIds={data.employeeAssignedPositionIds}
           readOnly={isFinalized}
+          marks={data.marks}
         />
       </section>
 

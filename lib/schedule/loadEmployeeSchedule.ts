@@ -1,6 +1,6 @@
-import { and, eq, inArray, ne, lte, gte } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, ne, lte, gte } from "drizzle-orm";
 import { db } from "@/db/client";
-import { scheduleWeeks, plannedShiftAssignments, employeeScheduleTemplates, employees, positions, swapRequests, leaveRequests } from "@/db/schema";
+import { scheduleWeeks, plannedShiftAssignments, employeeScheduleTemplates, employees, positions, swapRequests, leaveRequests, shifts, shiftAttendanceMarks, shiftRosterEntries } from "@/db/schema";
 import { addDays, dayOfWeek, monthLabel, monthStart, shiftMonth, weekStartFor } from "@/lib/schedule/weekMath";
 import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
 
@@ -11,6 +11,20 @@ export interface EmployeeScheduleShift {
   isExtraCoverage: boolean;
 }
 
+/** What actually happened on the day, from shift records rather than the
+ * plan (2026-08-25, Oliver's injury/no-show scenario). PRIVATE to the
+ * individual: this loader serves only My Schedule (self) and the
+ * manager Person page, which is exactly why the records ride here and
+ * not in any shared-surface loader — the privacy rule is enforced by
+ * where the data lives ("good deeds we announce" was revised same day:
+ * individual-only for these too). Facts, not plans, so pages may render
+ * them even on weeks that aren't published. */
+export interface EmployeeDayRecord {
+  period: "Lunch" | "Dinner";
+  kind: "no_show" | "late" | "emergency" | "extra" | "substitute";
+  positionName: string | null;
+}
+
 export interface EmployeeScheduleDay {
   date: string;
   inMonth: boolean;
@@ -19,6 +33,7 @@ export interface EmployeeScheduleDay {
    * template, not an actually-generated week. */
   weekStatus: "published" | "draft" | "projected";
   shifts: EmployeeScheduleShift[];
+  dayRecords: EmployeeDayRecord[];
 }
 
 /** Month totals for one person (Oliver, 2026-08-25: "person schedule …
@@ -138,6 +153,42 @@ export async function loadEmployeeSchedule(employeeId: number, monthAnchor: stri
     for (const p of projected) addShift(p.date, p.positionId, p.period, false);
   }
 
+  // Day-of records from actual shift data (see EmployeeDayRecord's doc):
+  // attendance marks + coverage-flagged roster rows for this person,
+  // bounded to the visible grid's date range in the WHERE.
+  const [markRows, coverageRows] = await Promise.all([
+    db
+      .select({ date: shifts.date, period: shifts.period, mark: shiftAttendanceMarks.mark })
+      .from(shiftAttendanceMarks)
+      .innerJoin(shifts, eq(shiftAttendanceMarks.shiftId, shifts.id))
+      .where(and(eq(shiftAttendanceMarks.employeeId, employeeId), gte(shifts.date, gridStart), lte(shifts.date, gridEnd))),
+    db
+      .select({ date: shifts.date, period: shifts.period, kind: shiftRosterEntries.coverageKind, positionId: shiftRosterEntries.positionId })
+      .from(shiftRosterEntries)
+      .innerJoin(shifts, eq(shiftRosterEntries.shiftId, shifts.id))
+      .where(
+        and(
+          eq(shiftRosterEntries.employeeId, employeeId),
+          isNotNull(shiftRosterEntries.coverageKind),
+          gte(shifts.date, gridStart),
+          lte(shifts.date, gridEnd)
+        )
+      ),
+  ]);
+  const dayRecordsByDate = new Map<string, EmployeeDayRecord[]>();
+  function addDayRecord(date: string, record: EmployeeDayRecord) {
+    const existing = dayRecordsByDate.get(date);
+    if (existing) existing.push(record);
+    else dayRecordsByDate.set(date, [record]);
+  }
+  for (const m of markRows) {
+    addDayRecord(m.date, { period: m.period as "Lunch" | "Dinner", kind: m.mark, positionName: null });
+  }
+  for (const c of coverageRows) {
+    if (c.kind == null) continue;
+    addDayRecord(c.date, { period: c.period as "Lunch" | "Dinner", kind: c.kind, positionName: positionNameById.get(c.positionId) ?? null });
+  }
+
   const weeks: EmployeeScheduleDay[][] = [];
   for (let i = 0; i < allDates.length; i += 7) {
     weeks.push(
@@ -153,6 +204,7 @@ export async function loadEmployeeSchedule(employeeId: number, monthAnchor: stri
           inMonth: date >= firstOfMonth && date <= lastOfMonth,
           weekStatus,
           shifts: (shiftsByDate.get(date) ?? []).sort((a, b) => (a.period === b.period ? 0 : a.period === "Lunch" ? -1 : 1)),
+          dayRecords: dayRecordsByDate.get(date) ?? [],
         };
       })
     );
