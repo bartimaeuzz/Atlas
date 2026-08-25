@@ -1,36 +1,10 @@
-import Link from "next/link";
-import { NewShiftForm } from "./NewShiftForm";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { redirect } from "next/navigation";
 
-/** Accepts ?date= and ?period= so the month view's "+ Create" buttons
- * (2026-08-24, Oliver) land here prefilled -- the manager only confirms. */
-export default async function NewShiftPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ date?: string; period?: string }>;
-}) {
-  const params = await searchParams;
-  const today = new Date().toISOString().slice(0, 10);
-  // A future ?date= is clamped to today rather than prefilled -- future
-  // days can't have shifts (2026-08-25, Oliver; the action refuses them
-  // server-side, the form's date input is capped at today).
-  const defaultDate =
-    params.date && /^\d{4}-\d{2}-\d{2}$/.test(params.date) && params.date <= today ? params.date : today;
-  const defaultPeriod = params.period === "Lunch" ? "Lunch" : "Dinner";
-
-  return (
-    <main className="max-w-md mx-auto px-4 sm:px-8 py-8">
-      <p className="text-sm mb-2">
-        <Link href="/shifts" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
-          ← All shifts
-        </Link>
-      </p>
-      <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1.5">New shift</h1>
-      <p className="text-sm text-[var(--ink-500)] mb-6">
-        One record per meal period — pick the date and Lunch or Dinner, then build the roster.
-      </p>
-
-      <NewShiftForm defaultDate={defaultDate} defaultPeriod={defaultPeriod} maxDate={today} />
-    </main>
-  );
+/** Retired 2026-08-25 (Oliver: "with new design UI we can dismount this
+ * page") -- the month view shows every day and creates in place behind a
+ * confirm popup (see CreateShiftSlot.tsx), so the standalone form had
+ * nothing left to ask. The route stays only so a bookmarked or stale URL
+ * lands on the shifts list instead of a 404. */
+export default function NewShiftPage() {
+  redirect("/shifts");
 }

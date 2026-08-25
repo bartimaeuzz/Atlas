@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { TableCard } from "@/components/ui/Table";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { MonthRow } from "@/app/(protected)/ledger/MonthRow";
+import { CreateShiftSlot } from "./CreateShiftSlot";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTH_NAMES = [
@@ -67,9 +68,6 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
               )}
               <LinkButton href="/positions" variant="secondary" size="sm">
                 Positions
-              </LinkButton>
-              <LinkButton href="/shifts/new" size="sm">
-                + New shift
               </LinkButton>
             </>
           }
@@ -213,9 +211,6 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
             <LinkButton href="/positions" variant="secondary" size="sm">
               Positions
             </LinkButton>
-            <LinkButton href="/shifts/new" size="sm">
-              + New shift
-            </LinkButton>
           </>
         }
       />
@@ -291,20 +286,12 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                           </span>
                         );
                       }
-                      // "+ Create" instead of a dash (Oliver, 2026-08-24:
-                      // "it will be more intuitive") -- lands on the new-
-                      // shift form prefilled with this date and period, so
-                      // the manager only confirms. Dashed border says
-                      // "empty slot", not a third status colour.
-                      return (
-                        <Link
-                          key={period}
-                          href={`/shifts/new?date=${date}&period=${period}`}
-                          className="flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]"
-                        >
-                          + Create
-                        </Link>
-                      );
+                      // "+ Create" (Oliver, 2026-08-24: "it will be more
+                      // intuitive") -- since 2026-08-25 it creates right
+                      // here behind a confirm popup instead of routing
+                      // through the retired /shifts/new form. Dashed border
+                      // says "empty slot", not a third status colour.
+                      return <CreateShiftSlot key={period} date={date} period={period} isPast={date < todayIso} />;
                     }
                     return (
                       // ONE layer of chrome (Oliver, 2026-08-24): the bordered
