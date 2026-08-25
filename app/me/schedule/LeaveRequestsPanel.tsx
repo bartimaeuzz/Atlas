@@ -30,13 +30,9 @@ export function LeaveRequestsPanel({ requests }: { requests: LeaveRequestView[] 
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-sm font-medium text-[var(--ink-900)]">My leave requests</h2>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
-        >
+        <Button type="button" size="sm" variant="secondary" onClick={() => setShowForm((v) => !v)}>
           {showForm ? "Hide form" : "+ Request leave"}
-        </button>
+        </Button>
       </div>
 
       {showForm && <LeaveRequestForm key={requests.length} />}

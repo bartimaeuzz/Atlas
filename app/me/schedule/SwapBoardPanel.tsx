@@ -12,7 +12,6 @@ import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { EmptyState } from "@/components/ui/Card";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const initialState: SwapRequestActionState = { error: null };
 
@@ -47,13 +46,9 @@ export function SwapBoardPanel({
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
         <h2 className="text-sm font-medium text-[var(--ink-900)]">Shift swaps</h2>
-        <button
-          type="button"
-          onClick={() => setShowForm((v) => !v)}
-          className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
-        >
+        <Button type="button" size="sm" variant="secondary" onClick={() => setShowForm((v) => !v)}>
           {showForm ? "Hide form" : "+ Offer a shift"}
-        </button>
+        </Button>
       </div>
 
       {showForm && <OfferSwapForm key={mine.length} swappable={swappable} />}
