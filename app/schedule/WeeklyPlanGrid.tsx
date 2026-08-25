@@ -390,7 +390,7 @@ export function WeeklyPlanGrid({
                         rather than 2.5px above it (measured, 2026-08-24). The
                         row reads left-to-right as one line, so the three
                         columns have to share a baseline. */}
-                    <span className="text-xs font-medium text-[var(--ink-900)] leading-snug pt-[3px]">{position.name}</span>
+                    <span className="text-sm lg:text-xs font-medium text-[var(--ink-900)] leading-snug pt-[3px]">{position.name}</span>
                     {(["Lunch", "Dinner"] as const).map((period) => {
                       const { assignments, target } = period === "Lunch" ? lunch : dinner;
                       const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
@@ -476,7 +476,10 @@ export function WeeklyPlanGrid({
         // would name a period the table already names twice.
         <section key={period} className="hidden lg:block">
           <h2 className="text-lg font-medium mb-3 text-[var(--ink-900)]">{period}</h2>
-          <div className="hidden lg:block overflow-x-auto">
+          {/* Card shell matching TableCard (Oliver, 2026-08-25: the desktop
+              table sat bare on the page background while every other table
+              in the app lives in a bordered card). */}
+          <div className="hidden lg:block overflow-x-auto bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-1)] p-4">
           <table className="w-full min-w-[640px] text-sm border-collapse">
             <thead>
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
@@ -626,13 +629,15 @@ function AssignmentPill({
         // them read as one grey lump with a hairline through it. Oliver saw
         // that as "people on the same line", and the line break was never
         // the missing part: the boundary was.
-        // font-medium ink-900 (2026-08-25 legibility pass, same complaint
-        // and fix as My Schedule's calendar in e7cf846: 12px grey-on-grey
-        // names were too faint to read at a glance).
-        "flex items-center justify-between gap-1 rounded-[var(--radius-sm)] border px-1.5 py-0.5 text-xs font-medium " +
+        // 2026-08-25 legibility pass, round two (Oliver: "still hard to
+        // read"): assigned people now use the same primary-tint chip the
+        // Person Schedule and My Schedule calendars use — the old white
+        // outlined pill read as an empty input box, not an assignment.
+        // Phone gets 14px text; lg drops back to 12px for grid density.
+        "flex items-center justify-between gap-1 rounded-[var(--radius-sm)] border px-1.5 py-1 lg:py-0.5 text-sm lg:text-xs font-medium " +
         (assignment.isExtraCoverage
           ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border-[var(--warning-border)]"
-          : "bg-[var(--paper)] text-[var(--ink-900)] border-[var(--border-strong)]") +
+          : "bg-[var(--primary-tint)] text-[var(--primary-700)] border-[var(--primary-border)]") +
         (vacatingSoon ? " ring-1 ring-[var(--danger)]" : "") +
         (onLeave ? " ring-1 ring-purple-400" : "") +
         (swap?.status === "completed" ? " ring-1 ring-[var(--success)]" : "") +
