@@ -34,12 +34,14 @@ export function PublishedEditGate({
   weekId,
   allEmployees,
   employeeAssignedPositionIds,
+  initialDate,
 }: {
   isPublished: boolean;
   data: WeeklyPlanData;
   weekId: number;
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   employeeAssignedPositionIds: Record<number, number[]>;
+  initialDate?: string;
 }) {
   const [unlocked, setUnlocked] = useState(!isPublished);
   // Unlocking now takes a ConfirmDialog (2026-08-24, Oliver's call): the
@@ -127,6 +129,7 @@ export function PublishedEditGate({
         allEmployees={allEmployees}
         employeeAssignedPositionIds={employeeAssignedPositionIds}
         readOnly={locked}
+        initialDate={initialDate}
       />
     </>
   );

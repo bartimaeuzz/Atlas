@@ -1,5 +1,5 @@
 import { loadSwapRequestsForManager, type SwapRequestView } from "@/lib/schedule/loadSwapRequests";
-import { toIso } from "@/lib/schedule/weekMath";
+import { toIso, weekStartFor } from "@/lib/schedule/weekMath";
 import { formatDayLabel } from "@/lib/format/formatDayLabel";
 import { SwapDecisionButtons } from "./SwapDecisionButtons";
 import { MarkSeenOnMount } from "../MarkSeenOnMount";
@@ -131,12 +131,21 @@ function SwapRow({ request: r, canDecide }: { request: SwapRequestView; canDecid
           )}
           {r.note && <div className="text-xs text-[var(--ink-500)] mt-1 italic">&ldquo;{r.note}&rdquo;</div>}
 
-          <div className="mt-2">
+          <div className="mt-2 flex items-center gap-3">
             <Badge tone={STATUS_TONE[r.status]}>
               {r.status === "pending_manager_approval" && !canDecide
                 ? "Awaiting approval"
                 : STATUS_LABEL[r.status]}
             </Badge>
+            {/* Jump straight to the slot on the Weekly Plan (Oliver,
+                2026-08-25) — day param preselects the phone day tab. */}
+            <LinkButton
+              href={`/schedule/plan?week=${weekStartFor(r.date)}&day=${r.date}`}
+              variant="ghost"
+              size="sm"
+            >
+              View shift →
+            </LinkButton>
           </div>
         </div>
 

@@ -135,6 +135,7 @@ export function WeeklyPlanGrid({
   employeeAssignedPositionIds,
   readOnly = false,
   hideDiagnostics = false,
+  initialDate,
 }: {
   data: WeeklyPlanData;
   weekId?: number;
@@ -142,6 +143,10 @@ export function WeeklyPlanGrid({
   employeeAssignedPositionIds?: Record<number, number[]>;
   readOnly?: boolean;
   hideDiagnostics?: boolean;
+  /** Preselect this date's phone day-tab on first render (e.g. arriving
+   * from a swap card's "View shift" link). Falls back to today/Monday
+   * when absent or outside the week. */
+  initialDate?: string;
 }) {
   const positionNameById = useMemo(() => {
     const map = new Map<number, string>();
@@ -264,7 +269,9 @@ export function WeeklyPlanGrid({
   const selectedDate =
     pickedDate && data.dates.includes(pickedDate)
       ? pickedDate
-      : data.dates.includes(todayIso)
+      : initialDate && data.dates.includes(initialDate)
+        ? initialDate
+        : data.dates.includes(todayIso)
         ? todayIso
         : data.dates[0];
   const setSelectedDate = setPickedDate;

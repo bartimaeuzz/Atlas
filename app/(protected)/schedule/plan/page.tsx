@@ -15,10 +15,11 @@ import { LinkButton } from "@/components/ui/Button";
 export default async function WeeklyPlanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ week?: string; day?: string }>;
 }) {
   const params = await searchParams;
   const weekStartDate = params.week || weekStartFor(toIso(new Date()));
+  const initialDay = params.day;
 
   const [data, employeeList, employeeAssignedPositionIds, canManage] = await Promise.all([
     loadWeeklyPlan(weekStartDate),
@@ -93,7 +94,7 @@ export default async function WeeklyPlanPage({
               permission.
             </p>
           </Card>
-          <WeeklyPlanGrid data={data} readOnly />
+          <WeeklyPlanGrid data={data} readOnly initialDate={initialDay} />
         </>
       ) : (
         <>
@@ -114,6 +115,7 @@ export default async function WeeklyPlanPage({
             weekId={data.week.id}
             allEmployees={activeEmployees}
             employeeAssignedPositionIds={employeeAssignedPositionIds}
+            initialDate={initialDay}
           />
 
           <DangerZone
