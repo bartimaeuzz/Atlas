@@ -51,7 +51,7 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
       </p>
 
       <Section title="Basics">
-        <Card className="max-w-md">
+        <Card>
           <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
             <ProfileRow label="Legal name" value={[employee.legalFirstName, employee.legalLastName].filter(Boolean).join(" ") || "—"} />
             <ProfileRow label="Hire date" value={employee.hireDate ? formatPersonDate(employee.hireDate) : "—"} />
@@ -65,11 +65,11 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
 
       <Section title="Positions">
         {employee.positions.length === 0 ? (
-          <Card className="max-w-md">
+          <Card>
             <p className="text-sm text-[var(--ink-500)]">No positions assigned yet.</p>
           </Card>
         ) : (
-          <Card className="max-w-md">
+          <Card>
             {[
               { header: "FOH — Front of house", items: fohPositions },
               { header: "BOH — Back of house", items: bohPositions },
@@ -99,7 +99,7 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
 
       {employee.contactInfo && (
         <Section title="Contact details">
-          <Card className="max-w-md">
+          <Card>
             <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
               {/* Standard display formats (Oliver, 2026-08-24): dates read
                   like the app's other dates, phones like the form's own
@@ -120,7 +120,7 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
 
       {employee.hrSensitive && (
         <Section title="HR and payroll records">
-          <Card className="max-w-md">
+          <Card>
             <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
               <div className="contents">
                 <dt className="text-[var(--ink-500)]">Address</dt>
