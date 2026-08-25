@@ -122,6 +122,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     employeeId: r.employeeId,
     tipPoolGroups: r.tipPoolGroups,
     pointValue: r.pointValue,
+    pointValueByPool: r.pointValueByPool,
     flatWage: r.flatWage,
   }));
 

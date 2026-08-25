@@ -30,6 +30,10 @@ export interface FinalizeRosterRow {
    * can contribute to multiple pool shares. Empty = no tip pool. */
   tipPoolGroups: TipPoolGroup[];
   pointValue: number;
+  /** Per-pool point values (2026-08-25): a Host in Pool 1 + Pool 2 can
+   * now weigh differently in each. Missing entries fall back to
+   * pointValue, so existing callers and data behave exactly as before. */
+  pointValueByPool?: Partial<Record<TipPoolGroup, number>>;
   /** Flat wage for THIS row, or null if not the wage-bearing row for this
    * employee this shift (same one-row-per-employee rule as loadRosterForCalc). */
   flatWage: number | null;
@@ -141,15 +145,16 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     incentiveAmounts,
   } = input;
 
+  const poolPoint = (r: FinalizeRosterRow, pool: TipPoolGroup) => r.pointValueByPool?.[pool] ?? r.pointValue;
   const pool1Roster: PoolRosterEntry[] = roster
     .filter((r) => r.tipPoolGroups.includes("POOL_1_DINE_IN"))
-    .map((r) => ({ employeeId: r.employeeId, pointValue: r.pointValue }));
+    .map((r) => ({ employeeId: r.employeeId, pointValue: poolPoint(r, "POOL_1_DINE_IN") }));
   const pool2Roster: PoolRosterEntry[] = roster
     .filter((r) => r.tipPoolGroups.includes("POOL_2_TAKEOUT_ONLINE"))
-    .map((r) => ({ employeeId: r.employeeId, pointValue: r.pointValue }));
+    .map((r) => ({ employeeId: r.employeeId, pointValue: poolPoint(r, "POOL_2_TAKEOUT_ONLINE") }));
   const pool3Roster: PoolRosterEntry[] = roster
     .filter((r) => r.tipPoolGroups.includes("POOL_3_DELIVERY"))
-    .map((r) => ({ employeeId: r.employeeId, pointValue: r.pointValue }));
+    .map((r) => ({ employeeId: r.employeeId, pointValue: poolPoint(r, "POOL_3_DELIVERY") }));
 
   const calc = calculateTwoPoolTips({
     deductionRate,
@@ -189,7 +194,16 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     // row with two tipPoolGroups), so this resolves cleanly in that case —
     // it only stays null if the employee has two SEPARATE roster rows this
     // shift (e.g. genuinely working two different positions).
-    const pointValueUsed = tipPoolRows.length === 1 ? tipPoolRows[0].pointValue : null;
+    // Only a single unambiguous number is recorded: one tip-pool row AND
+    // the same value in every pool it belongs to -- per-pool values that
+    // differ have no honest single summary, so null (2026-08-25).
+    const pointValueUsed =
+      tipPoolRows.length === 1 &&
+      tipPoolRows[0].tipPoolGroups.every(
+        (g) => (tipPoolRows[0].pointValueByPool?.[g] ?? tipPoolRows[0].pointValue) === tipPoolRows[0].pointValue
+      )
+        ? tipPoolRows[0].pointValue
+        : null;
     const wageRow = rowsForEmployee.find((r) => r.flatWage != null);
     const autoResolvedWage = wageRow?.flatWage ?? 0;
     const adjustment = wageAdjustments[employeeId];

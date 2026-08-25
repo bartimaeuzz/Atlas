@@ -32,11 +32,14 @@ export interface PointValueRow {
   employeeName: string;
   positionName: string;
   tipPoolGroups: TipPoolGroup[];
-  pointValue: number; // current resolved value (override if set, else standing value)
-  /** True when a per-shift override row is actually saved -- the closing
-   * report uses this to keep the collapsed Tip points card from hiding a
-   * bump that is in effect (2026-08-24). pointValue alone can't tell,
-   * since it already resolves override-over-standing. */
+  /** Per-pool resolved values (2026-08-25, Oliver: a Host's one point
+   * moved their weight in Pool 1 AND Pool 2 at once -- each
+   * point-weighted pool now has its own field). Keys only for pools
+   * this row is in. */
+  pointValueByPool: Partial<Record<TipPoolGroup, number>>;
+  /** True when a per-shift override is actually saved (any pool, or the
+   * legacy single column) -- keeps the collapsed Tip points card from
+   * hiding a bump that is in effect (2026-08-24). */
   hasOverride: boolean;
 }
 
@@ -106,6 +109,10 @@ export interface ClosingReportData {
    * the manager types Total sales, instead of only computing it once at
    * page load — see ClosingReportForm.tsx. */
   defaultSalesTaxRate: number;
+  /** Pools currently split by points -- the Tip points section shows a
+   * field per row per pool listed here, and none for equal-split pools
+   * (a point field on an equal-split pool would be an inert control). */
+  pointWeightedPools: TipPoolGroup[];
   sales: {
     totalSales: number;
     ccTipTotal: number;
@@ -140,11 +147,20 @@ export interface ClosingReportData {
 
 export async function loadClosingReportData(shiftId: number): Promise<ClosingReportData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, defaultSalesTaxRate: 0, sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [] };
+  if (!shift) return { shift: null, defaultSalesTaxRate: 0, pointWeightedPools: [], sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [] };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
   const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
   const taxRate = settings?.defaultSalesTaxRate ?? 0;
+  const pointWeightedPools: TipPoolGroup[] = (
+    [
+      ["POOL_1_DINE_IN", settings?.pool1SplitMethod ?? "POINT_WEIGHTED"],
+      ["POOL_2_TAKEOUT_ONLINE", settings?.pool2SplitMethod ?? "POINT_WEIGHTED"],
+      ["POOL_3_DELIVERY", settings?.pool3SplitMethod ?? "EQUAL_SPLIT"],
+    ] as const
+  )
+    .filter(([, m]) => m === "POINT_WEIGHTED")
+    .map(([g]) => g);
 
   const platforms = await db.select().from(onlinePlatforms);
   const records = await db
@@ -171,10 +187,21 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
 
   const calcData = await loadShiftCalcData(shiftId);
   const overrideEntries = await db
-    .select({ id: shiftRosterEntries.id, pointValueOverride: shiftRosterEntries.pointValueOverride })
+    .select({
+      id: shiftRosterEntries.id,
+      pointValueOverride: shiftRosterEntries.pointValueOverride,
+      pointOverridePool1: shiftRosterEntries.pointOverridePool1,
+      pointOverridePool2: shiftRosterEntries.pointOverridePool2,
+      pointOverridePool3: shiftRosterEntries.pointOverridePool3,
+    })
     .from(shiftRosterEntries)
     .where(eq(shiftRosterEntries.shiftId, shiftId));
-  const overrideByEntry = new Map(overrideEntries.map((r) => [r.id, r.pointValueOverride]));
+  const overrideByEntry = new Map(
+    overrideEntries.map((r) => [
+      r.id,
+      r.pointValueOverride != null || r.pointOverridePool1 != null || r.pointOverridePool2 != null || r.pointOverridePool3 != null,
+    ])
+  );
   const pointValueRows: PointValueRow[] = calcData.roster
     .filter((r) => r.tipPoolGroups.length > 0)
     .map((r) => ({
@@ -182,8 +209,8 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       employeeName: r.employeeName,
       positionName: r.positionName,
       tipPoolGroups: r.tipPoolGroups,
-      pointValue: r.pointValue,
-      hasOverride: overrideByEntry.get(r.rosterEntryId) != null,
+      pointValueByPool: r.pointValueByPool,
+      hasOverride: overrideByEntry.get(r.rosterEntryId) === true,
     }));
 
   // "Bonus metrics" section: enabled EMPLOYEE_SHIFT metrics collected at
@@ -347,6 +374,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, incidentReport: shift.incidentReport },
     defaultSalesTaxRate: taxRate,
+    pointWeightedPools,
     sales: sales
       ? {
           totalSales: sales.totalSales,

@@ -178,7 +178,7 @@ export function ClosingReportForm({
         {data.pointValueRows.length === 0 ? (
           <p className="text-sm text-[var(--ink-500)]">No tip-pool-eligible staff on the roster yet.</p>
         ) : (
-          <TipPointsSection rows={data.pointValueRows} />
+          <TipPointsSection rows={data.pointValueRows} pointWeightedPools={data.pointWeightedPools} />
         )}
         </fieldset>
       </details>
@@ -506,54 +506,86 @@ const POOL_LABELS: Record<string, string> = {
   POOL_3_DELIVERY: "Pool 3 · Delivery",
 };
 
-/** Tip points as a card table with each row's pools shown and a live
- * per-pool point total underneath (2026-08-25, Oliver: "tip point
- * override shows relative pots") -- a point value only means anything
- * relative to the rest of its pool, so bumping someone shows the pool
- * total move immediately. Inputs are controlled ONLY to feed that little
- * sum; the posted field names are unchanged and the server still treats
- * whatever is submitted as the override, exactly as before. */
-function TipPointsSection({ rows }: { rows: ClosingReportData["pointValueRows"] }) {
-  const [points, setPoints] = useState<Record<number, number>>(() =>
-    Object.fromEntries(rows.map((r) => [r.rosterEntryId, r.pointValue]))
+const POOL_SUFFIX: Record<string, string> = {
+  POOL_1_DINE_IN: "p1",
+  POOL_2_TAKEOUT_ONLINE: "p2",
+  POOL_3_DELIVERY: "p3",
+};
+
+/** Tip points as a card table with a field PER POINT-WEIGHTED POOL per
+ * row (2026-08-25, Oliver: one point moving a Host's weight in Pool 1
+ * AND Pool 2 at once was wrong -- "tip adjustment ควรมีอีก field").
+ * Single-pool people see one field, a Host sees one per pool, and
+ * equal-split pools get no field at all (a point there would be an
+ * inert control that lies). The live per-pool totals underneath update
+ * as values change -- a point only means anything relative to the rest
+ * of its pool. Inputs are controlled ONLY to feed those sums; the
+ * server stores whatever is submitted, per pool. */
+function TipPointsSection({
+  rows,
+  pointWeightedPools,
+}: {
+  rows: ClosingReportData["pointValueRows"];
+  pointWeightedPools: ClosingReportData["pointWeightedPools"];
+}) {
+  const weighted = new Set<string>(pointWeightedPools);
+  const editableRows = rows.filter((r) => r.tipPoolGroups.some((g) => weighted.has(g)));
+  const [points, setPoints] = useState<Record<string, number>>(() =>
+    Object.fromEntries(
+      editableRows.flatMap((r) =>
+        r.tipPoolGroups.filter((g) => weighted.has(g)).map((g) => [`${r.rosterEntryId}:${g}`, r.pointValueByPool[g] ?? 1.0])
+      )
+    )
   );
 
-  const pools = Array.from(new Set(rows.flatMap((r) => r.tipPoolGroups)));
-  const poolTotals = pools.map((pool) => ({
-    pool,
-    total: rows.filter((r) => r.tipPoolGroups.includes(pool)).reduce((sum, r) => sum + (points[r.rosterEntryId] || 0), 0),
-    people: rows.filter((r) => r.tipPoolGroups.includes(pool)).length,
-  }));
+  if (editableRows.length === 0) {
+    return <p className="text-sm text-[var(--ink-500)]">No point-weighted pools are staffed this shift.</p>;
+  }
+
+  const pools = pointWeightedPools.filter((g) => editableRows.some((r) => r.tipPoolGroups.includes(g)));
+  const poolTotals = pools.map((pool) => {
+    const members = editableRows.filter((r) => r.tipPoolGroups.includes(pool));
+    return {
+      pool,
+      total: members.reduce((sum, r) => sum + (points[`${r.rosterEntryId}:${pool}`] || 0), 0),
+      people: members.length,
+    };
+  });
 
   return (
     <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
-      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(88px,0.7fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
+      <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
         <span>Employee</span>
-        <span>Pools</span>
-        <span>Points</span>
+        <span>Points per pool</span>
       </div>
       <div className="divide-y divide-[var(--border)]">
-        {rows.map((r) => (
-          <div key={r.rosterEntryId} className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.2fr)_minmax(88px,0.7fr)] gap-2 px-3 py-2 items-center bg-[var(--card)]">
+        {editableRows.map((r) => (
+          <div key={r.rosterEntryId} className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)] gap-2 px-3 py-2 items-center bg-[var(--card)]">
             <div className="text-sm text-[var(--ink-900)]">
               {r.employeeName}
               <span className="block text-xs text-[var(--ink-500)]">{r.positionName}</span>
             </div>
-            <div className="flex flex-wrap gap-1">
-              {r.tipPoolGroups.map((g) => (
-                <span key={g} className="text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-[var(--primary-tint)] text-[var(--primary-700)] border border-[var(--primary-border)]">
-                  {(POOL_LABELS[g] ?? g).split(" · ")[0]}
+            <div className="flex flex-wrap gap-3">
+              {r.tipPoolGroups.filter((g) => weighted.has(g)).map((g) => (
+                <label key={g} className="block">
+                  <span className="block text-[10px] text-[var(--primary-700)] mb-0.5">{(POOL_LABELS[g] ?? g).split(" · ")[0]}</span>
+                  <input
+                    type="number"
+                    step={0.1}
+                    name={`point_${r.rosterEntryId}_${POOL_SUFFIX[g]}`}
+                    value={points[`${r.rosterEntryId}:${g}`] ?? 0}
+                    onChange={(e) => setPoints((p) => ({ ...p, [`${r.rosterEntryId}:${g}`]: Number(e.target.value) || 0 }))}
+                    className={INPUT + " max-w-24"}
+                  />
+                </label>
+              ))}
+              {/* Equal-split pools this row is also in: named, no field. */}
+              {r.tipPoolGroups.filter((g) => !weighted.has(g)).map((g) => (
+                <span key={g} className="self-end pb-2.5 text-[10px] text-[var(--ink-500)]">
+                  {(POOL_LABELS[g] ?? g).split(" · ")[0]} — equal split
                 </span>
               ))}
             </div>
-            <input
-              type="number"
-              step={0.1}
-              name={`point_${r.rosterEntryId}`}
-              value={points[r.rosterEntryId] ?? 0}
-              onChange={(e) => setPoints((p) => ({ ...p, [r.rosterEntryId]: Number(e.target.value) || 0 }))}
-              className={INPUT}
-            />
           </div>
         ))}
       </div>

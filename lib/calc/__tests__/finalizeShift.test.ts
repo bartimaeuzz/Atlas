@@ -559,3 +559,88 @@ test("finalize: incentiveAmounts is added on top of tip share/wage/extra pay as 
   assert.equal(lineCook.incentiveAmount, 0); // no rule fired for them
   assert.equal(lineCook.totalCorePayout, round2(lineCook.flatWageAmount));
 });
+
+test("finalize: per-pool point values weigh each pool independently (2026-08-25)", () => {
+  // Host (emp 10) in Pool 1 + Pool 2 with DIFFERENT per-pool points; a
+  // Server (emp 1) shares Pool 1, a Packer-like row (emp 20) shares
+  // Pool 2. The old single-value model forced the Host's weight to move
+  // in both pools together — Oliver's exact complaint.
+  const roster: FinalizeRosterRow[] = [
+    { employeeId: 1, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 60 },
+    {
+      employeeId: 10,
+      tipPoolGroups: ["POOL_1_DINE_IN", "POOL_2_TAKEOUT_ONLINE"],
+      pointValue: 1.0,
+      pointValueByPool: { POOL_1_DINE_IN: 1.0, POOL_2_TAKEOUT_ONLINE: 3.0 },
+      flatWage: 55,
+    },
+    { employeeId: 20, tipPoolGroups: ["POOL_2_TAKEOUT_ONLINE"], pointValue: 1.0, flatWage: 50 },
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 300, // 200 general (pool 1) + 100 takeout (pool 2)
+    takeoutCcTip: 100,
+    cashTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: {},
+    incentiveAmounts: {},
+  });
+
+  const server = result.employeePayouts.find((p) => p.employeeId === 1)!;
+  const host = result.employeePayouts.find((p) => p.employeeId === 10)!;
+  const packer = result.employeePayouts.find((p) => p.employeeId === 20)!;
+
+  // Pool 1 (200): host weighs 1.0 vs server 1.0 -> 100 / 100
+  assert.equal(server.pool1Share, 100);
+  assert.equal(host.pool1Share, 100);
+  // Pool 2 (100): host weighs 3.0 vs packer 1.0 -> 75 / 25
+  assert.equal(host.pool2Share, 75);
+  assert.equal(packer.pool2Share, 25);
+  // Per-pool values differ, so no single honest point number exists.
+  assert.equal(host.pointValueUsed, null);
+});
+
+test("finalize: pointValueByPool matching pointValue behaves exactly like the legacy single value", () => {
+  const legacy: FinalizeRosterRow[] = [
+    { employeeId: 1, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 60 },
+    { employeeId: 10, tipPoolGroups: ["POOL_1_DINE_IN", "POOL_2_TAKEOUT_ONLINE"], pointValue: 0.5, flatWage: 55 },
+  ];
+  const perPool: FinalizeRosterRow[] = [
+    { employeeId: 1, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, pointValueByPool: { POOL_1_DINE_IN: 1.0 }, flatWage: 60 },
+    {
+      employeeId: 10,
+      tipPoolGroups: ["POOL_1_DINE_IN", "POOL_2_TAKEOUT_ONLINE"],
+      pointValue: 0.5,
+      pointValueByPool: { POOL_1_DINE_IN: 0.5, POOL_2_TAKEOUT_ONLINE: 0.5 },
+      flatWage: 55,
+    },
+  ];
+
+  const input = (roster: FinalizeRosterRow[]) => ({
+    deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED" as const,
+    pool2SplitMethod: "POINT_WEIGHTED" as const,
+    pool3SplitMethod: "EQUAL_SPLIT" as const,
+    grossCcTip: 630,
+    takeoutCcTip: 130,
+    cashTip: 20,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 15,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: {},
+    incentiveAmounts: {},
+  });
+
+  // A/B: identical outputs row for row (behaviour-preserving fallback).
+  assert.deepEqual(buildFinalizationResult(input(perPool)), buildFinalizationResult(input(legacy)));
+});

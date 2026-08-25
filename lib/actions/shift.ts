@@ -10,7 +10,7 @@ import {
   onlinePlatforms, metricValues,
   shiftWageAdjustments, shiftAttendanceMarks,
   hostUpsellTipRecords, deliveryCashTipRecords, tipPoolCalculations, employeePayouts,
-  scheduleWeeks, plannedShiftAssignments,
+  scheduleWeeks, plannedShiftAssignments, employeePositions,
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
 import { weekStartFor } from "@/lib/schedule/weekMath";
@@ -538,15 +538,53 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData) {
  * render an input; NONE-pool rows like Manager don't, so they're skipped
  * here automatically). Blank input clears the override back to the
  * employee's standing point value. */
+/** Per-pool since 2026-08-25 (Oliver: one point moving a Host's weight
+ * in Pool 1 AND Pool 2 at once was wrong). The form posts
+ * `point_<entryId>_p1|p2|p3` for point-weighted pools only. A pool
+ * column is stored only when the submitted value differs from the
+ * standing value (an override that overrides nothing is noise); the
+ * legacy single `pointValueOverride` is cleared whenever any per-pool
+ * field arrived for the entry, because the form displayed values that
+ * already resolved it -- leaving it set would resurrect it under a
+ * pool column that went back to null. */
 async function upsertPointOverrides(shiftId: number, formData: FormData) {
-  const rosterRows = await db.select().from(shiftRosterEntries).where(eq(shiftRosterEntries.shiftId, shiftId));
+  const rosterRows = await db
+    .select({
+      id: shiftRosterEntries.id,
+      standingPoint: employeePositions.tipPointValue,
+    })
+    .from(shiftRosterEntries)
+    .leftJoin(
+      employeePositions,
+      and(
+        eq(employeePositions.employeeId, shiftRosterEntries.employeeId),
+        eq(employeePositions.positionId, shiftRosterEntries.positionId)
+      )
+    )
+    .where(eq(shiftRosterEntries.shiftId, shiftId));
+
+  const POOL_FIELDS = [
+    ["p1", "pointOverridePool1"],
+    ["p2", "pointOverridePool2"],
+    ["p3", "pointOverridePool3"],
+  ] as const;
+
   for (const entry of rosterRows) {
-    const raw = formData.get(`point_${entry.id}`);
-    if (raw == null) continue;
-    const trimmed = String(raw).trim();
-    const pointValueOverride = trimmed === "" ? null : Number(trimmed);
-    if (pointValueOverride != null && Number.isNaN(pointValueOverride)) continue;
-    await db.update(shiftRosterEntries).set({ pointValueOverride }).where(eq(shiftRosterEntries.id, entry.id));
+    const standing = entry.standingPoint ?? 1.0;
+    const set: Partial<Record<(typeof POOL_FIELDS)[number][1] | "pointValueOverride", number | null>> = {};
+    let touched = false;
+    for (const [suffix, column] of POOL_FIELDS) {
+      const raw = formData.get(`point_${entry.id}_${suffix}`);
+      if (raw == null) continue;
+      const trimmed = String(raw).trim();
+      const value = trimmed === "" ? null : Number(trimmed);
+      if (value != null && Number.isNaN(value)) continue;
+      touched = true;
+      set[column] = value != null && value !== standing ? value : null;
+    }
+    if (!touched) continue;
+    set.pointValueOverride = null;
+    await db.update(shiftRosterEntries).set(set).where(eq(shiftRosterEntries.id, entry.id));
   }
 }
 

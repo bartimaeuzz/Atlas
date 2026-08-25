@@ -483,6 +483,16 @@ export const shiftRosterEntries = sqliteTable("shift_roster_entries", {
   sectionId: integer("section_id").references(() => sections.id), // FOH only
   pointValueOverride: real("point_value_override"), // day-only override of EmployeePosition.tipPointValue
   overrideReason: text("override_reason"),
+  // Per-pool day-only overrides (2026-08-25, Oliver: bumping a Host's
+  // single point moved their weight in Pool 1 AND Pool 2 at once --
+  // "tip adjustment ควรมีอีก field to adjust"). Resolution per pool:
+  // pool column -> legacy pointValueOverride -> standing tipPointValue.
+  // The closing report writes these and clears the legacy column on
+  // save; the legacy column stays only so pre-existing draft overrides
+  // keep meaning what they meant until their next save.
+  pointOverridePool1: real("point_override_pool1"),
+  pointOverridePool2: real("point_override_pool2"),
+  pointOverridePool3: real("point_override_pool3"),
   // Day-of coverage record (2026-08-25, Oliver's scenario: injury/no-show,
   // someone volunteers or gets called in). "extra" = added over target on
   // a busy day (the roster-side twin of plannedShiftAssignments'

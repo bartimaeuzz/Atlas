@@ -20,6 +20,9 @@ export interface RosterRow {
    * value. Empty array = no tip pool (Manager, Chef, ...). */
   tipPoolGroups: TipPoolGroup[];
   pointValue: number; // resolved: override -> EmployeePosition -> 1.0 fallback
+  /** Per-pool resolution (2026-08-25): pool override -> legacy single
+   * override -> standing value -> 1.0. Keys only for pools this row is in. */
+  pointValueByPool: Partial<Record<TipPoolGroup, number>>;
   /** Flat wage for THIS row, or null if this employee's wage is already
    * counted on another row this shift (see loadShiftCalcData doc). */
   flatWage: number | null;
@@ -63,6 +66,9 @@ export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData>
       positionName: positions.name,
       positionCategory: positions.category,
       pointOverride: shiftRosterEntries.pointValueOverride,
+      pointOverridePool1: shiftRosterEntries.pointOverridePool1,
+      pointOverridePool2: shiftRosterEntries.pointOverridePool2,
+      pointOverridePool3: shiftRosterEntries.pointOverridePool3,
       standingPoint: employeePositions.tipPointValue,
     })
     .from(shiftRosterEntries)
@@ -117,6 +123,13 @@ export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData>
       positionCategory: r.positionCategory as "FOH" | "BOH",
       tipPoolGroups: poolGroupsByPositionId.get(r.positionId) ?? [],
       pointValue: r.pointOverride ?? r.standingPoint ?? 1.0,
+      pointValueByPool: Object.fromEntries(
+        (poolGroupsByPositionId.get(r.positionId) ?? []).map((g) => {
+          const poolOverride =
+            g === "POOL_1_DINE_IN" ? r.pointOverridePool1 : g === "POOL_2_TAKEOUT_ONLINE" ? r.pointOverridePool2 : r.pointOverridePool3;
+          return [g, poolOverride ?? r.pointOverride ?? r.standingPoint ?? 1.0];
+        })
+      ),
       flatWage: null, // resolved below, once per employee
       wageNote: null,
     });
