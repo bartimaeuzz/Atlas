@@ -4632,7 +4632,7 @@ reconfirmed at `6d6ab89` via `git ls-remote`.
 
 ~28 commits, all live. Headlines: leave approval flow (pending/approved/denied,
 decided by SCHEDULE_MANAGE; migration 0027 run by Oliver via atlas-db after the
-first attempt silently hit the local-file fallback — verify через Turso, never
+first attempt silently hit the local-file fallback — verify via Turso, never
 trust exit 0); SCHEDULE_MANAGE default dropped to per-person grants with a full
 view-only mode for every other manager; My Pay design-system retrofit + a
 3-finding visual audit (tap-target floor, disabled-look, viewer copy); the swap
