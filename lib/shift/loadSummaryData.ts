@@ -47,7 +47,7 @@ export interface SummaryPayoutRow {
 }
 
 export interface SummaryData {
-  shift: { id: number; date: string; period: string; status: string; finalizedAt: string | null } | null;
+  shift: { id: number; date: string; period: string; status: string; finalizedAt: string | null; incidentReport: string | null } | null;
   sales: { totalSales: number; ccTipTotal: number; cashSales: number; cashTip: number } | null;
   tipPoolCalculation: {
     grossCcTip: number;
@@ -144,7 +144,7 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
   );
 
   return {
-    shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, finalizedAt: shift.finalizedAt },
+    shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, finalizedAt: shift.finalizedAt, incidentReport: shift.incidentReport },
     sales: sales ? { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales, cashTip: sales.cashTip } : null,
     tipPoolCalculation: calc
       ? {

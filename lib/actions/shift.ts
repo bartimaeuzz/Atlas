@@ -9,6 +9,7 @@ import {
   shifts, shiftRosterEntries, shiftSales, onlinePlatformSalesRecords,
   onlinePlatforms, metricValues,
   shiftWageAdjustments, shiftAttendanceMarks,
+  hostUpsellTipRecords, deliveryCashTipRecords, tipPoolCalculations, employeePayouts,
   scheduleWeeks, plannedShiftAssignments,
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
@@ -257,6 +258,44 @@ export async function clearAttendanceMark(formData: FormData): Promise<ActionRes
       .where(and(eq(shiftAttendanceMarks.shiftId, shiftId), eq(shiftAttendanceMarks.employeeId, employeeId)));
     revalidatePath(`/shifts/${shiftId}/roster`);
   });
+}
+
+/** Deletes a DRAFT shift and everything hanging off it, in one commit
+ * (2026-08-25, Oliver: "add ... delete shift button" on the roster).
+ * assertDraft is the load-bearing guard: a finalized shift is a locked
+ * payroll record and must never be deletable from anywhere. The
+ * finalize-only tables (tip pool calc, payouts) are included defensively
+ * -- deleting from an empty set is free, and a half-finalized orphan row
+ * would otherwise survive. Redirects to the shift's month afterwards. */
+export async function deleteShift(formData: FormData): Promise<ActionResult> {
+  let month: string;
+  try {
+    await requireManagerAction();
+    const shiftId = Number(formData.get("shiftId"));
+    if (!shiftId) throw new Error("Missing shift id");
+    await assertDraft(shiftId);
+    const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
+    if (!shift) throw new Error("That shift is already gone");
+    month = shift.date.slice(0, 7);
+
+    await db.batch([
+      db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.shiftId, shiftId)),
+      db.delete(shiftAttendanceMarks).where(eq(shiftAttendanceMarks.shiftId, shiftId)),
+      db.delete(shiftWageAdjustments).where(eq(shiftWageAdjustments.shiftId, shiftId)),
+      db.delete(shiftSales).where(eq(shiftSales.shiftId, shiftId)),
+      db.delete(onlinePlatformSalesRecords).where(eq(onlinePlatformSalesRecords.shiftId, shiftId)),
+      db.delete(metricValues).where(eq(metricValues.shiftId, shiftId)),
+      db.delete(hostUpsellTipRecords).where(eq(hostUpsellTipRecords.shiftId, shiftId)),
+      db.delete(deliveryCashTipRecords).where(eq(deliveryCashTipRecords.shiftId, shiftId)),
+      db.delete(employeePayouts).where(eq(employeePayouts.shiftId, shiftId)),
+      db.delete(tipPoolCalculations).where(eq(tipPoolCalculations.shiftId, shiftId)),
+      db.delete(shifts).where(eq(shifts.id, shiftId)),
+    ]);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+  revalidatePath("/shifts");
+  redirect(`/shifts?month=${month}`);
 }
 
 /** Absent -- remove from the roster AND record why, in one commit

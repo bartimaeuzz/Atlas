@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadSummaryData } from "@/lib/shift/loadSummaryData";
+import { loadShiftAttendanceSummary } from "@/lib/shift/loadRosterPageData";
+import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
 import { Fragment } from "react";
 import { Card, Section } from "@/components/ui/Card";
 import { TableCard } from "@/components/ui/Table";
@@ -12,7 +14,7 @@ import { formatDateTime } from "@/lib/formatDateTime";
 export default async function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const shiftId = Number(id);
-  const data = await loadSummaryData(shiftId);
+  const [data, attendance] = await Promise.all([loadSummaryData(shiftId), loadShiftAttendanceSummary(shiftId)]);
 
   if (!data.shift) notFound();
 
@@ -60,6 +62,22 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         Finalized {data.shift.finalizedAt ? formatDateTime(data.shift.finalizedAt) : ""} — figures below are a
         locked snapshot, not recalculated live.
       </p>
+
+      {/* The day's record rides on the permanent report too (2026-08-25,
+          Oliver: "#4 it should" -- same cards the Preview shows). */}
+      {(attendance.marks.length > 0 || attendance.coverage.length > 0 || data.shift.incidentReport) && (
+        <div className="space-y-4 mb-8 max-w-3xl">
+          <AttendanceCoverageCard attendance={attendance} />
+          {data.shift.incidentReport && (
+            <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] overflow-hidden">
+              <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--paper)]">
+                Incident report
+              </div>
+              <p className="px-3 py-2.5 text-sm text-[var(--ink-900)] whitespace-pre-line">{data.shift.incidentReport}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <section className="mb-8 grid sm:grid-cols-3 gap-3">
         <StatCard label="Total sales" value={data.sales?.totalSales ?? 0} />

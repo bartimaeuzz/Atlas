@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { loadRosterPageData } from "@/lib/shift/loadRosterPageData";
 import { RosterGrid } from "./RosterGrid";
 import { NextToClosingReport } from "./NextToClosingReport";
+import { RosterFooterActions } from "./RosterFooterActions";
 import { Banner } from "@/components/ui/Banner";
 import { StatusBadge } from "@/components/ui/Badge";
 import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
@@ -29,8 +30,11 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
   return (
     <main className="max-w-3xl mx-auto px-4 sm:px-8 py-8">
       <p className="text-sm mb-2">
-        <Link href="/shifts" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
-          ← All shifts
+        {/* Straight back to this shift's month (2026-08-25, Oliver: "add
+            back button") -- /shifts alone landed on the year picker, one
+            hop short of where the manager came from. */}
+        <Link href={`/shifts?month=${data.shift.date.slice(0, 7)}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+          ← Back to {data.shift.date.slice(0, 7)}
         </Link>
       </p>
       <div className="flex items-center gap-2.5 mb-1">
@@ -74,8 +78,9 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
         />
       </section>
 
-      <NextToClosingReport
-        shiftId={shiftId}
+      <div className="mb-4">
+        <NextToClosingReport
+          shiftId={shiftId}
         // Finalized shifts skip the warning: the roster is locked, there is
         // nothing left to fix here.
         understaffed={
@@ -90,6 +95,18 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
                 .filter((x): x is string => x !== null)
         }
       />
+      </div>
+
+      {/* Done + Delete (2026-08-25, Oliver). Rendered on draft shifts
+          only: a finalized roster is read-only and its banner already
+          links onward to the Summary. */}
+      {!isFinalized && (
+        <RosterFooterActions
+          shiftId={shiftId}
+          monthHref={`/shifts?month=${data.shift.date.slice(0, 7)}`}
+          shiftLabel={`${data.shift.date} (${data.shift.period})`}
+        />
+      )}
     </main>
   );
 }
