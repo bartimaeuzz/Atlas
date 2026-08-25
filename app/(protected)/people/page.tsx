@@ -19,7 +19,7 @@ export default async function PeopleListPage() {
       <PageHeader
         title="People"
         description="Create and edit staff — which positions they can work, their standing tip point value, and (for BOH) their per-employee wage rate. Retiring someone keeps every past shift they worked intact; it just stops offering them when staffing new ones."
-        actions={<LinkButton href="/people/new" size="sm">+ New person</LinkButton>}
+        actions={<LinkButton href="/people/new">+ New person</LinkButton>}
       />
 
       {employeeList.length === 0 ? (
