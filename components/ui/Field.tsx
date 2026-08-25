@@ -1,4 +1,5 @@
 import type { InputHTMLAttributes, SelectHTMLAttributes, ReactNode } from "react";
+import { ChevronDownIcon } from "./icons";
 import { AlertCircleIcon } from "./icons";
 
 const fieldShell =
@@ -55,9 +56,17 @@ type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & Omit<WrapperProps, 
 export function Select({ label, hint, error, required, className = "", children, ...rest }: SelectProps) {
   return (
     <FieldWrapper label={label} hint={hint} error={error} required={required}>
-      <select className={`${fieldShell} ${fieldBorder(!!error)} ${className}`} {...rest}>
-        {children}
-      </select>
+      {/* Custom chevron (2026-08-24, Oliver: "all chevron in dropdown seem
+          off to the right side") -- the native arrow hugs the border with
+          no breathing room and renders differently per browser.
+          appearance-none + our own ChevronDownIcon at right-3, matching
+          the 12px inner padding every other field edge uses. */}
+      <div className="relative">
+        <select className={`${fieldShell} ${fieldBorder(!!error)} appearance-none pr-9 ${className}`} {...rest}>
+          {children}
+        </select>
+        <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-500)]" />
+      </div>
     </FieldWrapper>
   );
 }
