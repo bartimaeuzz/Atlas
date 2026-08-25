@@ -192,13 +192,27 @@ export function WeeklyPlanGrid({
     return map;
   }, [data.assignments]);
 
-  /** Available + capable replacements for one on-leave assignment: set
-   * up for the position (same eligibility list quick-add uses) and not
-   * already in that date+period slot. The server re-checks everything,
-   * including the replacement's own leave, which isn't known here. */
-  const replaceCandidatesFor = (a: PlannedAssignmentRow): { id: number; name: string }[] => {
+  // employeeId -> how many shifts they already hold this week — shown
+  // next to each candidate so the manager can weigh who should take a
+  // slot (Oliver, 2026-08-25), and used to sort fewest-first, the same
+  // fairness tie-break autoFillWeek applies.
+  const weekLoadByEmployee = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const a of data.assignments) map.set(a.employeeId, (map.get(a.employeeId) ?? 0) + 1);
+    return map;
+  }, [data.assignments]);
+
+  /** Available + capable replacements for one assignment: set up for
+   * the position (same eligibility list quick-add uses) and not already
+   * in that date+period slot, fewest-shifts-this-week first. The server
+   * re-checks everything, including the replacement's own leave, which
+   * isn't known here. */
+  const replaceCandidatesFor = (a: PlannedAssignmentRow): { id: number; name: string; weekShifts: number }[] => {
     const busy = busyBySlot.get(`${a.date}:${a.period}`) ?? new Set<number>();
-    return (employeesByPosition.get(a.positionId)?.eligible ?? []).filter((e) => !busy.has(e.id));
+    return (employeesByPosition.get(a.positionId)?.eligible ?? [])
+      .filter((e) => !busy.has(e.id))
+      .map((e) => ({ ...e, weekShifts: weekLoadByEmployee.get(e.id) ?? 0 }))
+      .sort((x, y) => x.weekShifts - y.weekShifts || x.name.localeCompare(y.name));
   };
 
   // date -> employeeId -> ["Server · Dinner", ...] — feeds quick-add's
@@ -688,7 +702,7 @@ function AssignmentPill({
   /** Non-null only for an editable on-leave pill: the people who could
    * take this slot. Makes the name itself a button that opens the
    * replacement popup (Oliver, 2026-08-25). */
-  replaceCandidates?: { id: number; name: string }[] | null;
+  replaceCandidates?: { id: number; name: string; weekShifts: number }[] | null;
 }) {
   const [replacing, setReplacing] = useState(false);
   const hasConflict = conflictPositionNames.length > 0;
@@ -818,7 +832,7 @@ function AssignmentActionsDialog({
   onClose: () => void;
   assignment: PlannedAssignmentRow;
   positionName: string;
-  candidates: { id: number; name: string }[];
+  candidates: { id: number; name: string; weekShifts: number }[];
   onLeaveNote: string | null;
   conflictPositionNames: string[];
 }) {
@@ -899,7 +913,12 @@ function AssignmentActionsDialog({
           <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)]">
             {candidates.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                <span className="text-[var(--ink-900)]">{c.name}</span>
+                <span className="text-[var(--ink-900)]">
+                  {c.name}
+                  <span className="block text-xs text-[var(--ink-500)]">
+                    {c.weekShifts === 0 ? "no shifts this week" : `${c.weekShifts} shift${c.weekShifts === 1 ? "" : "s"} this week`}
+                  </span>
+                </span>
                 <Button size="sm" variant="secondary" disabled={isPending} onClick={() => pick(c.id)}>
                   Swap
                 </Button>
