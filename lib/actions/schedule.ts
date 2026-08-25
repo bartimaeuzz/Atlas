@@ -14,6 +14,9 @@ import {
   employees,
   employeePositions,
   scheduleChangeLog,
+  leaveRequests,
+  shifts,
+  shiftRosterEntries,
 } from "@/db/schema";
 import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
 import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
@@ -623,6 +626,115 @@ export async function removePlannedAssignment(assignmentId: number) {
   revalidatePath("/schedule/plan");
   revalidatePath("/schedule/weeks");
   revalidatePath("/me/schedule");
+}
+
+/** Replace the person on one planned slot with someone else — the
+ * "cover an on-leave shift" popup on the Weekly Plan (Oliver,
+ * 2026-08-25: "click on leave staff on roster show pop up to swap to
+ * any available capable staff"). One atomic reassignment instead of
+ * remove-then-add, so the slot can never be left empty half-way.
+ * Validation mirrors autoFillWeek's hard rules: never someone not
+ * linked to the position, never someone already in that slot; plus
+ * never someone whose own (non-denied) leave covers the date. */
+export async function replacePlannedAssignment(
+  assignmentId: number,
+  newEmployeeId: number
+): Promise<ActionResult> {
+  return asActionResult(async () => {
+    const session = await requireCapability("SCHEDULE_MANAGE");
+
+    const [assignment] = await db
+      .select()
+      .from(plannedShiftAssignments)
+      .where(eq(plannedShiftAssignments.id, assignmentId));
+    if (!assignment) throw new Error("That slot no longer exists");
+    if (assignment.employeeId === newEmployeeId) throw new Error("That's already who has this slot");
+
+    const [replacement] = await db.select().from(employees).where(eq(employees.id, newEmployeeId));
+    if (!replacement || !replacement.active) throw new Error("That person isn't available");
+
+    const [holdsPosition] = await db
+      .select()
+      .from(employeePositions)
+      .where(and(eq(employeePositions.employeeId, newEmployeeId), eq(employeePositions.positionId, assignment.positionId)));
+    if (!holdsPosition) throw new Error(`${replacement.nickname} isn't set up for this position`);
+
+    const [busy] = await db
+      .select()
+      .from(plannedShiftAssignments)
+      .where(
+        and(
+          eq(plannedShiftAssignments.employeeId, newEmployeeId),
+          eq(plannedShiftAssignments.date, assignment.date),
+          eq(plannedShiftAssignments.period, assignment.period)
+        )
+      );
+    if (busy) throw new Error(`${replacement.nickname} is already working that ${assignment.period.toLowerCase()}`);
+
+    const replacementLeaves = await db
+      .select()
+      .from(leaveRequests)
+      .where(eq(leaveRequests.employeeId, newEmployeeId));
+    const onLeave = replacementLeaves.some(
+      (l) => l.status !== "denied" && l.startDate <= assignment.date && l.endDate >= assignment.date
+    );
+    if (onLeave) throw new Error(`${replacement.nickname} has leave covering that date`);
+
+    // Mirror completeSwap: if the real shift already exists, its roster
+    // row moves too — unless payroll for it is already locked.
+    const [realShift] = await db
+      .select()
+      .from(shifts)
+      .where(and(eq(shifts.date, assignment.date), eq(shifts.period, assignment.period)));
+    if (realShift && realShift.status === "finalized") {
+      throw new Error("That shift has already been finalized and payroll for it is locked — adjust it by hand instead");
+    }
+
+    await db
+      .update(plannedShiftAssignments)
+      .set({ employeeId: newEmployeeId, sourceType: "MANUAL_ADD" })
+      .where(eq(plannedShiftAssignments.id, assignmentId));
+
+    if (realShift) {
+      await db
+        .update(shiftRosterEntries)
+        .set({ employeeId: newEmployeeId })
+        .where(
+          and(
+            eq(shiftRosterEntries.shiftId, realShift.id),
+            eq(shiftRosterEntries.employeeId, assignment.employeeId),
+            eq(shiftRosterEntries.positionId, assignment.positionId)
+          )
+        );
+    }
+
+    // The outgoing person loses a published slot — that's exactly what
+    // the staff-facing "Recent changes" feed exists to tell them.
+    const [week] = await db.select().from(scheduleWeeks).where(eq(scheduleWeeks.id, assignment.weekId));
+    if (week?.status === "published") {
+      await logScheduleChange({
+        weekId: assignment.weekId,
+        weekStartDate: week.weekStartDate,
+        action: "REMOVED_ASSIGNMENT",
+        date: assignment.date,
+        wasPublished: true,
+        reason: `Replaced by ${replacement.nickname}`,
+        performedBy: { id: session.id, name: session.name },
+        rows: [
+          {
+            employeeId: assignment.employeeId,
+            positionId: assignment.positionId,
+            date: assignment.date,
+            period: assignment.period as "Lunch" | "Dinner",
+          },
+        ],
+      });
+    }
+
+    revalidatePath("/schedule/plan");
+    revalidatePath("/schedule/weeks");
+    revalidatePath("/me/schedule");
+  });
 }
 
 /** Publishing is what makes a week visible on staff's own schedule view

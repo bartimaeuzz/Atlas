@@ -2,7 +2,10 @@
 
 import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { addPlannedAssignment, removePlannedAssignment } from "@/lib/actions/schedule";
+import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment } from "@/lib/actions/schedule";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Banner } from "@/components/ui/Banner";
 import type { WeeklyPlanData, PlannedAssignmentRow } from "@/lib/schedule/loadWeeklyPlan";
 import { toIso } from "@/lib/schedule/weekMath";
 
@@ -174,6 +177,28 @@ export function WeeklyPlanGrid({
     }
     return map;
   }, [data.positions, allEmployees, employeeAssignedPositionIds, readOnly]);
+
+  // date:period -> everyone already working that slot (any position) —
+  // feeds the on-leave replacement popup's "available" filter.
+  const busyBySlot = useMemo(() => {
+    const map = new Map<string, Set<number>>();
+    for (const a of data.assignments) {
+      const key = `${a.date}:${a.period}`;
+      const set = map.get(key) ?? new Set<number>();
+      set.add(a.employeeId);
+      map.set(key, set);
+    }
+    return map;
+  }, [data.assignments]);
+
+  /** Available + capable replacements for one on-leave assignment: set
+   * up for the position (same eligibility list quick-add uses) and not
+   * already in that date+period slot. The server re-checks everything,
+   * including the replacement's own leave, which isn't known here. */
+  const replaceCandidatesFor = (a: PlannedAssignmentRow): { id: number; name: string }[] => {
+    const busy = busyBySlot.get(`${a.date}:${a.period}`) ?? new Set<number>();
+    return (employeesByPosition.get(a.positionId)?.eligible ?? []).filter((e) => !busy.has(e.id));
+  };
 
   // PHONE SHOWS ONE DAY AT A TIME (2026-08-23, Oliver). At 390px the
   // editing grid measured 728px wide against 310px of visible width --
@@ -404,6 +429,8 @@ export function WeeklyPlanGrid({
                                     vacatingSoon={a.vacatingSoon}
                                     onLeave={a.onLeave}
                                     swap={a.swap}
+                                    positionName={position.name}
+                                    replaceCandidates={!readOnly && a.onLeave ? replaceCandidatesFor(a) : null}
                                   />
                                 );
                               })}
@@ -492,6 +519,8 @@ export function WeeklyPlanGrid({
                                   vacatingSoon={a.vacatingSoon}
                                   onLeave={a.onLeave}
                                   swap={a.swap}
+                                  positionName={p.name}
+                                  replaceCandidates={!readOnly && a.onLeave ? replaceCandidatesFor(a) : null}
                                 />
                               );
                             })}
@@ -539,6 +568,8 @@ function AssignmentPill({
   vacatingSoon,
   onLeave,
   swap,
+  positionName,
+  replaceCandidates,
 }: {
   assignment: PlannedAssignmentRow;
   conflictPositionNames: string[];
@@ -546,9 +577,15 @@ function AssignmentPill({
   vacatingSoon: PlannedAssignmentRow["vacatingSoon"];
   onLeave: PlannedAssignmentRow["onLeave"];
   swap: PlannedAssignmentRow["swap"];
+  positionName?: string;
+  /** Non-null only for an editable on-leave pill: the people who could
+   * take this slot. Makes the name itself a button that opens the
+   * replacement popup (Oliver, 2026-08-25). */
+  replaceCandidates?: { id: number; name: string }[] | null;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const [replacing, setReplacing] = useState(false);
   const hasConflict = conflictPositionNames.length > 0;
 
   const leaveTitle = onLeave
@@ -585,7 +622,21 @@ function AssignmentPill({
       }
     >
       <span className="flex items-center gap-1">
-        {assignment.employeeName}
+        {replaceCandidates ? (
+          // On-leave + editable: the name is the door to the replacement
+          // popup. Underline signals it's tappable; the purple dot next
+          // to it already marks why.
+          <button
+            type="button"
+            onClick={() => setReplacing(true)}
+            className="underline decoration-dotted underline-offset-2 hover:text-[var(--ink-900)] text-left"
+            title={`${assignment.employeeName} is on leave — tap to pick a replacement`}
+          >
+            {assignment.employeeName}
+          </button>
+        ) : (
+          assignment.employeeName
+        )}
         {vacatingSoon && <span className="w-1.5 h-1.5 rounded-full bg-[var(--danger)] shrink-0" />}
         {onLeave && <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />}
         {/* Text badge, not just the old 1.5px dot (Oliver, 2026-08-25: the
@@ -628,7 +679,93 @@ function AssignmentPill({
           ×
         </button>
       )}
+      {replaceCandidates && (
+        <ReplaceLeaveDialog
+          open={replacing}
+          onClose={() => setReplacing(false)}
+          assignment={assignment}
+          positionName={positionName ?? ""}
+          candidates={replaceCandidates}
+        />
+      )}
     </div>
+  );
+}
+
+/** Popup for covering an on-leave slot (Oliver, 2026-08-25): every
+ * person who is set up for this position and not already working that
+ * date+period, one tap each. The server re-validates everything —
+ * including the candidate's own leave, which the client can't see — so
+ * a rejected pick surfaces here as a banner instead of failing silently. */
+function ReplaceLeaveDialog({
+  open,
+  onClose,
+  assignment,
+  positionName,
+  candidates,
+}: {
+  open: boolean;
+  onClose: () => void;
+  assignment: PlannedAssignmentRow;
+  positionName: string;
+  candidates: { id: number; name: string }[];
+}) {
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const [error, setError] = useState<string | null>(null);
+
+  function pick(employeeId: number) {
+    setError(null);
+    startTransition(async () => {
+      const result = await replacePlannedAssignment(assignment.id, employeeId);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        onClose();
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <Modal open={open} onClose={onClose} labelledBy="replace-leave-title" width={380}>
+      <div className="p-4">
+        <h2 id="replace-leave-title" className="text-base font-semibold text-[var(--ink-900)] mb-1">
+          Cover {assignment.employeeName}&apos;s shift
+        </h2>
+        <p className="text-sm text-[var(--ink-500)] mb-3">
+          {positionName} · {assignment.date} · {assignment.period}. {assignment.employeeName} is on
+          leave — pick who takes this shift instead.
+        </p>
+        {error && (
+          <div className="mb-3">
+            <Banner tone="danger" title="Couldn't reassign" description={error} />
+          </div>
+        )}
+        {candidates.length === 0 ? (
+          <p className="text-sm text-[var(--ink-500)] border border-dashed border-[var(--border-strong)] rounded-[var(--radius-md)] p-3">
+            Nobody is both free this {assignment.period.toLowerCase()} and set up for {positionName}.
+            Add someone from the grid&apos;s own add control instead, or adjust in People.
+          </p>
+        ) : (
+          <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-md)]">
+            {candidates.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                <span className="text-[var(--ink-900)]">{c.name}</span>
+                <Button size="sm" variant="secondary" disabled={isPending} onClick={() => pick(c.id)}>
+                  Assign
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="mt-3 flex justify-end">
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={isPending}>
+            Close
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
