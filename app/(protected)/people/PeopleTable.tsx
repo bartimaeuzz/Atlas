@@ -47,6 +47,14 @@ export function PeopleTable({
 }) {
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  // Search + filters (2026-08-24, Oliver). Search matches name, legal
+  // name, login ID, and position names; filters are the two questions
+  // actually asked of this list ("who are the managers", "who still
+  // works here"). Status defaults to All so retired people never
+  // silently vanish -- hiding data by default reads as data loss.
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"" | "STAFF" | "MANAGER" | "ADMIN">("");
+  const [statusFilter, setStatusFilter] = useState<"" | "active" | "retired">("");
 
   function handleSort(key: SortKey) {
     if (key === sortKey) {
@@ -70,16 +78,63 @@ export function PeopleTable({
           return e.systemRole;
       }
     };
-    const copy = [...employeeList];
+    const q = query.trim().toLowerCase();
+    const copy = employeeList.filter((e) => {
+      if (roleFilter && e.systemRole !== roleFilter) return false;
+      if (statusFilter === "active" && !e.active) return false;
+      if (statusFilter === "retired" && e.active) return false;
+      if (!q) return true;
+      const haystack = [
+        e.nickname,
+        e.legalFirstName ?? "",
+        e.legalLastName ?? "",
+        e.loginId ?? "",
+        ...e.positions.map((p) => p.positionName),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
     copy.sort((a, b) => {
       const cmp = value(a).localeCompare(value(b));
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
-  }, [employeeList, sortKey, sortDir]);
+  }, [employeeList, sortKey, sortDir, query, roleFilter, statusFilter]);
 
   return (
     <div>
+      {/* Search + filters, both layouts */}
+      <div className="mb-3 flex flex-col sm:flex-row gap-2">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search name, login ID, or position…"
+          aria-label="Search people"
+          className="flex-1 border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-border)] focus:border-[var(--primary)]"
+        />
+        <div className="flex gap-2">
+          <Select aria-label="Filter by role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}>
+            <option value="">All roles</option>
+            <option value="STAFF">Staff</option>
+            <option value="MANAGER">Manager</option>
+            <option value="ADMIN">Admin</option>
+          </Select>
+          <Select aria-label="Filter by status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}>
+            <option value="">All statuses</option>
+            <option value="active">Active</option>
+            <option value="retired">Retired</option>
+          </Select>
+        </div>
+      </div>
+
+      {sorted.length === 0 && (
+        <p className="text-sm text-[var(--ink-500)] mb-3">
+          Nobody matches — clear the search or filters to see everyone.
+        </p>
+      )}
+
       {/* Phone: sort control + stacked cards */}
       <div className="lg:hidden mb-3 flex items-center gap-2">
         <div className="flex-1">
