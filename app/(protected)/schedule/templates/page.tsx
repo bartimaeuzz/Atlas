@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { loadTemplatesByPosition } from "@/lib/schedule/loadTemplatesByPosition";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { Banner } from "@/components/ui/Banner";
 import { PositionTemplateGrid } from "./PositionTemplateGrid";
 
 export default async function ScheduleTemplatesPage() {
-  const groups = await loadTemplatesByPosition();
+  const [groups, canManage] = await Promise.all([loadTemplatesByPosition(), hasCapability("SCHEDULE_MANAGE")]);
 
   return (
     <main className="max-w-4xl mx-auto p-4 sm:p-8 font-sans">
@@ -20,8 +22,24 @@ export default async function ScheduleTemplatesPage() {
 
       {groups.length === 0 ? (
         <p className="text-[var(--ink-500)] text-sm">Add active positions first.</p>
-      ) : (
+      ) : canManage ? (
         <PositionTemplateGrid groups={groups} />
+      ) : (
+        // View-only (2026-08-24): PositionTemplateGrid's controls are all
+        // form elements (inputs/selects/buttons), so fieldset-disabled
+        // covers every one — no links or drag handlers survive it.
+        <>
+          <div className="mb-4">
+            <Banner
+              tone="info"
+              title="View only"
+              description="Changing template assignments is done by whoever holds the schedule-management permission."
+            />
+          </div>
+          <fieldset disabled>
+            <PositionTemplateGrid groups={groups} />
+          </fieldset>
+        </>
       )}
     </main>
   );

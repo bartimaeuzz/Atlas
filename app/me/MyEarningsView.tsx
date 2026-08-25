@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import type { MyShiftEarnings } from "@/lib/staff/loadMyEarnings";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 type ViewMode = "week" | "month";
 
@@ -40,7 +42,7 @@ export function MyEarningsView({
       <div className="space-y-8">
         {groups.map((group) => (
           <section key={group.key}>
-            <div className="flex items-baseline justify-between border-b pb-2 mb-4">
+            <div className="flex items-baseline justify-between border-b border-[var(--border)] pb-2 mb-4">
               <h2 className="font-semibold">{group.label}</h2>
               <span className="font-semibold tabular-nums">${group.subtotal.toFixed(2)}</span>
             </div>
@@ -66,26 +68,23 @@ export function MyEarningsView({
   );
 }
 
+/** Design-system retrofit 2026-08-24: the old hand-rolled toggle's
+ * inactive state had no min-height (a sub-44px touch target) and its own
+ * ad hoc border/radius. Button primary/secondary carries the standard
+ * sizing, focus ring, and touch target; aria-pressed makes the toggle
+ * state real for assistive tech instead of colour-only. */
 function ToggleButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={
-        active
-          ? "px-3 py-1 min-h-9 rounded-[var(--radius-md)] bg-[var(--primary)] text-white text-sm"
-          : "px-3 py-1 rounded border text-sm text-[var(--ink-700)] hover:bg-[var(--paper)]"
-      }
-    >
+    <Button size="sm" variant={active ? "primary" : "secondary"} aria-pressed={active} onClick={onClick}>
       {children}
-    </button>
+    </Button>
   );
 }
 
 function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewerEmployeeId: number }) {
   const p = shift.payout;
   return (
-    <section className="border rounded p-4">
+    <Card className="!p-4">
       <div className="flex items-baseline justify-between mb-3">
         <h3 className="font-medium">{shift.period}</h3>
         <span className="text-lg font-semibold tabular-nums">${p.totalCorePayout.toFixed(2)}</span>
@@ -115,7 +114,7 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
       )}
 
       {shift.coworkers.length > 1 && (
-        <div className="border-t pt-3">
+        <div className="border-t border-[var(--border)] pt-3">
           <div className="text-xs text-[var(--ink-500)] mb-2">Also worked this shift</div>
           <ul className="text-sm space-y-1">
             {shift.coworkers
@@ -141,7 +140,7 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
           </ul>
         </div>
       )}
-    </section>
+    </Card>
   );
 }
 

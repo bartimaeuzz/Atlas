@@ -1304,6 +1304,16 @@ export const leaveRequests = sqliteTable("leave_requests", {
   endDate: text("end_date").notNull(), // ISO date, inclusive
   note: text("note"),
   loggedAt: text("logged_at").notNull().default(sql`(current_timestamp)`),
+  // Approval flow added 2026-08-24 (Oliver reversed the original
+  // no-approval design): new requests start "pending"; anyone holding
+  // SCHEDULE_MANAGE can approve/deny. Pre-existing rows were backfilled
+  // to "approved" in the migration — they were logged under the
+  // no-approval regime, i.e. already agreed informally.
+  status: text("status", { enum: ["pending", "approved", "denied"] })
+    .notNull()
+    .default("pending"),
+  decidedByEmployeeId: integer("decided_by_employee_id").references(() => employees.id),
+  decidedAt: text("decided_at"),
 });
 
 // Notification read-tracking (2026-08-16) -- Oliver asked for a "red

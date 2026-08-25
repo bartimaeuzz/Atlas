@@ -11,6 +11,7 @@ import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { swapRequests, plannedShiftAssignments, scheduleWeeks, employeePositions, leaveRequests } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { requireCapability } from "@/lib/permissions/requireCapability";
 import { toIso, daysBetween } from "@/lib/schedule/weekMath";
 import { completeSwap } from "@/lib/schedule/completeSwap";
 
@@ -199,10 +200,10 @@ export async function approveSwapRequest(requestId: number): Promise<ActionResul
   // redacts thrown server-action errors to "Minified React error #441"
   // (2026-08-24 sweep; see lib/actions/actionResult.ts).
   return asActionResult(async () => {
-    const session = await getCurrentStaffSession();
-    if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
-      throw new Error("Managers only");
-    }
+    // Tightened 2026-08-24 from the coarse manager-role check to
+    // SCHEDULE_MANAGE -- swap decisions belong to whoever runs the
+    // schedule, same as the capability's own label always claimed.
+    const session = await requireCapability("SCHEDULE_MANAGE");
 
     const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
     if (!request) throw new Error("That request no longer exists");
@@ -227,10 +228,8 @@ export async function declineSwapRequest(requestId: number): Promise<ActionResul
   // redacts thrown server-action errors to "Minified React error #441"
   // (2026-08-24 sweep; see lib/actions/actionResult.ts).
   return asActionResult(async () => {
-    const session = await getCurrentStaffSession();
-    if (!session || (session.systemRole !== "MANAGER" && session.systemRole !== "ADMIN")) {
-      throw new Error("Managers only");
-    }
+    // Tightened 2026-08-24 -- see approveSwapRequest above.
+    const session = await requireCapability("SCHEDULE_MANAGE");
 
     const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
     if (!request) throw new Error("That request no longer exists");

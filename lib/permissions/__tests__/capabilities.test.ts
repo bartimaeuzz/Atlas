@@ -75,11 +75,11 @@ test("capabilities: Tip Pool structure edit defaults Admin+Partner only, matchin
   assert.equal(def.defaults.STAFF, false);
 });
 
-test("capabilities: Schedule management defaults ON for every manager-tier account type", () => {
+test("capabilities: Schedule management defaults OFF below Admin — granted per person (2026-08-24)", () => {
   const def = getCapabilityDef("SCHEDULE_MANAGE")!;
   assert.equal(def.defaults.ADMIN, true);
-  assert.equal(def.defaults.PARTNER, true);
-  assert.equal(def.defaults.FLOOR_MANAGER, true);
-  assert.equal(def.defaults.ASSISTANT_MANAGER, true);
+  assert.equal(def.defaults.PARTNER, false);
+  assert.equal(def.defaults.FLOOR_MANAGER, false);
+  assert.equal(def.defaults.ASSISTANT_MANAGER, false);
   assert.equal(def.defaults.STAFF, false);
 });

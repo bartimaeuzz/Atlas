@@ -6,6 +6,7 @@ import { MarkSeenOnMount } from "../MarkSeenOnMount";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/Button";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 
 const STATUS_LABEL: Record<SwapRequestView["status"], string> = {
   open: "Open — nobody has taken it",
@@ -49,7 +50,10 @@ const STATUS_TONE: Record<SwapRequestView["status"], BadgeTone> = {
  *    twenty that do not.
  */
 export default async function SwapsPage() {
-  const requests = await loadSwapRequestsForManager(toIso(new Date()));
+  const [requests, canDecide] = await Promise.all([
+    loadSwapRequestsForManager(toIso(new Date())),
+    hasCapability("SCHEDULE_MANAGE"),
+  ]);
 
   // Needs-approval first, then the log in the order the loader gave us.
   const needsDecision = requests.filter((r) => r.status === "pending_manager_approval");
@@ -75,7 +79,7 @@ export default async function SwapsPage() {
       ) : (
         <div className="space-y-2">
           {[...needsDecision, ...rest].map((r) => (
-            <SwapRow key={r.id} request={r} />
+            <SwapRow key={r.id} request={r} canDecide={canDecide} />
           ))}
         </div>
       )}
@@ -83,9 +87,11 @@ export default async function SwapsPage() {
   );
 }
 
-function SwapRow({ request: r }: { request: SwapRequestView }) {
+function SwapRow({ request: r, canDecide }: { request: SwapRequestView; canDecide: boolean }) {
   const shiftLabel = `${r.positionName} · ${formatDayLabel(r.date)} · ${r.period}`;
-  const needsDecision = r.status === "pending_manager_approval";
+  // Deciding is SCHEDULE_MANAGE-only (2026-08-24) — other managers see
+  // the inbox but not the buttons; the server action checks again anyway.
+  const needsDecision = r.status === "pending_manager_approval" && canDecide;
 
   return (
     <div
@@ -107,7 +113,11 @@ function SwapRow({ request: r }: { request: SwapRequestView }) {
           {r.note && <div className="text-xs text-[var(--ink-500)] mt-1 italic">&ldquo;{r.note}&rdquo;</div>}
 
           <div className="mt-2">
-            <Badge tone={STATUS_TONE[r.status]}>{STATUS_LABEL[r.status]}</Badge>
+            <Badge tone={STATUS_TONE[r.status]}>
+              {r.status === "pending_manager_approval" && !canDecide
+                ? "Awaiting approval"
+                : STATUS_LABEL[r.status]}
+            </Badge>
           </div>
         </div>
 

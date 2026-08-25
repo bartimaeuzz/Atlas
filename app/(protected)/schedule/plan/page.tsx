@@ -3,6 +3,8 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
 import { loadEmployeesList, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
 import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import { GenerateWeekButton } from "./GenerateWeekButton";
 import { PublishedEditGate } from "./PublishedEditGate";
 import { DangerZone } from "./DangerZone";
@@ -18,10 +20,11 @@ export default async function WeeklyPlanPage({
   const params = await searchParams;
   const weekStartDate = params.week || weekStartFor(toIso(new Date()));
 
-  const [data, employeeList, employeeAssignedPositionIds] = await Promise.all([
+  const [data, employeeList, employeeAssignedPositionIds, canManage] = await Promise.all([
     loadWeeklyPlan(weekStartDate),
     loadEmployeesList(),
     loadEmployeeAssignedPositionIds(),
+    hasCapability("SCHEDULE_MANAGE"),
   ]);
 
   const activeEmployees = employeeList
@@ -72,9 +75,26 @@ export default async function WeeklyPlanPage({
 
       {!data.week ? (
         <EmptyState
-          message="This week hasn't been planned yet. Generate it from your template assignments, then adjust the exceptions."
-          action={<GenerateWeekButton weekStartDate={weekStartDate} />}
+          message={
+            canManage
+              ? "This week hasn't been planned yet. Generate it from your template assignments, then adjust the exceptions."
+              : "This week hasn't been planned yet."
+          }
+          action={canManage ? <GenerateWeekButton weekStartDate={weekStartDate} /> : undefined}
         />
+      ) : !canManage ? (
+        // View-only (2026-08-24): every manager can see the plan, but
+        // only SCHEDULE_MANAGE holders get any edit control. Same
+        // readOnly grid mode PublishedEditGate's locked state uses.
+        <>
+          <Card className="mb-6 !bg-[var(--paper)]">
+            <p className="text-sm text-[var(--ink-500)]">
+              View only — changing the schedule is done by whoever holds the schedule-management
+              permission.
+            </p>
+          </Card>
+          <WeeklyPlanGrid data={data} readOnly />
+        </>
       ) : (
         <>
           {data.week.status === "draft" && (

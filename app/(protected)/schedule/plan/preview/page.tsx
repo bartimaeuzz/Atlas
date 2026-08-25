@@ -6,6 +6,7 @@ import { PageHeader, Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/Button";
 import { Tabs, Tab } from "@/components/ui/Tabs";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 
 /** Safety-check step between the editable draft grid and actually
  * publishing (2026-08-11, Oliver). Two views, toggled by ?view=:
@@ -98,7 +99,7 @@ export default async function WeeklyPlanPreviewPage({
 
       <WeeklyPlanGrid data={data} readOnly hideDiagnostics={view === "staff"} />
 
-      {week.status === "draft" && (
+      {week.status === "draft" && (await hasCapability("SCHEDULE_MANAGE")) && (
         <Card className="mt-8 flex flex-wrap items-center justify-between gap-3 !bg-[var(--paper)]">
           <p className="text-sm text-[var(--ink-500)]">
             Looks right? Publishing makes this visible to staff and starts auto-filling new shifts.

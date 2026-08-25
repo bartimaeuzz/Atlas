@@ -1,6 +1,10 @@
-import { eq, desc, gte, and } from "drizzle-orm";
+import { eq, desc, gte, lte, and, ne } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db/client";
 import { leaveRequests, employees, notificationSeen } from "@/db/schema";
+
+/** Second employees join for the decider's name on decided requests. */
+const deciders = alias(employees, "deciders");
 
 export interface LeaveRequestView {
   id: number;
@@ -10,6 +14,8 @@ export interface LeaveRequestView {
   endDate: string;
   note: string | null;
   loggedAt: string;
+  status: "pending" | "approved" | "denied";
+  decidedByName: string | null;
 }
 
 /** One employee's own leave requests, most recent first -- feeds the
@@ -24,9 +30,12 @@ export async function loadMyLeaveRequests(employeeId: number): Promise<LeaveRequ
       endDate: leaveRequests.endDate,
       note: leaveRequests.note,
       loggedAt: leaveRequests.loggedAt,
+      status: leaveRequests.status,
+      decidedByName: deciders.nickname,
     })
     .from(leaveRequests)
     .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
+    .leftJoin(deciders, eq(leaveRequests.decidedByEmployeeId, deciders.id))
     .where(eq(leaveRequests.employeeId, employeeId))
     .orderBy(desc(leaveRequests.startDate));
   return rows;
@@ -48,9 +57,12 @@ export async function loadUpcomingLeaveRequests(todayIso: string): Promise<Leave
       endDate: leaveRequests.endDate,
       note: leaveRequests.note,
       loggedAt: leaveRequests.loggedAt,
+      status: leaveRequests.status,
+      decidedByName: deciders.nickname,
     })
     .from(leaveRequests)
     .innerJoin(employees, eq(leaveRequests.employeeId, employees.id))
+    .leftJoin(deciders, eq(leaveRequests.decidedByEmployeeId, deciders.id))
     .where(and(gte(leaveRequests.endDate, todayIso)))
     .orderBy(leaveRequests.startDate);
   return rows;
@@ -88,10 +100,21 @@ export async function loadLeaveByEmployeeForRange(
   weekEnd: string
 ): Promise<Map<number, { startDate: string; endDate: string; note: string | null }[]>> {
   // Overlap test: request.startDate <= weekEnd AND request.endDate >= weekStart.
-  const rows = await db.select().from(leaveRequests);
+  // Denied requests don't flag anything — the employee is expected to work.
+  // Pending ones still do (confirmed with Oliver 2026-08-24): safer for the
+  // scheduler to see a warning that may clear than to be surprised later.
+  const rows = await db
+    .select()
+    .from(leaveRequests)
+    .where(
+      and(
+        lte(leaveRequests.startDate, weekEnd),
+        gte(leaveRequests.endDate, weekStart),
+        ne(leaveRequests.status, "denied")
+      )
+    );
   const byEmployee = new Map<number, { startDate: string; endDate: string; note: string | null }[]>();
   for (const r of rows) {
-    if (r.startDate > weekEnd || r.endDate < weekStart) continue;
     const list = byEmployee.get(r.employeeId) ?? [];
     list.push({ startDate: r.startDate, endDate: r.endDate, note: r.note });
     byEmployee.set(r.employeeId, list);

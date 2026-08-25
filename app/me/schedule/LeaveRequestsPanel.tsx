@@ -7,6 +7,7 @@ import { toIso } from "@/lib/schedule/weekMath";
 import { TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Card";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
@@ -71,16 +72,28 @@ function LeaveRequestForm() {
   );
 }
 
+const STATUS_TONE: Record<string, BadgeTone> = {
+  pending: "warning",
+  approved: "success",
+  denied: "danger",
+};
+
 function LeaveRequestRow({ request }: { request: LeaveRequestView }) {
   const [isPending, startTransition] = useTransition();
   return (
     <li className="px-3 py-2.5 flex items-start justify-between gap-2">
       <div>
-        <div className="font-medium text-[var(--ink-900)]">
+        <div className="font-medium text-[var(--ink-900)] flex items-center gap-2 flex-wrap">
           {request.startDate}
           {request.endDate !== request.startDate ? ` to ${request.endDate}` : ""}
+          <Badge tone={STATUS_TONE[request.status]}>
+            {request.status === "pending" ? "Waiting for approval" : request.status === "approved" ? "Approved" : "Denied"}
+          </Badge>
         </div>
         {request.note && <div className="text-[var(--ink-500)] text-xs mt-0.5">{request.note}</div>}
+        {request.status !== "pending" && request.decidedByName && (
+          <div className="text-[var(--ink-400)] text-xs mt-0.5">by {request.decidedByName}</div>
+        )}
       </div>
       <button
         type="button"

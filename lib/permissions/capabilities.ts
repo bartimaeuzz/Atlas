@@ -340,11 +340,11 @@ export const CAPABILITIES: CapabilityDef[] = [
   {
     key: "SCHEDULE_MANAGE",
     category: "SCHEDULE",
-    label: "Schedule: swap requests, manage/edit plan, publish",
+    label: "Schedule: approve/deny leave, swap requests, manage/edit plan, publish",
     description:
-      "Handle swap requests and manage, edit, and publish the schedule. Default ON for Floor Manager/Assistant Manager (and Partner, Admin) — this is their normal day-to-day job; revoke individually for a specific problem account rather than disabling the whole tier.",
+      "Approve or deny leave requests, handle swap requests, and manage, edit, and publish the schedule. Default OFF (changed 2026-08-24 at Oliver's call, was all manager tiers): every manager can still SEE the Schedule Planner, but only the person(s) explicitly granted this can change it. Grant it individually to whoever runs the schedule.",
     expirable: false,
-    defaults: allManagerTiers(),
+    defaults: { ...ALL_FALSE, ADMIN: true },
   },
 ];
 
