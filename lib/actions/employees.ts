@@ -332,7 +332,10 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
   }
 
   revalidatePath("/people");
-  redirect("/people");
+  revalidatePath(`/people/${employeeId}`);
+  // Saving lands on the PROFILE, not the list (2026-08-24, Oliver) -- the
+  // read-only view is the natural "did my edit take?" check.
+  redirect(`/people/${employeeId}`);
 }
 
 /** Retire/reactivate — never a hard delete, same reasoning and pattern as

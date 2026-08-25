@@ -6,6 +6,9 @@ import type { EmployeeListRow, AssignablePosition } from "@/lib/employees/loadEm
 import { TextInput, Select, Checkbox } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { LinkButton } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ChevronDownIcon } from "@/components/ui/icons";
 
 const initialState: EmployeeActionState = { error: null };
 
@@ -28,6 +31,16 @@ export function EmployeeForm({
   const [state, formAction, isPending] = useActionState(action, initialState);
 
   const initialAssigned = new Set(existing?.positions.map((p) => p.positionId) ?? []);
+  // SSN/ITIN formats itself as XXX-XX-XXXX while typing (2026-08-24,
+  // Oliver). Digits only, dashes inserted, capped at 9 digits -- error
+  // prevention over a validation message after the fact.
+  const [ssn, setSsn] = useState(existing?.hrSensitive?.ssnOrItin ?? "");
+  const formatSsn = (raw: string) => {
+    const d = raw.replace(/\D/g, "").slice(0, 9);
+    if (d.length <= 3) return d;
+    if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`;
+    return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`;
+  };
   const [assigned, setAssigned] = useState<Set<number>>(initialAssigned);
 
   const tipPointFor = (positionId: number) => existing?.positions.find((p) => p.positionId === positionId)?.tipPointValue;
@@ -231,7 +244,10 @@ export function EmployeeForm({
               type="text"
               name="ssnOrItin"
               label="SSN or ITIN"
-              defaultValue={existing?.hrSensitive?.ssnOrItin ?? ""}
+              value={ssn}
+              onChange={(e) => setSsn(formatSsn(e.target.value))}
+              inputMode="numeric"
+              maxLength={11}
               placeholder="XXX-XX-XXXX"
               hint="SSN is generally required for a W-2 employee; ITIN generally applies to people who aren't authorized as a W-2 employee. Check with your accountant or payroll provider before relying on this field for actual tax filing — Atlas doesn't validate or distinguish the two."
             />
@@ -247,8 +263,13 @@ export function EmployeeForm({
         />
       )}
 
-      <fieldset>
-        <legend className="text-lg font-medium text-[var(--ink-900)] mb-2">Positions</legend>
+      <Card className="!p-0 overflow-hidden">
+      <details className="group" open={!existing}>
+        <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-center justify-between gap-2 px-4 py-3 min-h-11">
+          <span className="text-lg font-medium text-[var(--ink-900)]">Positions</span>
+          <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90 transition-transform group-open:rotate-0" />
+        </summary>
+      <fieldset className="px-4 pb-4">
         <p className="text-xs text-[var(--ink-500)] mb-3">
           Which positions this person can be rostered into, and their standing tip point value for FOH
           positions (e.g. Server @ 1.0, Bartender @ 0.8 — a closing-time bump on a specific shift is
@@ -311,10 +332,19 @@ export function EmployeeForm({
           ))}
         </div>
       </fieldset>
+      </details>
+      </Card>
 
-      <Button type="submit" loading={isPending}>
-        {isPending ? "Saving…" : existing ? "Save changes" : "Create employee"}
-      </Button>
+      <div className="flex items-center gap-3">
+        <Button type="submit" loading={isPending}>
+          {isPending ? "Saving…" : existing ? "Save changes" : "Create employee"}
+        </Button>
+        {/* Cancel = change of mind (2026-08-24, Oliver): back to the
+            profile (or the list when creating), nothing saved. */}
+        <LinkButton href={existing ? `/people/${existing.id}` : "/people"} variant="secondary">
+          Cancel
+        </LinkButton>
+      </div>
     </form>
   );
 }
