@@ -19,18 +19,21 @@ export function PeriodHeaderForm({
   periodStart,
   periodEnd,
   statementTotal,
+  paymentsCreditsTotal,
   editable,
 }: {
   periodId: number;
   periodStart: string;
   periodEnd: string;
   statementTotal: number;
+  paymentsCreditsTotal: number;
   editable: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [start, setStart] = useState(periodStart);
   const [end, setEnd] = useState(periodEnd);
   const [total, setTotal] = useState(String(statementTotal));
+  const [creditsTotal, setCreditsTotal] = useState(String(paymentsCreditsTotal));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -40,7 +43,8 @@ export function PeriodHeaderForm({
         <div>
           <div className="text-[var(--ink-500)] text-xs">Statement period</div>
           <div className="font-medium text-[var(--ink-900)]">
-            {periodStart} to {periodEnd} · {formatMoney(statementTotal)} total
+            {periodStart} to {periodEnd} · {formatMoney(statementTotal)} charges
+            {paymentsCreditsTotal !== 0 && ` · ${formatMoney(paymentsCreditsTotal)} payments & credits`}
           </div>
         </div>
         {editable && (
@@ -65,11 +69,22 @@ export function PeriodHeaderForm({
       </div>
       <TextInput
         type="number"
-        label="Statement total"
+        label="Charges & fees total"
+        hint="Purchases + fees + interest, as printed on the statement."
         step="0.01"
         min="0"
         value={total}
         onChange={(e) => setTotal(e.target.value)}
+        inputMode="decimal"
+      />
+      <TextInput
+        type="number"
+        label="Payments & credits total"
+        hint="Bill payments and refunds. Leave 0 if the statement shows none."
+        step="0.01"
+        min="0"
+        value={creditsTotal}
+        onChange={(e) => setCreditsTotal(e.target.value)}
         inputMode="decimal"
       />
       <div className="flex items-center gap-2">
@@ -86,7 +101,7 @@ export function PeriodHeaderForm({
             startTransition(async () => {
               // The action returns its error (thrown Errors get redacted
               // to "Minified React error #441" in production builds).
-              const result = await editStatementPeriod(periodId, start, end, Number(total));
+              const result = await editStatementPeriod(periodId, start, end, Number(total), Number(creditsTotal));
               if (result.error) setError(result.error);
               else setEditing(false);
             });

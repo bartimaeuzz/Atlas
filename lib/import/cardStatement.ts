@@ -27,6 +27,13 @@ export interface ParseResult {
    * review ("N lines couldn't be read and were skipped") so a truncated
    * parse never silently passes as a complete one. */
   skippedLines: number;
+  /** True when the CSV's only date column was a post-date one ("Posted
+   * Date" etc.) -- the bank's processing date, not the purchase date.
+   * P&L buckets card expenses by cardTransactions.date (charge date), so
+   * the review screen warns that these dates may sit a day or two late.
+   * Column CHOICE is unchanged from before this flag existed; this only
+   * records which flavor won. Always false for PDF statements. */
+  postDatesOnly: boolean;
 }
 
 export interface ParseFailure {
@@ -118,7 +125,15 @@ export function parseCsvStatement(text: string): ParseResult | ParseFailure {
   if (data.length < 2) return { failure: NO_ROWS_CSV };
 
   const header = data[0];
-  const dateIdx = headerIndex(header, ["transaction date", "date", "posted date", "post date"]);
+  // Same matching semantics as the original single lookup (candidate
+  // order already preferred "transaction date"/"date" over post-date
+  // columns) -- split only to record which flavor won, for the
+  // postDatesOnly warning. Note "posted date".startsWith("date") is
+  // false, so the generic "date" candidate can't grab a post column.
+  const txDateIdx = headerIndex(header, ["transaction date", "trans date", "date"]);
+  const postDateIdx = headerIndex(header, ["posted date", "post date", "posting date"]);
+  const dateIdx = txDateIdx !== -1 ? txDateIdx : postDateIdx;
+  const postDatesOnly = txDateIdx === -1 && postDateIdx !== -1;
   const memoIdx = headerIndex(header, ["description", "memo", "details", "payee", "name"]);
   const amountIdx = headerIndex(header, ["amount"]);
   const debitIdx = headerIndex(header, ["debit"]);
@@ -154,8 +169,8 @@ export function parseCsvStatement(text: string): ParseResult | ParseFailure {
   if (rows.length === 0) return { failure: NO_ROWS_CSV };
   // Debit/Credit files carry explicit signs — never run the majority
   // heuristic on them.
-  if (debitIdx !== -1 || creditIdx !== -1) return { rows, signsFlipped: false, skippedLines };
-  return { ...normalizeSigns(rows), skippedLines };
+  if (debitIdx !== -1 || creditIdx !== -1) return { rows, signsFlipped: false, skippedLines, postDatesOnly };
+  return { ...normalizeSigns(rows), skippedLines, postDatesOnly };
 }
 
 const NO_ROWS_PDF =
@@ -209,7 +224,8 @@ export function parsePdfStatementText(
   }
 
   if (rows.length === 0) return { failure: NO_ROWS_PDF };
-  return { ...normalizeSigns(rows), skippedLines };
+  // A printed statement's line date is the transaction date.
+  return { ...normalizeSigns(rows), skippedLines, postDatesOnly: false };
 }
 
 /** Warn-only duplicate flag on exact (date, amount) match against rows

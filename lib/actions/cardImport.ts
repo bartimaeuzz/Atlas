@@ -43,6 +43,7 @@ export interface ImportParseState {
   rows?: ParsedStatementRow[];
   signsFlipped?: boolean;
   skippedLines?: number;
+  postDatesOnly?: boolean;
 }
 
 async function loadEditablePeriod(periodId: number, systemRole: string) {
@@ -114,6 +115,7 @@ export async function parseStatementUpload(
       rows,
       signsFlipped: result.signsFlipped,
       skippedLines: result.skippedLines,
+      postDatesOnly: result.postDatesOnly,
     };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };

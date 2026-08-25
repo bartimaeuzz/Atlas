@@ -1237,14 +1237,21 @@ export const ledgerCards = sqliteTable("ledger_cards", {
 });
 
 // One row per statement period for one card (e.g. "Amex ...1234, Aug
-// 2026"). statementTotal is the manager's typed-in total from the real
-// paper/PDF statement -- the reconciliation TARGET, same role
+// 2026"). The reconciliation TARGETS are the manager's typed-in numbers
+// from the real paper/PDF statement's summary box -- same role
 // dailyCashReconciliations' physical count plays for Petty Cash, just at
-// the period level instead of daily. A period stays "draft" while
-// transactions are being logged against it and can only become
-// "reconciled" once the logged transactions sum to statementTotal (see
-// reconcileCardStatementPeriod in lib/actions/card.ts) -- deliberately
-// as strict as Petty Cash's drawer-count discipline, not the looser
+// the period level instead of daily. Two targets since 2026-08-25
+// (Oliver, via Aey's audit question): US statements print charges and
+// payments/credits as SEPARATE summary numbers, so one net total matched
+// no printed figure once refunds or payment lines were logged.
+// statementTotal is the charges side (purchases + fees + interest);
+// paymentsCreditsTotal is the payments/credits side (bill payments and
+// merchant refunds -- logged as negative lines). A period stays "draft"
+// while transactions are being logged against it and can only become
+// "reconciled" once the positive lines sum to statementTotal AND the
+// negative lines sum to -paymentsCreditsTotal (see
+// reconcileStatementPeriod in lib/actions/card.ts) -- deliberately as
+// strict as Petty Cash's drawer-count discipline, not the looser
 // just-a-log shape Supplier Check uses, since Oliver confirmed a forced
 // match is what he wants here.
 export const cardStatementPeriods = sqliteTable("card_statement_periods", {
@@ -1253,6 +1260,9 @@ export const cardStatementPeriods = sqliteTable("card_statement_periods", {
   periodStart: text("period_start").notNull(), // ISO date
   periodEnd: text("period_end").notNull(), // ISO date
   statementTotal: real("statement_total").notNull(),
+  // Default 0 keeps pre-migration rows valid (a period logged with no
+  // payment/refund lines reconciles exactly as before).
+  paymentsCreditsTotal: real("payments_credits_total").notNull().default(0),
   status: text("status", { enum: ["draft", "reconciled"] }).notNull().default("draft"),
   reconciledAt: text("reconciled_at"),
   reconciledByEmployeeId: integer("reconciled_by_employee_id").references(() => employees.id),

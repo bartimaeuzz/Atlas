@@ -18,7 +18,11 @@ export function PeriodsTable({ periods }: { periods: CardStatementPeriodView[] }
               <PeriodStatusBadge period={p} />
             </div>
             <div className="text-[var(--ink-500)] text-xs mt-0.5">
-              Logged {formatMoney(p.loggedTotal)} of {formatMoney(p.statementTotal)} statement total
+              Charges {formatMoney(p.chargesLogged)} of {formatMoney(p.statementTotal)}
+              {/* Payments side only when it has something to say -- most
+                  periods have no payments/refunds. */}
+              {(p.creditsLogged !== 0 || p.paymentsCreditsTotal !== 0) &&
+                ` · payments & credits ${formatMoney(p.creditsLogged)} of ${formatMoney(p.paymentsCreditsTotal)}`}
               {p.status === "reconciled" && p.reconciledByName ? ` · reconciled by ${p.reconciledByName}` : ""}
             </div>
           </Link>

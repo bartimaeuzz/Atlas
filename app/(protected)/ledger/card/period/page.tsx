@@ -53,7 +53,6 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
   const canImport = await hasCapability("FA_LEDGER_CARD_IMPORT");
   const reconciled = data.status === "reconciled";
   const editable = !reconciled || isAdmin;
-  const matches = Math.abs(data.loggedTotal - data.statementTotal) < 0.01;
 
   return (
     <main className="max-w-lg mx-auto p-4 sm:p-8">
@@ -81,6 +80,7 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
         periodStart={data.periodStart}
         periodEnd={data.periodEnd}
         statementTotal={data.statementTotal}
+        paymentsCreditsTotal={data.paymentsCreditsTotal}
         editable={editable}
       />
 
@@ -93,16 +93,33 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
       )}
 
       {editable && (
-        <AddTransactionForm
-          key={data.transactions.length}
-          periodId={data.id}
-          categories={data.categories}
-        />
+        <>
+          {/* Statement-first, said out loud (2026-08-25): the most likely
+              confusion is a charge made yesterday that isn't here yet. */}
+          <p className="text-xs text-[var(--ink-500)] mb-2">
+            Enter only the lines printed on this statement. A pending charge that isn&rsquo;t printed yet belongs on the
+            next statement.
+          </p>
+          <AddTransactionForm
+            key={data.transactions.length}
+            periodId={data.id}
+            periodStart={data.periodStart}
+            periodEnd={data.periodEnd}
+            categories={data.categories}
+          />
+        </>
       )}
 
-      <TransactionsList transactions={data.transactions} periodId={data.id} locked={!editable} />
+      <TransactionsList transactions={data.transactions} periodId={data.id} locked={!editable} categories={data.categories} />
 
-      <ReconcilePanel periodId={data.id} loggedTotal={data.loggedTotal} statementTotal={data.statementTotal} matches={matches} reconciled={reconciled} />
+      <ReconcilePanel
+        periodId={data.id}
+        chargesLogged={data.chargesLogged}
+        creditsLogged={data.creditsLogged}
+        statementTotal={data.statementTotal}
+        paymentsCreditsTotal={data.paymentsCreditsTotal}
+        reconciled={reconciled}
+      />
     </main>
   );
 }

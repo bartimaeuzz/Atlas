@@ -141,6 +141,13 @@ export function ImportClient({
           description="Compare the row count below against the statement before importing."
         />
       )}
+      {parseState.postDatesOnly && (
+        <Banner
+          tone="warning"
+          title="This file only lists post dates, not transaction dates."
+          description="The bank recorded when it processed each charge, which can be a day or two after the purchase. Dates below may sit slightly late — fix any that matter before importing."
+        />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <Button

@@ -1,0 +1,1 @@
+ALTER TABLE `card_statement_periods` ADD `payments_credits_total` real DEFAULT 0 NOT NULL;

@@ -88,6 +88,28 @@ test("csv: empty file and headerless garbage both fail with a sentence", () => {
   }
 });
 
+test("csv: postDatesOnly — post-date-only header flags, transaction-date header doesn't", () => {
+  const post = ok(parseCsvStatement("Post Date,Description,Amount\n07/02/2026,RESTAURANT DEPOT,842.17\n"));
+  assert.equal(post.postDatesOnly, true);
+
+  const posted = ok(parseCsvStatement("Posted Date,Description,Amount\n07/02/2026,RESTAURANT DEPOT,842.17\n"));
+  assert.equal(posted.postDatesOnly, true);
+
+  const tx = ok(parseCsvStatement("Transaction Date,Description,Amount\n07/02/2026,RESTAURANT DEPOT,842.17\n"));
+  assert.equal(tx.postDatesOnly, false);
+
+  const generic = ok(parseCsvStatement("Date,Description,Amount\n07/02/2026,RESTAURANT DEPOT,842.17\n"));
+  assert.equal(generic.postDatesOnly, false);
+});
+
+test("csv: postDatesOnly — with BOTH columns, transaction dates win and no flag", () => {
+  const r = ok(
+    parseCsvStatement("Transaction Date,Post Date,Description,Amount\n07/02/2026,07/04/2026,RESTAURANT DEPOT,842.17\n")
+  );
+  assert.equal(r.postDatesOnly, false);
+  assert.equal(r.rows[0].date, "2026-07-02");
+});
+
 /* ------------------------------- PDF ---------------------------------- */
 
 test("pdf: AMEX-like MM/DD rows, year inferred from a single-year period", () => {
