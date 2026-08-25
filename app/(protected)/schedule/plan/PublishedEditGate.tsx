@@ -6,7 +6,6 @@ import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import type { WeeklyPlanData } from "@/lib/schedule/loadWeeklyPlan";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Banner } from "@/components/ui/Banner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 /**
@@ -98,8 +97,19 @@ export function PublishedEditGate({
         </Card>
       ) : (
         isPublished && (
-          <div className="mb-3">
-            <Banner tone="warning" title="Editing a published week" description="Changes are visible to staff immediately." />
+          // "Done editing" instead of Save/Cancel (Oliver reported both
+          // missing, 2026-08-25): every change in this grid saves the
+          // moment it's made — there is nothing left to save, and a
+          // Cancel that can't undo would lie. The copy says so, and Done
+          // re-locks the week back to read-only.
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--warning-border)] bg-[var(--warning-tint)] p-3">
+            <div className="text-sm text-[var(--warning-700)]">
+              <span className="font-medium">Editing a published week.</span> Every change saves
+              immediately and staff see it right away — there&apos;s no separate save step.
+            </div>
+            <Button variant="secondary" size="sm" className="shrink-0" onClick={() => setUnlocked(false)}>
+              Done editing
+            </Button>
           </div>
         )
       )}
