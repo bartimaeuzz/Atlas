@@ -85,8 +85,11 @@ export function ClosingReportForm({
   );
   const hasDeductions = data.wageAdjustmentRows.some((r) => r.deductionAmount !== 0 || r.deductionReason);
 
-  const [totalSales, setTotalSales] = useState(s?.totalSales ?? 0);
-  const [salesTax, setSalesTax] = useState(s?.salesTax ?? 0);
+  // "" over a literal 0 for untouched fields (2026-08-25, Oliver) --
+  // these two are controlled for the live tax recompute, so the empty
+  // state rides in the state type. Blank posts as 0, same as before.
+  const [totalSales, setTotalSales] = useState<number | "">(s?.totalSales || "");
+  const [salesTax, setSalesTax] = useState<number | "">(s?.salesTax || "");
   const [taxTouched, setTaxTouched] = useState(s ? !s.salesTaxIsAuto : false);
 
   return (
@@ -114,10 +117,12 @@ export function ClosingReportForm({
               step={0.01}
               name="totalSales"
               value={totalSales}
+              placeholder="0"
               onChange={(e) => {
-                const val = Number(e.target.value) || 0;
-                setTotalSales(val);
-                if (!taxTouched) setSalesTax(round2(val * taxRate));
+                const raw = e.target.value;
+                const val = Number(raw) || 0;
+                setTotalSales(raw === "" ? "" : val);
+                if (!taxTouched) setSalesTax(raw === "" ? "" : round2(val * taxRate));
               }}
               className={INPUT}
             />
@@ -130,8 +135,9 @@ export function ClosingReportForm({
                 step={0.01}
                 name="salesTax"
                 value={salesTax}
+                placeholder="0"
                 onChange={(e) => {
-                  setSalesTax(Number(e.target.value) || 0);
+                  setSalesTax(e.target.value === "" ? "" : Number(e.target.value) || 0);
                   setTaxTouched(true);
                 }}
                 className={INPUT}
@@ -211,7 +217,8 @@ export function ClosingReportForm({
                   step={1}
                   min={0}
                   name={`metric_shift_${r.metricDefinitionId}`}
-                  defaultValue={r.currentValue}
+                  defaultValue={r.currentValue || ""}
+                  placeholder="0"
                   className={INPUT + " max-w-28"}
                 />
               </label>
@@ -247,7 +254,8 @@ export function ClosingReportForm({
                       step={1}
                       min={0}
                       name={`metric_emp_${r.metricDefinitionId}_${r.employeeId}`}
-                      defaultValue={r.currentValue}
+                      defaultValue={r.currentValue || ""}
+                      placeholder="0"
                       className={INPUT}
                     />
                   </label>
@@ -609,8 +617,8 @@ function TipPointsSection({
  * fields above, needed here per-platform since each platform's tax is
  * computed off ITS OWN sales amount, not a shared one. */
 function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRowData; taxRate: number }) {
-  const [salesAmount, setSalesAmount] = useState(p.salesAmount);
-  const [taxAmount, setTaxAmount] = useState(p.taxAmount);
+  const [salesAmount, setSalesAmount] = useState<number | "">(p.salesAmount || "");
+  const [taxAmount, setTaxAmount] = useState<number | "">(p.taxAmount || "");
   const [taxTouched, setTaxTouched] = useState(!p.taxAmountIsAuto);
 
   return (
@@ -624,10 +632,12 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
             step={0.01}
             name={`platform_${p.platformId}_salesAmount`}
             value={salesAmount}
+            placeholder="0"
             onChange={(e) => {
-              const val = Number(e.target.value) || 0;
-              setSalesAmount(val);
-              if (!taxTouched) setTaxAmount(round2(val * taxRate));
+              const raw = e.target.value;
+              const val = Number(raw) || 0;
+              setSalesAmount(raw === "" ? "" : val);
+              if (!taxTouched) setTaxAmount(raw === "" ? "" : round2(val * taxRate));
             }}
             className={INPUT}
           />
@@ -640,8 +650,9 @@ function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRow
               step={0.01}
               name={`platform_${p.platformId}_taxAmount`}
               value={taxAmount}
+              placeholder="0"
               onChange={(e) => {
-                setTaxAmount(Number(e.target.value) || 0);
+                setTaxAmount(e.target.value === "" ? "" : Number(e.target.value) || 0);
                 setTaxTouched(true);
               }}
               className={INPUT}
@@ -665,11 +676,16 @@ function Field({ label, name, defaultValue, alignLabel }: { label: string; name:
           boxes at two different heights. Reserving two line-slots and
           bottom-aligning the text puts every input on one baseline. */}
       <span className={"block text-[var(--ink-500)] mb-1" + (alignLabel ? " min-h-10 flex items-end" : "")}>{label}</span>
+      {/* Empty over a literal 0 (2026-08-25, Oliver: "i want default of
+          field to be empty") -- a pre-filled 0 makes not-entered-yet
+          indistinguishable from entered-zero. Blank posts as 0 server-
+          side, so the math is untouched. */}
       <input
         type="number"
         step={0.01}
         name={name}
-        defaultValue={defaultValue ?? 0}
+        defaultValue={defaultValue || ""}
+        placeholder="0"
         className={INPUT}
       />
     </label>
