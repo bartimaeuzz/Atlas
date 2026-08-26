@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Modal } from "@/components/ui/Modal";
 import { Banner } from "@/components/ui/Banner";
-import { XIcon } from "@/components/ui/icons";
 
 type EmployeeOptionGroups = { eligible: { id: number; name: string }[]; other: { id: number; name: string }[] };
 
@@ -169,6 +168,9 @@ export function RosterGrid({
                               readOnly={readOnly}
                               employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
                               alreadyAssignedIds={new Set(cellEntries.map((e) => e.employeeId))}
+                              positions={positions}
+                              allEmployees={allEmployees}
+                              weekShiftCounts={weekShiftCounts}
                             />
                           );
                         })}
@@ -264,6 +266,68 @@ function SubstituteBadge({ covers }: { covers: string | null }) {
   );
 }
 
+/** Shared candidate list (2026-08-25): used by the "+ Add" picker and
+ * the substitute step of the person popup, so both offer the same
+ * grouping (usually-this-role -> FOH -> BOH -> no usual position) and
+ * the same fewest-shifts-first fairness ordering with per-person load. */
+function PeoplePickList({
+  positionName,
+  eligible,
+  other,
+  allEmployees,
+  positions,
+  weekShiftCounts,
+  onPick,
+}: {
+  positionName: string;
+  eligible: { id: number; name: string }[];
+  other: { id: number; name: string }[];
+  allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
+  positions: { id: number; name: string; category: "FOH" | "BOH" }[];
+  weekShiftCounts: Record<number, number>;
+  onPick: (employeeId: number) => void;
+}) {
+  const categoryByPositionId = new Map(positions.map((p) => [p.id, p.category]));
+  const categoryOf = (employeeId: number): "FOH" | "BOH" | null => {
+    const primary = allEmployees.find((e) => e.id === employeeId)?.primaryPositionId;
+    return primary != null ? (categoryByPositionId.get(primary) ?? null) : null;
+  };
+  const load = (id: number) => weekShiftCounts[id] ?? 0;
+  const byLoad = (a: { id: number; name: string }, b: { id: number; name: string }) =>
+    load(a.id) - load(b.id) || a.name.localeCompare(b.name);
+  const groups = [
+    { header: `Usually ${positionName}`, people: [...eligible].sort(byLoad) },
+    { header: "FOH — Front of house", people: other.filter((e) => categoryOf(e.id) === "FOH").sort(byLoad) },
+    { header: "BOH — Back of house", people: other.filter((e) => categoryOf(e.id) === "BOH").sort(byLoad) },
+    { header: "No usual position", people: other.filter((e) => categoryOf(e.id) === null).sort(byLoad) },
+  ].filter((g) => g.people.length > 0);
+
+  return (
+    <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
+      {groups.map((g) => (
+        <div key={g.header}>
+          <div className="px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)]">{g.header}</div>
+          <div className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)] mb-2">
+            {g.people.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => onPick(e.id)}
+                className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--paper)] text-left"
+              >
+                <span>{e.name}</span>
+                <span className="text-xs text-[var(--ink-500)]">
+                  {load(e.id)} {load(e.id) === 1 ? "shift" : "shifts"} this week
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function RosterPill({
   entry,
   roleCount,
@@ -271,6 +335,9 @@ function RosterPill({
   readOnly,
   employees,
   alreadyAssignedIds,
+  positions,
+  allEmployees,
+  weekShiftCounts,
 }: {
   entry: RosterPageEntry;
   roleCount: number;
@@ -278,10 +345,11 @@ function RosterPill({
   readOnly: boolean;
   employees: EmployeeOptionGroups;
   alreadyAssignedIds: Set<number>;
+  positions: { id: number; name: string; category: "FOH" | "BOH" }[];
+  allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
+  weekShiftCounts: Record<number, number>;
 }) {
-  const [isPending, startTransition] = useTransition();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const router = useRouter();
 
   const badges = (
     <>
@@ -314,45 +382,21 @@ function RosterPill({
   }
 
   return (
-    <div className="flex items-center gap-x-1 rounded-[var(--radius-md)] px-1.5 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)] max-w-full">
-      {/* The chip IS the control (2026-08-25, Oliver: "click at his box")
-          -- opens the day-of attendance popup. Honest 44px row height
-          (no negative-margin tricks -- they bled outside the border once
-          badges wrap on a phone), and the contents flex-wrap so badges
-          drop a line whole instead of clipping at the card edge (locked
-          chip convention, caught on Oliver's iPhone screenshot). */}
+    <>
+      {/* The whole chip IS the control (2026-08-25, Oliver: "hover over
+          chip highlight to whole chip. move remove into same pop up") --
+          one button, whole-surface hover, opening the person popup that
+          now carries every action including plain remove. Contents
+          flex-wrap so whole badges drop a line instead of clipping
+          (locked chip convention, caught on Oliver's iPhone). */}
       <button
         type="button"
         onClick={() => setDialogOpen(true)}
-        className="flex-1 flex flex-wrap items-center gap-1.5 min-h-11 py-1 pl-1 hover:text-[var(--ink-900)] min-w-0 text-left"
-        title={`${entry.employeeName} — late / substitute / absent`}
+        className="flex flex-wrap items-center gap-1.5 min-h-11 max-w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--paper)] px-2.5 py-1 text-xs text-[var(--ink-700)] text-left hover:bg-[var(--card)] hover:border-[var(--border-strong)] hover:text-[var(--ink-900)]"
+        title={`${entry.employeeName} — late / substitute / absent / remove`}
       >
         <span>{entry.employeeName}</span>
         {badges}
-      </button>
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() =>
-          startTransition(async () => {
-            const formData = new FormData();
-            formData.set("rosterEntryId", String(entry.rosterEntryId));
-            formData.set("shiftId", String(shiftId));
-            // No error surface in this pill; a failed remove leaves the
-            // row standing, which is itself the signal. (Before the
-            // 2026-08-24 sweep a failure here was an unhandled throw.)
-            await removeRosterEntry(formData);
-            router.refresh();
-          })
-        }
-        // 44px hit box, glyph stays small -- the 20x20 version was under
-        // WCAG 2.5.8's 24px floor (2026-08-24 button-size audit); same
-        // fix the week view's remove got. This X means "added by
-        // mistake" -- it records nothing; absences go through the chip.
-        className="text-[var(--ink-400)] hover:text-[var(--danger)] disabled:opacity-50 min-w-11 min-h-11 -mr-1.5 flex items-center justify-center"
-        title="Remove (added by mistake — records nothing)"
-      >
-        <XIcon width={12} height={12} />
       </button>
 
       {dialogOpen && (
@@ -361,10 +405,13 @@ function RosterPill({
           shiftId={shiftId}
           employees={employees}
           alreadyAssignedIds={alreadyAssignedIds}
+          positions={positions}
+          allEmployees={allEmployees}
+          weekShiftCounts={weekShiftCounts}
           onClose={() => setDialogOpen(false)}
         />
       )}
-    </div>
+    </>
   );
 }
 
@@ -380,12 +427,18 @@ function PersonActionDialog({
   shiftId,
   employees,
   alreadyAssignedIds,
+  positions,
+  allEmployees,
+  weekShiftCounts,
   onClose,
 }: {
   entry: RosterPageEntry;
   shiftId: number;
   employees: EmployeeOptionGroups;
   alreadyAssignedIds: Set<number>;
+  positions: { id: number; name: string; category: "FOH" | "BOH" }[];
+  allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
+  weekShiftCounts: Record<number, number>;
   onClose: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -396,7 +449,6 @@ function PersonActionDialog({
   const [action, setAction] = useState<"replace" | "remove">("remove");
   const [reason, setReason] = useState<"no_show" | "emergency" | null>(null);
   const [note, setNote] = useState("");
-  const [subId, setSubId] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
 
   const isLate = entry.attendanceMark === "late";
@@ -425,7 +477,7 @@ function PersonActionDialog({
     });
   }
 
-  function commit() {
+  function commit(substituteEmployeeId?: number) {
     if (!reason) return;
     run(async () => {
       const fd = new FormData();
@@ -433,11 +485,22 @@ function PersonActionDialog({
       fd.set("rosterEntryId", String(entry.rosterEntryId));
       fd.set("mark", reason);
       fd.set("note", note);
-      if (action === "replace") {
-        fd.set("substituteEmployeeId", String(subId));
+      if (action === "replace" && substituteEmployeeId != null) {
+        fd.set("substituteEmployeeId", String(substituteEmployeeId));
         return replaceWithSubstitute(fd);
       }
       return removeRosterEntryAbsent(fd);
+    });
+  }
+
+  // Plain remove, moved into this popup from the chip's old X (Oliver,
+  // 2026-08-25): "added by mistake", records nothing.
+  function removeMistake() {
+    run(async () => {
+      const fd = new FormData();
+      fd.set("rosterEntryId", String(entry.rosterEntryId));
+      fd.set("shiftId", String(shiftId));
+      return removeRosterEntry(fd);
     });
   }
 
@@ -491,6 +554,10 @@ function PersonActionDialog({
             Absent — remove from this shift
             <span className="block text-xs text-[var(--ink-500)]">No replacement; why they&apos;re out gets recorded.</span>
           </button>
+          <button type="button" className={menuButton} onClick={removeMistake} disabled={isPending}>
+            Added by mistake — remove
+            <span className="block text-xs text-[var(--ink-500)]">Takes them off the roster without recording anything.</span>
+          </button>
           <div className="flex justify-end pt-1">
             <Button ref={closeRef} variant="secondary" size="sm" onClick={onClose} disabled={isPending}>
               Cancel
@@ -541,7 +608,7 @@ function PersonActionDialog({
                 Next: pick the substitute
               </Button>
             ) : (
-              <Button variant="primary" size="sm" onClick={commit} disabled={!reason} loading={isPending}>
+              <Button variant="primary" size="sm" onClick={() => commit()} disabled={!reason} loading={isPending}>
                 Remove & record
               </Button>
             )}
@@ -551,39 +618,26 @@ function PersonActionDialog({
 
       {step === "sub" && (
         <div className="space-y-2">
-          <p className="text-sm text-[var(--ink-700)]">Who takes the {entry.positionName} slot?</p>
-          <select
-            value={subId}
-            disabled={isPending}
-            onChange={(e) => setSubId(e.target.value === "" ? "" : Number(e.target.value))}
-            className="w-full text-sm border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-2 bg-[var(--card)] text-[var(--ink-900)]"
-          >
-            <option value="">Pick someone…</option>
-            {eligible.length > 0 && (
-              <optgroup label="Usually this role">
-                {eligible.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-            {other.length > 0 && (
-              <optgroup label="Other">
-                {other.map((e) => (
-                  <option key={e.id} value={e.id}>
-                    {e.name}
-                  </option>
-                ))}
-              </optgroup>
-            )}
-          </select>
+          <p className="text-sm text-[var(--ink-700)]">
+            Who takes the {entry.positionName} slot? Tap a name to replace &amp; record.
+          </p>
+          {/* Same grouped candidate list as the "+ Add" picker (Oliver,
+              2026-08-25: "use popup selecting new staff") -- tapping a
+              name commits the whole replace in one server batch. The
+              absent person is excluded along with everyone already in
+              this position. */}
+          <PeoplePickList
+            positionName={entry.positionName}
+            eligible={eligible.filter((e) => e.id !== entry.employeeId)}
+            other={other.filter((e) => e.id !== entry.employeeId)}
+            allEmployees={allEmployees}
+            positions={positions}
+            weekShiftCounts={weekShiftCounts}
+            onPick={(id) => commit(id)}
+          />
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="secondary" size="sm" onClick={() => setStep("reason")} disabled={isPending}>
               Back
-            </Button>
-            <Button variant="primary" size="sm" onClick={commit} disabled={subId === ""} loading={isPending}>
-              Replace & record
             </Button>
           </div>
         </div>
@@ -700,26 +754,6 @@ function RosterQuickAdd({
     });
   }
 
-  // Others grouped by the person's own department (their primary
-  // position's category) -- Oliver, 2026-08-25: "list of people
-  // categorize as compatible person then each department." Within every
-  // group: fewest planned shifts this week first (the locked
-  // candidate-picker fairness convention), then name.
-  const categoryByPositionId = new Map(positions.map((p) => [p.id, p.category]));
-  const load = (id: number) => weekShiftCounts[id] ?? 0;
-  const byLoad = (a: { id: number; name: string }, b: { id: number; name: string }) =>
-    load(a.id) - load(b.id) || a.name.localeCompare(b.name);
-  const pickerGroups = [
-    { header: `Usually ${positionName}`, people: [...eligible].sort(byLoad) },
-    { header: "FOH — Front of house", people: other.filter((e) => categoryOf(e.id) === "FOH").sort(byLoad) },
-    { header: "BOH — Back of house", people: other.filter((e) => categoryOf(e.id) === "BOH").sort(byLoad) },
-    { header: "No usual position", people: other.filter((e) => categoryOf(e.id) === null).sort(byLoad) },
-  ].filter((g) => g.people.length > 0);
-  function categoryOf(employeeId: number): "FOH" | "BOH" | null {
-    const primary = allEmployees.find((e) => e.id === employeeId)?.primaryPositionId;
-    return primary != null ? (categoryByPositionId.get(primary) ?? null) : null;
-  }
-
   return (
     <div className="flex items-center gap-1.5">
       {/* Button + popup picker instead of a native select (2026-08-25,
@@ -746,28 +780,15 @@ function RosterQuickAdd({
         <div id={pickerTitleId} className="text-base font-bold text-[var(--ink-900)] mb-2">
           Add to {positionName}
         </div>
-        <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
-          {pickerGroups.map((g) => (
-            <div key={g.header}>
-              <div className="px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)]">{g.header}</div>
-              <div className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)] mb-2">
-                {g.people.map((e) => (
-                  <button
-                    key={e.id}
-                    type="button"
-                    onClick={() => handlePick(e.id)}
-                    className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--paper)] text-left"
-                  >
-                    <span>{e.name}</span>
-                    <span className="text-xs text-[var(--ink-500)]">
-                      {load(e.id)} {load(e.id) === 1 ? "shift" : "shifts"} this week
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <PeoplePickList
+          positionName={positionName}
+          eligible={eligible}
+          other={other}
+          allEmployees={allEmployees}
+          positions={positions}
+          weekShiftCounts={weekShiftCounts}
+          onPick={handlePick}
+        />
         <div className="flex justify-end pt-2">
           <Button variant="secondary" size="sm" onClick={() => setPickerOpen(false)}>
             Cancel
