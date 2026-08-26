@@ -6,12 +6,12 @@ type Variant = "primary" | "secondary" | "brand" | "destructive" | "destructive-
 type Size = "md" | "sm";
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-[var(--primary)] text-white hover:bg-[var(--primary-600)] disabled:bg-[var(--primary-border)] disabled:text-[var(--primary-tint)]",
-  secondary: "bg-transparent text-[var(--ink-700)] border border-[var(--border-strong)] hover:bg-[var(--paper)] disabled:opacity-50",
-  brand: "bg-[var(--brand)] text-white hover:bg-[var(--brand-700)] disabled:opacity-50",
-  destructive: "bg-[var(--danger)] text-white hover:bg-[var(--danger-700)] disabled:bg-[var(--danger-border)] disabled:text-[var(--danger-tint)]",
-  "destructive-outline": "bg-transparent text-[var(--danger)] border border-[var(--danger)] hover:bg-[var(--danger-tint)] disabled:opacity-50",
-  ghost: "bg-transparent text-[var(--ink-700)] hover:bg-[var(--paper)] disabled:opacity-50",
+  primary: "bg-[var(--primary)] text-white hover:bg-[var(--primary-600)] active:brightness-90 disabled:bg-[var(--primary-border)] disabled:text-[var(--primary-tint)]",
+  secondary: "bg-transparent text-[var(--ink-700)] border border-[var(--border-strong)] hover:bg-[var(--paper)] active:bg-[var(--border)] disabled:opacity-50",
+  brand: "bg-[var(--brand)] text-white hover:bg-[var(--brand-700)] active:brightness-90 disabled:opacity-50",
+  destructive: "bg-[var(--danger)] text-white hover:bg-[var(--danger-700)] active:brightness-90 disabled:bg-[var(--danger-border)] disabled:text-[var(--danger-tint)]",
+  "destructive-outline": "bg-transparent text-[var(--danger)] border border-[var(--danger)] hover:bg-[var(--danger-tint)] active:bg-[var(--danger-border)] disabled:opacity-50",
+  ghost: "bg-transparent text-[var(--ink-700)] hover:bg-[var(--paper)] active:bg-[var(--border)] disabled:opacity-50",
 };
 
 const sizeClasses: Record<Size, string> = {
@@ -41,8 +41,12 @@ const sizeClasses: Record<Size, string> = {
  * Consequence for variants: none of them set their own focus colour any
  * more. Resist re-adding a per-variant ring — a focus indicator's job is
  * to be found, not to match the control it surrounds. */
+/** Press state (2026-08-25, Oliver: "dont we have any press state or tap
+ * state?") -- every variant darkens/tints one step past hover on :active
+ * plus a 2% shrink, so a tap gives feedback where hover doesn't exist.
+ * Hand-rolled controls get the restored tap-highlight in globals.css. */
 const shared =
-  "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold transition-colors outline-offset-2 focus-visible:outline-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold transition-colors outline-offset-2 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-[var(--primary)] disabled:cursor-not-allowed";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;

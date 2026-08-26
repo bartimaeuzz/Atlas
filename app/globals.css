@@ -116,6 +116,16 @@
   --font-sans: "Noto Sans", "Noto Sans Thai", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+html {
+  /* Tailwind's preflight clears the native tap flash; restore it in the
+     app's own primary tint so EVERY tappable thing -- chips, picker
+     rows, table-row links, hand-rolled buttons -- gives touch feedback
+     without per-component work (2026-08-25, Oliver: "dont we have any
+     press state or tap state?"). Design-system Buttons additionally
+     carry their own :active styles. Desktop mice never see this. */
+  -webkit-tap-highlight-color: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
 body {
   font-family: var(--font-sans);
   line-height: 1.5;
