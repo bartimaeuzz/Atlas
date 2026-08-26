@@ -519,7 +519,9 @@ export const shiftAttendanceMarks = sqliteTable(
     id: integer("id").primaryKey({ autoIncrement: true }),
     shiftId: integer("shift_id").notNull().references(() => shifts.id),
     employeeId: integer("employee_id").notNull().references(() => employees.id),
-    mark: text("mark", { enum: ["no_show", "late", "emergency"] }).notNull(),
+    // "other" added 2026-08-25 (Oliver) -- catch-all absence reason, the
+    // note is required for it. Type-only change: the column is plain text.
+    mark: text("mark", { enum: ["no_show", "late", "emergency", "other"] }).notNull(),
     note: text("note"),
     markedByEmployeeId: integer("marked_by_employee_id").references(() => employees.id),
     markedAt: text("marked_at").notNull(),

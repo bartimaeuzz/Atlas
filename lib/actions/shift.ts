@@ -211,7 +211,20 @@ export async function removeRosterEntry(formData: FormData): Promise<ActionResul
 
     await assertDraft(shiftId);
 
-    await db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
+    // "Added by mistake" means AS IF THEY WERE NEVER THERE -- so any
+    // attendance mark they carried goes too, in the same commit (Oliver,
+    // 2026-08-25: a mistake-removed person with an old mark was landing
+    // in "Out today"). One row per person per shift, so the entry's
+    // employee identifies the mark.
+    const [entry] = await db.select().from(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
+    if (entry && entry.shiftId === shiftId) {
+      await db.batch([
+        db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId)),
+        db
+          .delete(shiftAttendanceMarks)
+          .where(and(eq(shiftAttendanceMarks.shiftId, shiftId), eq(shiftAttendanceMarks.employeeId, entry.employeeId))),
+      ]);
+    }
     revalidatePath(`/shifts/${shiftId}/roster`);
 });
 }
@@ -220,7 +233,7 @@ export async function removeRosterEntry(formData: FormData): Promise<ActionResul
 /* Attendance marks (2026-08-25, Oliver's injury/no-show scenario)         */
 /* ---------------------------------------------------------------------- */
 
-const ATTENDANCE_MARKS = ["no_show", "late", "emergency"] as const;
+const ATTENDANCE_MARKS = ["no_show", "late", "emergency", "other"] as const;
 type AttendanceMark = (typeof ATTENDANCE_MARKS)[number];
 
 function readMark(formData: FormData): AttendanceMark {
@@ -324,6 +337,7 @@ export async function removeRosterEntryAbsent(formData: FormData): Promise<Actio
     const mark = readMark(formData);
     if (mark === "late") throw new Error("A late person stays on the roster");
     const note = String(formData.get("note") ?? "").trim() || null;
+    if (mark === "other" && !note) throw new Error("Write a note saying why -- \"Other\" needs a reason.");
 
     await assertDraft(shiftId);
     const [entry] = await db.select().from(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
@@ -356,6 +370,7 @@ export async function replaceWithSubstitute(formData: FormData): Promise<ActionR
     const mark = readMark(formData);
     if (mark === "late") throw new Error("A late person stays on the roster");
     const note = String(formData.get("note") ?? "").trim() || null;
+    if (mark === "other" && !note) throw new Error("Write a note saying why -- \"Other\" needs a reason.");
 
     await assertDraft(shiftId);
     const [entry] = await db.select().from(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));

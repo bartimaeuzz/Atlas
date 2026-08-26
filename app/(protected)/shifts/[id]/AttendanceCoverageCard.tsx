@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/Badge";
 import type { ShiftAttendanceSummary } from "@/lib/shift/loadRosterPageData";
 
-const MARK_LABELS = { no_show: "No show", late: "Late", emergency: "Emergency" } as const;
+const MARK_LABELS = { no_show: "No show", late: "Late", emergency: "Emergency", other: "Absent — other" } as const;
 
 /** The day's attendance & coverage record (2026-08-25, Oliver's
  * injury/no-show scenario) -- shared by the Closing Report (reminders

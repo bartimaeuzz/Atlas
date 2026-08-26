@@ -24,13 +24,13 @@ export interface RosterPageEntry {
   coversEmployeeName: string | null;
   /** "late" when this person has a late attendance mark on this shift
    * (no_show/emergency people have no roster row — see `marks`). */
-  attendanceMark: "no_show" | "late" | "emergency" | null;
+  attendanceMark: "no_show" | "late" | "emergency" | "other" | null;
 }
 
 export interface RosterAttendanceMark {
   employeeId: number;
   employeeName: string;
-  mark: "no_show" | "late" | "emergency";
+  mark: "no_show" | "late" | "emergency" | "other";
   note: string | null;
 }
 

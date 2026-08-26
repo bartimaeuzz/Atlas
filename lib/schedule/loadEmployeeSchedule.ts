@@ -21,7 +21,7 @@ export interface EmployeeScheduleShift {
  * them even on weeks that aren't published. */
 export interface EmployeeDayRecord {
   period: "Lunch" | "Dinner";
-  kind: "no_show" | "late" | "emergency" | "extra" | "substitute";
+  kind: "no_show" | "late" | "emergency" | "other" | "extra" | "substitute";
   positionName: string | null;
 }
 

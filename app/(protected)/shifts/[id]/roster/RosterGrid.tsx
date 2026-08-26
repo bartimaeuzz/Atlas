@@ -217,6 +217,7 @@ const MARK_LABELS: Record<RosterAttendanceMark["mark"], string> = {
   no_show: "No show",
   late: "Late",
   emergency: "Emergency",
+  other: "Absent — other",
 };
 
 function OutTodayRow({ mark, shiftId, readOnly }: { mark: RosterAttendanceMark; shiftId: number; readOnly: boolean }) {
@@ -226,7 +227,7 @@ function OutTodayRow({ mark, shiftId, readOnly }: { mark: RosterAttendanceMark; 
     <div className="flex items-center justify-between px-3 py-2 text-sm">
       <span className="flex items-center gap-2 text-[var(--ink-900)]">
         {mark.employeeName}
-        <Badge tone={mark.mark === "emergency" ? "neutral" : "danger"}>{MARK_LABELS[mark.mark]}</Badge>
+        <Badge tone={mark.mark === "no_show" ? "danger" : mark.mark === "late" ? "warning" : "neutral"}>{MARK_LABELS[mark.mark]}</Badge>
         {mark.note && <span className="text-xs text-[var(--ink-500)]">“{mark.note}”</span>}
       </span>
       {!readOnly && (
@@ -462,8 +463,9 @@ function PersonActionDialog({
   const closeRef = useRef<HTMLButtonElement>(null);
   const [step, setStep] = useState<"menu" | "reason" | "sub">("menu");
   const [action, setAction] = useState<"replace" | "remove">("remove");
-  const [reason, setReason] = useState<"no_show" | "emergency" | null>(null);
+  const [reason, setReason] = useState<"no_show" | "emergency" | "other" | null>(null);
   const [note, setNote] = useState("");
+  const [subId, setSubId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const isLate = entry.attendanceMark === "late";
@@ -552,8 +554,10 @@ function PersonActionDialog({
             type="button"
             className={menuButton}
             onClick={() => {
+              // Substitute FIRST, reason after (Oliver, 2026-08-25: "move
+              // person to replace come before reason").
               setAction("replace");
-              setStep("reason");
+              setStep("sub");
             }}
             disabled={isPending}
           >
@@ -593,11 +597,16 @@ function PersonActionDialog({
 
       {step === "reason" && (
         <div className="space-y-2">
-          <p className="text-sm text-[var(--ink-700)]">Why is {entry.employeeName} out?</p>
+          <p className="text-sm text-[var(--ink-700)]">
+            {action === "replace" && subId != null
+              ? `${allEmployees.find((e) => e.id === subId)?.name ?? "The substitute"} takes the slot — why is ${entry.employeeName} out?`
+              : `Why is ${entry.employeeName} out?`}
+          </p>
           {(
             [
               { value: "no_show" as const, label: "No show", hint: "Didn't come, didn't tell anyone." },
               { value: "emergency" as const, label: "Emergency", hint: "Injury or an urgent event — excused." },
+              { value: "other" as const, label: "Other", hint: "Something else — the note below is required." },
             ]
           ).map((r) => (
             <button
@@ -615,7 +624,7 @@ function PersonActionDialog({
             </button>
           ))}
           <label className="block text-xs text-[var(--ink-500)]">
-            Note (optional)
+            {reason === "other" ? "Note (required)" : "Note (optional)"}
             <input
               type="text"
               value={note}
@@ -625,32 +634,29 @@ function PersonActionDialog({
             />
           </label>
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="secondary" size="sm" onClick={() => setStep("menu")} disabled={isPending}>
+            <Button variant="secondary" size="sm" onClick={() => setStep(action === "replace" ? "sub" : "menu")} disabled={isPending}>
               Back
             </Button>
-            {action === "replace" ? (
-              <Button variant="primary" size="sm" onClick={() => setStep("sub")} disabled={!reason || isPending}>
-                Next: pick the substitute
-              </Button>
-            ) : (
-              <Button variant="primary" size="sm" onClick={() => commit()} disabled={!reason} loading={isPending}>
-                Remove & record
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => (action === "replace" ? commit(subId ?? undefined) : commit())}
+              disabled={!reason || (reason === "other" && !note.trim()) || (action === "replace" && subId == null)}
+              loading={isPending}
+            >
+              {action === "replace" ? "Replace & record" : "Remove & record"}
+            </Button>
           </div>
         </div>
       )}
 
       {step === "sub" && (
         <div className="space-y-2">
-          <p className="text-sm text-[var(--ink-700)]">
-            Who takes the {entry.positionName} slot? Tap a name to replace &amp; record.
-          </p>
+          <p className="text-sm text-[var(--ink-700)]">Who takes the {entry.positionName} slot?</p>
           {/* Same grouped candidate list as the "+ Add" picker (Oliver,
-              2026-08-25: "use popup selecting new staff") -- tapping a
-              name commits the whole replace in one server batch. The
-              absent person is excluded along with everyone already in
-              this position. */}
+              2026-08-25: "use popup selecting new staff") -- tap a name,
+              then say why {entry.employeeName} is out on the next step.
+              The commit is one server batch at the end. */}
           <PeoplePickList
             positionName={entry.positionName}
             eligible={eligible}
@@ -660,10 +666,13 @@ function PersonActionDialog({
             weekShiftCounts={weekShiftCounts}
             disabledIds={disabledIds}
             disabledNote="Already on this shift"
-            onPick={(id) => commit(id)}
+            onPick={(id) => {
+              setSubId(id);
+              setStep("reason");
+            }}
           />
           <div className="flex justify-end gap-2 pt-1">
-            <Button variant="secondary" size="sm" onClick={() => setStep("reason")} disabled={isPending}>
+            <Button variant="secondary" size="sm" onClick={() => setStep("menu")} disabled={isPending}>
               Back
             </Button>
           </div>
