@@ -101,7 +101,7 @@ function todayIso(): string {
 export async function createShift(_prev: CreateShiftState, formData: FormData): Promise<CreateShiftState> {
   let shiftId: number;
   try {
-    await requireManagerAction();
+    const session = await requireManagerAction();
 
     const date = String(formData.get("date") ?? "");
     const period = String(formData.get("period") ?? "");
@@ -131,7 +131,7 @@ export async function createShift(_prev: CreateShiftState, formData: FormData): 
 
     const [shift] = await db
       .insert(shifts)
-      .values({ date, period: period as "Lunch" | "Dinner", status: "draft" })
+      .values({ date, period: period as "Lunch" | "Dinner", status: "draft", createdByEmployeeId: session.id, createdAt: new Date().toISOString() })
       .returning();
     // rosterSource "fresh" starts with an empty roster (2026-08-25,
     // Oliver: the create popup offers "pull data from assignment or
@@ -243,7 +243,9 @@ export async function removeRosterEntry(formData: FormData): Promise<ActionResul
 export async function reopenShift(formData: FormData): Promise<ActionResult> {
   return asActionResult(async () => {
     const session = await getCurrentStaffSession();
-    if (!session || session.systemRole !== "ADMIN") throw new Error("Only an Admin can reopen a finalized shift.");
+    if (!session || (session.systemRole !== "ADMIN" && session.systemRole !== "MANAGER")) {
+      throw new Error("Not authorized.");
+    }
     const shiftId = Number(formData.get("shiftId"));
     const reason = String(formData.get("reason") ?? "").trim();
     if (!shiftId) throw new Error("Missing shift id");
@@ -252,6 +254,15 @@ export async function reopenShift(formData: FormData): Promise<ActionResult> {
     const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
     if (!shift) throw new Error("Shift not found");
     if (shift.status !== "finalized") throw new Error("This shift isn't finalized.");
+    // Reopen rule (2026-08-26, Aey via Oliver: a small restaurant's
+    // managers "make mistake all the time"): the manager who finalized a
+    // shift may reopen their own entry; anyone else needs ADMIN. Shifts
+    // finalized before finalizedByEmployeeId existed have no recorded
+    // closer, so they stay ADMIN-only.
+    const isFinalizer = shift.finalizedByEmployeeId != null && shift.finalizedByEmployeeId === session.id;
+    if (session.systemRole !== "ADMIN" && !isFinalizer) {
+      throw new Error("Only the manager who finalized this shift (or an Admin) can reopen it.");
+    }
 
     const weekStart = weekStartFor(shift.date);
     const [period] = await db.select().from(payrollPeriods).where(eq(payrollPeriods.weekStartDate, weekStart));
@@ -267,7 +278,7 @@ export async function reopenShift(formData: FormData): Promise<ActionResult> {
       db
         .delete(incentivePayoutRecords)
         .where(and(eq(incentivePayoutRecords.periodType, "SHIFT"), eq(incentivePayoutRecords.periodKey, String(shiftId)))),
-      db.update(shifts).set({ status: "draft", finalizedAt: null }).where(eq(shifts.id, shiftId)),
+      db.update(shifts).set({ status: "draft", finalizedAt: null, finalizedByEmployeeId: null }).where(eq(shifts.id, shiftId)),
       logActivityStatement({
         actorEmployeeId: session.id,
         type: "shift.reopened",
@@ -535,9 +546,9 @@ export async function confirmFinalize(
   if (!shiftId) return { error: "Missing shift id" };
 
   try {
-    await requireManagerAction();
+    const session = await requireManagerAction();
     await assertDraft(shiftId);
-    await runFinalize(shiftId);
+    await runFinalize(shiftId, session.id);
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -809,11 +820,11 @@ async function upsertWageAdjustments(shiftId: number, formData: FormData) {
  * over recompute-on-view for the Summary Report: a closing report is a
  * historical record and shouldn't silently change if settings (deduction
  * rate, split method, point values) change later. */
-async function runFinalize(shiftId: number) {
+async function runFinalize(shiftId: number, finalizedByEmployeeId: number) {
   // Compute + write both now live in finalizeShiftWrites.ts (2026-08-10) —
   // shared with db/seed.ts, which needs to finalize a whole week of test
   // shifts at once. See that file's header comment.
-  await finalizeShiftWrites(shiftId);
+  await finalizeShiftWrites(shiftId, finalizedByEmployeeId);
 }
 
 async function assertDraft(shiftId: number) {

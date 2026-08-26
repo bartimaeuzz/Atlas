@@ -465,6 +465,14 @@ export const shifts = sqliteTable(
     period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
     status: text("status", { enum: ["draft", "finalized"] }).notNull().default("draft"),
     finalizedAt: text("finalized_at"),
+    // Who created / who finalized (2026-08-26, Oliver: "should we add
+    // column said created by"). finalizedByEmployeeId also powers the
+    // reopen rule -- the manager who closed a shift may reopen it (Aey's
+    // small-restaurant point), others need ADMIN. Nullable: shifts from
+    // before these columns keep working, shown as an em dash.
+    createdByEmployeeId: integer("created_by_employee_id").references(() => employees.id),
+    createdAt: text("created_at"),
+    finalizedByEmployeeId: integer("finalized_by_employee_id").references(() => employees.id),
     // Manager's free-text incident report for the shift (2026-08-25,
     // Oliver) -- saved with the closing report, shown on Preview/record.
     // Prose only; never read by any money calculation.

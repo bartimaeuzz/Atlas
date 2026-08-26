@@ -1,7 +1,9 @@
 import { eq } from "drizzle-orm";
+import { alias } from "drizzle-orm/sqlite-core";
+import { weekStartFor } from "@/lib/schedule/weekMath";
 import { db } from "@/db/client";
 import {
-  shifts, shiftSales, tipPoolCalculations, employeePayouts, employees,
+  shifts, shiftSales, tipPoolCalculations, employeePayouts, employees, payrollPeriods,
   onlinePlatforms, onlinePlatformSalesRecords, shiftRosterEntries, positions,
 } from "@/db/schema";
 import { sortPayoutsForDisplay } from "./payoutSort";
@@ -47,7 +49,20 @@ export interface SummaryPayoutRow {
 }
 
 export interface SummaryData {
-  shift: { id: number; date: string; period: string; status: string; finalizedAt: string | null; incidentReport: string | null } | null;
+  shift: {
+    id: number;
+    date: string;
+    period: string;
+    status: string;
+    finalizedAt: string | null;
+    finalizedByEmployeeId: number | null;
+    finalizedByName: string | null;
+    incidentReport: string | null;
+    /** True when the shift's week is a PAID payroll period -- the
+     * "closed" financial state: viewable forever, reopenable by no one
+     * until an Admin reverts the whole week (2026-08-26). */
+    weekPaid: boolean;
+  } | null;
   sales: { totalSales: number; ccTipTotal: number; cashSales: number; cashTip: number } | null;
   tipPoolCalculation: {
     grossCcTip: number;
@@ -62,7 +77,17 @@ export interface SummaryData {
 }
 
 export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
-  const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
+  const finalizer = alias(employees, "finalizer");
+  const [shiftRow] = await db
+    .select({ shift: shifts, finalizedByName: finalizer.nickname })
+    .from(shifts)
+    .leftJoin(finalizer, eq(shifts.finalizedByEmployeeId, finalizer.id))
+    .where(eq(shifts.id, shiftId));
+  const shift = shiftRow?.shift;
+  const [payrollPeriod] = shift
+    ? await db.select().from(payrollPeriods).where(eq(payrollPeriods.weekStartDate, weekStartFor(shift.date)))
+    : [];
+  const weekPaid = payrollPeriod?.status === "paid";
   if (!shift) return { shift: null, sales: null, tipPoolCalculation: null, payouts: [], onlinePlatformTotal: 0 };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
@@ -144,7 +169,17 @@ export async function loadSummaryData(shiftId: number): Promise<SummaryData> {
   );
 
   return {
-    shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, finalizedAt: shift.finalizedAt, incidentReport: shift.incidentReport },
+    shift: {
+      id: shift.id,
+      date: shift.date,
+      period: shift.period,
+      status: shift.status,
+      finalizedAt: shift.finalizedAt,
+      finalizedByEmployeeId: shift.finalizedByEmployeeId,
+      finalizedByName: shiftRow.finalizedByName,
+      incidentReport: shift.incidentReport,
+      weekPaid,
+    },
     sales: sales ? { totalSales: sales.totalSales, ccTipTotal: sales.ccTipTotal, cashSales: sales.cashSales, cashTip: sales.cashTip } : null,
     tipPoolCalculation: calc
       ? {

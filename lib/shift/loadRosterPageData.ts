@@ -35,7 +35,7 @@ export interface RosterAttendanceMark {
 }
 
 export interface RosterPageData {
-  shift: { id: number; date: string; period: string; status: string } | null;
+  shift: { id: number; date: string; period: string; status: string; createdByName: string | null; createdAt: string | null } | null;
   roster: RosterPageEntry[];
   /** primaryPositionId (2026-08-10) — lets the "Add someone" form
    * default the Position dropdown to this person's usual role the moment
@@ -106,7 +106,13 @@ export async function loadShiftAttendanceSummary(shiftId: number): Promise<Shift
 }
 
 export async function loadRosterPageData(shiftId: number): Promise<RosterPageData> {
-  const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
+  const creator = alias(employees, "creator");
+  const [shiftRow] = await db
+    .select({ shift: shifts, createdByName: creator.nickname })
+    .from(shifts)
+    .leftJoin(creator, eq(shifts.createdByEmployeeId, creator.id))
+    .where(eq(shifts.id, shiftId));
+  const shift = shiftRow?.shift;
   if (!shift) {
     return { shift: null, roster: [], allEmployees: [], allPositions: [], employeeAssignedPositionIds: {}, targets: {}, marks: [], weekShiftCounts: {} };
   }
@@ -208,7 +214,7 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
   }
 
   return {
-    shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status },
+    shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, createdByName: shiftRow.createdByName, createdAt: shift.createdAt },
     roster: rows.map((r) => ({
       ...r,
       positionCategory: r.positionCategory as "FOH" | "BOH",

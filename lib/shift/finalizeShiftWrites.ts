@@ -19,7 +19,10 @@ import { computeFinalizationPreview } from "./computeFinalizationPreview";
  * shift's status to finalized. Does NOT check whether the shift is
  * already a draft — callers (the real action, the seed script) are
  * responsible for that; this function only handles compute + write. */
-export async function finalizeShiftWrites(shiftId: number) {
+/** finalizedByEmployeeId: who pressed Confirm & finalize (2026-08-26) --
+ * shown on the Summary and the key to the reopen rule. Optional so
+ * db/seed.ts keeps working; seeded shifts show an em dash. */
+export async function finalizeShiftWrites(shiftId: number, finalizedByEmployeeId?: number) {
   const { result, incentiveRulePayouts, sales } = await computeFinalizationPreview(shiftId);
 
   await db.insert(tipPoolCalculations).values({ shiftId, ...result.tipPoolCalculation });
@@ -40,7 +43,7 @@ export async function finalizeShiftWrites(shiftId: number) {
 
   await db
     .update(shifts)
-    .set({ status: "finalized", finalizedAt: new Date().toISOString() })
+    .set({ status: "finalized", finalizedAt: new Date().toISOString(), finalizedByEmployeeId: finalizedByEmployeeId ?? null })
     .where(eq(shifts.id, shiftId));
 
   return result;

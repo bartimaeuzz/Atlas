@@ -9,6 +9,7 @@ import { ShiftStageNav } from "../ShiftStageNav";
 import { Banner } from "@/components/ui/Banner";
 import { StatusBadge } from "@/components/ui/Badge";
 import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
+import { formatDateTime } from "@/lib/formatDateTime";
 
 /** Redesigned 2026-08-11 (Oliver: wanted this to read like the Schedule
  * Planner's weekly grid) — a Position-per-row layout with headcount
@@ -47,6 +48,16 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
         </h1>
         <StatusBadge status={data.shift.status === "finalized" ? "finalized" : "draft"} />
       </div>
+      {/* Who opened this shift (2026-08-26, Oliver: "should we add column
+          said created by ... or has info pop up?" -- a visible caption,
+          not a popup: hidden info is info nobody sees). Blank for shifts
+          created before the column existed. */}
+      {data.shift.createdByName && (
+        <p className="text-xs text-[var(--ink-500)] -mt-0.5 mb-2">
+          Created by {data.shift.createdByName}
+          {data.shift.createdAt ? ` — ${formatDateTime(data.shift.createdAt)}` : ""}
+        </p>
+      )}
       <ShiftStageNav shiftId={shiftId} current="roster" />
 
       {isFinalized && (

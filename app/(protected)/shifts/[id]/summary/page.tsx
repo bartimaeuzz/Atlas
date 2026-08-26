@@ -76,8 +76,16 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
       </div>
       <ShiftStageNav shiftId={shiftId} current="payout" />
       <p className="text-sm text-[var(--ink-500)] mb-2">
-        Finalized {data.shift.finalizedAt ? formatDateTime(data.shift.finalizedAt) : ""} — figures below are a
+        Finalized{data.shift.finalizedByName ? ` by ${data.shift.finalizedByName}` : ""}
+        {data.shift.finalizedAt ? ` — ${formatDateTime(data.shift.finalizedAt)}` : ""} — figures below are a
         locked snapshot, not recalculated live.
+        {/* The "closed" financial state made visible (2026-08-26): once
+            the week is paid this record is permanent for everyone. */}
+        {data.shift.weekPaid && (
+          <span className="ml-1.5 inline-flex items-center whitespace-nowrap text-xs font-medium border rounded-[var(--radius-full)] px-2 py-0.5 bg-[var(--success-tint)] text-[var(--success-700)] border-[var(--success-border)]">
+            Week paid — closed
+          </span>
+        )}
       </p>
       {/* Reversal trail (2026-08-26): a shift that was ever reopened says
           so on its permanent record, with who and why -- the financial
@@ -249,13 +257,22 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           per-employee weighting and WEEK-period evaluation, not built yet.
         </p>
       </Section>
-      {/* ADMIN-only reversal door (2026-08-26, Oliver: financial-state
-          discussion). Finalized = "posted": editable only through this
-          documented reopen. A PAID payroll week = "closed" and the
-          action refuses until that week is reverted first. */}
-      {session?.systemRole === "ADMIN" && (
+      {/* Reversal door (2026-08-26; widened same day per Aey's
+          small-restaurant point): the manager who finalized this shift,
+          or an Admin. A PAID week is "closed" -- no button for anyone,
+          just the wall stated plainly; Admins can still revert the whole
+          payroll week from the Payroll page, a big visible act. */}
+      {(session?.systemRole === "ADMIN" ||
+        (session?.systemRole === "MANAGER" && session.id === data.shift.finalizedByEmployeeId)) && (
         <div className="mt-8">
-          <ReopenShiftButton shiftId={shiftId} shiftLabel={`${data.shift.date} (${data.shift.period})`} />
+          {data.shift.weekPaid ? (
+            <p className="text-xs text-[var(--ink-500)]">
+              This week&apos;s payroll is marked paid — the record is closed. An Admin can revert the payroll week
+              (Payroll page) if it truly must change.
+            </p>
+          ) : (
+            <ReopenShiftButton shiftId={shiftId} shiftLabel={`${data.shift.date} (${data.shift.period})`} />
+          )}
         </div>
       )}
     </main>
