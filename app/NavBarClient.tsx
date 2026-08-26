@@ -419,7 +419,10 @@ export function NavBarClient({
   return (
     <aside
       className={
-        "fixed left-0 top-0 bottom-0 z-20 w-12 flex flex-col bg-[var(--card)] border-r border-[var(--border)] transition-[width] duration-150 ease-out " +
+        // pb/pl safe-area (2026-08-25, Oliver's iPhone: "avatar was ate at
+        // the edge of iphone curve") -- body-level insets don't reach a
+        // fixed element, so the rail carries its own. Zero off-iPhone.
+        "fixed left-0 top-0 bottom-0 z-20 w-12 flex flex-col bg-[var(--card)] border-r border-[var(--border)] transition-[width] duration-150 ease-out pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] " +
         (collapsed ? "" : "sm:w-[216px]")
       }
       aria-label="Main navigation"
