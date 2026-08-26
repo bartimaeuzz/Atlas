@@ -257,7 +257,7 @@ function SubstituteBadge({ covers }: { covers: string | null }) {
   return (
     <span
       title={covers ? `Substituting for ${covers}` : "Substitute"}
-      className="text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300"
+      className="whitespace-nowrap text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300"
     >
       sub{covers ? ` for ${covers}` : ""}
     </span>
@@ -306,7 +306,7 @@ function RosterPill({
 
   if (readOnly) {
     return (
-      <div className="flex items-center gap-1.5 rounded-[var(--radius-full)] px-2.5 py-1 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)]">
+      <div className="flex flex-wrap items-center gap-1.5 rounded-[var(--radius-md)] px-2.5 py-1.5 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)] max-w-full">
         <span>{entry.employeeName}</span>
         {badges}
       </div>
@@ -314,14 +314,17 @@ function RosterPill({
   }
 
   return (
-    <div className="flex items-center gap-1.5 rounded-[var(--radius-full)] pl-1 pr-1.5 py-1 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)]">
+    <div className="flex items-center gap-x-1 rounded-[var(--radius-md)] px-1.5 text-xs bg-[var(--paper)] text-[var(--ink-700)] border border-[var(--border)] max-w-full">
       {/* The chip IS the control (2026-08-25, Oliver: "click at his box")
-          -- opens the day-of attendance popup. 44px hit height via
-          negative margins, same trick as the X. */}
+          -- opens the day-of attendance popup. Honest 44px row height
+          (no negative-margin tricks -- they bled outside the border once
+          badges wrap on a phone), and the contents flex-wrap so badges
+          drop a line whole instead of clipping at the card edge (locked
+          chip convention, caught on Oliver's iPhone screenshot). */}
       <button
         type="button"
         onClick={() => setDialogOpen(true)}
-        className="flex items-center gap-1.5 min-h-11 -my-3 pl-1.5 rounded-[var(--radius-full)] hover:text-[var(--ink-900)]"
+        className="flex-1 flex flex-wrap items-center gap-1.5 min-h-11 py-1 pl-1 hover:text-[var(--ink-900)] min-w-0 text-left"
         title={`${entry.employeeName} — late / substitute / absent`}
       >
         <span>{entry.employeeName}</span>
@@ -346,7 +349,7 @@ function RosterPill({
         // WCAG 2.5.8's 24px floor (2026-08-24 button-size audit); same
         // fix the week view's remove got. This X means "added by
         // mistake" -- it records nothing; absences go through the chip.
-        className="text-[var(--ink-400)] hover:text-[var(--danger)] disabled:opacity-50 min-w-11 min-h-11 -my-3 -mr-2 flex items-center justify-center"
+        className="text-[var(--ink-400)] hover:text-[var(--danger)] disabled:opacity-50 min-w-11 min-h-11 -mr-1.5 flex items-center justify-center"
         title="Remove (added by mistake — records nothing)"
       >
         <XIcon width={12} height={12} />

@@ -30,7 +30,7 @@ export function AttendanceCoverageCard({ attendance, footer }: { attendance: Shi
             {c.kind === "extra" ? (
               <Badge tone="warning">extra</Badge>
             ) : (
-              <span className="text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300">
+              <span className="whitespace-nowrap text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300">
                 sub{c.coversEmployeeName ? ` for ${c.coversEmployeeName}` : ""}
               </span>
             )}
