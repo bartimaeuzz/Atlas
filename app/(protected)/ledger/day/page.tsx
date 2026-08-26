@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadPettyCashDay } from "@/lib/ledger/loadPettyCashDay";
 import { getCurrentStaffSession } from "@/lib/auth/session";
-import { addDays, toIso } from "@/lib/schedule/weekMath";
+import { addDays } from "@/lib/schedule/weekMath";
 import { AddEntryForm } from "../AddEntryForm";
 import { EntriesList } from "../EntriesList";
 import { CashStep } from "./CashStep";
@@ -45,7 +46,7 @@ export default async function LedgerDayPage({
   if (!(await hasCapability("VIEW_LEDGER_OVERVIEW"))) return <NoAccess pageLabel="the Ledger" />;
 
   const params = await searchParams;
-  const todayIso = toIso(new Date());
+  const todayIso = businessTodayIso();
   const date = params.date || todayIso;
   const monthOfDate = date.slice(0, 7);
   const isFuture = date > todayIso;

@@ -1,6 +1,7 @@
 "use server";
 
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, and, inArray } from "drizzle-orm";
@@ -268,7 +269,7 @@ export async function printSupplierCheck(vendorId: number, checkNumber: string |
 
   const pendingIds = pending.map((inv) => inv.id);
   const totalAmount = pending.reduce((sum, inv) => sum + inv.amount, 0);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessTodayIso();
 
   const [payment] = await db
     .insert(supplierCheckPayments)

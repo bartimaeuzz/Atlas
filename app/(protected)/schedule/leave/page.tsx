@@ -1,6 +1,6 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadUpcomingLeaveRequests } from "@/lib/schedule/loadLeaveRequests";
-import { toIso } from "@/lib/schedule/weekMath";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { CancelLeaveButton } from "./CancelLeaveButton";
 import { DecideLeaveButtons } from "./DecideLeaveButtons";
@@ -23,7 +23,7 @@ const STATUS_TONE: Record<string, BadgeTone> = {
  * needing coverage; denied leave flags nothing. */
 export default async function LeavePage() {
   const [requests, canDecide] = await Promise.all([
-    loadUpcomingLeaveRequests(toIso(new Date())),
+    loadUpcomingLeaveRequests(businessTodayIso()),
     hasCapability("SCHEDULE_MANAGE"),
   ]);
   const pendingCount = requests.filter((r) => r.status === "pending").length;

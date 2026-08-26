@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { redirect } from "next/navigation";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadStaffWeeklyPlan } from "@/lib/schedule/loadStaffWeeklyPlan";
-import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
+import { weekStartFor, shiftWeek } from "@/lib/schedule/weekMath";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
@@ -33,7 +34,7 @@ export default async function StaffWeeklyPlanPage({
   if (!session) redirect("/login");
 
   const params = await searchParams;
-  const weekStartDate = params.week || weekStartFor(toIso(new Date()));
+  const weekStartDate = params.week || weekStartFor(businessTodayIso());
 
   const data = await loadStaffWeeklyPlan(session.id, weekStartDate);
 

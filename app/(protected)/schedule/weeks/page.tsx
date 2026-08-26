@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadWeeksList } from "@/lib/schedule/loadWeeksList";
-import { shiftWeek, toIso, weekStartFor } from "@/lib/schedule/weekMath";
+import { shiftWeek, weekStartFor } from "@/lib/schedule/weekMath";
 
 const WINDOW_SIZE = 12;
 
@@ -27,10 +28,10 @@ export default async function WeeksListPage({
   searchParams: Promise<{ from?: string }>;
 }) {
   const params = await searchParams;
-  const windowStart = params.from || shiftWeek(weekStartFor(toIso(new Date())), -2);
+  const windowStart = params.from || shiftWeek(weekStartFor(businessTodayIso()), -2);
   const data = await loadWeeksList(windowStart, WINDOW_SIZE);
 
-  const thisWeek = weekStartFor(toIso(new Date()));
+  const thisWeek = weekStartFor(businessTodayIso());
   const prevWindow = shiftWeek(windowStart, -WINDOW_SIZE);
   const nextWindow = shiftWeek(windowStart, WINDOW_SIZE);
 

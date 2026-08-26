@@ -1,4 +1,5 @@
 import { loadSalesTaxReport } from "@/lib/reports/loadSalesTaxReport";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
 import { loadSupplierCheckReport } from "@/lib/reports/loadSupplierCheckReport";
 import { PettyCashReportTable } from "./PettyCashReportTable";
@@ -74,7 +75,7 @@ export default async function ReportsPage({
   searchParams: Promise<{ from?: string; to?: string; report?: string }>;
 }) {
   const params = await searchParams;
-  const today = parseDate(toIso(new Date()));
+  const today = parseDate(businessTodayIso());
   const presets = computePresets(today);
 
   const from = params.from || presets.month.from;

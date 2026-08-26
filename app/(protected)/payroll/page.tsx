@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { loadPayrollRegister } from "@/lib/payroll/loadPayrollRegister";
-import { toIso, weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
+import { weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { MarkPaidButton, RevertToDraftButton } from "./PayrollActions";
@@ -8,7 +8,7 @@ import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Banner } from "@/components/ui/Banner";
 import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
-import { formatShortDate } from "@/lib/formatDateTime";
+import { formatShortDate, businessTodayIso } from "@/lib/formatDateTime";
 
 function weekLabel(weekStart: string): string {
   const days = datesInWeek(weekStart);
@@ -37,7 +37,7 @@ function weekLabel(weekStart: string): string {
  * retrofitted separately and aren't touched here. */
 export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
   const params = await searchParams;
-  const todayIso = toIso(new Date());
+  const todayIso = businessTodayIso();
   const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(params.week ?? "") ? weekStartFor(params.week!) : weekStartFor(todayIso);
 
   const [register, session, viewer] = await Promise.all([

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadPendingInvoicesByVendor, loadSupplierChecks } from "@/lib/ledger/loadSupplierCheck";
 import { toIso, weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
 import { LedgerTabs } from "../LedgerTabs";
@@ -71,7 +72,7 @@ export default async function SupplierCheckPage({
   const showCard = viewer.has("VIEW_LEDGER_CARD_REPORT");
 
   const params = await searchParams;
-  const todayIso = toIso(new Date());
+  const todayIso = businessTodayIso();
   // Week/month picker (2026-08-16) -- Oliver: "supplier tab on ledger
   // should be able to show by week or month." Defaults to week since
   // that's the routine cadence ("all invoices always get export to

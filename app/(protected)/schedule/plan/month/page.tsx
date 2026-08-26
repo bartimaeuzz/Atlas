@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadMonthOverview } from "@/lib/schedule/loadMonthOverview";
-import { shiftMonth, toIso, weekStartFor } from "@/lib/schedule/weekMath";
+import { shiftMonth, weekStartFor } from "@/lib/schedule/weekMath";
 import { PageHeader } from "@/components/ui/Card";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
@@ -18,7 +19,7 @@ export default async function MonthOverviewPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const params = await searchParams;
-  const monthAnchor = params.month || toIso(new Date());
+  const monthAnchor = params.month || businessTodayIso();
   const data = await loadMonthOverview(monthAnchor);
 
   const prevMonth = shiftMonth(monthAnchor, -1);

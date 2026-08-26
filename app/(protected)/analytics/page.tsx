@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadPnL } from "@/lib/analytics/loadPnL";
 import { BreakdownBarChart } from "./BreakdownBarChart";
 import { KpiMeterCard } from "./KpiMeterCard";
@@ -146,7 +147,7 @@ export default async function AnalyticsPage({
   const canSeePnL = viewer.has("VIEW_PNL");
 
   const params = await searchParams;
-  const today = parseDate(toIso(new Date()));
+  const today = parseDate(businessTodayIso());
   const presets = computePresets(today);
 
   const from = params.from || presets.month.from;

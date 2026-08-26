@@ -1,8 +1,8 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { requireManager } from "@/lib/auth/guard";
 import { loadUnseenLeaveRequestCount } from "@/lib/schedule/loadLeaveRequests";
 import { loadUnseenSwapCount } from "@/lib/schedule/loadSwapRequests";
-import { toIso } from "@/lib/schedule/weekMath";
 import { PageHeader, Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
@@ -96,7 +96,7 @@ function TemplateIcon(props: React.SVGProps<SVGSVGElement>) {
  *      doesn't mistake these for something to touch weekly. */
 export default async function SchedulePage() {
   const session = await requireManager();
-  const today = toIso(new Date());
+  const today = businessTodayIso();
   const [unseenLeaveCount, unseenSwapCount] = await Promise.all([
     loadUnseenLeaveRequestCount(session.id, today),
     loadUnseenSwapCount(session.id, today),

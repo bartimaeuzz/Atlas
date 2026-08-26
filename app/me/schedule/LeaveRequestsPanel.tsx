@@ -1,9 +1,9 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { submitLeaveRequest, deleteLeaveRequest, type LeaveRequestActionState } from "@/lib/actions/leave";
 import type { LeaveRequestView } from "@/lib/schedule/loadLeaveRequests";
-import { toIso } from "@/lib/schedule/weekMath";
 import { TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
@@ -52,7 +52,7 @@ export function LeaveRequestsPanel({ requests }: { requests: LeaveRequestView[] 
 
 function LeaveRequestForm() {
   const [state, formAction, isPending] = useActionState(submitLeaveRequest, initialState);
-  const today = toIso(new Date());
+  const today = businessTodayIso();
 
   return (
     <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)] space-y-3 mb-3 text-sm">

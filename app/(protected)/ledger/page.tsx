@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadPettyCashReport } from "@/lib/reports/loadPettyCashReport";
 import { LedgerTabs } from "./LedgerTabs";
 import { MonthList } from "./MonthList";
@@ -55,7 +56,7 @@ export default async function LedgerPage({ searchParams }: { searchParams: Promi
   const showCard = viewer.has("VIEW_LEDGER_CARD_REPORT");
 
   const params = await searchParams;
-  const todayIso = toIso(new Date());
+  const todayIso = businessTodayIso();
 
   // Two levels since 2026-08-24 (Oliver: "ledger show month list in table
   // first"): no ?month= -> a month picker for the year; ?month=YYYY-MM ->

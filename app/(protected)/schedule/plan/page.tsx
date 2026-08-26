@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
 import { loadEmployeesList, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
-import { weekStartFor, toIso, shiftWeek } from "@/lib/schedule/weekMath";
+import { weekStartFor, shiftWeek } from "@/lib/schedule/weekMath";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import { GenerateWeekButton } from "./GenerateWeekButton";
@@ -18,7 +19,7 @@ export default async function WeeklyPlanPage({
   searchParams: Promise<{ week?: string; day?: string }>;
 }) {
   const params = await searchParams;
-  const weekStartDate = params.week || weekStartFor(toIso(new Date()));
+  const weekStartDate = params.week || weekStartFor(businessTodayIso());
   const initialDay = params.day;
 
   const [data, employeeList, employeeAssignedPositionIds, canManage] = await Promise.all([

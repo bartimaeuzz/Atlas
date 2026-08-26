@@ -1,6 +1,7 @@
 "use server";
 
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -38,10 +39,10 @@ async function requireManagerAction() {
 
 /** Today as an ISO date string -- used to block logging/reconciling a day
  * that hasn't happened yet (2026-08-14: "not be editable before day
- * comes"). Same UTC convention as everywhere else date math happens in
- * this app (see lib/schedule/weekMath.ts). */
+ * comes"). Since 2026-08-25 this is the restaurant's BUSINESS day
+ * (NYC wall clock, 4am rollover) -- see businessTodayIso. */
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return businessTodayIso();
 }
 
 /* ---------------------------------------------------------------------- */

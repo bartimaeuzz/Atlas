@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { logSupplierInvoice, type SupplierInvoiceActionState } from "@/lib/actions/supplierCheck";
-import { toIso } from "@/lib/schedule/weekMath";
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
@@ -26,7 +26,7 @@ export function LogInvoiceForm({
   return (
     <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
       {state.error && <Banner tone="danger" title="Couldn't log invoice" description={state.error} />}
-      <TextInput type="date" name="receivedDate" label="Date received" required defaultValue={toIso(new Date())} />
+      <TextInput type="date" name="receivedDate" label="Date received" required defaultValue={businessTodayIso()} />
       <div className="grid grid-cols-2 gap-2">
         <Select name="vendorId" label="Vendor" required>
           <option value="">Choose…</option>

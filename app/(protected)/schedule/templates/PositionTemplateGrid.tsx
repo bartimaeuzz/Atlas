@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import {
   syncEmployeePositionTemplate,
   retireEmployeeFromPosition,
@@ -493,7 +494,7 @@ function VacancyPopoverForm({
 }) {
   const [isPending, startTransition] = useTransition();
   const [reason, setReason] = useState<"RESIGNATION" | "PROMOTION" | "OTHER">("RESIGNATION");
-  const [startsOn, setStartsOn] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startsOn, setStartsOn] = useState(() => businessTodayIso());
 
   const scopeHint: Record<typeof reason, string> = {
     RESIGNATION: "Flags every shift this person has, in any position.",

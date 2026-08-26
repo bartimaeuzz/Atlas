@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { requireCapabilityRoute } from "@/lib/auth/requireRouteAccess";
 import { loadSupplierCheckReportByIds } from "@/lib/reports/loadSupplierCheckReport";
 import { buildSupplierCheckWorkbook } from "@/lib/reports/buildSupplierCheckWorkbook";
@@ -36,7 +37,7 @@ export async function GET(request: NextRequest) {
   }
 
   const data = await loadSupplierCheckReportByIds(paymentIds);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessTodayIso();
   const buffer = await buildSupplierCheckWorkbook(data, today, today, "print");
 
   return new NextResponse(buffer, {

@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadEmployeeSchedule } from "@/lib/schedule/loadEmployeeSchedule";
 import { loadEmployeesList } from "@/lib/employees/loadEmployeesList";
-import { shiftMonth, toIso, weekStartFor } from "@/lib/schedule/weekMath";
+import { shiftMonth, weekStartFor } from "@/lib/schedule/weekMath";
 import { PageHeader, Card } from "@/components/ui/Card";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -17,7 +18,7 @@ export default async function EmployeeSchedulePage({
   searchParams: Promise<{ employeeId?: string; month?: string }>;
 }) {
   const params = await searchParams;
-  const monthAnchor = params.month || toIso(new Date());
+  const monthAnchor = params.month || businessTodayIso();
 
   if (!params.employeeId) {
     const employeeList = await loadEmployeesList();
@@ -110,7 +111,7 @@ export default async function EmployeeSchedulePage({
           {data.weeks.map((week, i) => (
             <tr key={i}>
               {week.map((day) => {
-                const isToday = day.date === toIso(new Date());
+                const isToday = day.date === businessTodayIso();
                 return (
                 <td key={day.date} className="align-top border border-[var(--border)] p-0">
                   <Link

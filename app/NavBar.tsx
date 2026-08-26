@@ -1,6 +1,6 @@
 import { loadUnseenLeaveRequestCount } from "@/lib/schedule/loadLeaveRequests";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadUnseenSwapCount } from "@/lib/schedule/loadSwapRequests";
-import { toIso } from "@/lib/schedule/weekMath";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NavBarClient } from "./NavBarClient";
 import { NAV_ITEM_CAPABILITY, resolveLedgerHref } from "./navItemCapabilities";
@@ -76,7 +76,7 @@ export async function NavBar() {
   }
   const navHrefOverrides: Record<string, string> =
     ledgerHref && ledgerHref !== "/ledger" ? { "/ledger": ledgerHref } : {};
-  const today = toIso(new Date());
+  const today = businessTodayIso();
   const [unseenLeaveCount, unseenSwapCount] = isManager
     ? await Promise.all([loadUnseenLeaveRequestCount(session.id, today), loadUnseenSwapCount(session.id, today)])
     : [0, 0];

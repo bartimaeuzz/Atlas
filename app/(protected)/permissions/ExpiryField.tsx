@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { addDays, toIso } from "@/lib/schedule/weekMath";
+import { businessTodayIso } from "@/lib/formatDateTime";
+import { addDays } from "@/lib/schedule/weekMath";
 
 /** Per-item expiry for a Financial Auditor capability.
  *
@@ -34,7 +35,7 @@ export function ExpiryField({ name, defaultValue }: { name: string; defaultValue
   // across midnight would otherwise offer "30 days" measured from
   // yesterday. Cheap, and wrong-by-a-day on a permission expiry is the
   // kind of small lie that costs someone their access at 9am.
-  const today = toIso(new Date());
+  const today = businessTodayIso();
   const matchedPreset = PRESET_DAYS.find((d) => addDays(today, d) === value);
   const selectValue = value === "" ? "never" : matchedPreset ? String(matchedPreset) : "custom";
 

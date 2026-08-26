@@ -1,11 +1,11 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadShiftsList } from "@/lib/shift/loadShiftsList";
 import { loadPublishedPlanCounts } from "@/lib/shift/loadPublishedPlanCounts";
 import { dayOfWeek } from "@/lib/schedule/weekMath";
 import { PageHeader } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
-import { toIso } from "@/lib/schedule/weekMath";
 import { Badge } from "@/components/ui/Badge";
 import { TableCard } from "@/components/ui/Table";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
@@ -30,7 +30,7 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
   // picker for the year; ?month=YYYY-MM -> that month's Date | Lunch |
   // Dinner card table.
   const params = await searchParams;
-  const todayIso = toIso(new Date());
+  const todayIso = businessTodayIso();
   // 01-12 only -- a "month" like 2026-13 used to slip past \d{2} and
   // render an undefined month name in the header.
   const month = params.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month) ? params.month : null;

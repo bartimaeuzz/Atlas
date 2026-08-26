@@ -1,6 +1,7 @@
 "use server";
 
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, and, isNull } from "drizzle-orm";
@@ -87,10 +88,12 @@ export interface CreateShiftState {
   pastConfirm?: { date: string; period: "Lunch" | "Dinner" };
 }
 
-/** Same UTC convention as every other place date math happens in this app
- * (see lib/schedule/weekMath.ts and lib/actions/ledger.ts). */
+/** The restaurant's business day (NYC wall clock, 4am rollover) -- see
+ * businessTodayIso. A Dinner closed out at 1am still belongs to
+ * yesterday, so creating "today's" shift then never trips the past-day
+ * gate. */
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return businessTodayIso();
 }
 
 export async function createShift(_prev: CreateShiftState, formData: FormData): Promise<CreateShiftState> {

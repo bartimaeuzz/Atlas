@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useMemo, useRef, useState, useTransition } from "react";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { useRouter } from "next/navigation";
 import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment } from "@/lib/actions/schedule";
 import { Modal } from "@/components/ui/Modal";
@@ -8,7 +9,6 @@ import { Button, LinkButton } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { WeeklyPlanData, PlannedAssignmentRow } from "@/lib/schedule/loadWeeklyPlan";
-import { toIso } from "@/lib/schedule/weekMath";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -256,7 +256,7 @@ export function WeeklyPlanGrid({
   // otherwise the first day: opening this on a phone is nearly always
   // about today or tomorrow, and landing on a week's Sunday when it is
   // Thursday would cost two taps every time.
-  const todayIso = toIso(new Date());
+  const todayIso = businessTodayIso();
   // DERIVED, not synced. A week changes under this component whenever
   // previous/next week navigation re-renders it with new dates, and a
   // stored selection would then point at a day that is no longer in the
@@ -573,7 +573,7 @@ export function WeeklyPlanGrid({
               <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
                 <th className="py-1.5 pr-2 sticky left-0 z-[1] bg-[var(--card)]">Position</th>
                 {data.dates.map((d) => {
-                  const isToday = d === toIso(new Date());
+                  const isToday = d === businessTodayIso();
                   return (
                     <th key={d} className="py-1.5 px-1.5 text-left align-bottom border-l border-[var(--border)]">
                       <div className={isToday ? "text-[var(--primary-700)] font-semibold" : "text-[var(--ink-700)]"}>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { redirect } from "next/navigation";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadEmployeeSchedule } from "@/lib/schedule/loadEmployeeSchedule";
@@ -9,7 +10,7 @@ import {
   loadAcceptableSwapRequests,
   loadMySwapRequests,
 } from "@/lib/schedule/loadSwapRequests";
-import { shiftMonth, toIso } from "@/lib/schedule/weekMath";
+import { shiftMonth } from "@/lib/schedule/weekMath";
 import { LeaveRequestsPanel } from "./LeaveRequestsPanel";
 import { SwapBoardPanel } from "./SwapBoardPanel";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
@@ -44,8 +45,8 @@ export default async function MyScheduleView({
   if (!session) redirect("/login");
 
   const params = await searchParams;
-  const monthAnchor = params.month || toIso(new Date());
-  const today = toIso(new Date());
+  const monthAnchor = params.month || businessTodayIso();
+  const today = businessTodayIso();
   const [data, recentChangesAll, leaveRequests, swappable, acceptableSwaps, mySwaps] = await Promise.all([
     loadEmployeeSchedule(session.id, monthAnchor),
     // Defaults to published-only -- see loadRecentScheduleChanges's own

@@ -1,5 +1,6 @@
 import { loadSwapRequestsForManager, type SwapRequestView } from "@/lib/schedule/loadSwapRequests";
-import { toIso, weekStartFor } from "@/lib/schedule/weekMath";
+import { businessTodayIso } from "@/lib/formatDateTime";
+import { weekStartFor } from "@/lib/schedule/weekMath";
 import { formatDayLabel } from "@/lib/format/formatDayLabel";
 import { SwapDecisionButtons } from "./SwapDecisionButtons";
 import { MarkSeenOnMount } from "../MarkSeenOnMount";
@@ -51,7 +52,7 @@ const STATUS_TONE: Record<SwapRequestView["status"], BadgeTone> = {
  */
 export default async function SwapsPage() {
   const [requests, canDecide] = await Promise.all([
-    loadSwapRequestsForManager(toIso(new Date())),
+    loadSwapRequestsForManager(businessTodayIso()),
     hasCapability("SCHEDULE_MANAGE"),
   ]);
 

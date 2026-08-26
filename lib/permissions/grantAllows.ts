@@ -12,13 +12,14 @@
  * with no imports, and viewerCapabilities.ts re-exports it unchanged.
  */
 
+import { businessTodayIso } from "@/lib/formatDateTime";
 export interface CapabilityGrantRow {
   granted: boolean;
   expiresAt: string | null;
 }
 
 export function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return businessTodayIso();
 }
 
 /** `isAdmin` short-circuits before the row is consulted at all: an Admin

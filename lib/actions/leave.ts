@@ -7,13 +7,13 @@
  * db/schema.ts's leaveRequests comment for the full design reasoning. */
 
 import { revalidatePath } from "next/cache";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { leaveRequests } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { requireCapability } from "@/lib/permissions/requireCapability";
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
-import { toIso } from "@/lib/schedule/weekMath";
 
 export interface LeaveRequestActionState {
   error: string | null;
@@ -31,7 +31,7 @@ export async function submitLeaveRequest(
     if (!startDate || !endDate) throw new Error("Enter both dates");
     if (endDate < startDate) throw new Error("End date can't be before the start date");
     // Same "today" convention as loadUpcomingLeaveRequests' gte filter.
-    if (startDate < toIso(new Date())) throw new Error("Start date can't be in the past");
+    if (startDate < businessTodayIso()) throw new Error("Start date can't be in the past");
 
     const session = await getCurrentStaffSession();
     if (!session) throw new Error("Not signed in");

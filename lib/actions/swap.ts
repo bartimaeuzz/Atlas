@@ -6,13 +6,14 @@
  * AskUserQuestion before any of this was written. */
 
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
+import { businessTodayIso } from "@/lib/formatDateTime";
 import { revalidatePath } from "next/cache";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { swapRequests, plannedShiftAssignments, scheduleWeeks, employeePositions, leaveRequests } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { requireCapability } from "@/lib/permissions/requireCapability";
-import { toIso, daysBetween } from "@/lib/schedule/weekMath";
+import { daysBetween } from "@/lib/schedule/weekMath";
 import { completeSwap } from "@/lib/schedule/completeSwap";
 
 // respondedAt/decidedAt are written via SQLite's own current_timestamp
@@ -71,7 +72,7 @@ export async function createSwapRequest(
     if (!week || week.status !== "published") {
       throw new Error("Only published shifts can be offered for swap");
     }
-    const today = toIso(new Date());
+    const today = businessTodayIso();
     if (assignment.date < today) {
       throw new Error("That shift has already passed");
     }
@@ -172,7 +173,7 @@ export async function acceptSwapRequest(requestId: number): Promise<ActionResult
       throw new Error("You have leave logged over that date");
     }
 
-    const today = toIso(new Date());
+    const today = businessTodayIso();
     const daysOut = daysBetween(today, assignment.date);
     const needsApproval = daysOut <= APPROVAL_WINDOW_DAYS;
 
