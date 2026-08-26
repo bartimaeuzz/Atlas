@@ -1,9 +1,9 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db/client";
-import { shifts, shiftRosterEntries, shiftAttendanceMarks, employees, positions, positionStaffingTargets, swapRequests, plannedShiftAssignments } from "@/db/schema";
+import { shifts, shiftRosterEntries, shiftAttendanceMarks, employees, positions, positionStaffingTargets, swapRequests, plannedShiftAssignments, scheduleWeeks } from "@/db/schema";
 import { loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
-import { dayOfWeek } from "@/lib/schedule/weekMath";
+import { addDays, dayOfWeek, weekStartFor } from "@/lib/schedule/weekMath";
 
 export interface RosterPageEntry {
   rosterEntryId: number;
@@ -53,6 +53,11 @@ export interface RosterPageData {
    * page is always for one specific date+period. Powers the "N/target"
    * badge so the roster page reads the same way as the weekly plan grid. */
   targets: Record<number, number>;
+  /** employeeId -> planned shifts in THIS shift's week (2026-08-25) --
+   * the add-person picker shows load per candidate, fewest first, per
+   * the locked candidate-picker convention. Generated weeks only (draft
+   * or published); template projections aren't real assignments yet. */
+  weekShiftCounts: Record<number, number>;
   /** Every attendance mark on this shift (2026-08-25). Roster rows carry
    * their own `attendanceMark` for badges; this list is the full record,
    * including no-show/emergency people who have no roster row -- powers
@@ -103,7 +108,7 @@ export async function loadShiftAttendanceSummary(shiftId: number): Promise<Shift
 export async function loadRosterPageData(shiftId: number): Promise<RosterPageData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
   if (!shift) {
-    return { shift: null, roster: [], allEmployees: [], allPositions: [], employeeAssignedPositionIds: {}, targets: {}, marks: [] };
+    return { shift: null, roster: [], allEmployees: [], allPositions: [], employeeAssignedPositionIds: {}, targets: {}, marks: [], weekShiftCounts: {} };
   }
 
   const covers = alias(employees, "covers");
@@ -125,6 +130,15 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
     .innerJoin(positions, eq(shiftRosterEntries.positionId, positions.id))
     .leftJoin(covers, eq(shiftRosterEntries.coversEmployeeId, covers.id))
     .where(eq(shiftRosterEntries.shiftId, shiftId));
+
+  const weekStart = weekStartFor(shift.date);
+  const weekAssignmentRows = await db
+    .select({ employeeId: plannedShiftAssignments.employeeId })
+    .from(plannedShiftAssignments)
+    .innerJoin(scheduleWeeks, eq(plannedShiftAssignments.weekId, scheduleWeeks.id))
+    .where(and(gte(plannedShiftAssignments.date, weekStart), lte(plannedShiftAssignments.date, addDays(weekStart, 6))));
+  const weekShiftCounts: Record<number, number> = {};
+  for (const r of weekAssignmentRows) weekShiftCounts[r.employeeId] = (weekShiftCounts[r.employeeId] ?? 0) + 1;
 
   const markRows = await db
     .select({
@@ -206,5 +220,6 @@ export async function loadRosterPageData(shiftId: number): Promise<RosterPageDat
     employeeAssignedPositionIds,
     targets,
     marks: markRows,
+    weekShiftCounts,
   };
 }

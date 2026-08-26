@@ -77,6 +77,7 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
           employeeAssignedPositionIds={data.employeeAssignedPositionIds}
           readOnly={isFinalized}
           marks={data.marks}
+          weekShiftCounts={data.weekShiftCounts}
         />
       </section>
 

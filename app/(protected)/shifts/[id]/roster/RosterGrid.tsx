@@ -47,6 +47,7 @@ export function RosterGrid({
   employeeAssignedPositionIds,
   readOnly,
   marks,
+  weekShiftCounts,
 }: {
   shiftId: number;
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
@@ -56,6 +57,7 @@ export function RosterGrid({
   employeeAssignedPositionIds: Record<number, number[]>;
   readOnly: boolean;
   marks: RosterAttendanceMark[];
+  weekShiftCounts: Record<number, number>;
 }) {
   const roleCountByEmployee = useMemo(() => {
     const map = new Map<number, number>();
@@ -183,6 +185,8 @@ export function RosterGrid({
                         alreadyAssignedIds={new Set(cellEntries.map((r) => r.employeeId))}
                         roster={roster}
                         allEmployees={allEmployees}
+                        positions={positions}
+                        weekShiftCounts={weekShiftCounts}
                       />
                     )}
                   </div>
@@ -595,6 +599,8 @@ function RosterQuickAdd({
   alreadyAssignedIds,
   roster,
   allEmployees,
+  positions,
+  weekShiftCounts,
 }: {
   shiftId: number;
   positionId: number;
@@ -605,12 +611,16 @@ function RosterQuickAdd({
   alreadyAssignedIds: Set<number>;
   roster: RosterPageEntry[];
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
+  positions: { id: number; name: string; category: "FOH" | "BOH" }[];
+  weekShiftCounts: Record<number, number>;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
   const [extraNote, setExtraNote] = useState("");
+  const pickerTitleId = useId();
   // Two-or-three confirmations share one dialog slot: adding a second
   // role to the same person (the original guard), off-position, and
   // pushing past target (Oliver, 2026-08-24: warn with cancel | add
@@ -625,11 +635,10 @@ function RosterQuickAdd({
   const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
   if (eligible.length === 0 && other.length === 0) return null;
 
-  function performAdd(asExtra: boolean, note: string) {
-    if (selectedId === "") return;
+  function performAdd(employeeId: number, asExtra: boolean, note: string) {
     const formData = new FormData();
     formData.set("shiftId", String(shiftId));
-    formData.set("employeeId", String(selectedId));
+    formData.set("employeeId", String(employeeId));
     formData.set("positionId", String(positionId));
     if (asExtra) {
       formData.set("coverageKind", "extra");
@@ -650,14 +659,15 @@ function RosterQuickAdd({
     });
   }
 
-  function handleAddClick() {
-    if (selectedId === "") return;
-    const employeeName = allEmployees.find((e) => e.id === selectedId)?.name ?? "This person";
-    const existingPositions = roster.filter((r) => r.employeeId === selectedId).map((r) => r.positionName);
+  function handlePick(employeeId: number) {
+    setPickerOpen(false);
+    setSelectedId(employeeId);
+    const employeeName = allEmployees.find((e) => e.id === employeeId)?.name ?? "This person";
+    const existingPositions = roster.filter((r) => r.employeeId === employeeId).map((r) => r.positionName);
     const overTarget = target > 0 && currentCount >= target;
-    // "Other" optgroup = not one of this person's capable positions
+    // "Other" group = not one of this person's capable positions
     // (Oliver, 2026-08-24: same warn-don't-block dialog as over-target).
-    const offPosition = employees.other.some((e) => e.id === selectedId);
+    const offPosition = employees.other.some((e) => e.id === employeeId);
 
     const sentences: string[] = [];
     if (existingPositions.length > 0) {
@@ -675,7 +685,7 @@ function RosterQuickAdd({
     }
 
     if (sentences.length === 0) {
-      performAdd(false, "");
+      performAdd(employeeId, false, "");
       return;
     }
     setPendingConfirm({
@@ -687,43 +697,80 @@ function RosterQuickAdd({
     });
   }
 
+  // Others grouped by the person's own department (their primary
+  // position's category) -- Oliver, 2026-08-25: "list of people
+  // categorize as compatible person then each department." Within every
+  // group: fewest planned shifts this week first (the locked
+  // candidate-picker fairness convention), then name.
+  const categoryByPositionId = new Map(positions.map((p) => [p.id, p.category]));
+  const load = (id: number) => weekShiftCounts[id] ?? 0;
+  const byLoad = (a: { id: number; name: string }, b: { id: number; name: string }) =>
+    load(a.id) - load(b.id) || a.name.localeCompare(b.name);
+  const pickerGroups = [
+    { header: `Usually ${positionName}`, people: [...eligible].sort(byLoad) },
+    { header: "FOH — Front of house", people: other.filter((e) => categoryOf(e.id) === "FOH").sort(byLoad) },
+    { header: "BOH — Back of house", people: other.filter((e) => categoryOf(e.id) === "BOH").sort(byLoad) },
+    { header: "No usual position", people: other.filter((e) => categoryOf(e.id) === null).sort(byLoad) },
+  ].filter((g) => g.people.length > 0);
+  function categoryOf(employeeId: number): "FOH" | "BOH" | null {
+    const primary = allEmployees.find((e) => e.id === employeeId)?.primaryPositionId;
+    return primary != null ? (categoryByPositionId.get(primary) ?? null) : null;
+  }
+
   return (
     <div className="flex items-center gap-1.5">
-      <select
-        value={selectedId}
+      {/* Button + popup picker instead of a native select (2026-08-25,
+          Oliver) -- a select can't show per-person load or 44px rows.
+          Picking one person closes the picker; the existing warning
+          gates (second role / off-position / over-target-extra) chain
+          after, one dialog at a time. Removal stays on the person's
+          chip, deliberately -- adding and removing in one popup invites
+          wrong-direction taps. */}
+      <button
+        type="button"
         disabled={isPending}
-        onChange={(e) => {
-          setSelectedId(e.target.value === "" ? "" : Number(e.target.value));
+        onClick={() => {
           setError(null);
+          setPickerOpen(true);
         }}
-        className="text-xs border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 max-w-[160px] text-[var(--ink-700)] disabled:opacity-50 bg-[var(--card)]"
+        className="flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] px-3 text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)] disabled:opacity-50"
       >
-        <option value="">+ Add</option>
-        {eligible.length > 0 && (
-          <optgroup label="Usually this role">
-            {eligible.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {other.length > 0 && (
-          <optgroup label="Other">
-            {other.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.name}
-              </option>
-            ))}
-          </optgroup>
-        )}
-      </select>
-      {selectedId !== "" && (
-        <Button type="button" size="sm" onClick={handleAddClick} loading={isPending}>
-          {isPending ? "Adding…" : "Add"}
-        </Button>
-      )}
+        {isPending ? "Adding…" : "+ Add"}
+      </button>
       {error && <span className="text-[11px] text-[var(--danger)]">{error}</span>}
+
+      <Modal open={pickerOpen} onClose={() => setPickerOpen(false)} labelledBy={pickerTitleId}>
+        <div id={pickerTitleId} className="text-base font-bold text-[var(--ink-900)] mb-2">
+          Add to {positionName}
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
+          {pickerGroups.map((g) => (
+            <div key={g.header}>
+              <div className="px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)]">{g.header}</div>
+              <div className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)] mb-2">
+                {g.people.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => handlePick(e.id)}
+                    className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--paper)] text-left"
+                  >
+                    <span>{e.name}</span>
+                    <span className="text-xs text-[var(--ink-500)]">
+                      {load(e.id)} {load(e.id) === 1 ? "shift" : "shifts"} this week
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end pt-2">
+          <Button variant="secondary" size="sm" onClick={() => setPickerOpen(false)}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={pendingConfirm !== null}
@@ -731,7 +778,7 @@ function RosterQuickAdd({
         onConfirm={() => {
           const asExtra = pendingConfirm?.asExtra ?? false;
           setPendingConfirm(null);
-          performAdd(asExtra, extraNote);
+          if (selectedId !== "") performAdd(selectedId, asExtra, extraNote);
         }}
         title={pendingConfirm?.title ?? ""}
         description={pendingConfirm?.description}
