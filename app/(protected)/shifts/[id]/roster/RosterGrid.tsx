@@ -554,9 +554,16 @@ function PersonActionDialog({
             Absent — remove from this shift
             <span className="block text-xs text-[var(--ink-500)]">No replacement; why they&apos;re out gets recorded.</span>
           </button>
-          <button type="button" className={menuButton} onClick={removeMistake} disabled={isPending}>
+          {/* Danger outline (Oliver, 2026-08-25): this is the one option
+              that deletes with no record behind it. */}
+          <button
+            type="button"
+            className="w-full text-left text-sm px-3 py-2.5 rounded-[var(--radius-md)] border border-[var(--danger-border)] bg-[var(--card)] hover:bg-[var(--danger-tint)] text-[var(--danger-700)]"
+            onClick={removeMistake}
+            disabled={isPending}
+          >
             Added by mistake — remove
-            <span className="block text-xs text-[var(--ink-500)]">Takes them off the roster without recording anything.</span>
+            <span className="block text-xs text-[var(--danger-700)] opacity-80">Takes them off the roster without recording anything.</span>
           </button>
           <div className="flex justify-end pt-1">
             <Button ref={closeRef} variant="secondary" size="sm" onClick={onClose} disabled={isPending}>
