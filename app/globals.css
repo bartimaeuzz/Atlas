@@ -119,4 +119,10 @@
 body {
   font-family: var(--font-sans);
   line-height: 1.5;
+  /* viewport-fit=cover (app/layout.tsx) lets the page extend under the
+     iPhone notch and home indicator; these insets keep actual content
+     and tap targets out of those zones. Zero on regular screens. */
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }

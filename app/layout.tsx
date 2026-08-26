@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
 import "@fontsource/noto-sans/400.css";
 import "@fontsource/noto-sans/500.css";
@@ -17,6 +17,18 @@ import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 export const metadata: Metadata = {
   title: "Atlas",
   description: "Restaurant closing report & management",
+  // PWA (2026-08-25): with app/manifest.ts, Add to Home Screen opens
+  // Atlas full-screen with no Safari bars. iOS reads these apple fields
+  // and the touch icon, not the manifest's.
+  appleWebApp: { capable: true, title: "Atlas", statusBarStyle: "default" },
+  icons: { apple: "/icons/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  // cover + the safe-area padding in globals.css: content extends under
+  // the notch/home-indicator without controls getting trapped there.
+  viewportFit: "cover",
+  themeColor: "#1D4ED8",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
