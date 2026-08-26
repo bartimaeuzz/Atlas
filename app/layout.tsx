@@ -12,6 +12,7 @@ import "./globals.css";
 import { NavBar } from "./NavBar";
 import { NavCollapseProvider } from "./NavCollapseContext";
 import { NavContentWrapper } from "./NavContentWrapper";
+import { PullToRefresh } from "./PullToRefresh";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 
 export const metadata: Metadata = {
@@ -62,6 +63,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full font-sans bg-[var(--paper)] text-[var(--ink-900)]">
         <NavCollapseProvider initialCollapsed={navCollapsed}>
           <NavBar />
+          <PullToRefresh />
           <NavContentWrapper hasNav={signedIn}>{children}</NavContentWrapper>
         </NavCollapseProvider>
       </body>
