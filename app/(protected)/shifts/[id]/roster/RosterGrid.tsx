@@ -167,7 +167,7 @@ export function RosterGrid({
                               shiftId={shiftId}
                               readOnly={readOnly}
                               employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
-                              alreadyAssignedIds={new Set(cellEntries.map((e) => e.employeeId))}
+                              rosteredIds={rosteredIds}
                               positions={positions}
                               allEmployees={allEmployees}
                               weekShiftCounts={weekShiftCounts}
@@ -184,8 +184,7 @@ export function RosterGrid({
                         target={target}
                         currentCount={cellEntries.length}
                         employees={employeesByPosition.get(p.id) ?? { eligible: [], other: [] }}
-                        alreadyAssignedIds={new Set(cellEntries.map((r) => r.employeeId))}
-                        roster={roster}
+                        rosteredIds={rosteredIds}
                         allEmployees={allEmployees}
                         positions={positions}
                         weekShiftCounts={weekShiftCounts}
@@ -277,6 +276,8 @@ function PeoplePickList({
   allEmployees,
   positions,
   weekShiftCounts,
+  disabledIds,
+  disabledNote,
   onPick,
 }: {
   positionName: string;
@@ -285,6 +286,13 @@ function PeoplePickList({
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
   weekShiftCounts: Record<number, number>;
+  /** People shown but not pickable, with the reason beside their name --
+   * one person can hold one slot per shift (2026-08-25, Oliver: "just
+   * show A person is on the shift already"). Shown-disabled beats
+   * hidden: the manager looking for Aey sees WHY, instead of wondering
+   * where she went. */
+  disabledIds: Set<number>;
+  disabledNote: string;
   onPick: (employeeId: number) => void;
 }) {
   const categoryByPositionId = new Map(positions.map((p) => [p.id, p.category]));
@@ -308,19 +316,26 @@ function PeoplePickList({
         <div key={g.header}>
           <div className="px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)]">{g.header}</div>
           <div className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)] mb-2">
-            {g.people.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                onClick={() => onPick(e.id)}
-                className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--paper)] text-left"
-              >
-                <span>{e.name}</span>
-                <span className="text-xs text-[var(--ink-500)]">
-                  {load(e.id)} {load(e.id) === 1 ? "shift" : "shifts"} this week
-                </span>
-              </button>
-            ))}
+            {g.people.map((e) =>
+              disabledIds.has(e.id) ? (
+                <div key={e.id} className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-500)] bg-[var(--paper)] opacity-70">
+                  <span>{e.name}</span>
+                  <span className="text-xs">{disabledNote}</span>
+                </div>
+              ) : (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => onPick(e.id)}
+                  className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--paper)] text-left"
+                >
+                  <span>{e.name}</span>
+                  <span className="text-xs text-[var(--ink-500)]">
+                    {load(e.id)} {load(e.id) === 1 ? "shift" : "shifts"} this week
+                  </span>
+                </button>
+              )
+            )}
           </div>
         </div>
       ))}
@@ -334,7 +349,7 @@ function RosterPill({
   shiftId,
   readOnly,
   employees,
-  alreadyAssignedIds,
+  rosteredIds,
   positions,
   allEmployees,
   weekShiftCounts,
@@ -344,7 +359,7 @@ function RosterPill({
   shiftId: number;
   readOnly: boolean;
   employees: EmployeeOptionGroups;
-  alreadyAssignedIds: Set<number>;
+  rosteredIds: Set<number>;
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   weekShiftCounts: Record<number, number>;
@@ -404,7 +419,7 @@ function RosterPill({
           entry={entry}
           shiftId={shiftId}
           employees={employees}
-          alreadyAssignedIds={alreadyAssignedIds}
+          rosteredIds={rosteredIds}
           positions={positions}
           allEmployees={allEmployees}
           weekShiftCounts={weekShiftCounts}
@@ -426,7 +441,7 @@ function PersonActionDialog({
   entry,
   shiftId,
   employees,
-  alreadyAssignedIds,
+  rosteredIds,
   positions,
   allEmployees,
   weekShiftCounts,
@@ -435,7 +450,7 @@ function PersonActionDialog({
   entry: RosterPageEntry;
   shiftId: number;
   employees: EmployeeOptionGroups;
-  alreadyAssignedIds: Set<number>;
+  rosteredIds: Set<number>;
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   weekShiftCounts: Record<number, number>;
@@ -504,8 +519,11 @@ function PersonActionDialog({
     });
   }
 
-  const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
-  const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
+  // The absent person themself is excluded outright (they're the one
+  // being replaced); everyone else on the shift shows disabled.
+  const eligible = employees.eligible.filter((e) => e.id !== entry.employeeId);
+  const other = employees.other.filter((e) => e.id !== entry.employeeId);
+  const disabledIds = new Set([...rosteredIds].filter((id) => id !== entry.employeeId));
 
   const menuButton =
     "w-full text-left text-sm px-3 py-2.5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--paper)] text-[var(--ink-900)]";
@@ -635,11 +653,13 @@ function PersonActionDialog({
               this position. */}
           <PeoplePickList
             positionName={entry.positionName}
-            eligible={eligible.filter((e) => e.id !== entry.employeeId)}
-            other={other.filter((e) => e.id !== entry.employeeId)}
+            eligible={eligible}
+            other={other}
             allEmployees={allEmployees}
             positions={positions}
             weekShiftCounts={weekShiftCounts}
+            disabledIds={disabledIds}
+            disabledNote="Already on this shift"
             onPick={(id) => commit(id)}
           />
           <div className="flex justify-end gap-2 pt-1">
@@ -660,8 +680,7 @@ function RosterQuickAdd({
   target,
   currentCount,
   employees,
-  alreadyAssignedIds,
-  roster,
+  rosteredIds,
   allEmployees,
   positions,
   weekShiftCounts,
@@ -672,8 +691,7 @@ function RosterQuickAdd({
   target: number;
   currentCount: number;
   employees: EmployeeOptionGroups;
-  alreadyAssignedIds: Set<number>;
-  roster: RosterPageEntry[];
+  rosteredIds: Set<number>;
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
   weekShiftCounts: Record<number, number>;
@@ -695,9 +713,8 @@ function RosterQuickAdd({
   // coverage flag through performAdd.
   const [pendingConfirm, setPendingConfirm] = useState<{ title: string; description: string; confirmLabel: string; asExtra: boolean } | null>(null);
 
-  const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
-  const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
-  if (eligible.length === 0 && other.length === 0) return null;
+  const eligible = employees.eligible;
+  const other = employees.other;
 
   function performAdd(employeeId: number, asExtra: boolean, note: string) {
     const formData = new FormData();
@@ -727,18 +744,16 @@ function RosterQuickAdd({
     setPickerOpen(false);
     setSelectedId(employeeId);
     const employeeName = allEmployees.find((e) => e.id === employeeId)?.name ?? "This person";
-    const existingPositions = roster.filter((r) => r.employeeId === employeeId).map((r) => r.positionName);
+    // The old second-role gate went with the second-role feature itself
+    // (2026-08-25, Oliver: one person, one slot per shift) -- people
+    // already on the shift are disabled in the picker and the server
+    // refuses them regardless.
     const overTarget = target > 0 && currentCount >= target;
     // "Other" group = not one of this person's capable positions
     // (Oliver, 2026-08-24: same warn-don't-block dialog as over-target).
     const offPosition = employees.other.some((e) => e.id === employeeId);
 
     const sentences: string[] = [];
-    if (existingPositions.length > 0) {
-      sentences.push(
-        `${employeeName} is already rostered as ${existingPositions.join(", ")} this shift — they'll be paid for all roles combined into one paycheck.`
-      );
-    }
     if (offPosition) {
       sentences.push(`${positionName} isn't one of ${employeeName}'s usual positions.`);
     }
@@ -753,10 +768,9 @@ function RosterQuickAdd({
       return;
     }
     setPendingConfirm({
-      title:
-        existingPositions.length > 0 ? "Add a second role?" : overTarget ? `Is ${employeeName} an extra?` : "Not their usual position",
+      title: overTarget ? `Is ${employeeName} an extra?` : "Not their usual position",
       description: sentences.join(" ") + (overTarget ? "" : " Just checking it's on purpose."),
-      confirmLabel: overTarget ? "Yes, add as extra" : existingPositions.length > 0 ? "Add role" : "Add anyway",
+      confirmLabel: overTarget ? "Yes, add as extra" : "Add anyway",
       asExtra: overTarget,
     });
   }
@@ -794,6 +808,8 @@ function RosterQuickAdd({
           allEmployees={allEmployees}
           positions={positions}
           weekShiftCounts={weekShiftCounts}
+          disabledIds={rosteredIds}
+          disabledNote="Already on this shift"
           onPick={handlePick}
         />
         <div className="flex justify-end pt-2">

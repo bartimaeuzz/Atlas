@@ -161,6 +161,16 @@ export async function addRosterEntry(formData: FormData): Promise<ActionResult> 
 
     await assertDraft(shiftId);
 
+    // One person, one slot per shift (2026-08-25, Oliver: "block having
+    // same person in 2 positions. it is not logical in the end") -- the
+    // old second-role flow is retired. Historical multi-role rows stay
+    // valid; new ones can't be created.
+    const [alreadyOn] = await db
+      .select()
+      .from(shiftRosterEntries)
+      .where(and(eq(shiftRosterEntries.shiftId, shiftId), eq(shiftRosterEntries.employeeId, employeeId)));
+    if (alreadyOn) throw new Error("They're already on this shift.");
+
     // Optional day-of coverage record (2026-08-25) -- "extra" comes from
     // the over-target quick-add gate; anything else is ignored so a
     // malformed value can never invent a coverage state.
@@ -348,6 +358,11 @@ export async function replaceWithSubstitute(formData: FormData): Promise<ActionR
     const [entry] = await db.select().from(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId));
     if (!entry || entry.shiftId !== shiftId) throw new Error("That roster entry is gone already");
     if (substituteEmployeeId === entry.employeeId) throw new Error("Someone can't substitute for themselves");
+    const [subOn] = await db
+      .select()
+      .from(shiftRosterEntries)
+      .where(and(eq(shiftRosterEntries.shiftId, shiftId), eq(shiftRosterEntries.employeeId, substituteEmployeeId)));
+    if (subOn) throw new Error("The substitute is already on this shift.");
 
     await db.batch([
       db.delete(shiftRosterEntries).where(eq(shiftRosterEntries.id, rosterEntryId)),
