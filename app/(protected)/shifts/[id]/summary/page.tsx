@@ -2,6 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadSummaryData } from "@/lib/shift/loadSummaryData";
 import { loadShiftAttendanceSummary } from "@/lib/shift/loadRosterPageData";
+import { getCurrentStaffSession } from "@/lib/auth/session";
+import { db } from "@/db/client";
+import { activityLog, employees } from "@/db/schema";
+import { and, desc, eq } from "drizzle-orm";
+import { ReopenShiftButton } from "./ReopenShiftButton";
 import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
 import { ShiftStageNav } from "../ShiftStageNav";
 import { Fragment } from "react";
@@ -15,7 +20,17 @@ import { formatDateTime } from "@/lib/formatDateTime";
 export default async function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const shiftId = Number(id);
-  const [data, attendance] = await Promise.all([loadSummaryData(shiftId), loadShiftAttendanceSummary(shiftId)]);
+  const [data, attendance, session, reopenHistory] = await Promise.all([
+    loadSummaryData(shiftId),
+    loadShiftAttendanceSummary(shiftId),
+    getCurrentStaffSession(),
+    db
+      .select({ at: activityLog.at, summary: activityLog.summary, actorName: employees.nickname })
+      .from(activityLog)
+      .innerJoin(employees, eq(activityLog.actorEmployeeId, employees.id))
+      .where(and(eq(activityLog.entityType, "shift"), eq(activityLog.entityId, String(shiftId)), eq(activityLog.type, "shift.reopened")))
+      .orderBy(desc(activityLog.at)),
+  ]);
 
   if (!data.shift) notFound();
 
@@ -60,10 +75,23 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         <StatusBadge status="finalized" />
       </div>
       <ShiftStageNav shiftId={shiftId} current="payout" />
-      <p className="text-sm text-[var(--ink-500)] mb-8">
+      <p className="text-sm text-[var(--ink-500)] mb-2">
         Finalized {data.shift.finalizedAt ? formatDateTime(data.shift.finalizedAt) : ""} — figures below are a
         locked snapshot, not recalculated live.
       </p>
+      {/* Reversal trail (2026-08-26): a shift that was ever reopened says
+          so on its permanent record, with who and why -- the financial
+          "amended, with an audit trail" state. */}
+      {reopenHistory.length > 0 && (
+        <div className="mb-6 text-xs text-[var(--warning-700)] space-y-0.5">
+          {reopenHistory.map((h, i) => (
+            <p key={i}>
+              ⟳ {h.summary} — {h.actorName}, {formatDateTime(h.at)}
+            </p>
+          ))}
+        </div>
+      )}
+      <div className="mb-8" />
 
       {/* The day's record rides on the permanent report too (2026-08-25,
           Oliver: "#4 it should" -- same cards the Preview shows). */}
@@ -221,6 +249,15 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           per-employee weighting and WEEK-period evaluation, not built yet.
         </p>
       </Section>
+      {/* ADMIN-only reversal door (2026-08-26, Oliver: financial-state
+          discussion). Finalized = "posted": editable only through this
+          documented reopen. A PAID payroll week = "closed" and the
+          action refuses until that week is reverted first. */}
+      {session?.systemRole === "ADMIN" && (
+        <div className="mt-8">
+          <ReopenShiftButton shiftId={shiftId} shiftLabel={`${data.shift.date} (${data.shift.period})`} />
+        </div>
+      )}
     </main>
   );
 }

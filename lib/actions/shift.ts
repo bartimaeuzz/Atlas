@@ -12,10 +12,12 @@ import {
   shiftWageAdjustments, shiftAttendanceMarks,
   hostUpsellTipRecords, deliveryCashTipRecords, tipPoolCalculations, employeePayouts,
   scheduleWeeks, plannedShiftAssignments, employeePositions,
+  payrollPeriods, incentivePayoutRecords,
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
 import { weekStartFor } from "@/lib/schedule/weekMath";
 import { getCurrentStaffSession } from "@/lib/auth/session";
+import { logActivityStatement } from "@/lib/activityLog/log";
 
 /** 2026-08-21 — server-action auth audit: this file had NO auth check at
  * all before, on any of its six exported actions, including
@@ -227,6 +229,57 @@ export async function removeRosterEntry(formData: FormData): Promise<ActionResul
     }
     revalidatePath(`/shifts/${shiftId}/roster`);
 });
+}
+
+/** ADMIN-only reopen of a finalized shift (2026-08-26, Oliver -- the
+ * financial-lifecycle discussion: finalized = "posted", editable only
+ * through a documented reversal; a PAID payroll week = "closed", a
+ * permanent wall). Deletes the finalize snapshot (tip pool calc,
+ * payouts, per-shift incentive records), flips the shift back to draft,
+ * and writes the who/when/why to the activity log -- all one batch.
+ * Blocked while the shift's week is marked paid: the Admin must revert
+ * the payroll week first (revertPayrollPeriodToDraft), the app never
+ * quietly rewrites a closed book. */
+export async function reopenShift(formData: FormData): Promise<ActionResult> {
+  return asActionResult(async () => {
+    const session = await getCurrentStaffSession();
+    if (!session || session.systemRole !== "ADMIN") throw new Error("Only an Admin can reopen a finalized shift.");
+    const shiftId = Number(formData.get("shiftId"));
+    const reason = String(formData.get("reason") ?? "").trim();
+    if (!shiftId) throw new Error("Missing shift id");
+    if (!reason) throw new Error("Write why this shift needs reopening -- the reason goes on the permanent record.");
+
+    const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
+    if (!shift) throw new Error("Shift not found");
+    if (shift.status !== "finalized") throw new Error("This shift isn't finalized.");
+
+    const weekStart = weekStartFor(shift.date);
+    const [period] = await db.select().from(payrollPeriods).where(eq(payrollPeriods.weekStartDate, weekStart));
+    if (period?.status === "paid") {
+      throw new Error(
+        "That week's payroll is already marked paid -- a paid week is a closed book. Revert the payroll week to draft first (Payroll page), then reopen this shift."
+      );
+    }
+
+    await db.batch([
+      db.delete(tipPoolCalculations).where(eq(tipPoolCalculations.shiftId, shiftId)),
+      db.delete(employeePayouts).where(eq(employeePayouts.shiftId, shiftId)),
+      db
+        .delete(incentivePayoutRecords)
+        .where(and(eq(incentivePayoutRecords.periodType, "SHIFT"), eq(incentivePayoutRecords.periodKey, String(shiftId)))),
+      db.update(shifts).set({ status: "draft", finalizedAt: null }).where(eq(shifts.id, shiftId)),
+      logActivityStatement({
+        actorEmployeeId: session.id,
+        type: "shift.reopened",
+        entityType: "shift",
+        entityId: String(shiftId),
+        summary: `Reopened finalized shift ${shift.date} (${shift.period}) -- ${reason}`,
+        detail: { reason, previousFinalizedAt: shift.finalizedAt },
+      }),
+    ]);
+    revalidatePath(`/shifts/${shiftId}/roster`);
+    revalidatePath("/shifts");
+  });
 }
 
 /* ---------------------------------------------------------------------- */
