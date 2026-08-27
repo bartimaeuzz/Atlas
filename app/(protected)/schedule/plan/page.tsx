@@ -42,8 +42,11 @@ export default async function WeeklyPlanPage({
 
   return (
     <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/schedule" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
-        &larr; Schedule Planner
+      {/* Back goes to the weeks list, not the hub — since 2026-08-27
+          weeks IS the way in here, so back retraces the actual path
+          (Oliver: "schedule/plan back nav to schedule/week"). */}
+      <Link href="/schedule/weeks" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+        &larr; Weeks
       </Link>
 
       <PageHeader
@@ -74,9 +77,7 @@ export default async function WeeklyPlanPage({
         <Link href={`/schedule/plan/person?month=${weekStartDate}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           View by person
         </Link>
-        <Link href="/schedule/weeks" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
-          All weeks
-        </Link>
+        {/* "All weeks" used to sit here; the back link above covers it now. */}
       </div>
 
       {!data.week ? (

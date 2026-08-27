@@ -6,8 +6,18 @@ import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { PageHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { formatDayLabelShort } from "@/lib/format/formatDayLabel";
 
 const WINDOW_SIZE = 12;
+
+/** "August 2026" — section label for the month a week starts in (weeks
+ * that straddle a month boundary sit under their starting month). Same
+ * UTC-noon pin as formatDayLabel. */
+function monthLabelOf(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
 
 /** Status rendering follows the locked 2026-08-25 conventions: statuses
  * are words, dashed = not-yet-real. Published/Draft reuse the same Badge
@@ -68,21 +78,32 @@ export default async function WeeksListPage({
       </div>
 
       <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-1)] overflow-hidden divide-y divide-[var(--border)]">
-        {data.weeks.map((w) => {
+        {data.weeks.map((w, i) => {
           const isThisWeek = w.weekStartDate === thisWeek;
           const isPlanned = w.status !== "not_planned";
+          // Month section rows (Oliver, 2026-08-27: "add month name to
+          // divide weeks for human eyes") — same labeled-section-row
+          // shape the roster's FOH/BOH headers use. A week straddling a
+          // month boundary sits under its starting month.
+          const monthLabel = monthLabelOf(w.weekStartDate);
+          const showMonthRow = i === 0 || monthLabel !== monthLabelOf(data.weeks[i - 1].weekStartDate);
 
           return (
-            <div
-              key={w.weekStartDate}
-              className={
-                "flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3" +
-                (isThisWeek ? " bg-[var(--primary-tint)]" : "")
-              }
-            >
+            <div key={w.weekStartDate}>
+              {showMonthRow && (
+                <div className="bg-[var(--paper)] px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)]">
+                  {monthLabel}
+                </div>
+              )}
+              <div
+                className={
+                  "flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3" +
+                  (isThisWeek ? " bg-[var(--primary-tint)]" : "")
+                }
+              >
               <div className="min-w-0">
                 <div className={"text-sm " + (isThisWeek ? "font-semibold text-[var(--primary-700)]" : "font-medium text-[var(--ink-900)]")}>
-                  {w.weekStartDate} – {w.weekEndDate}
+                  {formatDayLabelShort(w.weekStartDate)} – {formatDayLabelShort(w.weekEndDate)}
                   {isThisWeek && <span className="ml-1.5">· this week</span>}
                 </div>
                 <div className="mt-1">
@@ -115,6 +136,7 @@ export default async function WeeksListPage({
                 ) : (
                   <span className="text-[var(--ink-400)]">Nothing planned</span>
                 )}
+              </div>
               </div>
             </div>
           );
