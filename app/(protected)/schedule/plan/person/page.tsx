@@ -32,9 +32,17 @@ export default async function EmployeeSchedulePage({
     const categoryOf = (e: (typeof activeEmployees)[number]): "FLOOR" | "FOH" | "BOH" | "NONE" => {
       if (e.primaryPositionName === "Floor Manager") return "FLOOR";
       const primary = e.positions.find((p) => p.positionId === e.primaryPositionId);
-      const cat = primary?.positionCategory ?? e.positions[0]?.positionCategory;
-      return cat ?? "NONE";
+      if (primary) return primary.positionCategory;
+      // No primary set: fall back to assigned positions — Floor Manager
+      // among them wins (2026-08-27 audit: Pop, assigned Bartender +
+      // Floor Manager with no primary, filed mid-FOH with no role line).
+      if (e.positions.some((p) => p.positionName === "Floor Manager")) return "FLOOR";
+      return e.positions[0]?.positionCategory ?? "NONE";
     };
+    // Role line under the name: the primary position, or for someone
+    // without one, everything they're assigned to.
+    const roleLineOf = (e: (typeof activeEmployees)[number]): string | null =>
+      e.primaryPositionName ?? (e.positions.length ? e.positions.map((p) => p.positionName).join(" · ") : null);
     const byName = (a: { nickname: string }, b: { nickname: string }) => a.nickname.localeCompare(b.nickname);
     const sections = [
       { header: "Floor Manager", people: activeEmployees.filter((e) => categoryOf(e) === "FLOOR").sort(byName) },
@@ -63,8 +71,8 @@ export default async function EmployeeSchedulePage({
                   <Link key={e.id} href={`/schedule/plan/person?employeeId=${e.id}&month=${monthAnchor}`}>
                     <Card className="hover:bg-[var(--paper)] transition-colors text-sm !p-3">
                       <span className="font-medium text-[var(--ink-900)]">{e.nickname}</span>
-                      {e.primaryPositionName && (
-                        <span className="block text-xs text-[var(--ink-500)] mt-0.5">{e.primaryPositionName}</span>
+                      {roleLineOf(e) && (
+                        <span className="block text-xs text-[var(--ink-500)] mt-0.5">{roleLineOf(e)}</span>
                       )}
                     </Card>
                   </Link>
