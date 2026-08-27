@@ -24,6 +24,25 @@ export default async function EmployeeSchedulePage({
     const employeeList = await loadEmployeesList();
     const activeEmployees = employeeList.filter((e) => e.active);
 
+    // Grouped like the roster page and its add-person picker (Oliver,
+    // 2026-08-27: "categorize it for easy human eyes scan") — Floor
+    // Manager first (a position row, not a category, same rule as
+    // RosterGrid), then FOH, then BOH, by each person's PRIMARY
+    // position; alphabetical inside a group.
+    const categoryOf = (e: (typeof activeEmployees)[number]): "FLOOR" | "FOH" | "BOH" | "NONE" => {
+      if (e.primaryPositionName === "Floor Manager") return "FLOOR";
+      const primary = e.positions.find((p) => p.positionId === e.primaryPositionId);
+      const cat = primary?.positionCategory ?? e.positions[0]?.positionCategory;
+      return cat ?? "NONE";
+    };
+    const byName = (a: { nickname: string }, b: { nickname: string }) => a.nickname.localeCompare(b.nickname);
+    const sections = [
+      { header: "Floor Manager", people: activeEmployees.filter((e) => categoryOf(e) === "FLOOR").sort(byName) },
+      { header: "FOH — Front of house", people: activeEmployees.filter((e) => categoryOf(e) === "FOH").sort(byName) },
+      { header: "BOH — Back of house", people: activeEmployees.filter((e) => categoryOf(e) === "BOH").sort(byName) },
+      { header: "No usual position", people: activeEmployees.filter((e) => categoryOf(e) === "NONE").sort(byName) },
+    ].filter((s) => s.people.length > 0);
+
     return (
       <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
         <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
@@ -34,13 +53,25 @@ export default async function EmployeeSchedulePage({
         {activeEmployees.length === 0 ? (
           <p className="text-sm text-[var(--ink-500)]">No active employees yet.</p>
         ) : (
-          <div className="grid sm:grid-cols-2 gap-2">
-            {activeEmployees.map((e) => (
-              <Link key={e.id} href={`/schedule/plan/person?employeeId=${e.id}&month=${monthAnchor}`}>
-                <Card className="hover:bg-[var(--paper)] transition-colors text-sm !p-3">{e.nickname}</Card>
-              </Link>
-            ))}
-          </div>
+          sections.map((section) => (
+            <section key={section.header} className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] mb-2">
+                {section.header}
+              </p>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {section.people.map((e) => (
+                  <Link key={e.id} href={`/schedule/plan/person?employeeId=${e.id}&month=${monthAnchor}`}>
+                    <Card className="hover:bg-[var(--paper)] transition-colors text-sm !p-3">
+                      <span className="font-medium text-[var(--ink-900)]">{e.nickname}</span>
+                      {e.primaryPositionName && (
+                        <span className="block text-xs text-[var(--ink-500)] mt-0.5">{e.primaryPositionName}</span>
+                      )}
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          ))
         )}
       </main>
     );
