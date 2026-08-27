@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { businessTodayIso } from "@/lib/formatDateTime";
+import { redirect } from "next/navigation";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
 import { loadEmployeesList, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
-import { weekStartFor, shiftWeek } from "@/lib/schedule/weekMath";
+import { shiftWeek } from "@/lib/schedule/weekMath";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import { GenerateWeekButton } from "./GenerateWeekButton";
@@ -19,7 +19,11 @@ export default async function WeeklyPlanPage({
   searchParams: Promise<{ week?: string; day?: string }>;
 }) {
   const params = await searchParams;
-  const weekStartDate = params.week || weekStartFor(businessTodayIso());
+  // Bare /schedule/plan lands on the weeks list first (2026-08-27,
+  // Oliver: "/schedule/plan land on /schedule/weeks first") — you pick
+  // the week, then edit it. Deep links with ?week= are unaffected.
+  if (!params.week) redirect("/schedule/weeks");
+  const weekStartDate = params.week;
   const initialDay = params.day;
 
   const [data, employeeList, employeeAssignedPositionIds, canManage] = await Promise.all([

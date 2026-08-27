@@ -109,8 +109,12 @@ export default async function SchedulePage() {
         description="Plan a week's schedule from your recurring templates, adjust it, and publish it."
       />
 
+      {/* Planning enters through the weeks list since 2026-08-27
+          (Oliver: "/schedule/plan land on /schedule/weeks first") —
+          pick the week, then edit it. Bare /schedule/plan redirects
+          there too; this links straight to skip the redirect hop. */}
       <Link
-        href="/schedule/plan"
+        href="/schedule/weeks"
         className="flex items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--primary-border)] bg-[var(--primary-tint)] p-5 mb-6 transition-colors hover:border-[var(--primary)]"
       >
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--primary)] text-white">
@@ -119,7 +123,7 @@ export default async function SchedulePage() {
         <span>
           <span className="block text-[17px] font-bold text-[var(--ink-900)]">Weekly plan</span>
           <span className="block text-sm text-[var(--ink-700)]">
-            Build, publish, and adjust this week&apos;s schedule -- start here.
+            Pick a week, then build, publish, and adjust its schedule -- start here.
           </span>
         </span>
       </Link>
@@ -143,10 +147,11 @@ export default async function SchedulePage() {
       </div>
 
       <p className="text-xs font-semibold text-[var(--ink-500)] uppercase tracking-wide mb-2">Zoom views</p>
-      <div className="grid sm:grid-cols-3 gap-3 mb-6">
+      {/* The "Weeks" tile that used to sit here moved up: it IS the
+          hero entry now, so a second tile would be a duplicate door. */}
+      <div className="grid sm:grid-cols-2 gap-3 mb-6">
         <HubTile href="/schedule/plan/month" icon={<GridIcon />} label="Month overview" description="See the whole month at a glance." />
         <HubTile href="/schedule/plan/person" icon={<UserIcon />} label="Person schedule" description="One person's shifts across a month." />
-        <HubTile href="/schedule/weeks" icon={<CalendarIcon />} label="Weeks" description="Every week's status, for quick navigation." />
       </div>
 
       <p className="text-xs font-semibold text-[var(--ink-500)] uppercase tracking-wide mb-2">Set up once</p>

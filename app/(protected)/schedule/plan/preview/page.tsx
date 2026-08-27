@@ -38,8 +38,8 @@ export default async function WeeklyPlanPreviewPage({
     return (
       <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
         <p className="text-sm text-[var(--ink-500)] mb-4">Missing week.</p>
-        <Link href="/schedule/plan" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
-          &larr; Back to Weekly Plan
+        <Link href="/schedule/weeks" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+          &larr; Back to Weeks
         </Link>
       </main>
     );
