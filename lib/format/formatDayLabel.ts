@@ -32,28 +32,27 @@ export function weekdayOf(isoDate: string): string {
   return WEEKDAYS[d.getUTCDay()];
 }
 
-/** "Thursday, 1 January 26" — the Reports range heading's long form
- * (2026-08-24, Oliver specified the exact style). Same UTC-noon pin as
- * formatDayLabel above. */
+/** "Thursday, 1 January 2026" — the Reports/shift-page heading's long form.
+ * Full 4-digit year (2026-08-27 audit: the old 2-digit "23 Aug 26" let
+ * "Aug 26" read as the date itself). Same UTC-noon pin as formatDayLabel
+ * above. */
 export function formatDayLabelLong(isoDate: string): string {
   const d = new Date(`${isoDate}T12:00:00Z`);
   if (Number.isNaN(d.getTime())) return isoDate;
   const weekday = d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
   const day = d.getUTCDate();
   const month = d.toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
-  const year = String(d.getUTCFullYear()).slice(-2);
-  return `${weekday}, ${day} ${month} ${year}`;
+  return `${weekday}, ${day} ${month} ${d.getUTCFullYear()}`;
 }
 
-/** "Thu, 1 Jan 26" — the same heading's phone form. */
+/** "Thu, 1 Jan 2026" — the same heading's phone form. */
 export function formatDayLabelShort(isoDate: string): string {
   const d = new Date(`${isoDate}T12:00:00Z`);
   if (Number.isNaN(d.getTime())) return isoDate;
   const weekday = d.toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
   const day = d.getUTCDate();
   const month = d.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
-  const year = String(d.getUTCFullYear()).slice(-2);
-  return `${weekday}, ${day} ${month} ${year}`;
+  return `${weekday}, ${day} ${month} ${d.getUTCFullYear()}`;
 }
 
 /** "12 May 1990" — dates of birth and other person-dates. Full year (a

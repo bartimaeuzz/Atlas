@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatDayLabel, weekdayOf } from "../formatDayLabel";
+import { formatDayLabel, formatDayLabelLong, formatDayLabelShort, weekdayOf } from "../formatDayLabel";
 
 test("formatDayLabel: prefixes the weekday and keeps the ISO date intact", () => {
   assert.equal(formatDayLabel("2026-08-22"), "Sat 2026-08-22");
@@ -42,4 +42,9 @@ test("formatDayLabel: returns the input unchanged when it is not a real date", (
 test("weekdayOf: returns the weekday alone, and empty string on bad input", () => {
   assert.equal(weekdayOf("2026-08-22"), "Sat");
   assert.equal(weekdayOf("nope"), "");
+});
+
+test("formatDayLabelLong/Short: full 4-digit year so the month can never read as the date", () => {
+  assert.equal(formatDayLabelLong("2026-08-23"), "Sunday, 23 August 2026");
+  assert.equal(formatDayLabelShort("2026-08-23"), "Sun, 23 Aug 2026");
 });
