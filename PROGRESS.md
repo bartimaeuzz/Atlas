@@ -17,10 +17,10 @@
 **Suggested reading order for a cold start:** this file top-to-bottom (the dated changelog below), then `db/schema.ts`, then `lib/calc/tipPool.ts` and `lib/calc/finalizeShift.ts`, then `app/shifts/[id]/` to see how it's wired into actual pages.
 
 **Explicitly deferred — don't build these speculatively without checking first:**
-- (2026-08-25, Oliver) Shifts month view: show every day of the month (with create affordance) before any shift exists, not just days that already have shifts.
+- ~~(2026-08-25, Oliver) Shifts month view: show every day of the month~~ — SHIPPED 2026-08-25 (`1be7325`).
 - (2026-08-25, Oliver) /schedule/plan should land on the week view first (redirect), instead of the current default entry.
 - (2026-08-25, Oliver) The week view (/me/schedule/week and/or /schedule/weeks — confirm scope with Oliver first) needs a retrofit to the latest design standard (card shells, legibility pass, today marker, status badges — the 2026-08-25 conventions).
-- Position admin UI (create/edit positions with pool-membership checkboxes) — Oliver specifically asked to be reminded about this one.
+- ~~Position admin UI (create/edit positions with pool-membership checkboxes)~~ — SHIPPED (app/(protected)/positions with new/edit + PositionForm pool membership).
 - Generic/restaurant-configurable tip pool structure (count, membership, funding beyond the fixed 3 pools) — confirmed backlog item, deliberately not built until there's a second real restaurant's requirements to design against.
 - Full Incentive Rules evaluation engine (conditions/targets/weights/reward dispatch) — the host drink bonus (2026-08-09) uses the engine's storage tables (MetricDefinition, MetricValue, the new positionMetrics) directly with hardcoded logic in finalizeShift.ts, not a generic rule evaluator. Build that dispatcher once a second bonus scenario (BOH sales-split, Manager weekly token) is actually being wired in — same "concrete first" sequencing already used for this engine.
 
@@ -4654,3 +4654,81 @@ gates. The backlogged month-view/week-view retrofits must follow it.
 Process lessons promoted into scrutinize's checklist: indicator coverage over
 the full status enum (open swaps were invisible), and scripted edits must
 assert every replacement (an unasserted replace shipped a phone-only feature).
+
+---
+
+## 2026-08-25 (late) → 2026-08-26 — Shifts channel rebuilt, Card precision pass, PWA, financial lifecycle
+
+~25 commits after the 08-25 session wrap (`1be7325`..`dac3dda`), all pushed and
+deployed; migrations 0028–0032 confirmed applied on prod Turso (read-only check
+2026-08-27).
+
+**Shifts channel, end to end:**
+- Month view renders every calendar day (backlog item CLOSED): today/past get
+  + Create, future days are muted dashes, future create refused server-side,
+  past create asks first. `/shifts/new` retired — the grid creates in place
+  behind a confirm popup that offers Pull-from-schedule (with planned
+  headcount) vs Start fresh when a published plan exists (`1be7325`,
+  `a7a3ddb`, `72ae5bc`).
+- Roster page: card table grouped Floor Manager/FOH/BOH; "+ Add" opens a
+  grouped candidate picker with per-person weekly load, fewest-first; a
+  person's chip is one button opening the day-of popup — Mark late / Replace
+  with substitute (sub picked FIRST, then reason) / Absent-remove / "Added by
+  mistake — remove" (danger-outlined, deletes the row AND any mark in one
+  batch, records nothing). One person, one slot: the second-role flow is
+  retired; already-rostered people show disabled-with-reason in pickers
+  (`6d3e70a`, `0b94367`, `6fda95f`, `9d92e22`).
+- Attendance & coverage (migration 0029): no_show/late/emergency marks,
+  extra/substitute coverage flags with covers-whom, "Out today" with Undo,
+  read-only reminder card on closing report — the app never turns a mark into
+  money (rule 6). Individual-only surfacing: word-tags on My Schedule and the
+  manager Person page, no shared-surface loader touches the tables
+  (`2afc18c`).
+- Closing report: tip points as a pool-aware card table with live per-pool
+  totals; per-pool point overrides (migration 0031) so a Host's Pool 1 and
+  Pool 2 weights adjust separately — legacy single-override resolution
+  A/B-verified by deepEqual test; money fields default blank, not literal 0;
+  grouped wage table; incident report card (`93b9acd`, `a2ac906`, `41541e6`).
+- Stage nav strip Roster → Closing Report → Payout on every shift page;
+  /preview retitled Payout (redirects to Summary once finalized); Summary
+  carries the attendance/incident record on the permanent snapshot; roster
+  gets Done-back-to-month + typed-DELETE draft-only shift delete (10 child
+  tables, one batch). The orphaned what-if calculator at /shifts/[id] is
+  retired (`39b3859`, `c523cd7`, `1ad2bfa`).
+- **Financial lifecycle:** finalized = "posted", paid week = "closed".
+  Reopen a finalized shift with required reason + typed REOPEN, one batch
+  deletes the snapshot and writes shift.reopened to the activity log;
+  reversal trail renders on the Summary forever. ADMIN-only — except the
+  manager who finalized may reopen their own (Aey's call). A PAID payroll
+  week is a wall for everyone. Created-by / finalized-by recorded on shifts
+  (migration 0032); "Week paid — closed" chip replaces the button with a
+  sentence (`762560a`, `dac3dda`).
+
+**Card channel precision pass (migrations 0028):** two-sided reconcile
+(charges&fees vs payments/credits, each exact-cents against its own printed
+figure); charge-date discipline (starts empty, "as shown on statement",
+out-of-period soft warning); split one line across categories at entry or
+later (atomic, exact-cents enforced); edit memo/category/date but never
+amount; CSV post-dates-only warning. ADMIN-only card hard-delete behind
+typed-word blast-radius warning, activity-log row in the same batch
+(`0258ab6`, `ded8ff0`, `35a3fd0`).
+Prod note from `0258ab6`: draft periods 2 and 4 were typed as net totals and
+need both totals re-entered from their statements.
+
+**Standalone app (PWA):** manifest + apple meta → Add to Home Screen opens
+full-screen; nav rail clears the home indicator; :active press states +
+restored tap-highlight app-wide; pull-down-to-refresh (router.refresh, inert
+inside dialogs) (`885f1f3`, `75e69cd`, `92dad47`, `33a7b41`).
+
+**"Today" is the business day (`2663a4a`):** one canonical
+`businessTodayIso()` — NYC wall clock minus a 4am cutoff (Toast's default).
+Swept by code signature across 25 files (`toIso(new Date())` and
+`toISOString().slice(0,10)`), zero remaining; 5 unit tests pin the rule.
+Fixes the live "it is not Aug 26 yet here in nyc" bug.
+
+**Backlog after this batch:** week-view retrofit to the 08-25 conventions
+(scope needs Oliver's call: /me/schedule/week and/or /schedule/weeks);
+/schedule/plan landing on week view (unconfirmed whether still wanted);
+Card audit nit — Edit/Split tap targets 29–32px; card-import banner never
+exercised live. Month-view-every-day and the Position admin UI are DONE —
+struck from the deferred list above.
