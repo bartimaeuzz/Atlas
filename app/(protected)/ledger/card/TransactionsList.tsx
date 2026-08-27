@@ -5,7 +5,7 @@ import { deleteCardTransaction } from "@/lib/actions/card";
 import type { CardTransactionView } from "@/lib/ledger/loadCard";
 import { EmptyState } from "@/components/ui/Card";
 import { XIcon } from "@/components/ui/icons";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { TAP_TARGET_PAD, TAP_TARGET_PAD_44 } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EditTransactionDialog } from "./EditTransactionDialog";
@@ -78,7 +78,7 @@ function TransactionRow({
             <button
               type="button"
               onClick={() => setEditOpen(true)}
-              className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
+              className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD_44}`}
               aria-label={`Edit ${transaction.categoryName} transaction`}
             >
               Edit
@@ -86,7 +86,7 @@ function TransactionRow({
             <button
               type="button"
               onClick={() => setSplitOpen(true)}
-              className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
+              className={`text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD_44}`}
               aria-label={`Split ${transaction.categoryName} transaction`}
             >
               Split

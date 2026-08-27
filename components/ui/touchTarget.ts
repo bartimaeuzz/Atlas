@@ -22,3 +22,10 @@
  * which ones were deliberately left out because they're inline-in-prose.
  */
 export const TAP_TARGET_PAD = "-my-2 py-2 px-1";
+
+/** Comfort-tier variant: same trick sized so a text-xs word button reaches
+ * the 44px Apple/Atlas comfort tier, not just the 24px legal floor. For
+ * standalone word-actions that live in their own row with no adjacent
+ * interactive element above or below (overlapping 14px margin bleeds
+ * would otherwise invite mistaps). */
+export const TAP_TARGET_PAD_44 = "-my-3.5 py-3.5 px-2";
