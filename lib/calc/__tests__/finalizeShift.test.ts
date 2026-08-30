@@ -644,3 +644,51 @@ test("finalize: pointValueByPool matching pointValue behaves exactly like the le
   // A/B: identical outputs row for row (behaviour-preserving fallback).
   assert.deepEqual(buildFinalizationResult(input(perPool)), buildFinalizationResult(input(legacy)));
 });
+
+test("finalize: a single-pool per-pool override IS recorded, not nulled by the legacy scalar", () => {
+  // Regression, 2026-08-29 (Aey's first test session). The closing report
+  // writes per-pool overrides and leaves `pointValue` on its untouched
+  // fallback, so a Server bumped to 0.95 arrived here as pointValue 1.0 +
+  // pointValueByPool { POOL_1: 0.95 }. The old guard compared each pool
+  // against `pointValue`, saw 0.95 !== 1.0, and recorded null -- the
+  // summary's Point value column showed "—" and My Pay hid the row, while
+  // the share the 0.95 produced was paid correctly. One pool, one value:
+  // there is nothing ambiguous to protect against here.
+  const roster: FinalizeRosterRow[] = [
+    {
+      employeeId: 4,
+      tipPoolGroups: ["POOL_1_DINE_IN"],
+      pointValue: 1.0,
+      pointValueByPool: { POOL_1_DINE_IN: 0.95 },
+      flatWage: 60,
+    },
+    { employeeId: 6, tipPoolGroups: ["POOL_1_DINE_IN"], pointValue: 1.0, flatWage: 60 },
+  ];
+
+  const result = buildFinalizationResult({
+    deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 100,
+    takeoutCcTip: 0,
+    cashTip: 0,
+    deliveryToastTip: 0,
+    hostDrinkBonus: null,
+    platformCourierTips: 0,
+    platformDeliveryTips: 0,
+    roster,
+    wageAdjustments: {},
+    incentiveAmounts: {},
+  });
+
+  const bumped = result.employeePayouts.find((p) => p.employeeId === 4)!;
+  const plain = result.employeePayouts.find((p) => p.employeeId === 6)!;
+  // The recorded point is the one the money was actually split by.
+  assert.equal(bumped.pointValueUsed, 0.95);
+  assert.equal(plain.pointValueUsed, 1.0);
+  // And it matches the share: 0.95 / 1.95 vs 1.0 / 1.95 of the net pool.
+  const netPool1 = round2(100 * 0.955);
+  assert.equal(bumped.pool1Share, round2(netPool1 * (0.95 / 1.95)));
+  assert.equal(plain.pool1Share, round2(netPool1 * (1.0 / 1.95)));
+});

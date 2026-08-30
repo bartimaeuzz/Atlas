@@ -197,13 +197,24 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     // Only a single unambiguous number is recorded: one tip-pool row AND
     // the same value in every pool it belongs to -- per-pool values that
     // differ have no honest single summary, so null (2026-08-25).
+    // Resolved from the PER-POOL values, never from the legacy scalar
+    // (fixed 2026-08-29). A per-pool override is the only way the closing
+    // report has written a point since 2026-08-25, and it leaves
+    // `pointValue` sitting on its untouched fallback — so comparing the
+    // pools against `pointValue` recorded null for exactly the people
+    // whose point had been adjusted. Their share was right; the number
+    // that produced it vanished from the summary and My Pay (Aey's first
+    // test: Carlos 0.95, Sammuel and TEST 0.85, Film 0.8, all shown as
+    // "—"). Comparing the pools against EACH OTHER keeps the honest
+    // nulls and drops the dishonest ones.
+    const poolPoints =
+      tipPoolRows.length === 1
+        ? tipPoolRows[0].tipPoolGroups.map(
+            (g) => tipPoolRows[0].pointValueByPool?.[g] ?? tipPoolRows[0].pointValue
+          )
+        : [];
     const pointValueUsed =
-      tipPoolRows.length === 1 &&
-      tipPoolRows[0].tipPoolGroups.every(
-        (g) => (tipPoolRows[0].pointValueByPool?.[g] ?? tipPoolRows[0].pointValue) === tipPoolRows[0].pointValue
-      )
-        ? tipPoolRows[0].pointValue
-        : null;
+      poolPoints.length > 0 && poolPoints.every((v) => v === poolPoints[0]) ? poolPoints[0] : null;
     const wageRow = rowsForEmployee.find((r) => r.flatWage != null);
     const autoResolvedWage = wageRow?.flatWage ?? 0;
     const adjustment = wageAdjustments[employeeId];
