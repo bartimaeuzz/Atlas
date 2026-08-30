@@ -4,8 +4,15 @@ import { useActionState, useState } from "react";
 import { updateStaffingTargets, type ScheduleActionState } from "@/lib/actions/schedule";
 import type { StaffingTargetPosition } from "@/lib/schedule/loadStaffingTargets";
 
+// Indexed BY dayOfWeek value, so this stays in JS 0=Sun..6=Sat order.
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
+// Display order is Monday-first (2026-08-30, Oliver: "อยากให้วันแรกที่เริ่ม
+// เป็นวันจันทร์ ไม่ใช่วันอาทิตย์"). Matches the convention already set on the
+// position-template grid and the app's own week definition -- weekMath.ts
+// runs weeks Monday-Sunday. This page was the last day grid still starting
+// on Sunday. The underlying dayOfWeek values stay 0=Sun..6=Sat, which is
+// what the input names and the DB carry; only the DISPLAY order changes.
+const DAYS = [1, 2, 3, 4, 5, 6, 0] as const;
 
 const initialState: ScheduleActionState = { error: null };
 
