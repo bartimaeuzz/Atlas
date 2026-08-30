@@ -20,6 +20,10 @@ import { swapRequests, plannedShiftAssignments, shifts, shiftRosterEntries } fro
  * locked, same as every other "finalize closes the door" rule in this
  * app (Card statement periods, Closing Report). */
 export async function completeSwap(request: typeof swapRequests.$inferSelect): Promise<void> {
+  // Nullable since 2026-08-30 (detached resolved swaps) -- a swap being
+  // completed is by definition still attached, so refuse on null rather
+  // than silently matching nothing.
+  if (request.assignmentId == null) throw new Error("The underlying shift no longer exists");
   const [assignment] = await db
     .select()
     .from(plannedShiftAssignments)

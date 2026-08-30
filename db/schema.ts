@@ -1472,7 +1472,26 @@ export const notificationSeen = sqliteTable(
 // periods, Closing Report).
 export const swapRequests = sqliteTable("swap_requests", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  assignmentId: integer("assignment_id").notNull().references(() => plannedShiftAssignments.id),
+  // Nullable since 2026-08-30: deleting a planned week/day used to be
+  // impossible once any swap referenced one of its assignments (the FK
+  // refused, and Aey got a raw SQLITE_CONSTRAINT on screen). A RESOLVED
+  // swap (completed/declined/cancelled) is history — who gave up which
+  // shift — and history must survive the schedule row it points at being
+  // erased. So the danger-zone deleters DETACH resolved swaps: copy the
+  // assignment's date/period/position into the snapshot columns below,
+  // then null this FK. Open/pending swaps are never detached — they're a
+  // standing promise to staff, so those BLOCK the delete with a plain
+  // message instead (see lib/schedule/swapDetach.ts). Every list screen
+  // inner-joins through this FK on purpose: a detached swap belongs to a
+  // schedule that no longer exists, so it drops out of live views and
+  // survives only as a record.
+  assignmentId: integer("assignment_id").references(() => plannedShiftAssignments.id),
+  // Snapshot of the assignment at detach time — null while the FK is live
+  // (read the assignment instead; it can still be reassigned by future
+  // swaps, and a snapshot taken earlier would go stale).
+  detachedShiftDate: text("detached_shift_date"),
+  detachedShiftPeriod: text("detached_shift_period"),
+  detachedPositionId: integer("detached_position_id").references(() => positions.id),
   requestingEmployeeId: integer("requesting_employee_id").notNull().references(() => employees.id),
   acceptingEmployeeId: integer("accepting_employee_id").references(() => employees.id),
   status: text("status", {

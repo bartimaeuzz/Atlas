@@ -21,6 +21,7 @@ import {
 import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
 import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
 import { requireCapability } from "@/lib/permissions/requireCapability";
+import { prepareAssignmentsForDelete } from "@/lib/schedule/swapDetach";
 
 const DAYS_OF_WEEK = [0, 1, 2, 3, 4, 5, 6] as const;
 const PERIODS = ["Lunch", "Dinner"] as const;
@@ -584,7 +585,13 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
  * bulk nuke would make this button annoying for its actual, common
  * use.
  */
-export async function removePlannedAssignment(assignmentId: number) {
+export async function removePlannedAssignment(
+  assignmentId: number
+): Promise<{ error: string | null }> {
+  // Returns the swap-gate refusal as a value rather than throwing it --
+  // production redacts thrown server-action errors to a minified React
+  // message (2026-08-24 sweep), so a thrown reason would never reach the
+  // manager who needs to read it.
   const session = await requireCapability("SCHEDULE_MANAGE");
 
   const [assignment] = await db
@@ -598,7 +605,11 @@ export async function removePlannedAssignment(assignmentId: number) {
     .from(plannedShiftAssignments)
     .where(eq(plannedShiftAssignments.id, assignmentId));
 
-  if (!assignment) return; // already gone -- nothing to remove or log
+  if (!assignment) return { error: null }; // already gone -- nothing to remove or log
+
+  // Same swap gate as clearDay/deleteWeek -- see lib/schedule/swapDetach.ts.
+  const blocked = await prepareAssignmentsForDelete([assignmentId]);
+  if (blocked) return { error: blocked };
 
   await db.delete(plannedShiftAssignments).where(eq(plannedShiftAssignments.id, assignmentId));
 
@@ -626,6 +637,7 @@ export async function removePlannedAssignment(assignmentId: number) {
   revalidatePath("/schedule/plan");
   revalidatePath("/schedule/weeks");
   revalidatePath("/me/schedule");
+  return { error: null };
 }
 
 /** Replace the person on one planned slot with someone else — the
@@ -878,6 +890,7 @@ export async function clearDay(
 
     const rowsToRemove = await db
       .select({
+        id: plannedShiftAssignments.id,
         employeeId: plannedShiftAssignments.employeeId,
         positionId: plannedShiftAssignments.positionId,
         date: plannedShiftAssignments.date,
@@ -885,6 +898,10 @@ export async function clearDay(
       })
       .from(plannedShiftAssignments)
       .where(and(eq(plannedShiftAssignments.weekId, weekId), eq(plannedShiftAssignments.date, date)));
+
+    // Same swap gate as deleteWeek -- see lib/schedule/swapDetach.ts.
+    const blocked = await prepareAssignmentsForDelete(rowsToRemove.map((r) => r.id));
+    if (blocked) return { error: blocked };
 
     await db
       .delete(plannedShiftAssignments)
@@ -940,6 +957,7 @@ export async function deleteWeek(
 
     const rowsToRemove = await db
       .select({
+        id: plannedShiftAssignments.id,
         employeeId: plannedShiftAssignments.employeeId,
         positionId: plannedShiftAssignments.positionId,
         date: plannedShiftAssignments.date,
@@ -947,6 +965,13 @@ export async function deleteWeek(
       })
       .from(plannedShiftAssignments)
       .where(eq(plannedShiftAssignments.weekId, weekId));
+
+    // Swap requests reference assignments (2026-08-30, Aey hit the raw
+    // FK error right here): unresolved swaps block with a readable
+    // message, resolved ones are detached into their snapshot columns
+    // first -- see lib/schedule/swapDetach.ts for the reasoning.
+    const blocked = await prepareAssignmentsForDelete(rowsToRemove.map((r) => r.id));
+    if (blocked) return { error: blocked };
 
     await db.delete(plannedShiftAssignments).where(eq(plannedShiftAssignments.weekId, weekId));
     await db.delete(scheduleWeeks).where(eq(scheduleWeeks.id, weekId));

@@ -135,6 +135,10 @@ export async function acceptSwapRequest(requestId: number): Promise<ActionResult
     if (request.status !== "open") throw new Error("That request is no longer open");
     if (request.requestingEmployeeId === session.id) throw new Error("You can't accept your own request");
 
+    // assignmentId is nullable since 2026-08-30 (a resolved swap can be
+    // detached from a deleted schedule) -- an OPEN request always still
+    // has one, so a null here means the data is in an impossible state.
+    if (request.assignmentId == null) throw new Error("The underlying shift no longer exists");
     const [assignment] = await db
       .select()
       .from(plannedShiftAssignments)

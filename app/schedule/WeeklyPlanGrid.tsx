@@ -963,7 +963,13 @@ function AssignmentActionsDialog({
     setError(null);
     startTransition(async () => {
       try {
-        await removePlannedAssignment(assignment.id);
+        const result = await removePlannedAssignment(assignment.id);
+        if (result?.error) {
+          // e.g. an open swap request still references this shift -- the
+          // action refuses with the reason, shown here instead of closing.
+          setError(result.error);
+          return;
+        }
         onClose();
         router.refresh();
       } catch {

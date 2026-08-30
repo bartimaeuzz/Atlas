@@ -239,6 +239,13 @@
       "when": 1788061058239,
       "tag": "0033_public_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1788107881241,
+      "tag": "0034_white_venus",
+      "breakpoints": true
     }
   ]
 }

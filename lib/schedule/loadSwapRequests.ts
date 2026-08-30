@@ -47,7 +47,11 @@ function baseSwapQuery() {
   return db
     .select({
       id: swapRequests.id,
-      assignmentId: swapRequests.assignmentId,
+      // From the JOINED table, not swapRequests.assignmentId: the FK is
+      // nullable since 2026-08-30 (detached swaps), but this query
+      // inner-joins the assignment, so rows here always have one -- and
+      // the joined column's type says so honestly.
+      assignmentId: plannedShiftAssignments.id,
       date: plannedShiftAssignments.date,
       period: plannedShiftAssignments.period,
       positionId: plannedShiftAssignments.positionId,
@@ -184,7 +188,9 @@ export async function loadSwapStatusByAssignmentForWeek(
 ): Promise<Map<number, { status: "open" | "pending_manager_approval" | "completed"; requestingEmployeeName: string }>> {
   const rows = await db
     .select({
-      assignmentId: swapRequests.assignmentId,
+      // Joined table's id, not the nullable FK -- same reasoning as
+      // baseSwapQuery above.
+      assignmentId: plannedShiftAssignments.id,
       status: swapRequests.status,
       requestingEmployeeName: employees.nickname,
     })
