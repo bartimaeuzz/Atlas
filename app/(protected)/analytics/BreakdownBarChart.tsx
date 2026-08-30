@@ -32,14 +32,23 @@ import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
  * total in the header, no per-bar dollar figure, and no Amount column in
  * the table view (2026-08-21, Permission System Phase C).
  *
- * This is what VIEW_ANALYTICS-without-VIEW_PNL looks like. Hiding the
- * P&L table alone was not enough: total revenue in this header, times
- * the prime-cost ratio shown above it, reconstructs the bottom line to
- * within other operating expenses -- so the capability would have been
- * cosmetic. Confirmed with Oliver: a manager without P&L access still
- * sees whether food cost is drifting as a share of spend, which is the
- * operating job, without being able to work out what the restaurant
- * earns. The bars stay proportional either way; only the labels change. */
+ * READ THIS BEFORE REUSING showAmounts={false} AS A PERMISSION GATE: it
+ * is not one. It hides dollars. It does NOT hide shares, and it cannot
+ * be made to -- each bar is drawn at `amount / maxAmount` below, so the
+ * BAR LENGTHS are the share data rendered as pixels, and the "View as
+ * table" disclosure prints a Share column as well. An earlier version of
+ * this comment claimed "the bars stay proportional either way; only the
+ * labels change" as if that settled it; on 2026-08-30 that turned out to
+ * be the hole, not the reassurance. The per-category expense shares plus
+ * the Food/Bar cost % cards reconstruct other-opex %, total cost % and
+ * therefore net margin exactly -- the figures VIEW_PNL exists to
+ * withhold. The Expenses-by-category chart is now not rendered at all
+ * without VIEW_PNL (see app/(protected)/analytics/page.tsx, capability
+ * item 5); this prop's remaining job is the Revenue-by-channel chart,
+ * where channel mix closes no arithmetic about costs.
+ *
+ * Rule of thumb this cost us: if a value drives a length, a position or
+ * an angle on screen, hiding its text label hides nothing. */
 export function BreakdownBarChart({
   title,
   subtitle,

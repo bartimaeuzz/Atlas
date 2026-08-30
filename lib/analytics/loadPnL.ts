@@ -14,6 +14,28 @@
  * show no band than a fabricated one. Same restraint applies everywhere
  * else in this file: every `goodRangeLow`/`goodRangeHigh` traces back to
  * a cited source.
+ *
+ * "% of sales" pass (2026-08-30, Aey's ask: "ต้นทุนเป็นกี่เปอร์เซ็นต์ของ
+ * ยอดขาย"). Two additions, both computed here rather than in the page so
+ * they are unit-testable like the rest of the money math:
+ *
+ *   1. `shareOfRevenue` — every P&L line as a share of revenue, so the
+ *      statement can render the standard common-size third column. Costs
+ *      carry the sign of the underlying COST (positive), NOT of the
+ *      negated display amount: the table shows "Food cost  -$2,500  25.0%",
+ *      because "-25.0%" would read to a non-accountant as negative-25-
+ *      percent rather than "a quarter of sales". Gross/net profit keep a
+ *      real sign, so an actual loss still shows as a negative share.
+ *      `null` (not 0) when revenue is 0 — "no sales to compare against"
+ *      renders as an em dash, whereas 0.0% would be a claim.
+ *
+ *   2. `totalCostPct` — the whole cost side as one benchmarked KPI. Its
+ *      band is NOT new research: totalCost/revenue is exactly
+ *      1 − netMargin, so the 92-97% band is the arithmetic complement of
+ *      the already-cited 3-8% net-margin range, and the same source is
+ *      carried through. Because of that identity it is a bottom-line
+ *      figure and is gated behind VIEW_PNL alongside `netMarginPct` —
+ *      see the capability note in app/(protected)/analytics/page.tsx.
  */
 import { loadRevenueBreakdown, type RevenueBreakdown } from "@/lib/analytics/loadRevenueBreakdown";
 import { loadExpenseBreakdown, sumByPnlGroup, type ExpenseBreakdown } from "@/lib/analytics/loadExpenseBreakdown";
@@ -58,12 +80,32 @@ export interface PnLData {
   otherOpex: number;
   grossProfit: number;
   netProfit: number;
+  /** COGS + payroll + other opex — the whole cost side of the statement. */
+  totalCost: number;
+  /** Each P&L line as a 0-1 share of revenue, for the statement's
+   * "% of sales" column. `null` means there is no revenue in the range to
+   * compare against, which the UI must render as "—" rather than 0.0%. */
+  shareOfRevenue: {
+    revenue: number | null;
+    food: number | null;
+    drinks: number | null;
+    bar: number | null;
+    cogs: number | null;
+    grossProfit: number | null;
+    payrollFoh: number | null;
+    payrollBoh: number | null;
+    payrollTotal: number | null;
+    otherOpex: number | null;
+    totalCost: number | null;
+    netProfit: number | null;
+  };
   kpis: {
     foodCostPct: Benchmark;
     laborCostPct: Benchmark;
     primeCostPct: Benchmark;
     netMarginPct: Benchmark;
     barCostPct: Benchmark;
+    totalCostPct: Benchmark;
   };
 }
 
@@ -76,6 +118,15 @@ function statusFor(value: number, low: number | null, high: number | null): Benc
 
 function pct(numerator: number, denominator: number): number {
   return denominator > 0 ? numerator / denominator : 0;
+}
+
+/** Same ratio as `pct`, but returns `null` instead of 0 when there is no
+ * revenue to divide by. The KPI meters need a finite number to draw a bar
+ * and 0 is the honest reading there; the statement's "% of sales" column
+ * needs to say "nothing to compare against", and printing "0.0%" next to a
+ * real $2,500 food cost would be an outright false statement. */
+function share(numerator: number, denominator: number): number | null {
+  return denominator > 0 ? numerator / denominator : null;
 }
 
 export async function loadPnL(dateFrom: string, dateTo: string): Promise<PnLData> {
@@ -115,6 +166,8 @@ export function computePnL(
   const primeCostValue = pct(cogsTotal + payroll.total, revenue.total);
   const netMarginValue = pct(netProfit, revenue.total);
   const barCostValue = pct(bar, revenue.total);
+  const totalCost = round2(cogsTotal + payroll.total + otherOpex);
+  const totalCostValue = pct(totalCost, revenue.total);
 
   const kpis: PnLData["kpis"] = {
     foodCostPct: {
@@ -161,6 +214,17 @@ export function computePnL(
         "What's left after COGS, payroll, and other operating expenses. 3-8% is typical for a full-service restaurant. Above 8% is great, not a warning sign.",
       source: "WhippleWood CPAs, Restaurant Financial Benchmarks 2026",
     },
+    totalCostPct: {
+      label: "Total cost %",
+      concernDirection: "above",
+      value: totalCostValue,
+      goodRangeLow: 0.92,
+      goodRangeHigh: 0.97,
+      status: statusFor(totalCostValue, 0.92, 0.97),
+      note:
+        "Every dollar of cost — food, drinks, bar, payroll, and other operating expenses — as a share of revenue. It answers \"how much of each $1 of sales goes straight back out?\" 92-97% is the healthy band; above 97% leaves under 3 cents of every sales dollar. This is the mirror of Net margin % — the two split every sales dollar between cost and profit — so its band is the complement of that metric's researched 3-8% range rather than separate research.",
+      source: "WhippleWood CPAs, Restaurant Financial Benchmarks 2026 (complement of the net-margin range)",
+    },
     barCostPct: {
       label: "Bar cost %",
       concernDirection: null,
@@ -184,6 +248,23 @@ export function computePnL(
     otherOpex,
     grossProfit,
     netProfit,
+    totalCost,
+    shareOfRevenue: {
+      // Revenue against itself is 1 by definition, but only when there IS
+      // revenue -- `share` keeps that honest rather than hardcoding 1.
+      revenue: share(revenue.total, revenue.total),
+      food: share(food, revenue.total),
+      drinks: share(drinks, revenue.total),
+      bar: share(bar, revenue.total),
+      cogs: share(cogsTotal, revenue.total),
+      grossProfit: share(grossProfit, revenue.total),
+      payrollFoh: share(payroll.foh, revenue.total),
+      payrollBoh: share(payroll.boh, revenue.total),
+      payrollTotal: share(payroll.total, revenue.total),
+      otherOpex: share(otherOpex, revenue.total),
+      totalCost: share(totalCost, revenue.total),
+      netProfit: share(netProfit, revenue.total),
+    },
     kpis,
   };
 }

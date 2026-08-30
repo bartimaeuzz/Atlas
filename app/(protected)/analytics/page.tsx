@@ -116,6 +116,26 @@ function computePresets(today: Date) {
  *    cell padding (px-3/pl-8) lets the two-column table lay out fluidly
  *    and fit 390px without scrolling or clipping. Re-verified live: no
  *    horizontal scroll needed, every row's amount visible, at 390x844.
+ *
+ * "% of sales" pass (2026-08-30) — Aey asked what percentage of sales the
+ * costs are. Three changes, and note that (3) is a direct consequence of
+ * (1), not an unrelated tidy-up:
+ *
+ *   1. The P&L statement gains a third "% of sales" column (the standard
+ *      common-size layout) plus a Total cost row, so every line answers
+ *      the question and not just the four the KPI cards already covered.
+ *      Percentages come from `pnl.shareOfRevenue`, computed and unit-
+ *      tested in loadPnL.ts, NOT derived from the row's display amount --
+ *      cost rows show a negative amount and a positive share on purpose.
+ *   2. A `Total cost %` KPI card. Gated behind VIEW_PNL, because it is
+ *      algebraically 1 - net margin; see the capability block below.
+ *   3. The table's first <thead>, and tighter sub-`sm` cell padding.
+ *      Point (1) took the table from two columns to three in a ~308px
+ *      phone content column, which crushed the label column to 110px and
+ *      wrapped four labels to 3-4 lines. Measured at 308px and fixed by
+ *      letting the header cells wrap and trimming phone padding -- the
+ *      same class of rendered-only defect as (3) above, caught the same
+ *      way, before shipping this time rather than after.
  */
 export default async function AnalyticsPage({
   searchParams,
@@ -138,7 +158,34 @@ export default async function AnalyticsPage({
   //      profit as a % of revenue);
   //   3. every dollar amount on the two breakdown charts, because total
   //      revenue times the prime-cost ratio (which stays) reconstructs
-  //      the bottom line to within other operating expenses.
+  //      the bottom line to within other operating expenses;
+  //   4. (2026-08-30) the Total cost % indicator, for the same reason as
+  //      (2), only more sharply: total cost / revenue is ALGEBRAICALLY
+  //      1 - net margin, so showing it to an account without VIEW_PNL
+  //      would hand over the exact figure (2) withholds, by subtraction.
+  //      It sits with Net margin % behind this flag, not with the four
+  //      cost-control ratios below;
+  //   5. (2026-08-30) the whole Expenses-by-category chart -- not just its
+  //      dollar amounts, which is all (3) used to withhold.
+  //
+  // (5) closes a hole the original three items left open. Withholding
+  // dollars but keeping per-category SHARES is not a gate, because the
+  // shares alone finish the arithmetic:
+  //     cogs/revenue      = Food cost % + Bar cost %      (both cards stay)
+  //     otherOpex/cogs    = share(OTHER_EXPENSE) / share(FOOD+BEV)  (chart)
+  //     => otherOpex/revenue, => Total cost %, => Net margin.
+  // Verified exact on the unit-test fixture: 0.65 prime + 0.08 other =
+  // 0.73 total cost, 0.27 net margin. Oliver's call (2026-08-30), after
+  // being shown both options: close it here rather than redefine
+  // VIEW_ANALYTICS as "approximate P&L access".
+  //
+  // Hiding only the chart's NUMBERS would have been cosmetic in the
+  // literal sense -- BreakdownBarChart draws each bar at
+  // `amount / maxAmount`, so the bar lengths ARE the shares, and the
+  // "View as table" disclosure prints a Share column besides. The chart
+  // has to not render. What a VIEW_ANALYTICS-only account keeps is the
+  // four benchmarked cost ratios, which is the cost-control job that
+  // capability exists for and which leaks nothing on its own.
   // Food/bar/labor/prime cost ratios and the breakdown SHARES stay --
   // "food is 31% of spend, up from 27%" is the cost-control job
   // VIEW_ANALYTICS exists for, and needs no dollar figures.
@@ -169,7 +216,7 @@ export default async function AnalyticsPage({
         description={
           canSeePnL
             ? `Revenue, expenses, and the "sweet spot" indicators for the range below — computed from finalized shifts and Ledger entries already in Atlas. No POS integration yet, so this only reflects what's been entered here.`
-            : `Where revenue and spending are going for the range below, as shares of the total, plus the "sweet spot" cost indicators — computed from finalized shifts and Ledger entries already in Atlas. Dollar totals are part of the P&L, which isn't turned on for your account.`
+            : `The "sweet spot" cost indicators and where revenue is coming from, for the range below — computed from finalized shifts and Ledger entries already in Atlas. Dollar totals and the expense breakdown are part of the P&L, which isn't turned on for your account.`
         }
       />
 
@@ -210,16 +257,31 @@ export default async function AnalyticsPage({
 
       {/* Benchmarked KPIs -- the "sweet spot" indicators Oliver asked for */}
       <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">Health indicators</h2>
-      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 ${canSeePnL ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      {/* 2026-08-30: adding Total cost % takes the VIEW_PNL grid from 5 to
+          6 cards. Five-across was already tight -- each card carries a
+          meter, a status line, a 2-3 line note AND a source line -- so
+          this drops to 3-across (two even rows of three) rather than
+          squeezing six into one row. The no-VIEW_PNL grid still has four
+          cards and keeps 4-across. */}
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 ${canSeePnL ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}>
         <KpiMeterCard benchmark={pnl.kpis.foodCostPct} />
         <KpiMeterCard benchmark={pnl.kpis.barCostPct} />
         <KpiMeterCard benchmark={pnl.kpis.laborCostPct} />
         <KpiMeterCard benchmark={pnl.kpis.primeCostPct} />
+        {/* Cost side first, then the two bottom-line figures it implies. */}
+        {canSeePnL && <KpiMeterCard benchmark={pnl.kpis.totalCostPct} />}
         {canSeePnL && <KpiMeterCard benchmark={pnl.kpis.netMarginPct} />}
       </div>
 
-      {/* Revenue / expense breakdown charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+      {/* Revenue / expense breakdown charts.
+
+          The Expenses chart is VIEW_PNL-only as of 2026-08-30 -- see item
+          (5) of the capability block above for why its shares alone
+          reconstruct the bottom line. The Revenue chart stays for everyone
+          (shares only): channel mix says nothing about costs, so it closes
+          no arithmetic. With one chart instead of two, the grid drops to a
+          single column rather than leaving a half-width hole. */}
+      <div className={`grid grid-cols-1 gap-4 mb-8 ${canSeePnL ? "lg:grid-cols-2" : ""}`}>
         <BreakdownBarChart
           title="Revenue by channel"
           subtitle={
@@ -231,25 +293,24 @@ export default async function AnalyticsPage({
           total={pnl.revenue.total}
           showAmounts={canSeePnL}
         />
-        <BreakdownBarChart
-          title="Expenses by category"
-          subtitle={
-            canSeePnL
-              ? "Petty Cash + Supplier Check + Card, pooled by category. Payroll isn't shown here — see the P&L below, it's computed from actual shift wages instead."
-              : "Share of spend by category, pooled from Petty Cash + Supplier Check + Card. Payroll isn't included here — it's computed from actual shift wages instead."
-          }
-          slices={expenseSlices}
-          total={pnl.expenses.total}
-          showAmounts={canSeePnL}
-        />
+        {canSeePnL && (
+          <BreakdownBarChart
+            title="Expenses by category"
+            subtitle="Petty Cash + Supplier Check + Card, pooled by category. Payroll isn't shown here — see the P&L below, it's computed from actual shift wages instead."
+            slices={expenseSlices}
+            total={pnl.expenses.total}
+            showAmounts
+          />
+        )}
       </div>
-      {pnl.expenses.excludedTotal > 0 && (
+      {canSeePnL && pnl.expenses.excludedTotal > 0 && (
         <p className="text-xs text-[var(--ink-500)] -mt-6 mb-8">
-          {/* The amount itself is a dollar figure, so it follows the same
-              rule as the charts above -- the note still explains what was
-              excluded and why, just without the number. */}
-          Note: spending logged under the PAYROLL BOH/PAYROLL FOH ledger categories
-          {canSeePnL ? ` (${formatMoney(pnl.expenses.excludedTotal)})` : ""} was
+          {/* 2026-08-30: this whole note is now VIEW_PNL-only, not just its
+              dollar figure. It describes what was left out of the Expenses
+              chart, and that chart no longer renders without VIEW_PNL --
+              a footnote about an absent chart is worse than no footnote. */}
+          Note: spending logged under the PAYROLL BOH/PAYROLL FOH ledger categories (
+          {formatMoney(pnl.expenses.excludedTotal)}) was
           left out of the chart above — Payroll on this page comes from Atlas&apos;s own computed shift-wage data instead,
           so counting both would double-count. Re-tag those categories from{" "}
           <Link href="/ledger/categories" className="underline hover:text-[var(--ink-900)]">
@@ -266,24 +327,114 @@ export default async function AnalyticsPage({
           <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">P&amp;L statement</h2>
           <div className="border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-2">
             <table className="w-full text-sm border-collapse">
+              {/* Header added 2026-08-30 with the "% of sales" column. The
+                  two-column version had no <thead> at all -- fine while
+                  every row was a self-labelling label/amount pair, but a
+                  bare "25.0%" in a third column is meaningless without a
+                  column name (WCAG 1.3.1). The first column's name is
+                  screen-reader-only: the row labels already carry it
+                  visually, and printing "Line" above "Revenue" is noise. */}
+              <thead className="bg-[var(--paper)] text-[var(--ink-500)] text-xs uppercase tracking-wide">
+                <tr className="border-b border-[var(--border)]">
+                  <th scope="col" className="py-2 pl-2 sm:pl-3 pr-1 sm:pr-2 text-left font-medium">
+                    <span className="sr-only">P&amp;L line</span>
+                  </th>
+                  {/* Deliberately NOT whitespace-nowrap, unlike the body cells
+                      below. Measured at a 390px phone: nowrap here made
+                      "% of sales" the widest thing in its column and pinned it
+                      at 89px, squeezing the label column to 110px and wrapping
+                      four row labels to 3-4 lines each. Letting the HEADER wrap
+                      to two lines costs 12px once and buys every row back. */}
+                  <th scope="col" className="py-2 px-1.5 sm:px-2 text-right font-medium">
+                    Amount
+                  </th>
+                  <th scope="col" className="py-2 pr-2 sm:pr-3 pl-1.5 sm:pl-2 text-right font-medium">
+                    % of sales
+                  </th>
+                </tr>
+              </thead>
               <tbody>
-                <PnLRow label="Revenue" amount={pnl.revenue.total} bold />
-                <PnLRow label="Food cost" amount={-pnl.cogs.food} indent />
-                <PnLRow label="Drinks cost (non-alcoholic)" amount={-pnl.cogs.drinks} indent />
-                <PnLRow label="Bar cost (alcohol)" amount={-pnl.cogs.bar} indent />
-                <PnLRow label="Cost of goods sold" amount={-pnl.cogs.total} bold border />
-                <PnLRow label="Gross profit" amount={pnl.grossProfit} bold border />
-                <PnLRow label="Payroll — FOH" amount={-pnl.payroll.foh} indent />
-                <PnLRow label="Payroll — BOH" amount={-pnl.payroll.boh} indent />
-                <PnLRow label="Payroll total" amount={-pnl.payroll.total} bold />
-                <PnLRow label="Other operating expenses" amount={-pnl.otherOpex} bold />
-                <PnLRow label="Net profit" amount={pnl.netProfit} bold border highlight />
+                <PnLRow label="Revenue" amount={pnl.revenue.total} share={pnl.shareOfRevenue.revenue} bold />
+                <PnLRow label="Food cost" amount={-pnl.cogs.food} share={pnl.shareOfRevenue.food} indent />
+                <PnLRow
+                  label="Drinks cost (non-alcoholic)"
+                  amount={-pnl.cogs.drinks}
+                  share={pnl.shareOfRevenue.drinks}
+                  indent
+                />
+                <PnLRow label="Bar cost (alcohol)" amount={-pnl.cogs.bar} share={pnl.shareOfRevenue.bar} indent />
+                <PnLRow
+                  label="Cost of goods sold"
+                  amount={-pnl.cogs.total}
+                  share={pnl.shareOfRevenue.cogs}
+                  bold
+                  border
+                />
+                <PnLRow
+                  label="Gross profit"
+                  amount={pnl.grossProfit}
+                  share={pnl.shareOfRevenue.grossProfit}
+                  bold
+                  border
+                />
+                <PnLRow
+                  label="Payroll — FOH"
+                  amount={-pnl.payroll.foh}
+                  share={pnl.shareOfRevenue.payrollFoh}
+                  indent
+                />
+                <PnLRow
+                  label="Payroll — BOH"
+                  amount={-pnl.payroll.boh}
+                  share={pnl.shareOfRevenue.payrollBoh}
+                  indent
+                />
+                <PnLRow
+                  label="Payroll total"
+                  amount={-pnl.payroll.total}
+                  share={pnl.shareOfRevenue.payrollTotal}
+                  bold
+                />
+                <PnLRow
+                  label="Other operating expenses"
+                  amount={-pnl.otherOpex}
+                  share={pnl.shareOfRevenue.otherOpex}
+                  bold
+                />
+                {/* Total cost is the line Aey actually asked for -- the four
+                    cost lines above it each answer "how much of sales is
+                    THIS?", and nothing summed them. Placed directly before
+                    Net profit because the two are complements: this row's
+                    share plus the next row's share is always 100%. */}
+                <PnLRow
+                  label="Total cost"
+                  amount={-pnl.totalCost}
+                  share={pnl.shareOfRevenue.totalCost}
+                  bold
+                  border
+                />
+                <PnLRow
+                  label="Net profit"
+                  amount={pnl.netProfit}
+                  share={pnl.shareOfRevenue.netProfit}
+                  bold
+                  border
+                  highlight
+                />
               </tbody>
             </table>
           </div>
           <p className="text-xs text-[var(--ink-500)] mb-8">
-            Only counts finalized shifts and Supplier Check payments already printed/paid — matches the same rules the
-            Sales &amp; Tax and Supplier Check reports already use.
+            {/* "Total cost" is kept short in the table because the label column
+                is the one that has to wrap on a phone -- the definition lives
+                here, where there is room for a full sentence. It matters: cost
+                of goods sold sits ABOVE Gross profit, so a reader scanning only
+                the two rows directly above Total cost would expect it to be
+                payroll + other, and be wrong by the whole COGS line. */}
+            Total cost is cost of goods sold plus payroll plus other operating expenses — revenue minus total cost
+            is net profit, so those last two rows split every dollar of sales between cost and profit. Only counts
+            finalized shifts and Supplier Check payments already printed/paid — matches the same rules the Sales
+            &amp; Tax and Supplier Check reports already use.
           </p>
         </>
       )}
@@ -291,9 +442,19 @@ export default async function AnalyticsPage({
   );
 }
 
+/** One decimal, matching the KPI meter cards above -- the same ratio must
+ * not read as "31.2%" on a card and "31%" in the table. `null` share means
+ * there was no revenue in the range; an em dash says "nothing to compare
+ * against", which 0.0% would not. */
+function formatShare(share: number | null): string {
+  if (share == null) return "—";
+  return `${(share * 100).toFixed(1)}%`;
+}
+
 function PnLRow({
   label,
   amount,
+  share,
   bold = false,
   indent = false,
   border = false,
@@ -301,6 +462,14 @@ function PnLRow({
 }: {
   label: string;
   amount: number;
+  /** 0-1 share of revenue for the "% of sales" column, or null when there
+   * is no revenue to divide by. Passed explicitly rather than derived from
+   * `amount` on purpose: cost rows render a NEGATIVE amount (the statement
+   * subtracts them) but a POSITIVE share, because "Food cost -$2,500 /
+   * 25.0%" is the sentence Aey asked for and "-25.0%" is not. Deriving the
+   * percentage from the display amount would silently negate every cost
+   * line. See lib/analytics/loadPnL.ts's `shareOfRevenue`. */
+  share: number | null;
   bold?: boolean;
   indent?: boolean;
   border?: boolean;
@@ -313,6 +482,18 @@ function PnLRow({
   // row here, not just anomaly/mismatch signals.
   const isNegative = amount < 0;
   const amountColor = isNegative ? "text-[var(--danger-700)]" : bold ? "text-[var(--ink-900)]" : "text-[var(--ink-700)]";
+  /* The share column is deliberately NOT red just because its row's amount
+   * is. A cost line's share is a magnitude ("a quarter of sales"), not a
+   * signed money value, and colouring every cost percentage red would say
+   * "all five of these are problems" -- the exact cry-wolf failure the KPI
+   * cards' `concernDirection` fix was made to stop. Red here means the
+   * share ITSELF is negative, i.e. a real loss on gross or net profit. */
+  const shareColor =
+    share != null && share < 0
+      ? "text-[var(--danger-700)]"
+      : bold
+        ? "text-[var(--ink-900)]"
+        : "text-[var(--ink-700)]";
   return (
     <tr
       className={
@@ -322,18 +503,44 @@ function PnLRow({
         border ? "border-t-2 border-[var(--ink-900)]" : "border-b border-[var(--border)]"
       }
     >
-      <td className={`py-2 pr-2 ${indent ? "pl-8 text-[var(--ink-500)]" : "pl-3 text-[var(--ink-900)]"} ${bold ? "font-semibold" : ""}`}>
+      {/* Padding is tighter below `sm` and the indent is smaller, because a
+          390px phone leaves a ~308px content column once the 48px nav rail
+          and the page's p-4 come out, and three columns now have to fit in
+          it. Measured at 308px: the roomier desktop padding left the label
+          column at 123px and wrapped four labels to 3 lines; this version
+          gives it 134px and only "Drinks cost (non-alcoholic)" and "Other
+          operating expenses" wrap, to 2 lines each, with no horizontal
+          scroll. `sm:` restores the original spacing -- at a 640px viewport
+          the rail grows to 216px but the content column still nets ~392px,
+          wider than the phone case this tightening is for.
+
+          The label is the only cell allowed to wrap: both numeric cells stay
+          whitespace-nowrap so a long label costs a second line rather than
+          breaking "-$1,234.56" across two. */}
+      <td
+        className={`py-2 pr-1 sm:pr-2 ${indent ? "pl-5 sm:pl-8 text-[var(--ink-500)]" : "pl-2 sm:pl-3 text-[var(--ink-900)]"} ${bold ? "font-semibold" : ""}`}
+      >
         {label}
       </td>
       <td
         className={
-          "py-2 pr-3 text-right tabular-nums " +
+          "py-2 px-1.5 sm:px-2 text-right tabular-nums whitespace-nowrap " +
           (bold ? "font-semibold " : "") +
           (highlight ? "text-lg " : "") +
           amountColor
         }
       >
         {formatMoney(amount)}
+      </td>
+      <td
+        className={
+          "py-2 pr-2 sm:pr-3 pl-1.5 sm:pl-2 text-right tabular-nums whitespace-nowrap " +
+          (bold ? "font-semibold " : "") +
+          (highlight ? "text-lg " : "") +
+          shareColor
+        }
+      >
+        {formatShare(share)}
       </td>
     </tr>
   );
