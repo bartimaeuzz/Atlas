@@ -27,6 +27,20 @@ export interface RosterRow {
    * counted on another row this shift (see loadShiftCalcData doc). */
   flatWage: number | null;
   wageNote: string | null;
+  /** False when this employee holds no employeePositions row for the
+   * position they're working here (2026-08-29) -- i.e. they were placed
+   * off-role, so `pointValue` above is the bare 1.0 fallback rather than a
+   * number anyone chose. The closing report gates on this; the calc does
+   * not, so an off-role placement still costs nobody their share. */
+  hasStandingPoint: boolean;
+  /** Set once a manager has actually decided this row's point (2026-08-29).
+   * Never inferred from the value -- see shiftRosterEntries.pointDecidedAt. */
+  pointDecidedAt: string | null;
+  /** True when an explicit per-shift override is stored on this row. A
+   * stored override IS evidence of a decision, which matters for rows
+   * predating pointDecidedAt: the stamp is only needed to disambiguate a
+   * value that got null'd for equalling the fallback. */
+  hasExplicitOverride: boolean;
 }
 
 export interface ShiftCalcData {
@@ -70,6 +84,7 @@ export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData>
       pointOverridePool2: shiftRosterEntries.pointOverridePool2,
       pointOverridePool3: shiftRosterEntries.pointOverridePool3,
       standingPoint: employeePositions.tipPointValue,
+      pointDecidedAt: shiftRosterEntries.pointDecidedAt,
     })
     .from(shiftRosterEntries)
     .innerJoin(employees, eq(shiftRosterEntries.employeeId, employees.id))
@@ -132,6 +147,13 @@ export async function loadShiftCalcData(shiftId: number): Promise<ShiftCalcData>
       ),
       flatWage: null, // resolved below, once per employee
       wageNote: null,
+      hasStandingPoint: r.standingPoint != null,
+      pointDecidedAt: r.pointDecidedAt,
+      hasExplicitOverride:
+        r.pointOverride != null ||
+        r.pointOverridePool1 != null ||
+        r.pointOverridePool2 != null ||
+        r.pointOverridePool3 != null,
     });
   }
 

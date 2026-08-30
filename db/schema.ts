@@ -501,6 +501,18 @@ export const shiftRosterEntries = sqliteTable("shift_roster_entries", {
   pointOverridePool1: real("point_override_pool1"),
   pointOverridePool2: real("point_override_pool2"),
   pointOverridePool3: real("point_override_pool3"),
+  // Stamped when a human actually DECIDED this row's tip point, as opposed
+  // to the point merely resolving to a default (2026-08-29). Needed because
+  // a person placed in a position they hold no employeePositions row for has
+  // no standing point, so their point silently falls back to 1.0 -- a full
+  // share nobody chose. The closing report gates Save & Finalize on those
+  // rows until this is set, and it CANNOT be inferred from the value: the
+  // override columns store null when the submitted number equals the
+  // resolved standing value, so a manager deliberately confirming 1.0 is
+  // byte-identical to nobody touching it. Doubles as the audit trail for
+  // who set an off-role person's point and when.
+  pointDecidedAt: text("point_decided_at"),
+  pointDecidedByEmployeeId: integer("point_decided_by_employee_id").references(() => employees.id),
   // Day-of coverage record (2026-08-25, Oliver's scenario: injury/no-show,
   // someone volunteers or gets called in). "extra" = added over target on
   // a busy day (the roster-side twin of plannedShiftAssignments'

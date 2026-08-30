@@ -9,6 +9,7 @@ import type { ClosingReportData, PlatformSalesRow as PlatformSalesRowData } from
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ChevronDownIcon } from "@/components/ui/icons";
+import { Banner } from "@/components/ui/Banner";
 
 const initialState: ClosingReportActionState = { error: null };
 
@@ -167,11 +168,20 @@ export function ClosingReportForm({
       </Card>
 
       <Card>
-      <details open={hasTipBumps} className="group">
+      {/* Opens itself when someone's point is still undecided (2026-08-29):
+          a collapsed section must never hide something that BLOCKS the
+          close, for the same reason it must never hide money in effect. */}
+      <details open={hasTipBumps || data.undecidedPointCount > 0} className="group">
         <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-lg font-medium text-[var(--ink-900)] min-h-11 flex items-center justify-between gap-2">
           <span className="flex items-center gap-2">
             Tip points
-            {hasTipBumps && <span className="text-xs font-normal text-[var(--ink-500)]">— has entries</span>}
+            {data.undecidedPointCount > 0 ? (
+              <span className="text-xs font-normal text-[var(--warning-700)]">
+                — {data.undecidedPointCount} still to set
+              </span>
+            ) : (
+              hasTipBumps && <span className="text-xs font-normal text-[var(--ink-500)]">— has entries</span>
+            )}
           </span>
           <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90 transition-transform group-open:rotate-0" />
         </summary>
@@ -181,6 +191,19 @@ export function ClosingReportForm({
           covered for someone. Defaults to their standing value; leave alone to change nothing.
           This does NOT change their permanent record, only this shift.
         </p>
+        {data.undecidedPointCount > 0 && (
+          <div className="mb-3">
+            <Banner
+              tone="warning"
+              title={
+                data.undecidedPointCount === 1
+                  ? "One person needs a tip point before you can finalize"
+                  : `${data.undecidedPointCount} people need a tip point before you can finalize`
+              }
+              description="They're working a position they aren't set up for, so there's no standing point to fall back on. Enter what their share should be for today — it won't change their permanent record."
+            />
+          </div>
+        )}
         {data.pointValueRows.length === 0 ? (
           <p className="text-sm text-[var(--ink-500)]">No tip-pool-eligible staff on the roster yet.</p>
         ) : (
@@ -538,10 +561,16 @@ function TipPointsSection({
 }) {
   const weighted = new Set<string>(pointWeightedPools);
   const editableRows = rows.filter((r) => r.tipPoolGroups.some((g) => weighted.has(g)));
-  const [points, setPoints] = useState<Record<string, number>>(() =>
+  // An undecided row starts EMPTY, not pre-filled (2026-08-29). Showing
+  // the 1.0 fallback in the box would be the same silent default this gate
+  // exists to remove -- it reads as "already handled" and gets saved
+  // untouched. Empty is the honest rendering of "nobody has decided this".
+  const [points, setPoints] = useState<Record<string, number | "">>(() =>
     Object.fromEntries(
       editableRows.flatMap((r) =>
-        r.tipPoolGroups.filter((g) => weighted.has(g)).map((g) => [`${r.rosterEntryId}:${g}`, r.pointValueByPool[g] ?? 1.0])
+        r.tipPoolGroups
+          .filter((g) => weighted.has(g))
+          .map((g) => [`${r.rosterEntryId}:${g}`, r.needsDecision ? "" : r.pointValueByPool[g] ?? 1.0])
       )
     )
   );
@@ -555,8 +584,14 @@ function TipPointsSection({
     const members = editableRows.filter((r) => r.tipPoolGroups.includes(pool));
     return {
       pool,
-      total: members.reduce((sum, r) => sum + (points[`${r.rosterEntryId}:${pool}`] || 0), 0),
+      total: members.reduce((sum, r) => {
+        const v = points[`${r.rosterEntryId}:${pool}`];
+        return sum + (typeof v === "number" ? v : 0);
+      }, 0),
       people: members.length,
+      // Undecided rows are excluded from the total above, so say so rather
+      // than showing a sum that quietly under-counts the pool.
+      undecided: members.filter((r) => points[`${r.rosterEntryId}:${pool}`] === "").length,
     };
   });
 
@@ -572,6 +607,33 @@ function TipPointsSection({
             <div className="text-sm text-[var(--ink-900)]">
               {r.employeeName}
               <span className="block text-xs text-[var(--ink-500)]">{r.positionName}</span>
+              {r.needsDecision && (
+                <>
+                  <span className="block text-xs text-[var(--warning-700)] mt-0.5">
+                    Not set up for {r.positionName} — set their point
+                  </span>
+                  {r.suggestedPoint != null && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPoints((p) => {
+                          const next = { ...p };
+                          for (const g of r.tipPoolGroups) {
+                            if (weighted.has(g)) next[`${r.rosterEntryId}:${g}`] = r.suggestedPoint!;
+                          }
+                          return next;
+                        })
+                      }
+                      // text-left: <button> defaults to text-align:center,
+                      // which centred the wrapped label against a
+                      // left-aligned column on phone widths.
+                      className="mt-1 inline-flex items-center justify-start text-left min-h-11 text-xs text-[var(--primary-700)] underline underline-offset-2"
+                    >
+                      Use {r.positionName} default: {r.suggestedPoint}
+                    </button>
+                  )}
+                </>
+              )}
             </div>
             <div className="flex flex-wrap gap-3">
               {r.tipPoolGroups.filter((g) => weighted.has(g)).map((g) => (
@@ -581,9 +643,21 @@ function TipPointsSection({
                     type="number"
                     step={0.1}
                     name={`point_${r.rosterEntryId}_${POOL_SUFFIX[g]}`}
-                    value={points[`${r.rosterEntryId}:${g}`] ?? 0}
-                    onChange={(e) => setPoints((p) => ({ ...p, [`${r.rosterEntryId}:${g}`]: Number(e.target.value) || 0 }))}
-                    className={INPUT + " max-w-24"}
+                    value={points[`${r.rosterEntryId}:${g}`] ?? ""}
+                    onChange={(e) =>
+                      setPoints((p) => ({
+                        ...p,
+                        [`${r.rosterEntryId}:${g}`]: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                      }))
+                    }
+                    aria-invalid={r.needsDecision && points[`${r.rosterEntryId}:${g}`] === "" ? true : undefined}
+                    className={
+                      INPUT +
+                      " max-w-24" +
+                      (r.needsDecision && points[`${r.rosterEntryId}:${g}`] === ""
+                        ? " border-[var(--warning-border)] bg-[var(--warning-tint)]"
+                        : "")
+                    }
                   />
                 </label>
               ))}
@@ -603,6 +677,9 @@ function TipPointsSection({
             <span key={t.pool}>
               {POOL_LABELS[t.pool] ?? t.pool}: <span className="font-medium tabular-nums">{t.total.toFixed(1)} pts</span>
               <span className="text-[var(--ink-500)]"> / {t.people} {t.people === 1 ? "person" : "people"}</span>
+              {t.undecided > 0 && (
+                <span className="text-[var(--warning-700)]"> · {t.undecided} not set yet</span>
+              )}
             </span>
           ))}
         </div>

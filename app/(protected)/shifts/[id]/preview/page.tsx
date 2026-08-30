@@ -13,6 +13,7 @@ import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayL
 import { Banner } from "@/components/ui/Banner";
 import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
 import { loadShiftAttendanceSummary } from "@/lib/shift/loadRosterPageData";
+import { describeUndecided, loadUndecidedPointRows } from "@/lib/shift/pointDecision";
 import { ShiftStageNav } from "../ShiftStageNav";
 
 export default async function PreviewPage({ params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +24,10 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
   if (!shift) notFound();
   if (shift.status === "finalized") redirect(`/shifts/${shiftId}/summary`);
   const attendance = await loadShiftAttendanceSummary(shiftId);
+  // Off-role staff whose tip point nobody has decided yet (2026-08-29).
+  // Same loader runFinalize gates on, so the disabled button below and the
+  // server's refusal always name the same people.
+  const undecidedPoints = await loadUndecidedPointRows(shiftId);
 
   let preview: Awaited<ReturnType<typeof computeFinalizationPreview>> | null = null;
   let error: string | null = null;
@@ -253,10 +258,34 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
           </Section>
 
           <section className="border-t border-[var(--border)] pt-6">
+            {undecidedPoints.length > 0 && (
+              <div className="mb-4">
+                <Banner
+                  tone="warning"
+                  title={
+                    undecidedPoints.length === 1
+                      ? "One person still needs a tip point"
+                      : `${undecidedPoints.length} people still need a tip point`
+                  }
+                  description={
+                    `${describeUndecided(undecidedPoints)} — they aren't set up for that position, so nobody ` +
+                    `has decided their share of the tip pool. The figures above are using a placeholder of 1 ` +
+                    `point each. Go back to the closing report's Tip points section and set them.`
+                  }
+                />
+              </div>
+            )}
             <p className="text-sm text-[var(--ink-500)] mb-3">
               Numbers look right? Finalizing locks this shift — the roster and closing report can&apos;t be edited afterward.
             </p>
-            <ConfirmFinalizeButton shiftId={shiftId} />
+            <ConfirmFinalizeButton
+              shiftId={shiftId}
+              blockedReason={
+                undecidedPoints.length > 0
+                  ? `Set a tip point for ${describeUndecided(undecidedPoints)} first.`
+                  : null
+              }
+            />
           </section>
         </>
         );

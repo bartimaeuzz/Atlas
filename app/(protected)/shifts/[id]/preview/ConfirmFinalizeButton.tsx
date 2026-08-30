@@ -18,9 +18,20 @@ const initialState: ClosingReportActionState = { error: null };
  * publish-week unlock — a label that carries the warning gets tapped
  * through without reading. A Back button rides beside it for the "numbers
  * look wrong" path, so both answers to "look right?" have a button. */
-export function ConfirmFinalizeButton({ shiftId }: { shiftId: number }) {
+export function ConfirmFinalizeButton({
+  shiftId,
+  blockedReason = null,
+}: {
+  shiftId: number;
+  /** Non-null when something must be resolved before this shift can lock
+   * (2026-08-29: an off-role person whose tip point nobody has decided).
+   * The button is disabled and says why -- but the real gate is server-side
+   * in runFinalize, since a disabled button is a hint, not a guarantee. */
+  blockedReason?: string | null;
+}) {
   const [state, formAction, isPending] = useActionState(confirmFinalize, initialState);
   const [confirming, setConfirming] = useState(false);
+  const blocked = blockedReason != null;
 
   return (
     <>
@@ -35,10 +46,22 @@ export function ConfirmFinalizeButton({ shiftId }: { shiftId: number }) {
         <LinkButton href={`/shifts/${shiftId}/closing-report`} variant="secondary">
           ← Back
         </LinkButton>
-        <Button type="button" variant="brand" loading={isPending} onClick={() => setConfirming(true)}>
+        <Button
+          type="button"
+          variant="brand"
+          loading={isPending}
+          disabled={blocked}
+          title={blockedReason ?? undefined}
+          onClick={() => setConfirming(true)}
+        >
           {isPending ? "Finalizing…" : "Finalize"}
         </Button>
       </div>
+      {/* The reason sits beside the control in text, not only in a title
+          attribute -- a tooltip is invisible on the phone this is used on. */}
+      {blocked && (
+        <p className="mt-2 text-sm text-[var(--ink-500)]">{blockedReason}</p>
+      )}
 
       <ConfirmDialog
         open={confirming}

@@ -15,6 +15,7 @@ import {
   payrollPeriods, incentivePayoutRecords,
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
+import { describeUndecided, loadUndecidedPointRows } from "@/lib/shift/pointDecision";
 import { weekStartFor } from "@/lib/schedule/weekMath";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { logActivityStatement } from "@/lib/activityLog/log";
@@ -494,9 +495,9 @@ export async function saveClosingReportSales(
   if (!shiftId) return { error: "Missing shift id" };
 
   try {
-    await requireManagerAction();
+    const session = await requireManagerAction();
     await assertDraft(shiftId);
-    await upsertClosingReportSales(shiftId, formData);
+    await upsertClosingReportSales(shiftId, formData, session.id);
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -522,9 +523,9 @@ export async function saveClosingReportAndPreview(
   if (!shiftId) return { error: "Missing shift id" };
 
   try {
-    await requireManagerAction();
+    const session = await requireManagerAction();
     await assertDraft(shiftId);
-    await upsertClosingReportSales(shiftId, formData);
+    await upsertClosingReportSales(shiftId, formData, session.id);
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -558,8 +559,8 @@ export async function confirmFinalize(
   redirect(`/shifts/${shiftId}/summary`);
 }
 
-async function upsertClosingReportSales(shiftId: number, formData: FormData) {
-  await upsertPointOverrides(shiftId, formData);
+async function upsertClosingReportSales(shiftId: number, formData: FormData, decidedByEmployeeId: number) {
+  await upsertPointOverrides(shiftId, formData, decidedByEmployeeId);
   await upsertMetricValues(shiftId, formData);
   await upsertWageAdjustments(shiftId, formData);
 
@@ -644,7 +645,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData) {
  * field arrived for the entry, because the form displayed values that
  * already resolved it -- leaving it set would resurrect it under a
  * pool column that went back to null. */
-async function upsertPointOverrides(shiftId: number, formData: FormData) {
+async function upsertPointOverrides(shiftId: number, formData: FormData, decidedByEmployeeId: number) {
   const rosterRows = await db
     .select({
       id: shiftRosterEntries.id,
@@ -668,8 +669,17 @@ async function upsertPointOverrides(shiftId: number, formData: FormData) {
 
   for (const entry of rosterRows) {
     const standing = entry.standingPoint ?? 1.0;
-    const set: Partial<Record<(typeof POOL_FIELDS)[number][1] | "pointValueOverride", number | null>> = {};
+    const set: Partial<
+      Record<(typeof POOL_FIELDS)[number][1] | "pointValueOverride", number | null>
+    > & { pointDecidedAt?: string | null; pointDecidedByEmployeeId?: number | null } = {};
     let touched = false;
+    // A row with no standing point is one the gate cares about: its point
+    // would otherwise resolve to the bare 1.0 fallback. Track whether EVERY
+    // point field the form rendered for it actually arrived filled --
+    // partial is not decided, and a Host off-role has one field per pool.
+    const isUndecidable = entry.standingPoint == null;
+    let fieldsPresent = 0;
+    let fieldsFilled = 0;
     for (const [suffix, column] of POOL_FIELDS) {
       const raw = formData.get(`point_${entry.id}_${suffix}`);
       if (raw == null) continue;
@@ -677,10 +687,23 @@ async function upsertPointOverrides(shiftId: number, formData: FormData) {
       const value = trimmed === "" ? null : Number(trimmed);
       if (value != null && Number.isNaN(value)) continue;
       touched = true;
+      fieldsPresent += 1;
+      if (value != null) fieldsFilled += 1;
       set[column] = value != null && value !== standing ? value : null;
     }
     if (!touched) continue;
     set.pointValueOverride = null;
+    // Stamp the decision separately from the value (2026-08-29). It cannot
+    // be read back off the columns above: an entered value equal to the
+    // resolved standing value is stored as null by the noise rule, so a
+    // manager deliberately confirming 1.0 would be indistinguishable from
+    // an untouched row. Clearing every field un-decides the row again, so
+    // the gate re-arms rather than passing on a stale stamp.
+    if (isUndecidable) {
+      const decided = fieldsPresent > 0 && fieldsFilled === fieldsPresent;
+      set.pointDecidedAt = decided ? new Date().toISOString() : null;
+      set.pointDecidedByEmployeeId = decided ? decidedByEmployeeId : null;
+    }
     await db.update(shiftRosterEntries).set(set).where(eq(shiftRosterEntries.id, entry.id));
   }
 }
@@ -821,10 +844,32 @@ async function upsertWageAdjustments(shiftId: number, formData: FormData) {
  * historical record and shouldn't silently change if settings (deduction
  * rate, split method, point values) change later. */
 async function runFinalize(shiftId: number, finalizedByEmployeeId: number) {
+  await assertEveryPointDecided(shiftId);
   // Compute + write both now live in finalizeShiftWrites.ts (2026-08-10) —
   // shared with db/seed.ts, which needs to finalize a whole week of test
   // shifts at once. See that file's header comment.
   await finalizeShiftWrites(shiftId, finalizedByEmployeeId);
+}
+
+/** The real tip-point gate (2026-08-29). The closing report disables its
+ * own button, but a disabled button is a hint, not a gate — this is the
+ * check that actually stands between an undecided point and a locked
+ * payroll record.
+ *
+ * Deliberately here in runFinalize rather than inside finalizeShiftWrites:
+ * the only two callers of that function are this one and db/seed.ts, and
+ * the seed legitimately finalizes a week of fixture shifts in bulk with no
+ * manager present to decide anything. Gating the action path covers every
+ * way a real user reaches finalization (verified: confirmFinalize is the
+ * sole caller of runFinalize) without breaking the fixture path. */
+async function assertEveryPointDecided(shiftId: number) {
+  const undecided = await loadUndecidedPointRows(shiftId);
+  if (undecided.length === 0) return;
+  throw new Error(
+    `Set a tip point for ${describeUndecided(undecided)} before finalizing — they aren't set up ` +
+      `for that position, so nobody has decided their share yet. Enter it in the Tip points ` +
+      `section of the closing report.`
+  );
 }
 
 async function assertDraft(shiftId: number) {

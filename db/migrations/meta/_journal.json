@@ -232,6 +232,13 @@
       "when": 1787724052259,
       "tag": "0032_cool_wallflower",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1788061058239,
+      "tag": "0033_public_stryfe",
+      "breakpoints": true
     }
   ]
 }

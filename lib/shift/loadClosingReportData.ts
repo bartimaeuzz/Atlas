@@ -3,9 +3,10 @@ import { db } from "@/db/client";
 import {
   shifts, shiftSales, onlinePlatforms, onlinePlatformSalesRecords,
   metricDefinitions, positionMetrics, metricValues, shiftWageAdjustments,
-  restaurantSettings, shiftRosterEntries,
+  restaurantSettings, shiftRosterEntries, positions,
 } from "@/db/schema";
 import { loadShiftCalcData, type TipPoolGroup } from "@/lib/shift/loadRosterForCalc";
+import { needsPointDecision, resolvePointWeightedPools } from "@/lib/shift/pointDecision";
 
 function round2(n: number): number {
   return Math.round((n + 1e-9) * 100) / 100;
@@ -41,6 +42,17 @@ export interface PointValueRow {
    * legacy single column) -- keeps the collapsed Tip points card from
    * hiding a bump that is in effect (2026-08-24). */
   hasOverride: boolean;
+  /** True when this person was placed in a position they hold no standing
+   * point for and nobody has decided their point yet (2026-08-29) -- the
+   * field renders EMPTY rather than pre-filled with the silent 1.0
+   * fallback, and Save & Finalize refuses until it is filled. See
+   * lib/shift/pointDecision.ts for why this is narrow. */
+  needsDecision: boolean;
+  /** The position's own template point, offered as a one-tap suggestion
+   * beside an undecided field. Null when the position has no default set.
+   * A tap is still a decision -- that is the whole difference from the
+   * fallback it replaces. */
+  suggestedPoint: number | null;
 }
 
 /** One "enter a number for this metric, for this person" input on the
@@ -143,24 +155,20 @@ export interface ClosingReportData {
   shiftMetricRows: ShiftMetricRow[];
   /** "Wage adjustments" section — optional override + extra pay per employee. */
   wageAdjustmentRows: WageAdjustmentRow[];
+  /** How many roster rows still need a tip point decided (2026-08-29).
+   * Non-zero means Save & Finalize is refused -- both here for the button
+   * and again server-side in confirmFinalize, which is the real gate. */
+  undecidedPointCount: number;
 }
 
 export async function loadClosingReportData(shiftId: number): Promise<ClosingReportData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, defaultSalesTaxRate: 0, pointWeightedPools: [], sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [] };
+  if (!shift) return { shift: null, defaultSalesTaxRate: 0, pointWeightedPools: [], sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [], undecidedPointCount: 0 };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
   const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
   const taxRate = settings?.defaultSalesTaxRate ?? 0;
-  const pointWeightedPools: TipPoolGroup[] = (
-    [
-      ["POOL_1_DINE_IN", settings?.pool1SplitMethod ?? "POINT_WEIGHTED"],
-      ["POOL_2_TAKEOUT_ONLINE", settings?.pool2SplitMethod ?? "POINT_WEIGHTED"],
-      ["POOL_3_DELIVERY", settings?.pool3SplitMethod ?? "EQUAL_SPLIT"],
-    ] as const
-  )
-    .filter(([, m]) => m === "POINT_WEIGHTED")
-    .map(([g]) => g);
+  const pointWeightedPools: TipPoolGroup[] = resolvePointWeightedPools(settings);
 
   const platforms = await db.select().from(onlinePlatforms);
   const records = await db
@@ -202,6 +210,15 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       r.pointValueOverride != null || r.pointOverridePool1 != null || r.pointOverridePool2 != null || r.pointOverridePool3 != null,
     ])
   );
+  // Position template points, for the one-tap suggestion beside an
+  // undecided field (2026-08-29). defaultTipPointValue is explicitly a
+  // template and never feeds calculation -- see positions in db/schema.ts.
+  const rosterPositionIdsForPoints = Array.from(new Set(calcData.roster.map((r) => r.positionId)));
+  const positionRows = rosterPositionIdsForPoints.length
+    ? await db.select().from(positions).where(inArray(positions.id, rosterPositionIdsForPoints))
+    : [];
+  const defaultPointByPositionId = new Map(positionRows.map((p) => [p.id, p.defaultTipPointValue]));
+
   const pointValueRows: PointValueRow[] = calcData.roster
     .filter((r) => r.tipPoolGroups.length > 0)
     .map((r) => ({
@@ -211,7 +228,10 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       tipPoolGroups: r.tipPoolGroups,
       pointValueByPool: r.pointValueByPool,
       hasOverride: overrideByEntry.get(r.rosterEntryId) === true,
+      needsDecision: needsPointDecision(r, pointWeightedPools),
+      suggestedPoint: defaultPointByPositionId.get(r.positionId) ?? null,
     }));
+  const undecidedPointCount = pointValueRows.filter((r) => r.needsDecision).length;
 
   // "Bonus metrics" section: enabled EMPLOYEE_SHIFT metrics collected at
   // close, matched against which roster rows are eligible via positionMetrics.
@@ -394,5 +414,6 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
     metricRows,
     shiftMetricRows,
     wageAdjustmentRows,
+    undecidedPointCount,
   };
 }
