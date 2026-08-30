@@ -166,7 +166,10 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
                   <div className="text-sm font-semibold text-[var(--ink-900)]">{p.employeeName}</div>
                   <div className="text-xs text-[var(--ink-500)]">
                     {p.positionName}
-                    {p.pointValueUsed ? ` · ${p.pointValueUsed} pt` : ""}
+                    {/* != null, not truthiness: a deliberate 0 pt is a real
+                        decision (this person takes no share of the pool) and
+                        must not render as nothing -- 2026-08-30. */}
+                    {p.pointValueUsed != null ? ` · ${p.pointValueUsed} pt` : ""}
                   </div>
                 </div>
                 <div className="text-lg font-bold text-[var(--ink-900)] tabular-nums">${p.totalCorePayout.toFixed(2)}</div>

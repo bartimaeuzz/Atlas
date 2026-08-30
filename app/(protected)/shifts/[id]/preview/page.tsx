@@ -155,7 +155,9 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                       </div>
                       <div className="text-xs text-[var(--ink-500)]">
                         {preview!.positionByEmployeeId[p.employeeId]?.positionName ?? "—"}
-                        {p.pointValueUsed ? ` · ${p.pointValueUsed} pt` : ""}
+                        {/* != null, not truthiness -- see the summary page's
+                            twin of this line. A 0 pt is a decision, not absence. */}
+                        {p.pointValueUsed != null ? ` · ${p.pointValueUsed} pt` : ""}
                       </div>
                     </div>
                     <div className="text-lg font-bold text-[var(--ink-900)] tabular-nums">${p.totalCorePayout.toFixed(2)}</div>
