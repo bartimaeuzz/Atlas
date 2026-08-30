@@ -159,7 +159,9 @@ function MyRequestRow({ request }: { request: SwapRequestView }) {
       ? `Accepted by ${request.acceptingEmployeeName} — awaiting manager approval`
       : request.status === "completed"
         ? `Swap completed${request.acceptingEmployeeName ? ` — ${request.acceptingEmployeeName} has it now` : ""}`
-        : STATUS_LABEL[request.status] ?? request.status;
+        : request.status === "cancelled" && request.cancelledByName
+          ? `Cancelled by ${request.cancelledByName} (manager)`
+          : STATUS_LABEL[request.status] ?? request.status;
 
   return (
     <li className="px-3 py-2.5 flex items-start justify-between gap-2">
@@ -172,6 +174,12 @@ function MyRequestRow({ request }: { request: SwapRequestView }) {
           </span>
         </div>
         <div className="text-[var(--ink-500)] text-xs mt-0.5">{label}</div>
+        {/* The manager's reason, verbatim (2026-08-30, Oliver: staff must
+            see why and by whom) -- this line IS the notification, so it
+            renders as a statement to the person, not a muted footnote. */}
+        {request.status === "cancelled" && request.cancelReason && (
+          <div className="text-[var(--ink-700)] text-xs mt-0.5">&ldquo;{request.cancelReason}&rdquo;</div>
+        )}
         {request.note && <div className="text-[var(--ink-400)] text-xs mt-0.5">&quot;{request.note}&quot;</div>}
         {error && <div className="text-[var(--danger-700)] text-xs mt-0.5">{error}</div>}
       </div>

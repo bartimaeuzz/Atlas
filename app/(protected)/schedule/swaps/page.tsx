@@ -3,6 +3,7 @@ import { businessTodayIso } from "@/lib/formatDateTime";
 import { weekStartFor } from "@/lib/schedule/weekMath";
 import { formatDayLabel } from "@/lib/format/formatDayLabel";
 import { SwapDecisionButtons } from "./SwapDecisionButtons";
+import { ManagerCancelButton } from "./ManagerCancelButton";
 import { MarkSeenOnMount } from "../MarkSeenOnMount";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
@@ -150,13 +151,21 @@ function SwapRow({ request: r, canDecide }: { request: SwapRequestView; canDecid
           </div>
         </div>
 
-        {needsDecision && (
-          <SwapDecisionButtons
-            requestId={r.id}
-            requestingEmployeeName={r.requestingEmployeeName}
-            acceptingEmployeeName={r.acceptingEmployeeName}
-            shiftLabel={shiftLabel}
-          />
+        {(needsDecision || (r.status === "open" && canDecide)) && (
+          <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+            {needsDecision && (
+              <SwapDecisionButtons
+                requestId={r.id}
+                requestingEmployeeName={r.requestingEmployeeName}
+                acceptingEmployeeName={r.acceptingEmployeeName}
+                shiftLabel={shiftLabel}
+              />
+            )}
+            {/* Manager cancel (2026-08-30): open AND pending both offer it --
+                open requests previously had no manager-side resolution at
+                all, which dead-ended the danger-zone delete gate. */}
+            <ManagerCancelButton requestId={r.id} requestingEmployeeName={r.requestingEmployeeName} />
+          </div>
         )}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { eq, and, gte, ne, inArray } from "drizzle-orm";
+import { eq, and, gte, ne, inArray, or } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   swapRequests,
@@ -24,6 +24,12 @@ export interface SwapRequestView {
   status: "open" | "pending_manager_approval" | "completed" | "declined" | "cancelled";
   note: string | null;
   createdAt: string;
+  /** Set when a MANAGER cancelled this request (2026-08-30): the reason
+   * they typed, shown VERBATIM to the requester, and who did it. Both
+   * null on a staff self-cancel and on every other status. */
+  cancelReason: string | null;
+  cancelledByEmployeeId: number | null;
+  cancelledByName: string | null;
 }
 
 /** Shared select shape for every loader below -- keeps the join list in
@@ -33,13 +39,25 @@ export interface SwapRequestView {
  * from one builder without extra ceremony; a manual second lookup pass
  * is simpler and these lists are always small). */
 async function hydrateAcceptingNames(rows: SwapRequestView[]): Promise<SwapRequestView[]> {
-  const acceptingIds = [...new Set(rows.map((r) => r.acceptingEmployeeId).filter((id): id is number => id !== null))];
-  if (acceptingIds.length === 0) return rows;
-  const accepters = await db.select().from(employees).where(inArray(employees.id, acceptingIds));
-  const nameById = new Map(accepters.map((e) => [e.id, e.nickname]));
+  // One lookup pass covers accepters AND manager-cancellers (2026-08-30)
+  // -- same second-join-avoidance reasoning as the comment above.
+  const ids = [
+    ...new Set(
+      rows
+        .flatMap((r) => [r.acceptingEmployeeId, r.status === "cancelled" ? r.cancelledByEmployeeId : null])
+        .filter((id): id is number => id !== null)
+    ),
+  ];
+  if (ids.length === 0) return rows;
+  const people = await db.select().from(employees).where(inArray(employees.id, ids));
+  const nameById = new Map(people.map((e) => [e.id, e.nickname]));
   return rows.map((r) => ({
     ...r,
     acceptingEmployeeName: r.acceptingEmployeeId !== null ? nameById.get(r.acceptingEmployeeId) ?? null : null,
+    cancelledByName:
+      r.status === "cancelled" && r.cancelledByEmployeeId !== null
+        ? nameById.get(r.cancelledByEmployeeId) ?? null
+        : null,
   }));
 }
 
@@ -62,6 +80,8 @@ function baseSwapQuery() {
       status: swapRequests.status,
       note: swapRequests.note,
       createdAt: swapRequests.createdAt,
+      cancelReason: swapRequests.cancelReason,
+      cancelledByEmployeeId: swapRequests.decidedByEmployeeId,
     })
     .from(swapRequests)
     .innerJoin(plannedShiftAssignments, eq(swapRequests.assignmentId, plannedShiftAssignments.id))
@@ -75,7 +95,7 @@ function baseSwapQuery() {
  * including past outcomes, is the point). */
 export async function loadMySwapRequests(employeeId: number): Promise<SwapRequestView[]> {
   const rows = await baseSwapQuery().where(eq(swapRequests.requestingEmployeeId, employeeId));
-  const withNames = await hydrateAcceptingNames(rows.map((r) => ({ ...r, acceptingEmployeeName: null })));
+  const withNames = await hydrateAcceptingNames(rows.map((r) => ({ ...r, acceptingEmployeeName: null, cancelledByName: null })));
   return withNames.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
@@ -99,7 +119,7 @@ export async function loadAcceptableSwapRequests(employeeId: number, todayIso: s
       inArray(plannedShiftAssignments.positionId, myPositionIds)
     )
   );
-  const withNames = await hydrateAcceptingNames(rows.map((r) => ({ ...r, acceptingEmployeeName: null })));
+  const withNames = await hydrateAcceptingNames(rows.map((r) => ({ ...r, acceptingEmployeeName: null, cancelledByName: null })));
   return withNames.sort((a, b) => a.date.localeCompare(b.date));
 }
 
@@ -145,10 +165,22 @@ export async function loadMySwappableAssignments(
  * in spirit (a log the manager can act on where action's needed, and
  * otherwise just review). */
 export async function loadSwapRequestsForManager(todayIso: string): Promise<SwapRequestView[]> {
+  // Unresolved requests (open/pending) show REGARDLESS of date
+  // (2026-08-30): a stale open swap on a shift that already happened is
+  // precisely what blocks the danger-zone deleters, and this page is
+  // where the blocking message sends the manager -- filtering it out by
+  // date made that message a dead end. The date filter still applies to
+  // the resolved log (completed/declined), which is only recent context.
   const rows = await baseSwapQuery().where(
-    and(gte(plannedShiftAssignments.date, todayIso), ne(swapRequests.status, "cancelled"))
+    and(
+      ne(swapRequests.status, "cancelled"),
+      or(
+        inArray(swapRequests.status, ["open", "pending_manager_approval"]),
+        gte(plannedShiftAssignments.date, todayIso)
+      )
+    )
   );
-  const withNames = await hydrateAcceptingNames(rows.map((r) => ({ ...r, acceptingEmployeeName: null })));
+  const withNames = await hydrateAcceptingNames(rows.map((r) => ({ ...r, acceptingEmployeeName: null, cancelledByName: null })));
   const statusRank: Record<string, number> = { pending_manager_approval: 0, open: 1, completed: 2, declined: 3 };
   return withNames.sort((a, b) => (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9) || a.date.localeCompare(b.date));
 }

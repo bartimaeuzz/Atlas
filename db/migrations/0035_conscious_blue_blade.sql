@@ -1,0 +1,1 @@
+ALTER TABLE `swap_requests` ADD `cancel_reason` text;

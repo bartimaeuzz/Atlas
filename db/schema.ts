@@ -1502,8 +1502,17 @@ export const swapRequests = sqliteTable("swap_requests", {
   note: text("note"),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
   respondedAt: text("responded_at"), // set when someone accepts, whichever path follows
-  decidedAt: text("decided_at"), // set only when a manager approves/declines
+  // Set when a MANAGER acts on the request: approve, decline, or -- since
+  // 2026-08-30 -- cancel. A staff self-cancel sets neither (their own
+  // withdrawal needs no attribution). This pair is how "cancelled by whom"
+  // reaches the requester's own swap panel.
+  decidedAt: text("decided_at"),
   decidedByEmployeeId: integer("decided_by_employee_id").references(() => employees.id),
+  // Required when a manager cancels (2026-08-30, Oliver: "notify staff that
+  // your request was cancel why and by whom") -- the requester sees this
+  // verbatim on My Schedule, so it's written TO the staff member, by the
+  // manager, at cancel time. Null on every other path.
+  cancelReason: text("cancel_reason"),
 });
 
 /* ---------------------------------------------------------------------- */

@@ -114,6 +114,48 @@ export async function cancelSwapRequest(requestId: number): Promise<ActionResult
 });
 }
 
+/** A MANAGER cancels someone else's swap request (2026-08-30, Oliver's
+ * call, made when the danger-zone delete gate exposed the gap: an OPEN
+ * request could only ever be cancelled by its own requester, so a
+ * blocked week-delete sent managers to a page with nothing they could
+ * act on). Allowed on open and pending_manager_approval -- the two
+ * states where the swap is still a live promise. A REASON IS REQUIRED:
+ * the requester sees it verbatim on their own My Schedule panel along
+ * with who cancelled ("notify staff that your request was cancel why
+ * and by whom"), so this field is the notification -- Atlas has no
+ * other channel to the staff member. Works on past-dated requests too;
+ * a stale open swap on a shift that already happened is exactly the
+ * kind this exists to clear. */
+export async function managerCancelSwapRequest(requestId: number, reason: string): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await requireCapability("SCHEDULE_MANAGE");
+
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) throw new Error("Add a short reason -- the person who posted this will see it");
+
+    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
+    if (!request) throw new Error("That request no longer exists");
+    if (request.status !== "open" && request.status !== "pending_manager_approval") {
+      throw new Error("That request has already been settled");
+    }
+
+    await db
+      .update(swapRequests)
+      .set({
+        status: "cancelled",
+        cancelReason: trimmedReason,
+        decidedAt: sql`(current_timestamp)`,
+        decidedByEmployeeId: session.id,
+      })
+      .where(eq(swapRequests.id, requestId));
+
+    revalidateSwapPaths();
+});
+}
+
 /** A coworker accepts an open swap request. Re-checks every eligibility
  * rule server-side: must actively hold the position, can't accept your
  * own request, can't already be assigned elsewhere at that exact
