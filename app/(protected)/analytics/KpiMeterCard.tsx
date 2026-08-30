@@ -1,6 +1,7 @@
 import { STATUS_COLORS } from "./palette";
 import { Card } from "@/components/ui/Card";
 import type { Benchmark } from "@/lib/analytics/loadPnL";
+import { formatShare } from "@/lib/analytics/formatShare";
 
 const STATUS_LABEL: Record<Benchmark["status"], string> = {
   in_range: "In range",
@@ -56,8 +57,12 @@ export function KpiMeterCard({ benchmark }: { benchmark: Benchmark }) {
     <Card>
       <div className="flex items-baseline justify-between mb-1">
         <h3 className="text-sm font-medium text-[var(--ink-700)]">{benchmark.label}</h3>
+        {/* Shared with the P&L table's column (2026-08-30) so one ratio can
+            never read "<0.1%" in the table and "0.0%" on the card above it.
+            benchmark.value is always a number here, so the em-dash branch is
+            unreachable from this caller -- that branch is the table's. */}
         <span className="text-xl font-semibold tabular-nums" style={{ color }}>
-          {(benchmark.value * 100).toFixed(1)}%
+          {formatShare(benchmark.value)}
         </span>
       </div>
 

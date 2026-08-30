@@ -7,6 +7,7 @@ import { PageHeader, Card } from "@/components/ui/Card";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { TextInput } from "@/components/ui/Field";
 import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
+import { formatShare } from "@/lib/analytics/formatShare";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NoAccess } from "@/components/NoAccess";
 
@@ -440,15 +441,6 @@ export default async function AnalyticsPage({
       )}
     </main>
   );
-}
-
-/** One decimal, matching the KPI meter cards above -- the same ratio must
- * not read as "31.2%" on a card and "31%" in the table. `null` share means
- * there was no revenue in the range; an em dash says "nothing to compare
- * against", which 0.0% would not. */
-function formatShare(share: number | null): string {
-  if (share == null) return "—";
-  return `${(share * 100).toFixed(1)}%`;
 }
 
 function PnLRow({
