@@ -49,6 +49,23 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
   }
 
   const totalPayout = data.payouts.reduce((a, p) => a + p.totalCorePayout, 0);
+  // Per-column subtotals (2026-08-31, Aey: "need subtotal in each and
+  // every column on summary closing report. easier for Aey to check back
+  // each column") — she reconciles this sheet column by column against
+  // Toast and the tip-pool math, and a foot total only on the last
+  // column made every other column a by-hand addition.
+  const sum = (f: (p: (typeof data.payouts)[number]) => number) => data.payouts.reduce((a, p) => a + f(p), 0);
+  const columnTotals = {
+    pool1: sum((p) => p.pool1Share),
+    pool2: sum((p) => p.pool2Share),
+    pool3: sum((p) => p.pool3Share),
+    drinkBonus: sum((p) => p.hostUpsellTipShare),
+    totalTip: sum((p) => p.totalTip),
+    wage: sum((p) => p.flatWageAmount),
+    extra: sum((p) => p.extraPayAmount),
+    incentive: sum((p) => p.incentiveAmount),
+    deduction: sum((p) => p.deductionAmount),
+  };
   const payoutGroups = [
     { header: "Floor Manager", items: data.payouts.filter((p) => p.positionName === "Floor Manager") },
     { header: "FOH — Front of house", items: data.payouts.filter((p) => p.positionName !== "Floor Manager" && p.positionCategory === "FOH") },
@@ -191,10 +208,24 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
             </div>
           ))}
           <Card className="p-4 bg-[var(--paper)]">
-            <div className="flex items-center justify-between font-semibold text-[var(--ink-900)]">
-              <span>Total</span>
+            <div className="flex items-center justify-between font-semibold text-[var(--ink-900)] mb-2">
+              <span>Totals</span>
               <span className="tabular-nums">${totalPayout.toFixed(2)}</span>
             </div>
+            {/* Same per-column subtotals the desktop tfoot carries
+                (2026-08-31, Aey) — the phone must not lose the
+                check-each-column workflow. */}
+            <dl className="text-xs grid grid-cols-2 gap-x-3 gap-y-1 border-t border-[var(--border)] pt-2">
+              {columnTotals.pool1 > 0 && <MiniRow label="Pool 1" value={`$${columnTotals.pool1.toFixed(2)}`} />}
+              {columnTotals.pool2 > 0 && <MiniRow label="Pool 2" value={`$${columnTotals.pool2.toFixed(2)}`} />}
+              {columnTotals.pool3 > 0 && <MiniRow label="Pool 3" value={`$${columnTotals.pool3.toFixed(2)}`} />}
+              {columnTotals.drinkBonus > 0 && <MiniRow label="Drink bonus" value={`$${columnTotals.drinkBonus.toFixed(2)}`} />}
+              <MiniRow label="Total tip" value={`$${columnTotals.totalTip.toFixed(2)}`} />
+              <MiniRow label="Flat wage" value={`$${columnTotals.wage.toFixed(2)}`} />
+              {columnTotals.extra > 0 && <MiniRow label="Extra pay" value={`$${columnTotals.extra.toFixed(2)}`} />}
+              {columnTotals.incentive > 0 && <MiniRow label="Incentive" value={`$${columnTotals.incentive.toFixed(2)}`} />}
+              {columnTotals.deduction > 0 && <MiniRow label="Deduction" value={`-$${columnTotals.deduction.toFixed(2)}`} tone="danger" />}
+            </dl>
           </Card>
         </div>
 
@@ -248,7 +279,21 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           <tfoot>
             <tr className="border-t-2 border-[var(--border-strong)] font-semibold">
               <td className="py-2.5 px-3">Total</td>
-              <td colSpan={11}></td>
+              {/* Point value stays blank on purpose: points are per-pool
+                  weights, and adding them across pools would print a
+                  number that means nothing. */}
+              <td colSpan={2}></td>
+              <td className="py-2.5 px-3 text-right tabular-nums">{columnTotals.pool1 > 0 ? `$${columnTotals.pool1.toFixed(2)}` : "—"}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">{columnTotals.pool2 > 0 ? `$${columnTotals.pool2.toFixed(2)}` : "—"}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">{columnTotals.pool3 > 0 ? `$${columnTotals.pool3.toFixed(2)}` : "—"}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">{columnTotals.drinkBonus > 0 ? `$${columnTotals.drinkBonus.toFixed(2)}` : "—"}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">${columnTotals.totalTip.toFixed(2)}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">${columnTotals.wage.toFixed(2)}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">{columnTotals.extra > 0 ? `$${columnTotals.extra.toFixed(2)}` : "—"}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">{columnTotals.incentive > 0 ? `$${columnTotals.incentive.toFixed(2)}` : "—"}</td>
+              <td className="py-2.5 px-3 text-right tabular-nums">
+                {columnTotals.deduction > 0 ? <span className="text-[var(--danger)]">{`-$${columnTotals.deduction.toFixed(2)}`}</span> : "—"}
+              </td>
               <td className="py-2.5 px-3 text-right tabular-nums">${totalPayout.toFixed(2)}</td>
             </tr>
           </tfoot>

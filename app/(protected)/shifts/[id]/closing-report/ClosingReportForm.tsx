@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { Fragment, useActionState, useEffect, useState } from "react";
 import {
   saveClosingReportSales, saveClosingReportAndPreview,
   type ClosingReportActionState,
@@ -529,6 +529,18 @@ function TipPointsSection({
     };
   });
 
+  // Grouped under position header rows (2026-08-31, Aey: "tip point on
+  // closing shift add row header of position. easy for human to scanning
+  // through sheet") — she reads this sheet position by position, and a
+  // flat list made every row a two-line read to find where Servers end
+  // and Hosts start. Order preserved from the roster.
+  const positionGroups: { positionName: string; rows: typeof editableRows }[] = [];
+  for (const r of editableRows) {
+    const last = positionGroups[positionGroups.length - 1];
+    if (last && last.positionName === r.positionName) last.rows.push(r);
+    else positionGroups.push({ positionName: r.positionName, rows: [r] });
+  }
+
   return (
     <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
       <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
@@ -536,7 +548,12 @@ function TipPointsSection({
         <span>Points per pool</span>
       </div>
       <div className="divide-y divide-[var(--border)]">
-        {editableRows.map((r) => (
+        {positionGroups.map((group) => (
+          <Fragment key={group.positionName}>
+            <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)]">
+              {group.positionName}
+            </div>
+            {group.rows.map((r) => (
           <div key={r.rosterEntryId} className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)] gap-2 px-3 py-2 items-center bg-[var(--card)]">
             <div className="text-sm text-[var(--ink-900)]">
               {r.employeeName}
@@ -603,6 +620,8 @@ function TipPointsSection({
               ))}
             </div>
           </div>
+            ))}
+          </Fragment>
         ))}
       </div>
       {poolTotals.length > 0 && (
