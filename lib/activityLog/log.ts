@@ -38,7 +38,11 @@ export type ActivityType =
   | "petty_cash.day.reconciliation_edited"
   | "ledger_card.import.committed"
   | "ledger_card.card.deleted"
-  | "shift.reopened";
+  | "shift.reopened"
+  // Manager answered "whole day" to the day-total question at second-shift
+  // close (2026-08-31): the earlier shift's saved figures were subtracted
+  // before saving, and the raw entered numbers survive only in this row.
+  | "shift.closing_sales.day_totals_split";
 
 export interface ActivityEntry {
   actorEmployeeId: number;

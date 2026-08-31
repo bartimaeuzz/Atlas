@@ -12,13 +12,15 @@ import {
   shiftWageAdjustments, shiftAttendanceMarks,
   hostUpsellTipRecords, deliveryCashTipRecords, tipPoolCalculations, employeePayouts,
   scheduleWeeks, plannedShiftAssignments, employeePositions,
-  payrollPeriods, incentivePayoutRecords,
+  payrollPeriods, incentivePayoutRecords, restaurantSettings,
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
 import { describeUndecided, loadUndecidedPointRows } from "@/lib/shift/pointDecision";
+import { loadPriorShiftFigures } from "@/lib/shift/loadClosingReportData";
+import { subtractDayTotals, TOAST_DAY_TOTAL_FIELDS, PLATFORM_DAY_TOTAL_FIELDS } from "@/lib/shift/priorShiftSales";
 import { weekStartFor } from "@/lib/schedule/weekMath";
 import { getCurrentStaffSession } from "@/lib/auth/session";
-import { logActivityStatement } from "@/lib/activityLog/log";
+import { logActivity, logActivityStatement } from "@/lib/activityLog/log";
 
 /** 2026-08-21 — server-action auth audit: this file had NO auth check at
  * all before, on any of its six exported actions, including
@@ -560,18 +562,12 @@ export async function confirmFinalize(
 }
 
 async function upsertClosingReportSales(shiftId: number, formData: FormData, decidedByEmployeeId: number) {
-  await upsertPointOverrides(shiftId, formData, decidedByEmployeeId);
-  await upsertMetricValues(shiftId, formData);
-  await upsertWageAdjustments(shiftId, formData);
-
-  // Incident report (2026-08-25, Oliver) -- free text on the shift
-  // itself, saved with every closing-report save so it can't be lost by
-  // choosing the "wrong" of the two save buttons.
-  await db
-    .update(shifts)
-    .set({ incidentReport: String(formData.get("incidentReport") ?? "").trim() || null })
-    .where(eq(shifts.id, shiftId));
-
+  // VALIDATE EVERYTHING BEFORE WRITING ANYTHING. The day-total gate below
+  // can refuse the save, and the form's error banner promises "nothing
+  // was recorded" — that sentence must stay true, so no table is touched
+  // until every refusal path has had its chance to throw (2026-08-31; the
+  // first cut ran the point/metric/wage upserts first and made a refused
+  // sales save silently half-apply).
   const num = (key: string) => Number(formData.get(key) ?? 0) || 0;
 
   const salesValues = {
@@ -592,6 +588,99 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     salesTax: num("salesTax"),
   };
 
+  /* Day-total question (2026-08-31, Aey's run-through). Toast — and the
+   * online-platform dashboards — may show DAY-TO-DATE numbers at Dinner
+   * close, and a cumulative figure saved as Dinner's own inflates
+   * Dinner's tip pools and pays the wrong crew. When an earlier shift
+   * exists today, the manager MUST answer what the entered numbers
+   * cover; "whole day" subtracts the earlier shift's saved figures via
+   * the same pure helper the form previews with. The server re-derives
+   * everything here — the client's idea of "is there a prior shift" is
+   * never trusted. Recomputed prior figures come from ONE shared loader
+   * (loadPriorShiftFigures) so preview and stored money cannot drift. */
+  const [shiftRow] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
+  const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
+  const prior = shiftRow
+    ? await loadPriorShiftFigures(shiftRow.date, shiftRow.period, settings?.defaultSalesTaxRate ?? 0)
+    : null;
+
+  let toastSubtraction: { entered: Record<string, number>; subtracted: Record<string, number> } | null = null;
+  if (prior) {
+    const toastMode = String(formData.get("toastEntryMode") ?? "");
+    if (toastMode !== "shift" && toastMode !== "day") {
+      throw new Error(
+        `${prior.period} was already closed today, so Atlas needs to know what the Toast numbers cover — ` +
+          `choose "This shift only" or "Whole day" at the top of the Sales card. Nothing was saved.`
+      );
+    }
+    if (toastMode === "day") {
+      if (!prior.toast) {
+        throw new Error(
+          `You chose "Whole day", but ${prior.period}'s closing report was never saved, so there is nothing ` +
+            `to subtract. Save ${prior.period}'s report first — or enter this shift's own numbers and choose ` +
+            `"This shift only". Nothing was saved.`
+        );
+      }
+      const r = subtractDayTotals(salesValues, prior.toast, TOAST_DAY_TOTAL_FIELDS, "Toast", prior.period);
+      if (!r.ok) throw new Error(r.error);
+      toastSubtraction = { entered: { ...salesValues }, subtracted: prior.toast };
+      Object.assign(salesValues, r.values);
+    }
+  }
+
+  const priorPlatformFigures = new Map((prior?.platforms ?? []).map((p) => [p.platformId, p]));
+  let platformDayMode = false;
+  if (prior && priorPlatformFigures.size > 0) {
+    const platformMode = String(formData.get("platformEntryMode") ?? "");
+    if (platformMode !== "shift" && platformMode !== "day") {
+      throw new Error(
+        `${prior.period} already recorded online-platform sales today, so Atlas needs to know what the ` +
+          `platform numbers cover — choose "This shift only" or "Whole day" in the Online platform sales card. ` +
+          `Nothing was saved.`
+      );
+    }
+    platformDayMode = platformMode === "day";
+  }
+
+  // Per-platform final values, computed and validated BEFORE any write —
+  // a mid-loop refusal must not leave the shift half-saved.
+  const platformSubtractions: { platformName: string; entered: Record<string, number>; subtracted: Record<string, number> }[] = [];
+  const platforms = await db.select().from(onlinePlatforms);
+  const platformFinalValues: { platformId: number; values: Record<string, number> }[] = [];
+  for (const platform of platforms) {
+    const enteredValues: Record<string, number> = {
+      salesAmount: num(`platform_${platform.id}_salesAmount`),
+      commissionFee: num(`platform_${platform.id}_commissionFee`),
+      tipAmountPlatformCourier: num(`platform_${platform.id}_tipCourier`),
+      tipAmountRestaurantDelivery: num(`platform_${platform.id}_tipRestaurantDelivery`),
+      taxAmount: num(`platform_${platform.id}_taxAmount`), // 2026-08-10, same pre-filled-suggestion pattern as shiftSales.salesTax
+    };
+
+    let finalValues = enteredValues;
+    const priorFigures = priorPlatformFigures.get(platform.id);
+    if (platformDayMode && priorFigures && prior) {
+      const r = subtractDayTotals(enteredValues, priorFigures.figures, PLATFORM_DAY_TOTAL_FIELDS, platform.name, prior.period);
+      if (!r.ok) throw new Error(r.error);
+      finalValues = r.values;
+      platformSubtractions.push({ platformName: platform.name, entered: enteredValues, subtracted: priorFigures.figures });
+    }
+    platformFinalValues.push({ platformId: platform.id, values: finalValues });
+  }
+
+  /* -------- everything below is writes; nothing above touched a table -------- */
+
+  await upsertPointOverrides(shiftId, formData, decidedByEmployeeId);
+  await upsertMetricValues(shiftId, formData);
+  await upsertWageAdjustments(shiftId, formData);
+
+  // Incident report (2026-08-25, Oliver) -- free text on the shift
+  // itself, saved with every closing-report save so it can't be lost by
+  // choosing the "wrong" of the two save buttons.
+  await db
+    .update(shifts)
+    .set({ incidentReport: String(formData.get("incidentReport") ?? "").trim() || null })
+    .where(eq(shifts.id, shiftId));
+
   const [existing] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
   if (existing) {
     await db.update(shiftSales).set(salesValues).where(eq(shiftSales.shiftId, shiftId));
@@ -599,14 +688,11 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     await db.insert(shiftSales).values({ shiftId, ...salesValues });
   }
 
-  const platforms = await db.select().from(onlinePlatforms);
-  for (const platform of platforms) {
-    const salesAmount = num(`platform_${platform.id}_salesAmount`);
-    const commissionFee = num(`platform_${platform.id}_commissionFee`);
-    const tipAmountPlatformCourier = num(`platform_${platform.id}_tipCourier`);
-    const tipAmountRestaurantDelivery = num(`platform_${platform.id}_tipRestaurantDelivery`);
-    const taxAmount = num(`platform_${platform.id}_taxAmount`); // 2026-08-10, same pre-filled-suggestion pattern as shiftSales.salesTax
-    const netAmount = Math.round((salesAmount - commissionFee) * 100) / 100;
+  for (const { platformId, values: finalValues } of platformFinalValues) {
+    // Net is derived from the FINAL per-shift figures, after any
+    // subtraction — subtraction is linear so either order agrees, but
+    // deriving from what gets stored keeps the row self-consistent.
+    const netAmount = Math.round((finalValues.salesAmount - finalValues.commissionFee) * 100) / 100;
 
     const [existingRecord] = await db
       .select()
@@ -614,19 +700,45 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
       .where(
         and(
           eq(onlinePlatformSalesRecords.shiftId, shiftId),
-          eq(onlinePlatformSalesRecords.onlinePlatformId, platform.id)
+          eq(onlinePlatformSalesRecords.onlinePlatformId, platformId)
         )
       );
 
-    const values = { salesAmount, commissionFee, netAmount, tipAmountPlatformCourier, tipAmountRestaurantDelivery, taxAmount };
+    const values = {
+      salesAmount: finalValues.salesAmount,
+      commissionFee: finalValues.commissionFee,
+      netAmount,
+      tipAmountPlatformCourier: finalValues.tipAmountPlatformCourier,
+      tipAmountRestaurantDelivery: finalValues.tipAmountRestaurantDelivery,
+      taxAmount: finalValues.taxAmount,
+    };
     if (existingRecord) {
       await db
         .update(onlinePlatformSalesRecords)
         .set(values)
         .where(eq(onlinePlatformSalesRecords.id, existingRecord.id));
     } else {
-      await db.insert(onlinePlatformSalesRecords).values({ shiftId, onlinePlatformId: platform.id, ...values });
+      await db.insert(onlinePlatformSalesRecords).values({ shiftId, onlinePlatformId: platformId, ...values });
     }
+  }
+
+  // The raw entered numbers survive ONLY here — the sales rows store the
+  // per-shift result. A later "why is Dinner's total $3,000 when Toast
+  // said $5,000?" must be answerable from the log alone.
+  if ((toastSubtraction || platformSubtractions.length > 0) && shiftRow && prior) {
+    await logActivity({
+      actorEmployeeId: decidedByEmployeeId,
+      type: "shift.closing_sales.day_totals_split",
+      entityType: "shift",
+      entityId: String(shiftId),
+      summary:
+        `${shiftRow.period} close on ${shiftRow.date}: manager entered whole-day totals; ` +
+        `${prior.period}'s saved figures were subtracted before saving` +
+        `${toastSubtraction ? " (Toast" : " ("}` +
+        `${toastSubtraction && platformSubtractions.length > 0 ? " + " : ""}` +
+        `${platformSubtractions.map((p) => p.platformName).join(", ")})`,
+      detail: { toast: toastSubtraction, platforms: platformSubtractions },
+    });
   }
 }
 

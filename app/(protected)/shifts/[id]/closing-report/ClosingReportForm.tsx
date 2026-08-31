@@ -5,7 +5,8 @@ import {
   saveClosingReportSales, saveClosingReportAndPreview,
   type ClosingReportActionState,
 } from "@/lib/actions/shift";
-import type { ClosingReportData, PlatformSalesRow as PlatformSalesRowData } from "@/lib/shift/loadClosingReportData";
+import type { ClosingReportData, PlatformSalesRow as PlatformSalesRowData, PriorShiftFigures } from "@/lib/shift/loadClosingReportData";
+import { TOAST_DAY_TOTAL_FIELDS, PLATFORM_DAY_TOTAL_FIELDS } from "@/lib/shift/priorShiftSales";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ChevronDownIcon } from "@/components/ui/icons";
@@ -56,7 +57,6 @@ export function ClosingReportForm({
     return () => clearTimeout(t);
   }, [saveState.savedAt, clearedSavedAt]);
   const [previewState, previewFormAction, isGoingToPreview] = useActionState(saveClosingReportAndPreview, initialState);
-  const s = data.sales;
   const error = saveState.error ?? previewState.error;
   const taxRate = data.defaultSalesTaxRate;
 
@@ -86,15 +86,15 @@ export function ClosingReportForm({
   );
   const hasDeductions = data.wageAdjustmentRows.some((r) => r.deductionAmount !== 0 || r.deductionReason);
 
-  // "" over a literal 0 for untouched fields (2026-08-25, Oliver) --
-  // these two are controlled for the live tax recompute, so the empty
-  // state rides in the state type. Blank posts as 0, same as before.
-  const [totalSales, setTotalSales] = useState<number | "">(s?.totalSales || "");
-  const [salesTax, setSalesTax] = useState<number | "">(s?.salesTax || "");
-  const [taxTouched, setTaxTouched] = useState(s ? !s.salesTaxIsAuto : false);
-
   return (
-    <form className="space-y-4">
+    // Keyed on the save nonce (2026-08-31): after a save, every input —
+    // uncontrolled defaultValue fields AND the controlled state inside
+    // ToastSalesCard/PlatformSalesRow — remounts from the freshly
+    // revalidated server props. Without this, a "whole day" save leaves
+    // the fields showing the entered day totals while the database holds
+    // the subtracted per-shift figures — a silent screen-vs-DB mismatch,
+    // exactly the rendered-only defect class this repo keeps meeting.
+    <form key={saveState.savedAt ?? "initial"} className="space-y-4">
       <input type="hidden" name="shiftId" value={shiftId} />
 
       {error && (
@@ -107,65 +107,7 @@ export function ClosingReportForm({
       {/* Each topic is its own Card (2026-08-24, Oliver) -- six sections of
           very different kinds (money entry, per-person bumps, exceptions)
           used to share one undivided column. */}
-      <Card>
-      <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Sales</legend>
-        <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
-          <label className="text-sm block">
-            <span className="block text-[var(--ink-500)] mb-1">Total sales (Net, before tax)</span>
-            <input
-              type="number"
-              step={0.01}
-              name="totalSales"
-              value={totalSales}
-              placeholder="0"
-              onChange={(e) => {
-                const raw = e.target.value;
-                const val = Number(raw) || 0;
-                setTotalSales(raw === "" ? "" : val);
-                if (!taxTouched) setSalesTax(raw === "" ? "" : round2(val * taxRate));
-              }}
-              className={INPUT}
-            />
-          </label>
-          <div>
-            <label className="text-sm block">
-              <span className="block text-[var(--ink-500)] mb-1">Sales tax</span>
-              <input
-                type="number"
-                step={0.01}
-                name="salesTax"
-                value={salesTax}
-                placeholder="0"
-                onChange={(e) => {
-                  setSalesTax(e.target.value === "" ? "" : Number(e.target.value) || 0);
-                  setTaxTouched(true);
-                }}
-                className={INPUT}
-              />
-            </label>
-            {!taxTouched && (
-              <p className="text-xs text-[var(--ink-400)] mt-1">
-                Auto-calculated from the tax rate in Settings ({(taxRate * 100).toFixed(3)}%) — edit if
-                Toast&apos;s actual number differs.
-              </p>
-            )}
-          </div>
-          <Field label="CC tip total (Toast, all sources)" name="ccTipTotal" defaultValue={s?.ccTipTotal} />
-          <Field label="Takeout CC tip (subset of above)" name="takeoutCcTip" defaultValue={s?.takeoutCcTip} />
-          <Field label="Delivery Toast tip (subset of above)" name="deliveryToastTip" defaultValue={s?.deliveryToastTip} />
-          <Field label="Cash sales" name="cashSales" defaultValue={s?.cashSales} />
-          <Field label="Cash tip (entered by floor manager, no deduction)" name="cashTip" defaultValue={s?.cashTip} />
-          <Field label="Gross food sales" name="grossFoodSales" defaultValue={s?.grossFoodSales} />
-          <Field label="Gross beverage sales" name="grossBeverageSales" defaultValue={s?.grossBeverageSales} />
-        </div>
-        <p className="text-xs text-[var(--ink-500)] mt-2">
-          &quot;CC tip total&quot; must be the FULL day&apos;s card tip total — takeout and delivery tip are a
-          subset of it, not extra on top. Fill this in first. &quot;Total sales&quot; is Net Sale (before tax) —
-          same meaning it&apos;s always had, tax is now tracked separately.
-        </p>
-      </fieldset>
-      </Card>
+      <ToastSalesCard s={data.sales} taxRate={taxRate} prior={data.priorShift} isFinalized={isFinalized} />
 
       <Card>
       {/* Opens itself when someone's point is still undecided (2026-08-29):
@@ -224,7 +166,7 @@ export function ClosingReportForm({
         </summary>
         <fieldset disabled={isFinalized} className="mt-2">
         <p className="text-xs text-[var(--ink-500)] mb-3">
-          Restaurant-configurable bonuses — today that's the host team&apos;s shared
+          Restaurant-configurable bonuses — today that&apos;s the host team&apos;s shared
           drink count (paid $ per drink, pulled off the top of Pool 1 before the
           split, then split equally among whoever worked Host — see Preview).
           Adding a new bonus later shows up here automatically, no page changes needed.
@@ -455,20 +397,12 @@ export function ClosingReportForm({
       </details>
       </Card>
 
-      <Card>
-      <fieldset disabled={isFinalized}>
-        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Online platform sales</legend>
-        <p className="text-xs text-[var(--ink-500)] mb-3">
-          Split tips by who delivered: platform-courier tips feed Pool 2 (Host/Operator/Packer/Bag
-          Handler), restaurant-driver tips feed Pool 3 (Delivery Guy).
-        </p>
-        <div className="space-y-4">
-          {data.platformSales.map((p) => (
-            <PlatformSalesRow key={p.platformId} platform={p} taxRate={taxRate} />
-          ))}
-        </div>
-      </fieldset>
-      </Card>
+      <PlatformSalesCard
+        platforms={data.platformSales}
+        taxRate={taxRate}
+        prior={data.priorShift}
+        isFinalized={isFinalized}
+      />
 
       <Card>
       <fieldset disabled={isFinalized}>
@@ -688,19 +622,345 @@ function TipPointsSection({
   );
 }
 
+/** The "what do these numbers cover?" question (2026-08-31, Aey's
+ * run-through). Rendered ONLY when an earlier shift already closed today
+ * — the one situation where a number copied off a screen might be a
+ * day-to-date total rather than this shift's own. Warning-tinted and
+ * unanswered by default on purpose: the manager must decide every time;
+ * a remembered answer would be a silent default on money. The server
+ * enforces the same requirement — this control is the friendly half of
+ * a two-sided gate, not the gate itself. */
+function DayTotalChooser({
+  name,
+  priorPeriod,
+  sourceLabel,
+  mode,
+  onModeChange,
+  dayDisabledReason,
+  subtractLines,
+  extraNote,
+  priorIsDraft,
+}: {
+  name: string;
+  priorPeriod: string;
+  sourceLabel: string;
+  mode: "" | "shift" | "day";
+  onModeChange: (m: "shift" | "day") => void;
+  dayDisabledReason: string | null;
+  subtractLines: { label: string; amount: number }[];
+  extraNote?: string;
+  priorIsDraft: boolean;
+}) {
+  return (
+    <div className="mb-4 rounded-[var(--radius-md)] border border-[var(--warning-border)] bg-[var(--warning-tint)] p-3">
+      <p className="text-sm font-medium text-[var(--ink-900)]">
+        {priorPeriod} is already closed today — what do the {sourceLabel} numbers cover?
+      </p>
+      <p className="text-xs text-[var(--ink-700)] mt-0.5">
+        Pick one before saving. This decides whether {priorPeriod}&apos;s saved numbers get subtracted.
+      </p>
+      <div className="mt-1">
+        <label className="flex items-start gap-2.5 min-h-11 py-1.5 cursor-pointer text-sm">
+          <input
+            type="radio"
+            name={name}
+            value="shift"
+            required
+            checked={mode === "shift"}
+            onChange={() => onModeChange("shift")}
+            className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--primary-700)]"
+          />
+          <span>
+            <span className="font-medium text-[var(--ink-900)]">This shift only</span>
+            <span className="block text-xs text-[var(--ink-500)]">
+              The numbers do NOT include {priorPeriod} — save them exactly as typed.
+            </span>
+          </span>
+        </label>
+        <label
+          className={
+            "flex items-start gap-2.5 min-h-11 py-1.5 text-sm " +
+            (dayDisabledReason ? "opacity-50 cursor-not-allowed" : "cursor-pointer")
+          }
+        >
+          <input
+            type="radio"
+            name={name}
+            value="day"
+            required
+            disabled={!!dayDisabledReason}
+            checked={mode === "day"}
+            onChange={() => onModeChange("day")}
+            className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--primary-700)]"
+          />
+          <span>
+            <span className="font-medium text-[var(--ink-900)]">Whole day so far</span>
+            <span className="block text-xs text-[var(--ink-500)]">
+              The screen shows {priorPeriod} and this shift together — Atlas will subtract{" "}
+              {priorPeriod}&apos;s saved numbers before saving, and the fields will show the result.
+            </span>
+          </span>
+        </label>
+      </div>
+      {dayDisabledReason && <p className="text-xs text-[var(--warning-700)] mt-1">{dayDisabledReason}</p>}
+      {mode === "day" && (
+        <div className="mt-2 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--card)] p-2.5">
+          <p className="text-xs font-medium text-[var(--ink-900)] mb-1">
+            Will subtract {priorPeriod}&apos;s saved numbers:
+          </p>
+          {subtractLines.length === 0 ? (
+            <p className="text-xs text-[var(--ink-500)]">
+              {priorPeriod} saved all zeros — nothing changes, but your choice is still recorded.
+            </p>
+          ) : (
+            <ul className="text-xs text-[var(--ink-700)] space-y-0.5">
+              {subtractLines.map((l) => (
+                <li key={l.label} className="tabular-nums">
+                  {l.label}: −${l.amount.toFixed(2)}
+                </li>
+              ))}
+            </ul>
+          )}
+          {extraNote && <p className="text-xs text-[var(--ink-500)] mt-1.5">{extraNote}</p>}
+          {priorIsDraft && (
+            <p className="text-xs text-[var(--warning-700)] mt-1.5">
+              {priorPeriod} is still a draft — if its numbers change later, come back and re-check this
+              shift&apos;s.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The Toast sales card, split out of the main form (2026-08-31) so its
+ * controlled fields live under the form's save-nonce key and remount
+ * with fresh server values after every save — see the key comment on the
+ * <form> element. Also hosts the Toast day-total question. */
+function ToastSalesCard({
+  s,
+  taxRate,
+  prior,
+  isFinalized,
+}: {
+  s: ClosingReportData["sales"];
+  taxRate: number;
+  prior: PriorShiftFigures | null;
+  isFinalized: boolean;
+}) {
+  // "" over a literal 0 for untouched fields (2026-08-25, Oliver) --
+  // these two are controlled for the live tax recompute, so the empty
+  // state rides in the state type. Blank posts as 0, same as before.
+  const [totalSales, setTotalSales] = useState<number | "">(s?.totalSales || "");
+  const [salesTax, setSalesTax] = useState<number | "">(s?.salesTax || "");
+  const [taxTouched, setTaxTouched] = useState(s ? !s.salesTaxIsAuto : false);
+  const [mode, setMode] = useState<"" | "shift" | "day">("");
+
+  const dayMode = mode === "day" && !!prior?.toast;
+  const lunchTotal = prior?.toast?.totalSales ?? 0;
+  const liveDinnerTotal = dayMode && typeof totalSales === "number" ? round2(totalSales - lunchTotal) : null;
+
+  return (
+    <Card>
+      <fieldset disabled={isFinalized}>
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Sales</legend>
+        {prior && !isFinalized && (
+          <DayTotalChooser
+            name="toastEntryMode"
+            priorPeriod={prior.period}
+            sourceLabel="Toast"
+            mode={mode}
+            onModeChange={setMode}
+            dayDisabledReason={
+              prior.toast
+                ? null
+                : `${prior.period}'s closing report hasn't been saved yet, so there's nothing to subtract. ` +
+                  `Save ${prior.period}'s report first if Toast is showing whole-day numbers.`
+            }
+            subtractLines={TOAST_DAY_TOTAL_FIELDS.map((f) => ({
+              label: f.label,
+              amount: prior.toast?.[f.key] ?? 0,
+            })).filter((l) => l.amount !== 0)}
+            extraNote="Cash tip is never subtracted — it's counted from the drawer, not copied from Toast."
+            priorIsDraft={!prior.finalized}
+          />
+        )}
+        <div className="grid sm:grid-cols-2 gap-4 max-w-xl">
+          <div>
+            <label className="text-sm block">
+              <span className="block text-[var(--ink-500)] mb-1">Total sales (Net, before tax)</span>
+              <input
+                type="number"
+                step={0.01}
+                name="totalSales"
+                value={totalSales}
+                placeholder="0"
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  const val = Number(raw) || 0;
+                  setTotalSales(raw === "" ? "" : val);
+                  if (!taxTouched) setSalesTax(raw === "" ? "" : round2(val * taxRate));
+                }}
+                className={INPUT}
+              />
+            </label>
+            {/* Live headline math for whole-day mode: the manager sees the
+                per-shift result BEFORE saving, not only after. */}
+            {liveDinnerTotal != null && (
+              <p
+                className={
+                  "text-xs mt-1 tabular-nums " +
+                  (liveDinnerTotal < 0 ? "text-[var(--danger-700)]" : "text-[var(--ink-700)]")
+                }
+              >
+                {liveDinnerTotal < 0
+                  ? `That's less than ${prior?.period}'s $${lunchTotal.toFixed(2)} alone — a day total can't be smaller. Check the number.`
+                  : `− ${prior?.period} $${lunchTotal.toFixed(2)} = $${liveDinnerTotal.toFixed(2)} saved for this shift`}
+              </p>
+            )}
+          </div>
+          <div>
+            <label className="text-sm block">
+              <span className="block text-[var(--ink-500)] mb-1">Sales tax</span>
+              <input
+                type="number"
+                step={0.01}
+                name="salesTax"
+                value={salesTax}
+                placeholder="0"
+                onChange={(e) => {
+                  setSalesTax(e.target.value === "" ? "" : Number(e.target.value) || 0);
+                  setTaxTouched(true);
+                }}
+                className={INPUT}
+              />
+            </label>
+            {!taxTouched && (
+              <p className="text-xs text-[var(--ink-400)] mt-1">
+                Auto-calculated from the tax rate in Settings ({(taxRate * 100).toFixed(3)}%) — edit if
+                Toast&apos;s actual number differs.
+              </p>
+            )}
+          </div>
+          <Field label="CC tip total (Toast, all sources)" name="ccTipTotal" defaultValue={s?.ccTipTotal} />
+          <Field label="Takeout CC tip (subset of above)" name="takeoutCcTip" defaultValue={s?.takeoutCcTip} />
+          <Field label="Delivery Toast tip (subset of above)" name="deliveryToastTip" defaultValue={s?.deliveryToastTip} />
+          <Field label="Cash sales" name="cashSales" defaultValue={s?.cashSales} />
+          <Field label="Cash tip (entered by floor manager, no deduction)" name="cashTip" defaultValue={s?.cashTip} />
+          <Field label="Gross food sales" name="grossFoodSales" defaultValue={s?.grossFoodSales} />
+          <Field label="Gross beverage sales" name="grossBeverageSales" defaultValue={s?.grossBeverageSales} />
+        </div>
+        <p className="text-xs text-[var(--ink-500)] mt-2">
+          &quot;CC tip total&quot; must be the FULL day&apos;s card tip total — takeout and delivery tip are a
+          subset of it, not extra on top. Fill this in first. &quot;Total sales&quot; is Net Sale (before tax) —
+          same meaning it&apos;s always had, tax is now tracked separately.
+        </p>
+      </fieldset>
+    </Card>
+  );
+}
+
+/** The online-platform card, split out (2026-08-31) to host the platform
+ * day-total question — platform dashboards show day-to-date numbers
+ * regardless of how Toast is configured, so this is a SEPARATE question
+ * with its own answer, not a rider on the Toast one. */
+function PlatformSalesCard({
+  platforms,
+  taxRate,
+  prior,
+  isFinalized,
+}: {
+  platforms: PlatformSalesRowData[];
+  taxRate: number;
+  prior: PriorShiftFigures | null;
+  isFinalized: boolean;
+}) {
+  const [mode, setMode] = useState<"" | "shift" | "day">("");
+  const askable = !!prior && prior.platforms.length > 0;
+  const lunchByPlatformId = new Map((prior?.platforms ?? []).map((p) => [p.platformId, p.figures]));
+
+  return (
+    <Card>
+      <fieldset disabled={isFinalized}>
+        <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Online platform sales</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
+          Split tips by who delivered: platform-courier tips feed Pool 2 (Host/Operator/Packer/Bag
+          Handler), restaurant-driver tips feed Pool 3 (Delivery Guy).
+        </p>
+        {askable && !isFinalized && prior && (
+          <DayTotalChooser
+            name="platformEntryMode"
+            priorPeriod={prior.period}
+            sourceLabel="platform dashboard"
+            mode={mode}
+            onModeChange={setMode}
+            dayDisabledReason={null}
+            subtractLines={prior.platforms.flatMap((p) =>
+              PLATFORM_DAY_TOTAL_FIELDS.map((f) => ({
+                label: `${p.platformName} — ${f.label}`,
+                amount: p.figures[f.key] ?? 0,
+              })).filter((l) => l.amount !== 0)
+            )}
+            extraNote="Platform dashboards (DoorDash, Uber, …) usually show the whole day — check each one the same way you checked Toast."
+            priorIsDraft={!prior.finalized}
+          />
+        )}
+        <div className="space-y-4">
+          {platforms.map((p) => (
+            <PlatformSalesRow
+              key={p.platformId}
+              platform={p}
+              taxRate={taxRate}
+              dayMode={mode === "day"}
+              lunchFigures={lunchByPlatformId.get(p.platformId)}
+              priorPeriod={prior?.period}
+            />
+          ))}
+        </div>
+      </fieldset>
+    </Card>
+  );
+}
+
 /** One online platform's Sales amount / Sales tax pair, split out as its
  * own component (2026-08-10) so each platform gets its own independent
  * live-recompute state — same pattern as the Toast Total sales/Sales tax
  * fields above, needed here per-platform since each platform's tax is
  * computed off ITS OWN sales amount, not a shared one. */
-function PlatformSalesRow({ platform: p, taxRate }: { platform: PlatformSalesRowData; taxRate: number }) {
+function PlatformSalesRow({
+  platform: p,
+  taxRate,
+  dayMode,
+  lunchFigures,
+  priorPeriod,
+}: {
+  platform: PlatformSalesRowData;
+  taxRate: number;
+  dayMode?: boolean;
+  lunchFigures?: Record<string, number>;
+  priorPeriod?: string;
+}) {
   const [salesAmount, setSalesAmount] = useState<number | "">(p.salesAmount || "");
   const [taxAmount, setTaxAmount] = useState<number | "">(p.taxAmount || "");
   const [taxTouched, setTaxTouched] = useState(!p.taxAmountIsAuto);
 
   return (
     <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)]">
-      <div className="text-sm font-medium mb-2">{p.platformName}</div>
+      <div className="text-sm font-medium mb-2">
+        {p.platformName}
+        {dayMode && lunchFigures && (
+          <span className="block text-xs font-normal text-[var(--ink-500)] tabular-nums">
+            {priorPeriod} recorded: sales ${(lunchFigures.salesAmount ?? 0).toFixed(2)} — will be subtracted
+            before saving
+          </span>
+        )}
+        {dayMode && !lunchFigures && (
+          <span className="block text-xs font-normal text-[var(--ink-500)]">
+            {priorPeriod} recorded nothing for this platform — saved as typed
+          </span>
+        )}
+      </div>
       <div className="grid sm:grid-cols-5 gap-3">
         <label className="text-sm block">
           <span className="block text-[var(--ink-500)] mb-1 min-h-10 flex items-end">Sales amount (Net)</span>

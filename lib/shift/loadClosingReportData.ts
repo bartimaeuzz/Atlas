@@ -114,8 +114,28 @@ export interface WageAdjustmentRow {
   deductionReason: string | null;
 }
 
+/** The earlier shift of the same day, for the day-total question at close
+ * (2026-08-31, Aey's run-through): Toast — and every online-platform
+ * dashboard — may show DAY-TO-DATE numbers at Dinner close, so the form
+ * must ask what the entered numbers cover and be able to show exactly
+ * what would be subtracted. `toast` is null when Lunch's closing report
+ * was never saved — in that case whole-day entry is refused, because
+ * there is nothing real to subtract. */
+export interface PriorShiftFigures {
+  period: string; // "Lunch"
+  finalized: boolean;
+  /** Lunch's saved Toast-sourced figures, tax resolved the same way the
+   * form resolves it (explicit value, else the auto suggestion). */
+  toast: Record<string, number> | null;
+  /** Lunch's platform records that carry any nonzero figure. */
+  platforms: { platformId: number; platformName: string; figures: Record<string, number> }[];
+}
+
 export interface ClosingReportData {
   shift: { id: number; date: string; period: string; status: string; incidentReport: string | null } | null;
+  /** Non-null only when an earlier shift exists on the same date — the
+   * trigger for the "what do these numbers cover?" question. */
+  priorShift: PriorShiftFigures | null;
   /** Restaurant's default sales tax rate (2026-08-10), passed down so the
    * client-side form can LIVE-recompute the suggested Sales tax figure as
    * the manager types Total sales, instead of only computing it once at
@@ -161,9 +181,64 @@ export interface ClosingReportData {
   undecidedPointCount: number;
 }
 
+/** Lunch's saved figures for a Dinner close on the same date, resolved
+ * exactly the way the closing form resolves them (explicit tax wins,
+ * else the auto suggestion). ONE function on purpose, imported by both
+ * the loader (what the form shows it would subtract) and the save action
+ * (what actually gets subtracted) — two implementations would let the
+ * preview and the stored money drift apart. Returns null when this shift
+ * is the day's first period or no earlier shift exists. */
+export async function loadPriorShiftFigures(
+  date: string,
+  period: string,
+  taxRate: number
+): Promise<PriorShiftFigures | null> {
+  if (period !== "Dinner") return null;
+  const [lunch] = await db
+    .select()
+    .from(shifts)
+    .where(and(eq(shifts.date, date), eq(shifts.period, "Lunch")));
+  if (!lunch) return null;
+
+  const [lunchSales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, lunch.id));
+  const toast = lunchSales
+    ? {
+        totalSales: lunchSales.totalSales,
+        salesTax: lunchSales.salesTax == null ? round2(lunchSales.totalSales * taxRate) : lunchSales.salesTax,
+        ccTipTotal: lunchSales.ccTipTotal,
+        takeoutCcTip: lunchSales.takeoutCcTip,
+        deliveryToastTip: lunchSales.deliveryToastTip,
+        cashSales: lunchSales.cashSales,
+        grossFoodSales: lunchSales.grossFoodSales,
+        grossBeverageSales: lunchSales.grossBeverageSales,
+      }
+    : null;
+
+  const platformNames = new Map((await db.select().from(onlinePlatforms)).map((p) => [p.id, p.name]));
+  const lunchPlatformRecords = await db
+    .select()
+    .from(onlinePlatformSalesRecords)
+    .where(eq(onlinePlatformSalesRecords.shiftId, lunch.id));
+  const platforms = lunchPlatformRecords
+    .map((r) => ({
+      platformId: r.onlinePlatformId,
+      platformName: platformNames.get(r.onlinePlatformId) ?? `Platform ${r.onlinePlatformId}`,
+      figures: {
+        salesAmount: r.salesAmount,
+        taxAmount: r.taxAmount == null ? round2(r.salesAmount * taxRate) : r.taxAmount,
+        commissionFee: r.commissionFee,
+        tipAmountPlatformCourier: r.tipAmountPlatformCourier,
+        tipAmountRestaurantDelivery: r.tipAmountRestaurantDelivery,
+      },
+    }))
+    .filter((p) => Object.values(p.figures).some((v) => v !== 0));
+
+  return { period: lunch.period, finalized: lunch.status === "finalized", toast, platforms };
+}
+
 export async function loadClosingReportData(shiftId: number): Promise<ClosingReportData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, defaultSalesTaxRate: 0, pointWeightedPools: [], sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [], undecidedPointCount: 0 };
+  if (!shift) return { shift: null, priorShift: null, defaultSalesTaxRate: 0, pointWeightedPools: [], sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [], undecidedPointCount: 0 };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
   const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
@@ -393,6 +468,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
 
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, incidentReport: shift.incidentReport },
+    priorShift: await loadPriorShiftFigures(shift.date, shift.period, taxRate),
     defaultSalesTaxRate: taxRate,
     pointWeightedPools,
     sales: sales

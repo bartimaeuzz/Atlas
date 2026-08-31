@@ -90,6 +90,8 @@ export function describeType(type: string): { group: string; label: string } {
     "petty_cash.day.reconciliation_edited": { group: "Petty Cash", label: "Reconciliation edited" },
     "ledger_card.import.committed": { group: "Ledger Card", label: "Statement imported" },
     "ledger_card.card.deleted": { group: "Ledger Card", label: "Card deleted" },
+    "shift.reopened": { group: "Shift", label: "Finalized shift reopened" },
+    "shift.closing_sales.day_totals_split": { group: "Shift", label: "Day totals split at close" },
   };
   if (KNOWN[type]) return KNOWN[type];
   const [group, ...rest] = type.split(".");
