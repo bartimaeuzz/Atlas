@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import {
   syncEmployeePositionTemplate,
@@ -11,7 +11,9 @@ import {
 import type { AssignedEmployeeGroup, PositionTemplateGroup, TemplateCell } from "@/lib/schedule/loadTemplatesByPosition";
 import { StackedCard, StackedCardList, StackedField } from "@/components/ui/Table";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 // Display order is Monday-first (matches the Weekly Plan grid and how
 // Oliver reads a real restaurant schedule) — the underlying dayOfWeek
@@ -81,10 +83,18 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
   ].sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
   return (
-    <div className="border rounded p-4">
-      <h3 className="font-medium mb-3">
-        {group.positionName} <span className="text-xs text-[var(--ink-400)]">({group.positionCategory})</span>
-      </h3>
+    // Design-system card shell (2026-08-31 retrofit, Aey: "template
+    // assignment need retrofit and make it more beautiful") — this was a
+    // bare `border rounded` div, the last schedule surface not on the
+    // bg-card + radius + shadow shell every other grid sits on.
+    <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-1)] p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <h3 className="text-[15px] font-semibold text-[var(--ink-900)]">{group.positionName}</h3>
+        <Badge tone={group.positionCategory === "FOH" ? "primary" : "neutral"}>{group.positionCategory}</Badge>
+        <span className="text-xs text-[var(--ink-500)]">
+          {rows.length} {rows.length === 1 ? "person" : "people"}
+        </span>
+      </div>
 
       {rows.length === 0 ? (
         <p className="text-sm text-[var(--ink-400)] mb-3">Nobody assigned yet.</p>
@@ -132,6 +142,7 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
       )}
 
       <PersonPicker
+        positionName={group.positionName}
         eligibleEmployees={notYetAssigned}
         onPick={(emp) => setPendingNewIds((prev) => [...prev, emp])}
       />
@@ -344,46 +355,64 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
   );
 }
 
+/** Button + popup picker (2026-08-31 retrofit) — replaces a bare native
+ * <select> + underline "Add" pair with the same dashed-button-and-modal
+ * language the roster and weekly-plan pickers use: 44px rows, hover,
+ * one tap to pick. Single-pick on purpose: a picked person appears as a
+ * blank row to edit immediately, so batching adds here has no payoff. */
 function PersonPicker({
+  positionName,
   eligibleEmployees,
   onPick,
 }: {
+  positionName: string;
   eligibleEmployees: { id: number; name: string }[];
   onPick: (employee: { id: number; name: string }) => void;
 }) {
-  const [value, setValue] = useState<number | "">("");
+  const [open, setOpen] = useState(false);
+  const titleId = useId();
 
   if (eligibleEmployees.length === 0) {
     return null;
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <select
-        value={value}
-        onChange={(e) => setValue(e.target.value === "" ? "" : Number(e.target.value))}
-        className="border rounded px-2 py-1 text-sm"
-      >
-        <option value="">+ Add a person…</option>
-        {eligibleEmployees.map((e) => (
-          <option key={e.id} value={e.id}>
-            {e.name}
-          </option>
-        ))}
-      </select>
+    <>
       <button
         type="button"
-        disabled={value === ""}
-        onClick={() => {
-          const emp = eligibleEmployees.find((e) => e.id === value);
-          if (emp) onPick(emp);
-          setValue("");
-        }}
-        className="text-sm underline text-[var(--ink-500)] hover:text-[var(--ink-900)] disabled:opacity-40 disabled:no-underline"
+        onClick={() => setOpen(true)}
+        className="flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] px-3 text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)]"
       >
-        Add
+        + Add a person
       </button>
-    </div>
+      <Modal open={open} onClose={() => setOpen(false)} labelledBy={titleId}>
+        <div id={titleId} className="text-base font-bold text-[var(--ink-900)] mb-2">
+          Add to {positionName}
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
+          <div className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)]">
+            {eligibleEmployees.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => {
+                  onPick(e);
+                  setOpen(false);
+                }}
+                className="flex w-full min-h-11 items-center px-3 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--hover)] text-left"
+              >
+                {e.name}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex justify-end pt-2">
+          <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+        </div>
+      </Modal>
+    </>
   );
 }
 
@@ -417,13 +446,9 @@ function EmployeeEdit({
 
   return (
     <div className="relative inline-block text-right">
-      <button
-        type="button"
-        onClick={() => setEditing(!editing)}
-        className="text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] border rounded px-2 py-1"
-      >
+      <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(!editing)}>
         {editing ? "Done" : "Edit"}
-      </button>
+      </Button>
       {editing && (
         <div className="mt-1 flex flex-col items-end gap-1 text-[11px]">
           {isVacant ? (
@@ -502,40 +527,61 @@ function VacancyPopoverForm({
     OTHER: "Same scope as Promoted — use this when the reason is something else, e.g. dropping this position by choice.",
   };
 
+  /* A real centered Modal since 2026-08-31 (Aey: the old absolute
+   * popover rendered inside the grid's overflow scroll box, so it
+   * wrapped down into the section and was invisible without scrolling —
+   * "better change to popup style"). Modal escapes the clipping context
+   * entirely and matches every other dialog in the app. */
   return (
-    <div className="absolute right-0 z-20 mt-1 w-72 bg-white border rounded shadow-lg p-3 text-sm text-left">
-      <label className="block mb-2">
-        <span className="block text-[var(--ink-500)] mb-1 text-xs">Reason</span>
-        <select value={reason} onChange={(e) => setReason(e.target.value as typeof reason)} className="border rounded px-2 py-1 w-full">
-          <option value="RESIGNATION">Resigning</option>
-          <option value="PROMOTION">Promoted/moved to another position</option>
-          <option value="OTHER">Other</option>
-        </select>
-      </label>
-      <label className="block mb-2">
-        <span className="block text-[var(--ink-500)] mb-1 text-xs">Starts on</span>
-        <input type="date" value={startsOn} onChange={(e) => setStartsOn(e.target.value)} className="border rounded px-2 py-1 w-full" />
-      </label>
-      <p className="text-[11px] text-[var(--ink-400)] mb-2">{scopeHint[reason]}</p>
-      {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
-      <div className="flex items-center gap-3">
-        <button type="button" onClick={onCancel} className={`text-xs text-[var(--ink-500)] underline ${TAP_TARGET_PAD}`}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          disabled={isPending || !templateId}
-          onClick={() =>
-            startTransition(async () => {
-              if (templateId) await setTemplateVacancy(templateId, reason, startsOn);
-              onDone();
-            })
-          }
-          className="bg-[var(--danger)] text-white px-3 py-1 min-h-9 rounded-[var(--radius-md)] text-xs hover:bg-[var(--danger-700)] disabled:opacity-50"
-        >
-          {isPending ? "Saving…" : "Set"}
-        </button>
+    <Modal open onClose={onCancel} labelledBy="vacancy-form-title" width={380}>
+      <div className="text-left">
+        <h2 id="vacancy-form-title" className="text-base font-semibold text-[var(--ink-900)] mb-3">
+          Mark as vacating
+        </h2>
+        <label className="block mb-3">
+          <span className="block text-[var(--ink-500)] mb-1 text-xs">Reason</span>
+          <select
+            value={reason}
+            onChange={(e) => setReason(e.target.value as typeof reason)}
+            className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2 min-h-11 w-full text-sm bg-[var(--card)]"
+          >
+            <option value="RESIGNATION">Resigning</option>
+            <option value="PROMOTION">Promoted/moved to another position</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </label>
+        <label className="block mb-2">
+          <span className="block text-[var(--ink-500)] mb-1 text-xs">Starts on</span>
+          <input
+            type="date"
+            value={startsOn}
+            onChange={(e) => setStartsOn(e.target.value)}
+            className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2 min-h-11 w-full text-sm bg-[var(--card)]"
+          />
+        </label>
+        <p className="text-[11px] text-[var(--ink-500)] mb-3">{scopeHint[reason]}</p>
+        {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
+        <div className="flex items-center justify-end gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="destructive"
+            size="sm"
+            loading={isPending}
+            disabled={!templateId}
+            onClick={() =>
+              startTransition(async () => {
+                if (templateId) await setTemplateVacancy(templateId, reason, startsOn);
+                onDone();
+              })
+            }
+          >
+            {isPending ? "Saving…" : "Set"}
+          </Button>
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 }

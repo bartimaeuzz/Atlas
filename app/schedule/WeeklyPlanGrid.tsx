@@ -1,13 +1,12 @@
 "use client";
 
-import { Fragment, useMemo, useRef, useState, useTransition } from "react";
+import { Fragment, useMemo, useRef, useState, useTransition, useId } from "react";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { useRouter } from "next/navigation";
 import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment } from "@/lib/actions/schedule";
 import { Modal } from "@/components/ui/Modal";
 import { Button, LinkButton } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import type { WeeklyPlanData, PlannedAssignmentRow } from "@/lib/schedule/loadWeeklyPlan";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -451,6 +450,7 @@ export function WeeklyPlanGrid({
                     {(["Lunch", "Dinner"] as const).map((period) => {
                       const { assignments, target } = period === "Lunch" ? lunch : dinner;
                       const underTarget = !hideDiagnostics && target > 0 && assignments.length < target;
+                      const overTarget = !hideDiagnostics && target > 0 && assignments.length > target;
                       return (
                         // Tint the CELL, not the row. In a two-period row a row
                         // tint would say "this position is short" when only one
@@ -504,8 +504,23 @@ export function WeeklyPlanGrid({
                               })}
                             </div>
                           )}
+                          {/* Three count states (2026-08-31, Aey): red =
+                              understaffed, yellow = over target (same colour
+                              family as the extra-coverage fill, which is what
+                              over-target usually IS), balanced = quiet neutral
+                              — on a mostly-balanced grid, colouring normal
+                              would stop the exceptions from popping. */}
                           {!hideDiagnostics && target > 0 && (
-                            <div className={"text-xs mt-0.5" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-500)]")}>
+                            <div
+                              className={
+                                "text-xs mt-0.5" +
+                                (underTarget
+                                  ? " text-[var(--danger-700)] font-medium"
+                                  : overTarget
+                                    ? " text-[var(--warning-700)] font-medium"
+                                    : " text-[var(--ink-500)]")
+                              }
+                            >
                               {assignments.length}/{target}
                             </div>
                           )}
@@ -522,6 +537,7 @@ export function WeeklyPlanGrid({
                               dayLoad={dayLoadByEmployee.get(date)}
                               target={target}
                               leaveByEmployee={data.leaveByEmployee}
+                              weekLoadByEmployee={weekLoadByEmployee}
                             />
                             </div>
                           )}
@@ -600,7 +616,8 @@ export function WeeklyPlanGrid({
                     (a) => a.positionId === p.id && a.date === date && a.period === period
                   );
                   const underTarget = !hideDiagnostics && target > 0 && cellAssignments.length < target;
-                  return { target, cellAssignments, underTarget };
+                  const overTarget = !hideDiagnostics && target > 0 && cellAssignments.length > target;
+                  return { target, cellAssignments, underTarget, overTarget };
                 };
                 return (
                   <Fragment key={p.id}>
@@ -663,7 +680,7 @@ export function WeeklyPlanGrid({
                           {period}
                         </td>
                         {data.dates.map((date) => {
-                          const { target, cellAssignments, underTarget } = cellDataFor(date, period);
+                          const { target, cellAssignments, underTarget, overTarget } = cellDataFor(date, period);
                           // h-px + h-full: the standard table-cell trick so the
                           // inner flex column can fill the row height and pin
                           // + Add to the bottom edge (Oliver, 2026-08-25 — cells
@@ -698,8 +715,20 @@ export function WeeklyPlanGrid({
                                     />
                                   );
                                 })}
+                                {/* Same three count states as the phone cells
+                                    (2026-08-31, Aey): red under, yellow over,
+                                    quiet when balanced. */}
                                 {!hideDiagnostics && target > 0 && (
-                                  <div className={"text-xs" + (underTarget ? " text-[var(--danger-700)] font-medium" : " text-[var(--ink-500)]")}>
+                                  <div
+                                    className={
+                                      "text-xs" +
+                                      (underTarget
+                                        ? " text-[var(--danger-700)] font-medium"
+                                        : overTarget
+                                          ? " text-[var(--warning-700)] font-medium"
+                                          : " text-[var(--ink-500)]")
+                                    }
+                                  >
                                     {cellAssignments.length}/{target}
                                   </div>
                                 )}
@@ -716,6 +745,7 @@ export function WeeklyPlanGrid({
                                       dayLoad={dayLoadByEmployee.get(date)}
                                       target={target}
                                       leaveByEmployee={data.leaveByEmployee}
+                                      weekLoadByEmployee={weekLoadByEmployee}
                                     />
                                   </div>
                                 )}
@@ -1083,12 +1113,28 @@ function AssignmentActionsDialog({
   );
 }
 
-/** Inline "add someone to this exact slot" control — a compact
- * dropdown (grouped: people who usually work this position, then
- * everyone else) plus an "extra coverage" checkbox that only appears
- * once a name is picked. Selecting a name does NOT auto-submit — you
- * need the "+" button, so there's a chance to check the extra-coverage
- * box first if this add is meant to be the yellow/busy-day case. */
+/** "+ Add" for one plan cell — a button opening a MULTI-SELECT people
+ * picker popup (2026-08-31, Aey's run-through: "change +add dropdown to
+ * the same as shifts draft before closing report ... multiple select
+ * person on popup, so you dont need to select one person at a time").
+ * Modeled on the roster page's picker (RosterGrid's PeoplePickList):
+ * grouped candidates, fewest-planned-shifts-first, per-person load,
+ * 44px rows — but with checkboxes, and every former popup-chain gate
+ * folded INTO the picker as same-surface disclosure:
+ *
+ *  - on leave that day  -> purple note on the person's row
+ *  - already works that day -> amber note on the row (the old "add this
+ *    person double shift?" ConfirmDialog is GONE — Aey asked for it to
+ *    be killed outright, 2026-08-31; the row note + the grid's orange
+ *    conflict badge stay as the honest signals)
+ *  - over target -> an inline warning block in the footer with the
+ *    "mark as extra coverage" checkbox beside it — the manager still
+ *    decides, the app still never guesses (Oliver's 2026-08-11 rule);
+ *    the question just stops being a second popup.
+ *
+ * The extra-coverage checkbox applies to the whole batch. A mixed add
+ * (one regular + one extra) is two quick rounds — simpler than
+ * per-person flags nobody asked for. */
 function QuickAddCell({
   weekId,
   date,
@@ -1100,6 +1146,7 @@ function QuickAddCell({
   dayLoad,
   target = 0,
   leaveByEmployee,
+  weekLoadByEmployee,
 }: {
   weekId: number;
   date: string;
@@ -1114,215 +1161,187 @@ function QuickAddCell({
   target?: number;
   /** employeeId -> leave ranges touching the week (from WeeklyPlanData). */
   leaveByEmployee?: Record<number, { startDate: string; endDate: string; note: string | null }[]>;
+  /** employeeId -> planned assignments this week, for the fairness sort. */
+  weekLoadByEmployee: Map<number, number>;
 }) {
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<number | "">("");
-  const [isExtraCoverage, setIsExtraCoverage] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+  const [markExtra, setMarkExtra] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [confirmingDouble, setConfirmingDouble] = useState(false);
-  const [askingExtra, setAskingExtra] = useState(false);
-  const [confirmingLeave, setConfirmingLeave] = useState(false);
+  const pickerTitleId = useId();
 
-  const eligible = employees.eligible.filter((e) => !alreadyAssignedIds.has(e.id));
-  const other = employees.other.filter((e) => !alreadyAssignedIds.has(e.id));
-  if (eligible.length === 0 && other.length === 0) return null;
+  if (employees.eligible.length === 0 && employees.other.length === 0) return null;
 
-  const selectedName =
-    selectedId === "" ? "" : ([...employees.eligible, ...employees.other].find((e) => e.id === selectedId)?.name ?? "This person");
-  const existingToday = selectedId === "" ? [] : (dayLoad?.get(selectedId) ?? []);
-  const selectedLeave =
-    selectedId === ""
-      ? null
-      : ((leaveByEmployee?.[selectedId] ?? []).find((l) => l.startDate <= date && l.endDate >= date) ?? null);
+  const load = (id: number) => weekLoadByEmployee.get(id) ?? 0;
+  const byLoad = (a: { id: number; name: string }, b: { id: number; name: string }) =>
+    load(a.id) - load(b.id) || a.name.localeCompare(b.name);
+  const groups = [
+    { header: `Usually ${positionName ?? "this position"}`, people: [...employees.eligible].sort(byLoad) },
+    { header: "Everyone else", people: [...employees.other].sort(byLoad) },
+  ].filter((g) => g.people.length > 0);
 
-  const overTarget = target > 0 && alreadyAssignedIds.size >= target;
+  const leaveFor = (id: number) =>
+    (leaveByEmployee?.[id] ?? []).find((l) => l.startDate <= date && l.endDate >= date) ?? null;
 
-  // Two ask-first gates before an add lands (Oliver, 2026-08-25):
-  // over-target asks "is this an extra?" (the human decides, the app
-  // still never guesses — his 2026-08-11 rule); a same-day double
-  // booking asks for confirmation. When both apply, the extra dialog
-  // carries the double-shift note too, so only one popup ever shows.
-  function requestAdd() {
-    if (selectedId === "") return;
-    // Leave first — it's the "are you sure this person is even here?"
-    // question, ahead of staffing-shape questions (Oliver, 2026-08-25).
-    if (selectedLeave) {
-      setConfirmingLeave(true);
-      return;
-    }
-    if (overTarget && !isExtraCoverage) {
-      setAskingExtra(true);
-      return;
-    }
-    if (existingToday.length > 0) {
-      setConfirmingDouble(true);
-      return;
-    }
-    handleAdd();
+  const resultingCount = alreadyAssignedIds.size + checkedIds.size;
+  const overTarget = target > 0 && checkedIds.size > 0 && resultingCount > target;
+
+  function toggle(id: number) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
-  /** Continues the gate chain after the leave confirm. */
-  function afterLeaveConfirmed() {
-    setConfirmingLeave(false);
-    if (overTarget && !isExtraCoverage) {
-      setAskingExtra(true);
-      return;
-    }
-    if (existingToday.length > 0) {
-      setConfirmingDouble(true);
-      return;
-    }
-    handleAdd();
+  function closePicker() {
+    setPickerOpen(false);
+    setCheckedIds(new Set());
+    setMarkExtra(false);
   }
 
-  function handleAdd(extraOverride?: boolean) {
-    if (selectedId === "") return;
-    const formData = new FormData();
-    formData.set("weekId", String(weekId));
-    formData.set("employeeId", String(selectedId));
-    formData.set("positionId", String(positionId));
-    formData.set("date", date);
-    formData.set("period", period);
-    if (extraOverride ?? isExtraCoverage) formData.set("isExtraCoverage", "on");
+  function handleAddAll() {
+    if (checkedIds.size === 0) return;
     setError(null);
     startTransition(async () => {
-      const result = await addPlannedAssignment({ error: null }, formData);
-      if (result.error) {
-        setError(result.error);
-        return;
+      const failures: string[] = [];
+      // Sequential on purpose: addPlannedAssignment revalidates and the
+      // DB writes are tiny; parallel calls would just interleave errors.
+      for (const employeeId of checkedIds) {
+        const formData = new FormData();
+        formData.set("weekId", String(weekId));
+        formData.set("employeeId", String(employeeId));
+        formData.set("positionId", String(positionId));
+        formData.set("date", date);
+        formData.set("period", period);
+        if (markExtra) formData.set("isExtraCoverage", "on");
+        const result = await addPlannedAssignment({ error: null }, formData);
+        if (result.error) failures.push(result.error);
       }
-      setSelectedId("");
-      setIsExtraCoverage(false);
+      if (failures.length > 0) {
+        setError(failures.join(" "));
+      } else {
+        closePicker();
+      }
       router.refresh();
     });
   }
 
+  const dayLabel = new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+
   return (
     <div className="mt-1">
-      <div className="flex items-center gap-1">
-        <select
-          value={selectedId}
-          disabled={isPending}
-          onChange={(e) => {
-            setSelectedId(e.target.value === "" ? "" : Number(e.target.value));
-            setError(null);
-          }}
-          className="min-h-11 w-full text-sm px-2 lg:min-h-0 lg:w-auto lg:text-[10px] lg:px-0.5 lg:py-0.5 lg:max-w-[76px] border border-[var(--border-strong)] rounded-[var(--radius-sm)] text-[var(--ink-500)] bg-[var(--card)] disabled:opacity-50"
-        >
-          <option value="">+ Add</option>
-          {eligible.length > 0 && (
-            <optgroup label="Usually this role">
-              {eligible.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </optgroup>
-          )}
-          {other.length > 0 && (
-            <optgroup label="Other">
-              {other.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-        {selectedId !== "" && (
-          <>
-            {/* 2026-08-23 visual audit: this measured 10x10 CSS px, the
-                smallest control in the app and less than half WCAG 2.5.8's
-                24x24 floor. Unlike the template grid there is only ONE of
-                these and it appears in an inline editor that has already
-                pushed the cell open for a <select> and two buttons, so the
-                target can grow without costing the week view anything --
-                min-h-11 on the label, which is what gets hit-tested, and
-                the box itself only up to 16px so the row stays compact. */}
-            <label
-              className="flex items-center gap-1 min-h-11 text-[9px] text-[var(--ink-400)] cursor-pointer"
-              title="Extra coverage — an anticipated busy day, not filling a known gap"
-            >
+      <button
+        type="button"
+        disabled={isPending}
+        onClick={() => {
+          setError(null);
+          setPickerOpen(true);
+        }}
+        className="flex w-full lg:w-auto min-h-11 lg:min-h-6 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] px-2 text-xs lg:text-[10px] font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] disabled:opacity-50"
+      >
+        {isPending ? "Adding…" : "+ Add"}
+      </button>
+      {error && <div className="text-[9px] text-[var(--danger-700)] mt-0.5">{error}</div>}
+
+      <Modal open={pickerOpen} onClose={closePicker} labelledBy={pickerTitleId}>
+        <div id={pickerTitleId} className="text-base font-bold text-[var(--ink-900)] mb-0.5">
+          Add to {positionName ?? "this position"}
+        </div>
+        <p className="text-xs text-[var(--ink-500)] mb-2">
+          {dayLabel} · {period} — tick everyone you want, then add them all at once.
+        </p>
+        <div className="max-h-[55vh] overflow-y-auto -mx-1 px-1">
+          {groups.map((g) => (
+            <div key={g.header}>
+              <div className="px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)]">
+                {g.header}
+              </div>
+              <div className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)] mb-2">
+                {g.people.map((e) => {
+                  if (alreadyAssignedIds.has(e.id)) {
+                    return (
+                      <div
+                        key={e.id}
+                        className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-500)] bg-[var(--paper)] opacity-70"
+                      >
+                        <span>{e.name}</span>
+                        <span className="text-xs">Already in this slot</span>
+                      </div>
+                    );
+                  }
+                  const leave = leaveFor(e.id);
+                  const sameDay = dayLoad?.get(e.id) ?? [];
+                  return (
+                    <label
+                      key={e.id}
+                      className="flex w-full min-h-11 items-center gap-2.5 px-3 py-1.5 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--hover)] cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checkedIds.has(e.id)}
+                        onChange={() => toggle(e.id)}
+                        className="size-4 shrink-0 accent-[var(--primary)]"
+                      />
+                      <span className="flex-1">
+                        {e.name}
+                        {leave && (
+                          <span className="block text-[11px] text-[#7C3AED]">
+                            On leave this day{leave.note ? ` — "${leave.note}"` : ""}
+                          </span>
+                        )}
+                        {sameDay.length > 0 && (
+                          <span className="block text-[11px] text-[var(--warning-700)]">
+                            Also works today: {sameDay.join(", ")}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-[var(--ink-500)] shrink-0">
+                        {load(e.id)} this week
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {overTarget && (
+          <div className="mt-1 mb-2 rounded-[var(--radius-md)] border border-[var(--warning-border)] bg-[var(--warning-tint)] p-2.5">
+            <p className="text-xs text-[var(--ink-700)]">
+              {positionName ?? "This position"} is set for {target} this {period.toLowerCase()} — this add makes it{" "}
+              {resultingCount}. If these are busy-day extras, tick the box so they show in yellow.
+            </p>
+            <label className="mt-1.5 flex items-center gap-2 text-xs font-medium text-[var(--ink-900)] cursor-pointer min-h-6">
               <input
                 type="checkbox"
-                checked={isExtraCoverage}
-                onChange={(e) => setIsExtraCoverage(e.target.checked)}
-                className="size-4 shrink-0 accent-[var(--primary)]"
+                checked={markExtra}
+                onChange={(e) => setMarkExtra(e.target.checked)}
+                className="size-4 accent-[var(--warning)]"
               />
-              extra
+              Mark as extra coverage
             </label>
-            <button
-              type="button"
-              onClick={requestAdd}
-              disabled={isPending}
-              // min 24px box (2026-08-24 audit -- it had no size guarantee
-              // at all); kept compact rather than 44 because the row is
-              // dense and the adjacent select is the primary control.
-              className="text-[10px] bg-[var(--primary)] text-white rounded-[var(--radius-sm)] px-2 min-h-6 min-w-6 leading-tight disabled:opacity-50 hover:bg-[var(--primary-700)]"
-            >
-              +
-            </button>
-          </>
-        )}
-      </div>
-      {error && <div className="text-[9px] text-[var(--danger-700)] mt-0.5">{error}</div>}
-      <ConfirmDialog
-        open={confirmingLeave}
-        onClose={() => setConfirmingLeave(false)}
-        onConfirm={afterLeaveConfirmed}
-        title={`${selectedName} is on leave that day`}
-        description={`${selectedName} has leave covering ${date}${selectedLeave?.note ? ` ("${selectedLeave.note}")` : ""}. They may not be available — add them anyway?`}
-        confirmLabel="Add anyway"
-      />
-      <ConfirmDialog
-        open={confirmingDouble}
-        onClose={() => setConfirmingDouble(false)}
-        onConfirm={() => {
-          setConfirmingDouble(false);
-          handleAdd();
-        }}
-        loading={isPending}
-        title={`Add ${selectedName} again today?`}
-        description={`${selectedName} is already working this day: ${existingToday.join(", ")}. Adding them here (${positionName ?? "this position"} · ${period}) means a double shift.`}
-        confirmLabel="Add anyway"
-      />
-      <Modal open={askingExtra} onClose={() => setAskingExtra(false)} labelledBy="ask-extra-title" width={380}>
-        <div className="p-4">
-          <h2 id="ask-extra-title" className="text-base font-semibold text-[var(--ink-900)] mb-1">
-            Is {selectedName} an extra?
-          </h2>
-          <p className="text-sm text-[var(--ink-500)] mb-3">
-            {positionName ?? "This position"} is already at {alreadyAssignedIds.size}/{target} for this{" "}
-            {period.toLowerCase()}. An extra (yellow) means busy-day coverage on top of the normal
-            staffing.
-            {existingToday.length > 0 &&
-              ` Note: ${selectedName} is already working this day (${existingToday.join(", ")}), so this is also a double shift.`}
-          </p>
-          <div className="space-y-2">
-            <Button
-              size="sm"
-              className="w-full"
-              disabled={isPending}
-              onClick={() => {
-                setAskingExtra(false);
-                handleAdd(true);
-              }}
-            >
-              Yes — add as extra
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              className="w-full"
-              disabled={isPending}
-              onClick={() => {
-                setAskingExtra(false);
-                handleAdd(false);
-              }}
-            >
-              No — regular add
-            </Button>
-            <Button size="sm" variant="ghost" className="w-full" disabled={isPending} onClick={() => setAskingExtra(false)}>
-              Cancel
-            </Button>
           </div>
+        )}
+
+        <div className="flex items-center justify-between gap-2 pt-2">
+          <Button variant="secondary" size="sm" onClick={closePicker} disabled={isPending}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={handleAddAll} disabled={isPending || checkedIds.size === 0} loading={isPending}>
+            {checkedIds.size === 0
+              ? "Add"
+              : `Add ${checkedIds.size} ${checkedIds.size === 1 ? "person" : "people"}`}
+          </Button>
         </div>
       </Modal>
     </div>
