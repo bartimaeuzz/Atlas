@@ -579,14 +579,22 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     cashTip: num("cashTip"),
     grossFoodSales: num("grossFoodSales"),
     grossBeverageSales: num("grossBeverageSales"),
-    // Sales tax (2026-08-10) — the form field is pre-filled with an
-    // auto-computed suggestion (totalSales × defaultSalesTaxRate) by the
-    // loader, but whatever's actually in the field on submit is what gets
-    // saved, same as every other sales field here — once a manager saves
-    // the report (even unchanged), that number becomes the real, explicit
-    // figure for this shift, no longer just a suggestion.
     salesTax: num("salesTax"),
   };
+  // Sales tax semantics fix (2026-08-31, from Aey's live screenshots):
+  // one save used to freeze the auto-suggestion into an explicit number,
+  // so a later change to Total sales silently stopped recomputing tax —
+  // forever. The schema's contract has always been "null = auto-resolve"
+  // (its own comment says a legitimate $0 must not be re-overwritten),
+  // but this writer stored a number unconditionally, defeating the read
+  // side. The form now posts salesTaxWasAuto from its taxTouched state;
+  // when the field still held the untouched suggestion, NULL is stored
+  // and the suggestion stays live. An explicitly typed number (including
+  // 0) still wins and still sticks. Exception: a whole-day subtraction
+  // stores its derived figure explicitly — that number was computed from
+  // a real entry, not suggested. salesValues stays all-numeric above so
+  // the subtraction math below needs no special case.
+  const salesTaxWasAuto = formData.get("salesTaxWasAuto") === "1";
 
   /* Day-total question (2026-08-31, Aey's run-through). Toast — and the
    * online-platform dashboards — may show DAY-TO-DATE numbers at Dinner
@@ -646,25 +654,29 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
   // a mid-loop refusal must not leave the shift half-saved.
   const platformSubtractions: { platformName: string; entered: Record<string, number>; subtracted: Record<string, number> }[] = [];
   const platforms = await db.select().from(onlinePlatforms);
-  const platformFinalValues: { platformId: number; values: Record<string, number> }[] = [];
+  const platformFinalValues: { platformId: number; values: Record<string, number>; taxWasAuto: boolean }[] = [];
   for (const platform of platforms) {
     const enteredValues: Record<string, number> = {
       salesAmount: num(`platform_${platform.id}_salesAmount`),
       commissionFee: num(`platform_${platform.id}_commissionFee`),
       tipAmountPlatformCourier: num(`platform_${platform.id}_tipCourier`),
       tipAmountRestaurantDelivery: num(`platform_${platform.id}_tipRestaurantDelivery`),
-      taxAmount: num(`platform_${platform.id}_taxAmount`), // 2026-08-10, same pre-filled-suggestion pattern as shiftSales.salesTax
+      taxAmount: num(`platform_${platform.id}_taxAmount`), // null-when-auto applied at the write below (2026-08-31)
     };
 
     let finalValues = enteredValues;
     const priorFigures = priorPlatformFigures.get(platform.id);
+    let subtracted = false;
     if (platformDayMode && priorFigures && prior) {
       const r = subtractDayTotals(enteredValues, priorFigures.figures, PLATFORM_DAY_TOTAL_FIELDS, platform.name, prior.period);
       if (!r.ok) throw new Error(r.error);
       finalValues = r.values;
+      subtracted = true;
       platformSubtractions.push({ platformName: platform.name, entered: enteredValues, subtracted: priorFigures.figures });
     }
-    platformFinalValues.push({ platformId: platform.id, values: finalValues });
+    // Same null-when-auto rule as shiftSales.salesTax above (2026-08-31).
+    const taxWasAuto = formData.get(`platform_${platform.id}_taxWasAuto`) === "1";
+    platformFinalValues.push({ platformId: platform.id, values: finalValues, taxWasAuto: taxWasAuto && !subtracted });
   }
 
   /* -------- everything below is writes; nothing above touched a table -------- */
@@ -681,14 +693,18 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     .set({ incidentReport: String(formData.get("incidentReport") ?? "").trim() || null })
     .where(eq(shifts.id, shiftId));
 
+  const storedSales = {
+    ...salesValues,
+    salesTax: salesTaxWasAuto && !toastSubtraction ? null : salesValues.salesTax,
+  };
   const [existing] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
   if (existing) {
-    await db.update(shiftSales).set(salesValues).where(eq(shiftSales.shiftId, shiftId));
+    await db.update(shiftSales).set(storedSales).where(eq(shiftSales.shiftId, shiftId));
   } else {
-    await db.insert(shiftSales).values({ shiftId, ...salesValues });
+    await db.insert(shiftSales).values({ shiftId, ...storedSales });
   }
 
-  for (const { platformId, values: finalValues } of platformFinalValues) {
+  for (const { platformId, values: finalValues, taxWasAuto } of platformFinalValues) {
     // Net is derived from the FINAL per-shift figures, after any
     // subtraction — subtraction is linear so either order agrees, but
     // deriving from what gets stored keeps the row self-consistent.
@@ -710,7 +726,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
       netAmount,
       tipAmountPlatformCourier: finalValues.tipAmountPlatformCourier,
       tipAmountRestaurantDelivery: finalValues.tipAmountRestaurantDelivery,
-      taxAmount: finalValues.taxAmount,
+      taxAmount: taxWasAuto ? null : finalValues.taxAmount,
     };
     if (existingRecord) {
       await db

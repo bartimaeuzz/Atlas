@@ -842,6 +842,11 @@ function ToastSalesCard({
           <div>
             <label className="text-sm block">
               <span className="block text-[var(--ink-500)] mb-1">Sales tax</span>
+              {/* Tells the server whether this field still holds the
+                  untouched auto-suggestion at submit — auto saves as NULL
+                  so the suggestion stays live on the next edit
+                  (2026-08-31; one save used to freeze it forever). */}
+              <input type="hidden" name="salesTaxWasAuto" value={taxTouched ? "0" : "1"} />
               <input
                 type="number"
                 step={0.01}
@@ -1001,6 +1006,8 @@ function PlatformSalesRow({
         <div>
           <label className="text-sm block">
             <span className="block text-[var(--ink-500)] mb-1 min-h-10 flex items-end">Sales tax</span>
+            {/* Same auto-vs-typed flag as the Toast Sales tax field. */}
+            <input type="hidden" name={`platform_${p.platformId}_taxWasAuto`} value={taxTouched ? "0" : "1"} />
             <input
               type="number"
               step={0.01}
