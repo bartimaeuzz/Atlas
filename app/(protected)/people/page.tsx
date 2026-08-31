@@ -22,6 +22,27 @@ export default async function PeopleListPage() {
         actions={<LinkButton href="/people/new">+ New person</LinkButton>}
       />
 
+      {/* Headcount at a glance (2026-08-31, Aey: "add widget dashboard on
+          /people show how many staff we have. active/deactivate or
+          retire"). Employees have exactly one lifecycle flag — active vs
+          retired — so the honest widget is those two plus the total, not
+          an invented third state. Computed from the same rows the table
+          below renders, so the numbers can never disagree with the list. */}
+      {employeeList.length > 0 && (
+        <div className="grid grid-cols-3 gap-3 mb-6 max-w-md">
+          {[
+            { label: "Total people", value: employeeList.length },
+            { label: "Active", value: employeeList.filter((e) => e.active).length },
+            { label: "Retired", value: employeeList.filter((e) => !e.active).length },
+          ].map((t) => (
+            <div key={t.label} className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5">
+              <div className="text-2xl font-semibold tabular-nums text-[var(--ink-900)]">{t.value}</div>
+              <div className="text-xs text-[var(--ink-500)]">{t.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {employeeList.length === 0 ? (
         <EmptyState message="No one added yet." />
       ) : (

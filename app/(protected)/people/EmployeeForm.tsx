@@ -151,22 +151,6 @@ export function EmployeeForm({
         </Select>
       </div>
 
-      <div className="max-w-xs">
-        <Select
-          name="primaryPositionId"
-          label="Primary position"
-          defaultValue={existing?.primaryPositionId ?? ""}
-          hint="Must be one of the positions checked below. This is the row that carries this person's wage on a shift when they're staffed in more than one position."
-        >
-          <option value="">— none —</option>
-          {allPositions
-            .filter((p) => assigned.has(p.id))
-            .map((p) => (
-              <option key={p.id} value={p.id}>{p.name} ({p.category})</option>
-            ))}
-        </Select>
-      </div>
-
       <Checkbox
         name="active"
         defaultChecked={existing?.active ?? true}
@@ -404,21 +388,58 @@ export function EmployeeForm({
           positions (e.g. Server @ 1.0, Bartender @ 0.8 — a closing-time bump on a specific shift is
           entered on that shift&apos;s Closing Report, not here). For BOH positions, set their wage rate
           directly below — this is per-employee since BOH wages aren&apos;t shared like FOH&apos;s
-          position-wide rate (set on the Positions page).
+          position-wide rate (set on the Positions page). Mark ONE checked position as{" "}
+          <span className="font-medium text-[var(--ink-700)]">Primary</span> — that&apos;s the position
+          that carries their wage when they work more than one position in a shift.
         </p>
         <div className="space-y-3">
-          {allPositions.map((p) => (
-            <div key={p.id} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--card)]">
-              <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-900)] min-h-11">
+          {allPositions.map((p, i) => (
+            <div key={p.id}>
+              {/* FOH-then-BOH is already the sort order; make the seam a
+                  visible header row (2026-08-31, Aey: "people/new need a
+                  better grouping sorting") — same Floor-Manager-free
+                  FOH/BOH grouping language the roster and closing report
+                  use. */}
+              {(i === 0 || allPositions[i - 1].category !== p.category) && (
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] mt-2 mb-1.5">
+                  {p.category === "FOH" ? "FOH — Front of house" : "BOH — Back of house"}
+                </div>
+              )}
+              <div className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--card)]">
+              <div className="flex items-center gap-2 min-h-11">
+              <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-900)] min-h-11 flex-1">
                 <input
                   type="checkbox"
                   name={`assign_${p.id}`}
                   checked={assigned.has(p.id)}
                   onChange={(e) => toggleAssigned(p.id, e.target.checked)}
                 />
-                {p.name} <span className="text-[var(--ink-500)] font-normal">({p.category})</span>
+                {p.name}
                 {!p.active && <span className="text-xs text-[var(--ink-500)] font-normal">(retired)</span>}
               </label>
+              {/* Primary lives ON the position row it applies to
+                  (2026-08-31, Oliver: "so no back and forth up and down
+                  the page" — the old control was a <select> at the top of
+                  the form listing positions checked at the bottom). A
+                  RADIO, deliberately not the checkbox Oliver's words
+                  sketched: a person has exactly one primary, and two
+                  checkable "primary" boxes would let a manager assert a
+                  contradiction the server would then have to reject. The
+                  radio group posts the same `primaryPositionId` field the
+                  removed <select> did — the server action is unchanged. */}
+              {assigned.has(p.id) && (
+                <label className="flex items-center gap-1.5 text-xs text-[var(--ink-700)] min-h-11 px-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="primaryPositionId"
+                    value={p.id}
+                    defaultChecked={existing?.primaryPositionId === p.id}
+                    className="h-4 w-4 accent-[var(--primary)]"
+                  />
+                  Primary
+                </label>
+              )}
+              </div>
 
               {assigned.has(p.id) && (
                 <div className="mt-2 sm:ml-6 flex flex-wrap gap-4 items-end">
@@ -457,6 +478,7 @@ export function EmployeeForm({
                   )}
                 </div>
               )}
+              </div>
             </div>
           ))}
         </div>

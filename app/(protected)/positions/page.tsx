@@ -110,6 +110,7 @@ function PositionsGroup({ title, rows }: { title: string; rows: PositionRow[] })
               </div>
             }
           >
+            <StackedField label="Staff" value={String(p.staffCount)} numeric />
             <StackedField label="Tip pools" value={poolSummary(p.tipPoolGroups)} />
             <StackedField label="Rate (Lunch / Dinner)" value={rateSummary(p)} numeric={p.category === "FOH"} />
           </StackedCard>
@@ -118,11 +119,12 @@ function PositionsGroup({ title, rows }: { title: string; rows: PositionRow[] })
 
       {/* Desktop: table */}
       <TableCard>
-        <Table minWidth={620}>
+        <Table minWidth={660}>
           <THead>
             <TR>
               <TH>Name</TH>
               <TH>Category</TH>
+              <TH numeric>Staff</TH>
               <TH>Tip pools</TH>
               <TH numeric>Rate (L / D)</TH>
               <TH>
@@ -135,6 +137,7 @@ function PositionsGroup({ title, rows }: { title: string; rows: PositionRow[] })
               <TR key={p.id} dimmed={!p.active}>
                 <TD emphasis>{p.name}</TD>
                 <TD>{p.category}</TD>
+                <TD numeric muted={p.staffCount === 0}>{p.staffCount}</TD>
                 <TD muted={p.tipPoolGroups.length === 0}>{poolSummary(p.tipPoolGroups)}</TD>
                 <TD numeric muted={p.category !== "FOH"}>
                   {rateSummary(p)}

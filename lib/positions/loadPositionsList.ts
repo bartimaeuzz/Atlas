@@ -1,6 +1,6 @@
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { positions, positionTipPools, positionShiftRates } from "@/db/schema";
+import { positions, positionTipPools, positionShiftRates, employeePositions, employees } from "@/db/schema";
 
 export type TipPoolGroup = "POOL_1_DINE_IN" | "POOL_2_TAKEOUT_ONLINE" | "POOL_3_DELIVERY";
 
@@ -17,6 +17,11 @@ export interface PositionListRow {
    * is per-employee, set on EmployeeWageRate — no UI for that yet, see
    * PROGRESS.md open items). */
   shiftRates: { period: "Lunch" | "Dinner"; flatRate: number }[];
+  /** How many CURRENT people can work this position (2026-08-31, Aey:
+   * "show total staff on each position behind the title") — counts
+   * active employees whose assignment row is itself active, so a
+   * retired person or a revoked assignment doesn't inflate it. */
+  staffCount: number;
 }
 
 /** Powers the /positions list page — every position (active and retired),
@@ -38,6 +43,14 @@ export async function loadPositionsList(): Promise<PositionListRow[]> {
     .from(positionShiftRates)
     .where(inArray(positionShiftRates.positionId, positionIds));
 
+  const staffRows = await db
+    .select({ positionId: employeePositions.positionId })
+    .from(employeePositions)
+    .innerJoin(employees, eq(employees.id, employeePositions.employeeId))
+    .where(and(eq(employeePositions.isActive, true), eq(employees.active, true), inArray(employeePositions.positionId, positionIds)));
+  const staffCountByPosition = new Map<number, number>();
+  for (const r of staffRows) staffCountByPosition.set(r.positionId, (staffCountByPosition.get(r.positionId) ?? 0) + 1);
+
   return allPositions
     .map((p) => ({
       id: p.id,
@@ -51,6 +64,7 @@ export async function loadPositionsList(): Promise<PositionListRow[]> {
       shiftRates: rateRows
         .filter((r) => r.positionId === p.id)
         .map((r) => ({ period: r.period as "Lunch" | "Dinner", flatRate: r.flatRate })),
+      staffCount: staffCountByPosition.get(p.id) ?? 0,
     }))
     .sort((a, b) => (a.category === b.category ? a.name.localeCompare(b.name) : a.category === "FOH" ? -1 : 1));
 }
@@ -74,5 +88,8 @@ export async function loadPositionForEdit(positionId: number): Promise<PositionL
     defaultTipPointValue: position.defaultTipPointValue,
     tipPoolGroups: poolRows.map((r) => r.tipPoolGroup as TipPoolGroup),
     shiftRates: rateRows.map((r) => ({ period: r.period as "Lunch" | "Dinner", flatRate: r.flatRate })),
+    // The edit form never shows the count; 0 keeps the shared type honest
+    // without a query the page would throw away.
+    staffCount: 0,
   };
 }
