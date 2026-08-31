@@ -16,7 +16,9 @@ function flatBohRule(overrides: Partial<IncentiveRuleDef> = {}): IncentiveRuleDe
     evaluationPeriod: "SHIFT",
     rewardType: "FLAT",
     rewardValue: 20,
+    rewardCap: null,
     distributionMethod: "PER_TARGET_FLAT",
+    poolSourceMetricKey: null,
     conditions: [{ metricKey: "total_sales", operator: ">=", value: 10000, valueTo: null }],
     targets: [{ targetType: "CATEGORY", targetId: "BOH" }],
     ...overrides,
@@ -120,4 +122,99 @@ test("incentive rule: two rules firing for the same employee produce two separat
   const forEmployee2 = payouts.filter((p) => p.employeeId === 2);
   assert.equal(forEmployee2.length, 2);
   assert.equal(forEmployee2.reduce((a, p) => a + p.amount, 0), 25);
+});
+
+/* ---- Metric-funded equal-split pools (2026-08-31, the packer bonus) ---- */
+
+const packerRoster: IncentiveRosterEntry[] = [
+  { employeeId: 5, positionId: 20, category: "FOH" }, // Packer
+  { employeeId: 9, positionId: 20, category: "FOH" }, // Packer
+  { employeeId: 1, positionId: 10, category: "FOH" }, // Server
+];
+
+function packerRule(overrides: Partial<IncentiveRuleDef> = {}): IncentiveRuleDef {
+  return {
+    id: 2,
+    name: "Packer off-premise bonus (test)",
+    enabled: true,
+    evaluationPeriod: "SHIFT",
+    rewardType: "PERCENT_OF_METRIC",
+    rewardValue: 0.01,
+    rewardCap: null,
+    distributionMethod: "WEIGHTED_POOL",
+    poolSourceMetricKey: "off_premise_sales",
+    conditions: [{ metricKey: "off_premise_sales", operator: ">", value: 0, valueTo: null }],
+    targets: [{ targetType: "POSITION", targetId: "20" }],
+    ...overrides,
+  };
+}
+
+test("packer bonus: 1% of off-premise sales, split equally between two packers", () => {
+  // $3,000 off-premise -> $30 pool -> $15 each (Oliver's A: หารกัน,
+  // the house pays $30 total however many packers worked).
+  const payouts = evaluateShiftIncentiveRules([packerRule()], { off_premise_sales: 3000 }, packerRoster);
+  assert.equal(payouts.length, 2);
+  assert.deepEqual(payouts.map((p) => p.amount), [15, 15]);
+  assert.ok(payouts.every((p) => p.employeeId === 5 || p.employeeId === 9));
+});
+
+test("packer bonus: percent mode pays on the exact figure — $199 -> $1.99", () => {
+  const solo = packerRoster.slice(0, 1);
+  const payouts = evaluateShiftIncentiveRules([packerRule()], { off_premise_sales: 199 }, solo);
+  assert.equal(payouts.length, 1);
+  assert.equal(payouts[0].amount, 1.99);
+});
+
+test("packer bonus: per-block mode floors to full $100s — $199 -> $1", () => {
+  const solo = packerRoster.slice(0, 1);
+  const payouts = evaluateShiftIncentiveRules(
+    [packerRule({ rewardType: "PER_BLOCK_OF_METRIC", rewardValue: 1 })],
+    { off_premise_sales: 199 },
+    solo
+  );
+  assert.equal(payouts.length, 1);
+  assert.equal(payouts[0].amount, 1);
+});
+
+test("packer bonus: shares sum EXACTLY to the pool when cents don't divide", () => {
+  // $10.00 pool across 3 packers: 3.34 + 3.33 + 3.33, never 3.33*3=9.99.
+  const threePackers: IncentiveRosterEntry[] = [
+    { employeeId: 5, positionId: 20, category: "FOH" },
+    { employeeId: 9, positionId: 20, category: "FOH" },
+    { employeeId: 12, positionId: 20, category: "FOH" },
+  ];
+  const payouts = evaluateShiftIncentiveRules(
+    [packerRule({ rewardValue: 0.01 })],
+    { off_premise_sales: 1000 },
+    threePackers
+  );
+  const total = Math.round(payouts.reduce((a, p) => a + p.amount, 0) * 100);
+  assert.equal(total, 1000); // $10.00 in cents
+  assert.deepEqual(payouts.map((p) => p.amount).sort((a, b) => b - a), [3.34, 3.33, 3.33]);
+});
+
+test("packer bonus: no packer on the roster -> nothing fires, no orphan pool", () => {
+  const noPackers = packerRoster.filter((r) => r.positionId !== 20);
+  const payouts = evaluateShiftIncentiveRules([packerRule()], { off_premise_sales: 3000 }, noPackers);
+  assert.equal(payouts.length, 0);
+});
+
+test("packer bonus: zero off-premise sales -> skipped", () => {
+  const payouts = evaluateShiftIncentiveRules([packerRule()], { off_premise_sales: 0 }, packerRoster);
+  assert.equal(payouts.length, 0);
+});
+
+test("packer bonus: rewardCap ceilings the pool", () => {
+  const solo = packerRoster.slice(0, 1);
+  const payouts = evaluateShiftIncentiveRules(
+    [packerRule({ rewardCap: 25 })],
+    { off_premise_sales: 5000 }, // 1% = $50, capped to $25
+    solo
+  );
+  assert.equal(payouts[0].amount, 25);
+});
+
+test("packer bonus: metric missing entirely -> condition fails, skipped", () => {
+  const payouts = evaluateShiftIncentiveRules([packerRule()], { total_sales: 9000 }, packerRoster);
+  assert.equal(payouts.length, 0);
 });

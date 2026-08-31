@@ -107,7 +107,13 @@ export function ClosingReportForm({
       {/* Each topic is its own Card (2026-08-24, Oliver) -- six sections of
           very different kinds (money entry, per-person bumps, exceptions)
           used to share one undivided column. */}
-      <ToastSalesCard s={data.sales} taxRate={taxRate} prior={data.priorShift} isFinalized={isFinalized} />
+      <ToastSalesCard
+        s={data.sales}
+        taxRate={taxRate}
+        prior={data.priorShift}
+        isFinalized={isFinalized}
+        closeoutMode={data.toastCloseoutMode}
+      />
 
       <Card>
       {/* Opens itself when someone's point is still undecided (2026-08-29):
@@ -402,6 +408,7 @@ export function ClosingReportForm({
         taxRate={taxRate}
         prior={data.priorShift}
         isFinalized={isFinalized}
+        closeoutMode={data.platformCloseoutMode}
       />
 
       <Card>
@@ -762,11 +769,13 @@ function ToastSalesCard({
   taxRate,
   prior,
   isFinalized,
+  closeoutMode,
 }: {
   s: ClosingReportData["sales"];
   taxRate: number;
   prior: PriorShiftFigures | null;
   isFinalized: boolean;
+  closeoutMode: "ASK" | "PER_SHIFT" | "CUMULATIVE";
 }) {
   // "" over a literal 0 for untouched fields (2026-08-25, Oliver) --
   // these two are controlled for the live tax recompute, so the empty
@@ -774,7 +783,12 @@ function ToastSalesCard({
   const [totalSales, setTotalSales] = useState<number | "">(s?.totalSales || "");
   const [salesTax, setSalesTax] = useState<number | "">(s?.salesTax || "");
   const [taxTouched, setTaxTouched] = useState(s ? !s.salesTaxIsAuto : false);
-  const [mode, setMode] = useState<"" | "shift" | "day">("");
+  // Closeout-mode presets (2026-08-31 phase 2): a fixed Settings answer
+  // preselects the radio (CUMULATIVE -> "day", the math still shows);
+  // ASK starts unanswered — the manager must decide every time.
+  const [mode, setMode] = useState<"" | "shift" | "day">(
+    closeoutMode === "CUMULATIVE" && prior?.toast ? "day" : closeoutMode === "PER_SHIFT" ? "shift" : ""
+  );
 
   const dayMode = mode === "day" && !!prior?.toast;
   const lunchTotal = prior?.toast?.totalSales ?? 0;
@@ -784,7 +798,7 @@ function ToastSalesCard({
     <Card>
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Sales</legend>
-        {prior && !isFinalized && (
+        {prior && !isFinalized && closeoutMode !== "PER_SHIFT" && (
           <DayTotalChooser
             name="toastEntryMode"
             priorPeriod={prior.period}
@@ -870,6 +884,13 @@ function ToastSalesCard({
           <Field label="CC tip total (Toast, all sources)" name="ccTipTotal" defaultValue={s?.ccTipTotal} />
           <Field label="Takeout CC tip (subset of above)" name="takeoutCcTip" defaultValue={s?.takeoutCcTip} />
           <Field label="Delivery Toast tip (subset of above)" name="deliveryToastTip" defaultValue={s?.deliveryToastTip} />
+          {/* Off-premise SALES splits (2026-08-31, packer bonus): the
+              takeout/delivery TIPS above already existed; the packer
+              incentive is a share of off-premise sales, so the sales
+              split has to be captured too. Both come off the same Toast
+              screen as everything else here. */}
+          <Field label="Toast takeout sales (subset of Total)" name="toastTakeoutSales" defaultValue={s?.toastTakeoutSales} />
+          <Field label="Toast delivery sales (subset of Total)" name="toastDeliverySales" defaultValue={s?.toastDeliverySales} />
           <Field label="Cash sales" name="cashSales" defaultValue={s?.cashSales} />
           <Field label="Cash tip (entered by floor manager, no deduction)" name="cashTip" defaultValue={s?.cashTip} />
           <Field label="Gross food sales" name="grossFoodSales" defaultValue={s?.grossFoodSales} />
@@ -894,13 +915,17 @@ function PlatformSalesCard({
   taxRate,
   prior,
   isFinalized,
+  closeoutMode,
 }: {
   platforms: PlatformSalesRowData[];
   taxRate: number;
   prior: PriorShiftFigures | null;
   isFinalized: boolean;
+  closeoutMode: "ASK" | "PER_SHIFT" | "CUMULATIVE";
 }) {
-  const [mode, setMode] = useState<"" | "shift" | "day">("");
+  const [mode, setMode] = useState<"" | "shift" | "day">(
+    closeoutMode === "CUMULATIVE" ? "day" : closeoutMode === "PER_SHIFT" ? "shift" : ""
+  );
   const askable = !!prior && prior.platforms.length > 0;
   const lunchByPlatformId = new Map((prior?.platforms ?? []).map((p) => [p.platformId, p.figures]));
 
@@ -912,7 +937,7 @@ function PlatformSalesCard({
           Split tips by who delivered: platform-courier tips feed Pool 2 (Host/Operator/Packer/Bag
           Handler), restaurant-driver tips feed Pool 3 (Delivery Guy).
         </p>
-        {askable && !isFinalized && prior && (
+        {askable && !isFinalized && prior && closeoutMode !== "PER_SHIFT" && (
           <DayTotalChooser
             name="platformEntryMode"
             priorPeriod={prior.period}

@@ -33,6 +33,10 @@ export interface RestaurantSettingsData {
    * PIN (original, default), "ID" = type your YK login ID + PIN. See
    * app/login/page.tsx and db/schema.ts's restaurantSettings comment. */
   staffLoginMethod: "NAME" | "ID";
+  /** POS closeout modes (2026-08-31) — how the day-total question at a
+   * second-shift close behaves, per source. See db/schema.ts. */
+  toastCloseoutMode: "ASK" | "PER_SHIFT" | "CUMULATIVE";
+  platformCloseoutMode: "ASK" | "PER_SHIFT" | "CUMULATIVE";
 }
 
 /** Single-row settings table (restaurantId=1 reserved for future
@@ -63,6 +67,8 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
       hostDrinkBonusPerDrinkAmount: 0,
       defaultSalesTaxRate: 0.08875, // NYC default, matches the schema column default — see db/schema.ts
       staffLoginMethod: "NAME",
+      toastCloseoutMode: "ASK",
+      platformCloseoutMode: "ASK",
     };
   }
   return {
@@ -81,6 +87,8 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     hostDrinkBonusPerDrinkAmount: row.hostDrinkBonusPerDrinkAmount,
     defaultSalesTaxRate: row.defaultSalesTaxRate,
     staffLoginMethod: row.staffLoginMethod as "NAME" | "ID",
+    toastCloseoutMode: row.toastCloseoutMode,
+    platformCloseoutMode: row.platformCloseoutMode,
   };
 }
 

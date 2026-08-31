@@ -380,6 +380,17 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // Kept this way to avoid a schema migration for a column default that
   // isn't hit in practice.
   defaultSalesTaxRate: real("default_sales_tax_rate").notNull().default(0),
+  // POS closeout mode, per source (2026-08-31, the Toast-cumulative fix's
+  // second phase). ASK (default) keeps the every-close question shipped in
+  // 5856e91 — the only safe answer while nobody is sure how a POS is
+  // configured. PER_SHIFT = the POS clears at each close, skip the
+  // question. CUMULATIVE = the POS shows day-to-date, preselect
+  // "whole day" (the math line still shows; nothing subtracts silently).
+  // TWO columns on purpose: Toast and the online-platform dashboards are
+  // configured independently and platform dashboards are usually
+  // day-to-date regardless of Toast.
+  toastCloseoutMode: text("toast_closeout_mode", { enum: ["ASK", "PER_SHIFT", "CUMULATIVE"] }).notNull().default("ASK"),
+  platformCloseoutMode: text("platform_closeout_mode", { enum: ["ASK", "PER_SHIFT", "CUMULATIVE"] }).notNull().default("ASK"),
   // Staff login method (2026-08-17, Oliver: "here is test seed anyway I
   // need easy way to login on each profile" -- wants BOTH the original
   // pick-your-name dropdown AND the new YK login-ID field available,
@@ -613,6 +624,17 @@ export const shiftSales = sqliteTable("shift_sales", {
   // paid via Toast (not cash, not a third-party platform). Gets the same
   // 4.5% deduction, feeds Pool 3 (Delivery Guy), split equally not by point.
   deliveryToastTip: real("delivery_toast_tip").notNull().default(0),
+  // Toast-side takeout and phone/own-platform delivery SALES (2026-08-31,
+  // packer bonus): until now only the takeout/delivery TIPS were captured;
+  // the packer incentive is a share of off-premise SALES ("any channel the
+  // packer has to pack" — Oliver), so the sales split has to exist too.
+  // Both are informational subsets of totalSales, same convention as
+  // takeoutCcTip being a subset of ccTipTotal. Toast-sourced, so both are
+  // in TOAST_DAY_TOTAL_FIELDS and get the whole-day subtraction at a
+  // second-shift close. Feed the off_premise_sales shift metric in
+  // computeFinalizationPreview alongside every platform's salesAmount.
+  toastTakeoutSales: real("toast_takeout_sales").notNull().default(0),
+  toastDeliverySales: real("toast_delivery_sales").notNull().default(0),
   cashSales: real("cash_sales").notNull().default(0),
   // Cash tips entered manually by the floor manager at close (2026-08-10,
   // Oliver flagged this was missing entirely). Pooled into Pool 1 exactly
@@ -793,7 +815,10 @@ export const incentiveRules = sqliteTable("incentive_rules", {
   description: text("description"),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
   evaluationPeriod: text("evaluation_period", { enum: ["SHIFT", "WEEK", "MONTH"] }).notNull(),
-  rewardType: text("reward_type", { enum: ["FLAT", "PERCENT_OF_METRIC", "ADJUST_TIP_POINT"] }).notNull(),
+  // PER_BLOCK_OF_METRIC added 2026-08-31 (packer bonus): $rewardValue per
+  // full $100 of the pool-source metric, floored — "$199 → $1". Type-level
+  // only; SQLite text enums carry no CHECK constraint, so no migration.
+  rewardType: text("reward_type", { enum: ["FLAT", "PERCENT_OF_METRIC", "PER_BLOCK_OF_METRIC", "ADJUST_TIP_POINT"] }).notNull(),
   rewardValue: real("reward_value").notNull(),
   rewardCap: real("reward_cap"), // e.g. host bonus capped at +0.2 points
   distributionMethod: text("distribution_method", { enum: ["PER_TARGET_FLAT", "WEIGHTED_POOL"] }).notNull(),
@@ -1070,6 +1095,27 @@ export const ledgerVendors = sqliteTable("ledger_vendors", {
   payeeAddressLine3: text("payee_address_line_3"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
 });
+
+// Vendor tags (2026-08-31, Aey: "add tag or category to vendor so when
+// search can select only group that she want to use... some vendor fall
+// in multiple categories") — free-text tags, many per vendor, so "Bar"
+// filters the vendor picker down to bar suppliers when logging an
+// invoice or petty cash entry. Deliberately NOT a fixed category enum
+// and NOT the ledgerCategories table: those classify the EXPENSE (and
+// feed the P&L); this classifies the RELATIONSHIP, purely to shrink a
+// picker. Tag names are restaurant-invented; the UI offers existing
+// tags for reuse so spellings converge.
+export const ledgerVendorTags = sqliteTable(
+  "ledger_vendor_tags",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    vendorId: integer("vendor_id").notNull().references(() => ledgerVendors.id),
+    tag: text("tag").notNull(),
+  },
+  (t) => ({
+    uniqVendorTag: uniqueIndex("uniq_vendor_tag").on(t.vendorId, t.tag),
+  })
+);
 
 // Expense categories (Bar/Food/Mis/PAYROLL BOH/etc in Soothr's sheet) —
 // deliberately a restaurant-configurable table, not a hardcoded enum,

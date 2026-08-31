@@ -16,7 +16,18 @@ interface Vendor {
 
 const initialState: LedgerAdminActionState = { error: null };
 
-export function VendorForm({ existing }: { existing: Vendor | null }) {
+export function VendorForm({
+  existing,
+  existingTags = [],
+  allTags = [],
+}: {
+  existing: Vendor | null;
+  /** This vendor's current tags (edit mode). */
+  existingTags?: string[];
+  /** Every tag already in use across vendors — shown for reuse so
+   * spellings converge instead of fragmenting (2026-08-31). */
+  allTags?: string[];
+}) {
   const action = existing ? updateLedgerVendor : createLedgerVendor;
   const [state, formAction, isPending] = useActionState(action, initialState);
 
@@ -25,6 +36,17 @@ export function VendorForm({ existing }: { existing: Vendor | null }) {
       {existing && <input type="hidden" name="vendorId" value={existing.id} />}
       {state.error && <Banner tone="danger" title="Couldn't save vendor" description={state.error} />}
       <TextInput type="text" name="name" label="Name" defaultValue={existing?.name ?? ""} required />
+      <TextInput
+        type="text"
+        name="tags"
+        label="Tags (optional)"
+        defaultValue={existingTags.join(", ")}
+        placeholder="e.g. Bar, Produce"
+        hint={
+          "Comma-separated. Tags become filter chips on the vendor picker when logging petty cash or an invoice — a vendor can carry several." +
+          (allTags.length > 0 ? ` Already in use: ${allTags.join(", ")}.` : "")
+        }
+      />
       <TextInput
         type="text"
         name="payeeAddressLine1"

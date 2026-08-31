@@ -6,6 +6,7 @@ import { logSupplierInvoice, type SupplierInvoiceActionState } from "@/lib/actio
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { VendorPicker, type TaggedVendor } from "@/app/(protected)/ledger/VendorPicker";
 
 const initialState: SupplierInvoiceActionState = { error: null };
 
@@ -18,7 +19,7 @@ export function LogInvoiceForm({
   vendors,
   categories,
 }: {
-  vendors: { id: number; name: string }[];
+  vendors: TaggedVendor[];
   categories: { id: number; name: string }[];
 }) {
   const [state, formAction, isPending] = useActionState(logSupplierInvoice, initialState);
@@ -28,14 +29,7 @@ export function LogInvoiceForm({
       {state.error && <Banner tone="danger" title="Couldn't log invoice" description={state.error} />}
       <TextInput type="date" name="receivedDate" label="Date received" required defaultValue={businessTodayIso()} />
       <div className="grid grid-cols-2 gap-2">
-        <Select name="vendorId" label="Vendor" required>
-          <option value="">Choose…</option>
-          {vendors.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
-        </Select>
+        <VendorPicker name="vendorId" label="Vendor" required vendors={vendors} />
         <Select name="categoryId" label="Category" required>
           <option value="">Choose…</option>
           {categories.map((c) => (

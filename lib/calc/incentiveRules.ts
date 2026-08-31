@@ -15,14 +15,17 @@
  * AskUserQuestion to scope this round to flat rate for ALL BOH first (not
  * per-employee weighting) and SHIFT-period only.
  *
- * DELIBERATELY SCOPED OUT this round (same "concrete first" sequencing
- * used throughout this project — see the schema memory's architectural-
- * limitation note): WEEK/MONTH evaluationPeriod, PERCENT_OF_METRIC and
- * ADJUST_TIP_POINT rewardType, WEIGHTED_POOL distributionMethod (which
- * would pull in employeeRuleWeights). A rule using any of those is simply
- * skipped by this evaluator (not an error) until that scenario is
- * actually being built — same "skip what's out of scope, don't guess"
- * approach as elsewhere in this codebase.
+ * 2026-08-31, third real scenario (packer off-premise bonus): the
+ * metric-funded pool shapes came in scope — PERCENT_OF_METRIC and the new
+ * PER_BLOCK_OF_METRIC, both with WEIGHTED_POOL distribution evaluated as
+ * an EQUAL split (no employeeRuleWeights rows = every weight 1.0).
+ *
+ * STILL DELIBERATELY OUT: WEEK/MONTH evaluationPeriod, ADJUST_TIP_POINT,
+ * per-person weighting via employeeRuleWeights, and PER_TARGET_FLAT with
+ * metric-funded types. A rule using any of those is simply skipped by
+ * this evaluator (not an error) until that scenario is actually being
+ * built — same "skip what's out of scope, don't guess" approach as
+ * elsewhere in this codebase.
  */
 
 export type IncentiveOperator = ">=" | ">" | "<=" | "<" | "between";
@@ -48,9 +51,14 @@ export interface IncentiveRuleDef {
   name: string;
   enabled: boolean;
   evaluationPeriod: "SHIFT" | "WEEK" | "MONTH";
-  rewardType: "FLAT" | "PERCENT_OF_METRIC" | "ADJUST_TIP_POINT";
+  rewardType: "FLAT" | "PERCENT_OF_METRIC" | "PER_BLOCK_OF_METRIC" | "ADJUST_TIP_POINT";
   rewardValue: number;
+  /** Ceiling on a metric-funded pool; null = uncapped. */
+  rewardCap: number | null;
   distributionMethod: "PER_TARGET_FLAT" | "WEIGHTED_POOL";
+  /** Which SHIFT metric funds the pool for the metric-funded reward
+   * types; ignored for FLAT. */
+  poolSourceMetricKey: string | null;
   conditions: IncentiveRuleCondition[];
   targets: IncentiveRuleTarget[];
 }
@@ -90,17 +98,67 @@ export function evaluateShiftIncentiveRules(
   for (const rule of rules) {
     if (!rule.enabled) continue;
     if (rule.evaluationPeriod !== "SHIFT") continue;
-    if (rule.rewardType !== "FLAT") continue;
-    if (rule.distributionMethod !== "PER_TARGET_FLAT") continue;
     if (rule.conditions.length === 0) continue;
 
     const allConditionsMet = rule.conditions.every((c) => evaluateCondition(shiftMetrics[c.metricKey], c));
     if (!allConditionsMet) continue;
 
-    const recipientEmployeeIds = resolveTargets(rule.targets, roster);
-    for (const employeeId of recipientEmployeeIds) {
-      payouts.push({ ruleId: rule.id, ruleName: rule.name, employeeId, amount: round2(rule.rewardValue) });
+    if (rule.rewardType === "FLAT" && rule.distributionMethod === "PER_TARGET_FLAT") {
+      const recipientEmployeeIds = resolveTargets(rule.targets, roster);
+      for (const employeeId of recipientEmployeeIds) {
+        payouts.push({ ruleId: rule.id, ruleName: rule.name, employeeId, amount: round2(rule.rewardValue) });
+      }
+      continue;
     }
+
+    /* Metric-funded pool split equally (2026-08-31, the packer bonus —
+     * the second real scenario, confirmed with Oliver):
+     *   PERCENT_OF_METRIC:  pool = rewardValue (a fraction) × metric
+     *   PER_BLOCK_OF_METRIC: pool = rewardValue × ⌊metric / 100⌋
+     *     — "$1 per full $100"; $199 pays $1, never $1.99. The block
+     *     size is fixed at $100 by the rule style itself.
+     * Split EQUALLY among everyone the targets resolve to on this
+     * shift's roster ("หารกัน", Oliver's A) — the house pays the pool
+     * once, however many packers worked. WEIGHTED_POOL with nobody in
+     * employeeRuleWeights means every weight is the default 1.0, which
+     * IS the equal split; per-person weighting stays deferred. */
+    if (
+      (rule.rewardType === "PERCENT_OF_METRIC" || rule.rewardType === "PER_BLOCK_OF_METRIC") &&
+      rule.distributionMethod === "WEIGHTED_POOL"
+    ) {
+      if (!rule.poolSourceMetricKey) continue; // unconfigured, skip
+      const base = shiftMetrics[rule.poolSourceMetricKey];
+      if (base === undefined || base <= 0) continue;
+
+      let pool =
+        rule.rewardType === "PERCENT_OF_METRIC"
+          ? rule.rewardValue * base
+          : rule.rewardValue * Math.floor(base / 100);
+      if (rule.rewardCap !== null) pool = Math.min(pool, rule.rewardCap);
+      pool = round2(pool);
+      if (pool <= 0) continue;
+
+      const recipientEmployeeIds = resolveTargets(rule.targets, roster).sort((a, b) => a - b);
+      if (recipientEmployeeIds.length === 0) continue;
+
+      // The shares must sum EXACTLY to the pool — the house pays the
+      // pool, not the pool ± rounding. Floor every share to a cent,
+      // then hand the leftover cents out one each, lowest employeeId
+      // first (deterministic, so re-finalizing can't reshuffle cents).
+      const n = recipientEmployeeIds.length;
+      const poolCents = Math.round(pool * 100);
+      const baseCents = Math.floor(poolCents / n);
+      let leftover = poolCents - baseCents * n;
+      for (const employeeId of recipientEmployeeIds) {
+        const cents = baseCents + (leftover > 0 ? 1 : 0);
+        if (leftover > 0) leftover -= 1;
+        payouts.push({ ruleId: rule.id, ruleName: rule.name, employeeId, amount: cents / 100 });
+      }
+      continue;
+    }
+
+    // Any other rewardType/distribution combination stays out of scope —
+    // skipped, not an error, same policy as the header comment.
   }
 
   return payouts;

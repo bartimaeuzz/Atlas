@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { loadLedgerVendors, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
+import { loadLedgerVendorsWithTags, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
 import { LogInvoiceForm } from "../LogInvoiceForm";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
@@ -13,7 +13,8 @@ import { NoAccess } from "@/components/NoAccess";
 export default async function NewSupplierInvoicePage() {
   if (!(await hasCapability("VIEW_LEDGER_OVERVIEW"))) return <NoAccess pageLabel="Supplier Check" />;
 
-  const [vendors, categories] = await Promise.all([loadLedgerVendors(), loadLedgerCategories()]);
+  const [allVendors, categories] = await Promise.all([loadLedgerVendorsWithTags(), loadLedgerCategories()]);
+  const vendors = allVendors.filter((v) => v.active);
 
   return (
     <main className="max-w-lg mx-auto p-4 sm:p-8">

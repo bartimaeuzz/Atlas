@@ -29,6 +29,8 @@ export const TOAST_DAY_TOTAL_FIELDS: DayTotalField[] = [
   { key: "ccTipTotal", label: "CC tip total" },
   { key: "takeoutCcTip", label: "Takeout CC tip" },
   { key: "deliveryToastTip", label: "Delivery Toast tip" },
+  { key: "toastTakeoutSales", label: "Toast takeout sales" },
+  { key: "toastDeliverySales", label: "Toast delivery sales" },
   { key: "cashSales", label: "Cash sales" },
   { key: "grossFoodSales", label: "Gross food sales" },
   { key: "grossBeverageSales", label: "Gross beverage sales" },

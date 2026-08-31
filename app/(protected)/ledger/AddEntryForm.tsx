@@ -5,6 +5,7 @@ import { addPettyCashEntry, type PettyCashEntryActionState } from "@/lib/actions
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { VendorPicker, type TaggedVendor } from "./VendorPicker";
 
 const initialState: PettyCashEntryActionState = { error: null };
 
@@ -21,7 +22,7 @@ export function AddEntryForm({
   categories,
 }: {
   date: string;
-  vendors: { id: number; name: string }[];
+  vendors: TaggedVendor[];
   categories: { id: number; name: string }[];
 }) {
   const [state, formAction, isPending] = useActionState(addPettyCashEntry, initialState);
@@ -39,14 +40,7 @@ export function AddEntryForm({
             </option>
           ))}
         </Select>
-        <Select name="vendorId" label="Vendor (optional)">
-          <option value="">No vendor</option>
-          {vendors.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-            </option>
-          ))}
-        </Select>
+        <VendorPicker name="vendorId" label="Vendor (optional)" vendors={vendors} noneLabel="No vendor" />
       </div>
       <TextInput type="text" name="note" label="Note" placeholder="e.g. Pay out to Tommy: flowers" />
       <TextInput

@@ -17,7 +17,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   pettyCashEntries,
-  ledgerVendors,
+  ledgerVendors, ledgerVendorTags,
   ledgerCategories,
   dailyCashReconciliations,
   shifts,
@@ -71,7 +71,7 @@ export interface PettyCashDayData {
    * form submission that finalizes. */
   shiftsReady: boolean;
 
-  vendors: { id: number; name: string }[];
+  vendors: { id: number; name: string; tags: string[] }[];
   categories: { id: number; name: string }[];
 
   /** Suggested beginning balance for a brand-new (never-saved)
@@ -105,7 +105,7 @@ async function sumFinalizedCash(date: string): Promise<{ cashSales: number; cash
 }
 
 export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> {
-  const [entryRows, [reconciliation], shiftRows, activeVendors, activeCategories, cash] = await Promise.all([
+  const [entryRows, [reconciliation], shiftRows, activeVendors, vendorTagRows, activeCategories, cash] = await Promise.all([
     db
       .select({
         id: pettyCashEntries.id,
@@ -130,6 +130,7 @@ export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> 
       .from(shifts)
       .where(eq(shifts.date, date)),
     db.select({ id: ledgerVendors.id, name: ledgerVendors.name }).from(ledgerVendors).where(eq(ledgerVendors.active, true)),
+    db.select().from(ledgerVendorTags),
     db.select({ id: ledgerCategories.id, name: ledgerCategories.name }).from(ledgerCategories).where(eq(ledgerCategories.active, true)),
     sumFinalizedCash(date),
   ]);
@@ -189,7 +190,10 @@ export async function loadPettyCashDay(date: string): Promise<PettyCashDayData> 
     finalizedByName,
     blockingShifts,
     shiftsReady: !anyUnfinalizedShift,
-    vendors: activeVendors,
+    vendors: activeVendors.map((v) => ({
+      ...v,
+      tags: vendorTagRows.filter((t) => t.vendorId === v.id).map((t) => t.tag).sort(),
+    })),
     categories: activeCategories,
     suggestedBeginningBalance,
   };

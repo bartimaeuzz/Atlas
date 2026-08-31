@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { updateRestaurantSettings, type SettingsActionState } from "@/lib/actions/settings";
 import type { RestaurantSettingsData } from "@/lib/settings/loadRestaurantSettings";
+import type { PackerBonusConfig } from "@/lib/settings/packerBonus";
+import { useState } from "react";
 
 const initialState: SettingsActionState = { error: null, saved: false };
 
@@ -32,8 +34,18 @@ const DISABLED_FIELD =
  * this only needs to fix the misleading pointer. */
 const DISABLED_TOGGLE = "disabled:cursor-not-allowed";
 
-export function SettingsForm({ settings }: { settings: RestaurantSettingsData }) {
+export function SettingsForm({
+  settings,
+  packerBonus,
+  positions,
+}: {
+  settings: RestaurantSettingsData;
+  packerBonus: PackerBonusConfig;
+  positions: { id: number; name: string; category: "FOH" | "BOH" }[];
+}) {
   const [state, formAction, isPending] = useActionState(updateRestaurantSettings, initialState);
+  // Controlled only to swap the rate hint between the two styles.
+  const [packerStyle, setPackerStyle] = useState<"PERCENT" | "PER_BLOCK">(packerBonus.style);
 
   return (
     <form action={formAction} className="space-y-8 max-w-2xl">
@@ -106,6 +118,104 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
               Closing Report; a manager can always edit it per shift if Toast&apos;s real number differs
             </span>
           </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend className="text-lg font-medium mb-3">Packer bonus (off-premise sales)</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
+          A house-paid bonus on everything the packer packs — Toast takeout + Toast delivery + every
+          online platform&apos;s sales, all pre-tax. Paid by the restaurant on top of wages,{" "}
+          <span className="font-medium">never taken from any tip pool</span>. When more than one person
+          works the packer position on a shift, they split the one bonus equally.
+        </p>
+        <div className="space-y-3">
+          <label className={`flex items-center gap-2 text-sm min-h-11 ${DISABLED_TOGGLE}`}>
+            <input
+              type="checkbox"
+              name="packerBonusEnabled"
+              defaultChecked={packerBonus.enabled}
+              className={`size-4 accent-[var(--primary)] ${DISABLED_TOGGLE}`}
+            />
+            Pay the packer bonus
+          </label>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <label className="text-sm block">
+              <span className="block text-[var(--ink-500)] mb-1">How it&apos;s counted</span>
+              <select
+                name="packerBonusStyle"
+                defaultValue={packerBonus.style}
+                onChange={(e) => setPackerStyle(e.target.value as "PERCENT" | "PER_BLOCK")}
+                className={`border rounded px-3 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}
+              >
+                <option value="PERCENT">% of off-premise sales</option>
+                <option value="PER_BLOCK">$ per full $100 of sales</option>
+              </select>
+            </label>
+            <label className="text-sm block">
+              <span className="block text-[var(--ink-500)] mb-1">Rate</span>
+              <div className="relative w-32">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  name="packerBonusRate"
+                  defaultValue={packerBonus.rate}
+                  className={`border rounded pl-3 pr-6 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">
+                  {packerStyle === "PERCENT" ? "%" : "$"}
+                </span>
+              </div>
+              <span className="block text-xs text-[var(--ink-400)] mt-1">
+                {packerStyle === "PERCENT"
+                  ? "e.g. 1 — $199 of off-premise sales pays $1.99"
+                  : "e.g. 1 — $199 pays $1 (only full $100s count)"}
+              </span>
+            </label>
+            <label className="text-sm block">
+              <span className="block text-[var(--ink-500)] mb-1">Position that earns it</span>
+              <select
+                name="packerBonusPositionId"
+                defaultValue={packerBonus.positionId ?? ""}
+                className={`border rounded px-3 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}
+              >
+                <option value="">— pick a position —</option>
+                {positions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.category})
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend className="text-lg font-medium mb-3">POS closeout</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
+          What the Closing Report does when a second shift of the day closes and the numbers being
+          copied might include the earlier shift. &quot;Ask every time&quot; is the safe default while
+          nobody is sure how the POS is configured; either fixed answer still shows the math — nothing
+          is ever subtracted silently.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          {(
+            [
+              { name: "toastCloseoutMode", label: "Toast numbers", value: settings.toastCloseoutMode },
+              { name: "platformCloseoutMode", label: "Online platform dashboards", value: settings.platformCloseoutMode },
+            ] as const
+          ).map((f) => (
+            <label key={f.name} className="text-sm block">
+              <span className="block text-[var(--ink-500)] mb-1">{f.label}</span>
+              <select name={f.name} defaultValue={f.value} className={`border rounded px-3 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}>
+                <option value="ASK">Ask every time (safe default)</option>
+                <option value="PER_SHIFT">Clears each shift — numbers are per-shift</option>
+                <option value="CUMULATIVE">Shows the whole day — subtract the earlier shift</option>
+              </select>
+            </label>
+          ))}
         </div>
       </fieldset>
 

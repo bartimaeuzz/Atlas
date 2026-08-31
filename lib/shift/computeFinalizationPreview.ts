@@ -28,6 +28,10 @@ export interface FinalizationPreview {
    * (Preview/Summary can show "which rule") and by runFinalize to write
    * the incentivePayoutRecords audit trail. */
   incentiveRulePayouts: IncentiveRulePayout[];
+  /** Every SHIFT metric the rules were evaluated against — snapshotted
+   * onto incentivePayoutRecords so "why did this rule pay $X" stays
+   * answerable after the sales rows change (2026-08-31). */
+  shiftMetrics: Record<string, number>;
   /** One representative position per employee for THIS shift (2026-08-10,
    * Oliver asked for a Position column + consistent sort on the manager-
    * facing payout table, matching My Pay's coworker list). An employee
@@ -142,14 +146,21 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     };
   }
 
-  // Generic Incentive Rules engine (2026-08-10) — first real evaluation,
-  // scoped to SHIFT-period/FLAT/PER_TARGET_FLAT rules only (see
-  // lib/calc/incentiveRules.ts header comment for what's deferred).
-  // shiftMetrics only has total_sales for now (read directly off ShiftSales,
-  // not the vestigial disabled metric_definitions row of the same key —
-  // see db/seed.ts's comment on why that row is disabled). Extend this map
-  // if a future rule needs a different SHIFT-scope metric.
-  const shiftMetrics: Record<string, number> = { total_sales: sales.totalSales };
+  // Generic Incentive Rules engine (2026-08-10; metric-funded pools added
+  // 2026-08-31 — see lib/calc/incentiveRules.ts header for what's still
+  // deferred). Metrics read directly off the sales rows, not metricValues.
+  //
+  // off_premise_sales (2026-08-31, packer bonus): everything the packer
+  // packs — Toast takeout + Toast phone/own delivery + every online
+  // platform's sales — pre-tax by construction (each figure is entered
+  // net of tax; tax lives in its own columns).
+  const offPremiseSales = round2(
+    sales.toastTakeoutSales + sales.toastDeliverySales + sum(platformRecords.map((r) => r.salesAmount))
+  );
+  const shiftMetrics: Record<string, number> = {
+    total_sales: sales.totalSales,
+    off_premise_sales: offPremiseSales,
+  };
 
   const incentiveRosterEntries: IncentiveRosterEntry[] = calcData.roster.map((r) => ({
     employeeId: r.employeeId,
@@ -177,7 +188,9 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
       evaluationPeriod: rule.evaluationPeriod,
       rewardType: rule.rewardType,
       rewardValue: rule.rewardValue,
+      rewardCap: rule.rewardCap,
       distributionMethod: rule.distributionMethod,
+      poolSourceMetricKey: rule.poolSourceMetricKey,
       conditions: conditionRows
         .filter((c) => c.ruleId === rule.id)
         .map((c) => ({ metricKey: c.metricKey, operator: c.operator, value: c.value, valueTo: c.valueTo })),
@@ -235,6 +248,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     result,
     employeeNames,
     incentiveRulePayouts,
+    shiftMetrics,
     positionByEmployeeId,
   };
 }

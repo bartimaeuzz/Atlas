@@ -136,6 +136,12 @@ export interface ClosingReportData {
   /** Non-null only when an earlier shift exists on the same date — the
    * trigger for the "what do these numbers cover?" question. */
   priorShift: PriorShiftFigures | null;
+  /** POS closeout modes (2026-08-31, phase 2 of the day-total question):
+   * ASK renders the unanswered chooser; PER_SHIFT hides it (the POS
+   * clears each close); CUMULATIVE preselects "whole day" — the math
+   * line still shows, nothing subtracts silently. */
+  toastCloseoutMode: "ASK" | "PER_SHIFT" | "CUMULATIVE";
+  platformCloseoutMode: "ASK" | "PER_SHIFT" | "CUMULATIVE";
   /** Restaurant's default sales tax rate (2026-08-10), passed down so the
    * client-side form can LIVE-recompute the suggested Sales tax figure as
    * the manager types Total sales, instead of only computing it once at
@@ -150,6 +156,8 @@ export interface ClosingReportData {
     ccTipTotal: number;
     takeoutCcTip: number;
     deliveryToastTip: number;
+    toastTakeoutSales: number;
+    toastDeliverySales: number;
     cashSales: number;
     cashTip: number;
     grossFoodSales: number;
@@ -208,6 +216,8 @@ export async function loadPriorShiftFigures(
         ccTipTotal: lunchSales.ccTipTotal,
         takeoutCcTip: lunchSales.takeoutCcTip,
         deliveryToastTip: lunchSales.deliveryToastTip,
+        toastTakeoutSales: lunchSales.toastTakeoutSales,
+        toastDeliverySales: lunchSales.toastDeliverySales,
         cashSales: lunchSales.cashSales,
         grossFoodSales: lunchSales.grossFoodSales,
         grossBeverageSales: lunchSales.grossBeverageSales,
@@ -238,7 +248,7 @@ export async function loadPriorShiftFigures(
 
 export async function loadClosingReportData(shiftId: number): Promise<ClosingReportData> {
   const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
-  if (!shift) return { shift: null, priorShift: null, defaultSalesTaxRate: 0, pointWeightedPools: [], sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [], undecidedPointCount: 0 };
+  if (!shift) return { shift: null, priorShift: null, toastCloseoutMode: "ASK", platformCloseoutMode: "ASK", defaultSalesTaxRate: 0, pointWeightedPools: [], sales: null, platformSales: [], pointValueRows: [], metricRows: [], shiftMetricRows: [], wageAdjustmentRows: [], undecidedPointCount: 0 };
 
   const [sales] = await db.select().from(shiftSales).where(eq(shiftSales.shiftId, shiftId));
   const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
@@ -469,6 +479,8 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
   return {
     shift: { id: shift.id, date: shift.date, period: shift.period, status: shift.status, incidentReport: shift.incidentReport },
     priorShift: await loadPriorShiftFigures(shift.date, shift.period, taxRate),
+    toastCloseoutMode: settings?.toastCloseoutMode ?? "ASK",
+    platformCloseoutMode: settings?.platformCloseoutMode ?? "ASK",
     defaultSalesTaxRate: taxRate,
     pointWeightedPools,
     sales: sales
@@ -477,6 +489,8 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
           ccTipTotal: sales.ccTipTotal,
           takeoutCcTip: sales.takeoutCcTip,
           deliveryToastTip: sales.deliveryToastTip,
+          toastTakeoutSales: sales.toastTakeoutSales,
+          toastDeliverySales: sales.toastDeliverySales,
           cashSales: sales.cashSales,
           cashTip: sales.cashTip,
           grossFoodSales: sales.grossFoodSales,

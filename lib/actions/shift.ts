@@ -575,6 +575,8 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     ccTipTotal: num("ccTipTotal"),
     takeoutCcTip: num("takeoutCcTip"),
     deliveryToastTip: num("deliveryToastTip"),
+    toastTakeoutSales: num("toastTakeoutSales"),
+    toastDeliverySales: num("toastDeliverySales"),
     cashSales: num("cashSales"),
     cashTip: num("cashTip"),
     grossFoodSales: num("grossFoodSales"),
@@ -612,10 +614,21 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     ? await loadPriorShiftFigures(shiftRow.date, shiftRow.period, settings?.defaultSalesTaxRate ?? 0)
     : null;
 
+  // Closeout-mode fallback (2026-08-31 phase 2): when a mode is fixed in
+  // Settings, an unanswered form falls back to that mode's answer instead
+  // of erroring — but an explicit answer on the form always wins, and ASK
+  // still refuses to guess.
+  const resolveMode = (posted: string, configured: "ASK" | "PER_SHIFT" | "CUMULATIVE" | undefined): "shift" | "day" | null => {
+    if (posted === "shift" || posted === "day") return posted;
+    if (configured === "PER_SHIFT") return "shift";
+    if (configured === "CUMULATIVE") return "day";
+    return null;
+  };
+
   let toastSubtraction: { entered: Record<string, number>; subtracted: Record<string, number> } | null = null;
   if (prior) {
-    const toastMode = String(formData.get("toastEntryMode") ?? "");
-    if (toastMode !== "shift" && toastMode !== "day") {
+    const toastMode = resolveMode(String(formData.get("toastEntryMode") ?? ""), settings?.toastCloseoutMode);
+    if (toastMode === null) {
       throw new Error(
         `${prior.period} was already closed today, so Atlas needs to know what the Toast numbers cover — ` +
           `choose "This shift only" or "Whole day" at the top of the Sales card. Nothing was saved.`
@@ -639,8 +652,8 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
   const priorPlatformFigures = new Map((prior?.platforms ?? []).map((p) => [p.platformId, p]));
   let platformDayMode = false;
   if (prior && priorPlatformFigures.size > 0) {
-    const platformMode = String(formData.get("platformEntryMode") ?? "");
-    if (platformMode !== "shift" && platformMode !== "day") {
+    const platformMode = resolveMode(String(formData.get("platformEntryMode") ?? ""), settings?.platformCloseoutMode);
+    if (platformMode === null) {
       throw new Error(
         `${prior.period} already recorded online-platform sales today, so Atlas needs to know what the ` +
           `platform numbers cover — choose "This shift only" or "Whole day" in the Online platform sales card. ` +

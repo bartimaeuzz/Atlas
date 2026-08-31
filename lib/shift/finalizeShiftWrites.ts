@@ -23,7 +23,7 @@ import { computeFinalizationPreview } from "./computeFinalizationPreview";
  * shown on the Summary and the key to the reopen rule. Optional so
  * db/seed.ts keeps working; seeded shifts show an em dash. */
 export async function finalizeShiftWrites(shiftId: number, finalizedByEmployeeId?: number) {
-  const { result, incentiveRulePayouts, sales } = await computeFinalizationPreview(shiftId);
+  const { result, incentiveRulePayouts, shiftMetrics } = await computeFinalizationPreview(shiftId);
 
   await db.insert(tipPoolCalculations).values({ shiftId, ...result.tipPoolCalculation });
   for (const payout of result.employeePayouts) {
@@ -37,7 +37,9 @@ export async function finalizeShiftWrites(shiftId: number, finalizedByEmployeeId
       periodType: "SHIFT",
       periodKey: String(shiftId),
       computedAmount: rulePayout.amount,
-      metricSnapshot: { total_sales: sales.totalSales },
+      // Every metric the rules saw, not just total_sales (2026-08-31) —
+      // the packer rule's "why $X" needs off_premise_sales on record.
+      metricSnapshot: shiftMetrics,
     });
   }
 

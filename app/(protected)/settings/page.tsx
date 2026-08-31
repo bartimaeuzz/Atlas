@@ -1,4 +1,7 @@
 import { loadRestaurantSettings, loadRecoveryCodeStatus } from "@/lib/settings/loadRestaurantSettings";
+import { loadPackerBonusConfig } from "@/lib/settings/packerBonus";
+import { db } from "@/db/client";
+import { positions } from "@/db/schema";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NoAccess } from "@/components/NoAccess";
 import { Banner } from "@/components/ui/Banner";
@@ -31,7 +34,16 @@ export default async function SettingsPage() {
   if (!viewer?.has("VIEW_SETTINGS")) return <NoAccess pageLabel="Settings" />;
   const canEdit = viewer.has("EDIT_SETTINGS");
 
-  const [settings, recoveryStatus] = await Promise.all([loadRestaurantSettings(), loadRecoveryCodeStatus()]);
+  const [settings, recoveryStatus, packerBonus, allPositions] = await Promise.all([
+    loadRestaurantSettings(),
+    loadRecoveryCodeStatus(),
+    loadPackerBonusConfig(),
+    db.select().from(positions),
+  ]);
+  const activePositions = allPositions
+    .filter((p) => p.active)
+    .map((p) => ({ id: p.id, name: p.name, category: p.category as "FOH" | "BOH" }))
+    .sort((a, b) => (a.category === b.category ? a.name.localeCompare(b.name) : a.category === "FOH" ? -1 : 1));
   const viewerIsAdmin = viewer.isAdmin;
 
   return (
@@ -59,7 +71,7 @@ export default async function SettingsPage() {
           (WCAG 1.4.10) -- the same class of bug fixed on Analytics
           earlier the same day. */}
       <fieldset disabled={!canEdit} className="border-0 p-0 m-0 min-w-0">
-        <SettingsForm settings={settings} />
+        <SettingsForm settings={settings} packerBonus={packerBonus} positions={activePositions} />
       </fieldset>
       {/* Repeated at the bottom on purpose (2026-08-22 visual-audit
           finding). The banner above sits at the top of a ~2,000px form;

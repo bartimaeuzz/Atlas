@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { restaurantSettings } from "@/db/schema";
+import { restaurantSettings, incentiveRules, incentiveRuleConditions, incentiveRuleTargets } from "@/db/schema";
+import { OFF_PREMISE_METRIC_KEY } from "@/lib/settings/packerBonus";
 import { requireCapability } from "@/lib/permissions/requireCapability";
 
 export interface SettingsActionState {
@@ -72,9 +73,89 @@ export async function updateRestaurantSettings(
     }
     const staffLoginMethod = staffLoginMethodRaw as "NAME" | "ID";
 
+    // POS closeout modes (2026-08-31) — see db/schema.ts. Validated
+    // against the enum; anything else is a tampered post, refused.
+    const closeoutMode = (name: string): "ASK" | "PER_SHIFT" | "CUMULATIVE" => {
+      const v = String(formData.get(name) ?? "ASK");
+      if (v !== "ASK" && v !== "PER_SHIFT" && v !== "CUMULATIVE") throw new Error("Invalid closeout mode");
+      return v;
+    };
+    const toastCloseoutMode = closeoutMode("toastCloseoutMode");
+    const platformCloseoutMode = closeoutMode("platformCloseoutMode");
+
+    /* Packer off-premise bonus (2026-08-31) — upserts the generic
+     * incentive rule keyed by poolSourceMetricKey, see
+     * lib/settings/packerBonus.ts for the full business rule. The rate
+     * field is read in DISPLAY units (percent number, or $ per $100)
+     * and converted for storage here, same pattern as the tax percent
+     * fields above. */
+    const packerStyleRaw = String(formData.get("packerBonusStyle") ?? "PERCENT");
+    if (packerStyleRaw !== "PERCENT" && packerStyleRaw !== "PER_BLOCK") throw new Error("Invalid packer bonus style");
+    const packerEnabled = formData.get("packerBonusEnabled") === "on";
+    const packerRate = Number(formData.get("packerBonusRate") ?? 0);
+    if (Number.isNaN(packerRate) || packerRate < 0) throw new Error("Packer bonus rate must be a non-negative number");
+    if (packerStyleRaw === "PERCENT" && packerRate > 100) throw new Error("Packer bonus percent must be between 0 and 100");
+    const packerPositionIdRaw = formData.get("packerBonusPositionId");
+    const packerPositionId =
+      packerPositionIdRaw && String(packerPositionIdRaw).trim() !== "" ? Number(packerPositionIdRaw) : null;
+    if (packerEnabled && !packerPositionId) {
+      throw new Error("Pick which position earns the packer bonus before turning it on.");
+    }
+
+    const [existingRule] = await db
+      .select()
+      .from(incentiveRules)
+      .where(eq(incentiveRules.poolSourceMetricKey, OFF_PREMISE_METRIC_KEY));
+
+    const ruleValues = {
+      name: "Packer off-premise bonus",
+      description:
+        "House-paid share of all off-premise sales (Toast takeout + Toast delivery + online platforms, pre-tax), split equally among whoever worked the packer position that shift. Never taken from a tip pool.",
+      enabled: packerEnabled,
+      evaluationPeriod: "SHIFT" as const,
+      rewardType: (packerStyleRaw === "PER_BLOCK" ? "PER_BLOCK_OF_METRIC" : "PERCENT_OF_METRIC") as
+        | "PER_BLOCK_OF_METRIC"
+        | "PERCENT_OF_METRIC",
+      rewardValue: packerStyleRaw === "PER_BLOCK" ? packerRate : packerRate / 100,
+      rewardCap: null,
+      distributionMethod: "WEIGHTED_POOL" as const,
+      weightSource: null,
+      weightMetricKey: null,
+      poolSourceMetricKey: OFF_PREMISE_METRIC_KEY,
+    };
+
+    if (existingRule) {
+      await db.update(incentiveRules).set(ruleValues).where(eq(incentiveRules.id, existingRule.id));
+      // Replace the position target wholesale — one rule, one target.
+      await db.delete(incentiveRuleTargets).where(eq(incentiveRuleTargets.ruleId, existingRule.id));
+      if (packerPositionId) {
+        await db
+          .insert(incentiveRuleTargets)
+          .values({ ruleId: existingRule.id, targetType: "POSITION", targetId: String(packerPositionId) });
+      }
+    } else if (packerEnabled || packerPositionId) {
+      // Create only once someone actually configures it — a restaurant
+      // that never touches this section gets no phantom rule row.
+      const [rule] = await db.insert(incentiveRules).values(ruleValues).returning();
+      await db.insert(incentiveRuleConditions).values({
+        ruleId: rule.id,
+        metricKey: OFF_PREMISE_METRIC_KEY,
+        operator: ">",
+        value: 0,
+        valueTo: null,
+      });
+      if (packerPositionId) {
+        await db
+          .insert(incentiveRuleTargets)
+          .values({ ruleId: rule.id, targetType: "POSITION", targetId: String(packerPositionId) });
+      }
+    }
+
     await db
       .update(restaurantSettings)
       .set({
+        toastCloseoutMode,
+        platformCloseoutMode,
         ccTipDeductionRate,
         hostDrinkBonusPerDrinkAmount,
         defaultSalesTaxRate,
