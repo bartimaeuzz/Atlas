@@ -120,7 +120,7 @@ function FilterChip({ href, active, label }: { href: string; active: boolean; la
         "inline-flex items-center min-h-9 px-3 rounded-[var(--radius-full)] text-xs font-medium transition-colors " +
         (active
           ? "bg-[var(--primary)] text-white"
-          : "bg-[var(--card)] text-[var(--ink-700)] border border-[var(--border)] hover:bg-[var(--paper)]")
+          : "bg-[var(--card)] text-[var(--ink-700)] border border-[var(--border)] hover:bg-[var(--hover)]")
       }
     >
       {label}

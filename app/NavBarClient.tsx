@@ -200,7 +200,7 @@ function NavItem({
           " " +
           (active
             ? "bg-[var(--brand-tint)] text-[var(--brand)]"
-            : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]")
+            : "text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)]")
         }
         {...tooltipHandlers}
       >
@@ -253,7 +253,7 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
         aria-pressed={collapsed}
         className={
-          "relative hidden sm:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)] " +
+          "relative hidden sm:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] " +
           (collapsed ? "w-11 mx-auto justify-center px-0" : "w-full justify-start px-3")
         }
         {...tooltipHandlers}
@@ -511,7 +511,7 @@ export function NavBarClient({
               aria-label={`${auth.name} — account menu`}
               aria-expanded={menuOpen}
               className={
-                "flex items-center gap-2.5 rounded-[var(--radius-md)] hover:bg-[var(--paper)] transition-colors " +
+                "flex items-center gap-2.5 rounded-[var(--radius-md)] hover:bg-[var(--hover)] transition-colors " +
                 navItemSizeClasses
               }
               {...accountTooltipHandlers}
@@ -552,7 +552,7 @@ export function NavBarClient({
                       "block px-3 py-2.5 " +
                       (pathname.startsWith("/me/schedule")
                         ? "font-medium text-[var(--ink-900)]"
-                        : "text-[var(--ink-700)] hover:bg-[var(--paper)]")
+                        : "text-[var(--ink-700)] hover:bg-[var(--hover)]")
                     }
                   >
                     My Schedule
@@ -562,13 +562,13 @@ export function NavBarClient({
                     role="menuitem"
                     className={
                       "block px-3 py-2.5 " +
-                      (pathname === "/me" ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-700)] hover:bg-[var(--paper)]")
+                      (pathname === "/me" ? "font-medium text-[var(--ink-900)]" : "text-[var(--ink-700)] hover:bg-[var(--hover)]")
                     }
                   >
                     My Pay
                   </Link>
                   <form action={logout} className="border-t border-[var(--border)]">
-                    <button type="submit" role="menuitem" className="w-full text-left px-3 py-2.5 text-[var(--ink-700)] hover:bg-[var(--paper)]">
+                    <button type="submit" role="menuitem" className="w-full text-left px-3 py-2.5 text-[var(--ink-700)] hover:bg-[var(--hover)]">
                       Sign out
                     </button>
                   </form>

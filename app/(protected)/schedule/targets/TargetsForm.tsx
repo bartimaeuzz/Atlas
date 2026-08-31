@@ -170,7 +170,7 @@ export function TargetsForm({
             "px-4 py-2 min-h-11 rounded-[var(--radius-md)] text-sm disabled:opacity-50 transition-colors " +
             (justSaved
               ? "bg-[var(--success)] text-white"
-              : "bg-[var(--primary)] text-white hover:bg-[var(--primary-600)]")
+              : "bg-[var(--primary)] text-white hover:bg-[var(--primary-700)]")
           }
         >
           {isPending ? "Saving…" : justSaved ? "Saved ✓" : "Save targets"}
@@ -270,7 +270,7 @@ function MasterStepper({ onBump }: { onBump: (delta: number) => void }) {
       <button
         type="button"
         onClick={() => onBump(1)}
-        className="size-11 lg:size-6 flex items-center justify-center rounded-full bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary-600)] active:scale-90 transition-transform"
+        className="size-11 lg:size-6 flex items-center justify-center rounded-full bg-[var(--primary)] text-white text-sm font-bold hover:bg-[var(--primary-700)] active:scale-90 transition-transform"
         tabIndex={-1}
         aria-label="Increase every day in this row by 1"
       >
@@ -306,7 +306,7 @@ function TargetStepper({
       <button
         type="button"
         onClick={() => onChange(value - 1)}
-        className="w-9 h-11 lg:w-5 lg:h-6 flex items-center justify-center text-[var(--ink-500)] hover:bg-[var(--paper)] disabled:opacity-30"
+        className="w-9 h-11 lg:w-5 lg:h-6 flex items-center justify-center text-[var(--ink-500)] hover:bg-[var(--hover)] disabled:opacity-30"
         disabled={value <= 0}
         tabIndex={-1}
         aria-label="Decrease"
@@ -325,7 +325,7 @@ function TargetStepper({
       <button
         type="button"
         onClick={() => onChange(value + 1)}
-        className="w-9 h-11 lg:w-5 lg:h-6 flex items-center justify-center text-[var(--ink-500)] hover:bg-[var(--paper)]"
+        className="w-9 h-11 lg:w-5 lg:h-6 flex items-center justify-center text-[var(--ink-500)] hover:bg-[var(--hover)]"
         tabIndex={-1}
         aria-label="Increase"
       >

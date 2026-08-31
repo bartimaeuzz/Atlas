@@ -144,7 +144,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
         <legend className="text-lg font-medium mb-3">Tip pools</legend>
         <Link
           href="/settings/tip-pools"
-          className="flex items-center justify-between gap-3 border rounded-lg p-4 hover:bg-[var(--paper)] hover:border-[var(--border-strong)]"
+          className="flex items-center justify-between gap-3 border rounded-lg p-4 hover:bg-[var(--hover)] hover:border-[var(--border-strong)]"
         >
           <span>
             <span className="block text-sm font-medium">Manage tip pool assignment &amp; split method</span>
@@ -236,7 +236,7 @@ export function SettingsForm({ settings }: { settings: RestaurantSettingsData })
       <button
         type="submit"
         disabled={isPending}
-        className="bg-[var(--primary)] text-white px-4 py-2 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-600)] text-sm disabled:opacity-50"
+        className="bg-[var(--primary)] text-white px-4 py-2 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-700)] text-sm disabled:opacity-50"
       >
         {isPending ? "Saving…" : "Save settings"}
       </button>

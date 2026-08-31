@@ -6,12 +6,12 @@ type Variant = "primary" | "secondary" | "brand" | "destructive" | "destructive-
 type Size = "md" | "sm";
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-[var(--primary)] text-white hover:bg-[var(--primary-600)] active:brightness-90 disabled:bg-[var(--primary-border)] disabled:text-[var(--primary-tint)]",
-  secondary: "bg-transparent text-[var(--ink-700)] border border-[var(--border-strong)] hover:bg-[var(--paper)] active:bg-[var(--border)] disabled:opacity-50",
+  primary: "bg-[var(--primary)] text-white hover:bg-[var(--primary-700)] active:brightness-90 disabled:bg-[var(--primary-border)] disabled:text-[var(--primary-tint)]",
+  secondary: "bg-transparent text-[var(--ink-700)] border border-[var(--border-strong)] hover:bg-[var(--hover)] active:bg-[var(--pressed)] disabled:opacity-50",
   brand: "bg-[var(--brand)] text-white hover:bg-[var(--brand-700)] active:brightness-90 disabled:opacity-50",
   destructive: "bg-[var(--danger)] text-white hover:bg-[var(--danger-700)] active:brightness-90 disabled:bg-[var(--danger-border)] disabled:text-[var(--danger-tint)]",
   "destructive-outline": "bg-transparent text-[var(--danger)] border border-[var(--danger)] hover:bg-[var(--danger-tint)] active:bg-[var(--danger-border)] disabled:opacity-50",
-  ghost: "bg-transparent text-[var(--ink-700)] hover:bg-[var(--paper)] active:bg-[var(--border)] disabled:opacity-50",
+  ghost: "bg-transparent text-[var(--ink-700)] hover:bg-[var(--hover)] active:bg-[var(--pressed)] disabled:opacity-50",
 };
 
 const sizeClasses: Record<Size, string> = {

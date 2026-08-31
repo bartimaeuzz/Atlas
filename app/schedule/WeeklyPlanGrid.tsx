@@ -1255,7 +1255,7 @@ function QuickAddCell({
               // min 24px box (2026-08-24 audit -- it had no size guarantee
               // at all); kept compact rather than 44 because the row is
               // dense and the adjacent select is the primary control.
-              className="text-[10px] bg-[var(--primary)] text-white rounded-[var(--radius-sm)] px-2 min-h-6 min-w-6 leading-tight disabled:opacity-50 hover:bg-[var(--primary-600)]"
+              className="text-[10px] bg-[var(--primary)] text-white rounded-[var(--radius-sm)] px-2 min-h-6 min-w-6 leading-tight disabled:opacity-50 hover:bg-[var(--primary-700)]"
             >
               +
             </button>

@@ -32,7 +32,7 @@ export function ShiftStageNav({ shiftId, current }: { shiftId: number; current: 
           ) : (
             <Link
               href={`/shifts/${shiftId}/${s.path}`}
-              className="inline-flex items-center min-h-9 px-2.5 rounded-[var(--radius-full)] border border-[var(--border)] text-[var(--ink-700)] hover:bg-[var(--paper)] hover:text-[var(--ink-900)]"
+              className="inline-flex items-center min-h-9 px-2.5 rounded-[var(--radius-full)] border border-[var(--border)] text-[var(--ink-700)] hover:bg-[var(--hover)] hover:text-[var(--ink-900)]"
             >
               {s.label}
             </Link>

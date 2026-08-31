@@ -54,6 +54,15 @@
   --radius-lg: 12px;
   --radius-full: 999px;
 
+  /* ---- Interaction (2026-08-31, Aey: "hover state on button too
+   * subtle") ---- The old convention hovered transparent controls to
+   * --paper, which is a 1.02:1 non-event on a white card and a literal
+   * no-op on the page background itself. These two exist so every
+   * hoverable surface takes the SAME two visible steps: rest ->
+   * --hover -> --pressed. Never hover to --paper again. ---- */
+  --hover: #E2E8F0;
+  --pressed: #CBD5E1;
+
   /* ---- Elevation ---- */
   --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-2: 0 4px 10px rgba(15, 23, 42, 0.10);
@@ -97,6 +106,9 @@
   --success: #4ADE80;
   --warning: #FBBF24;
   --danger: #F87171;
+
+  --hover: #334155;
+  --pressed: #475569;
 
   color-scheme: dark;
 }

@@ -249,7 +249,7 @@ export default async function MyScheduleView({
                       // nothing staff are allowed to see there yet.
                       <Link
                         href={`/me/schedule/day?date=${day.date}`}
-                        className={"block min-h-24 rounded-[var(--radius-sm)] hover:bg-[var(--paper)]" + (day.inMonth ? "" : " opacity-40")}
+                        className={"block min-h-24 rounded-[var(--radius-sm)] hover:bg-[var(--hover)]" + (day.inMonth ? "" : " opacity-40")}
                       >
                         {cellInner}
                       </Link>

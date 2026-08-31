@@ -197,7 +197,7 @@ export function PoolBoard({
               "px-3.5 py-2 rounded-[var(--radius-full)] border font-medium transition-colors " +
               (filter === f
                 ? "bg-[var(--primary)] text-white border-transparent"
-                : "bg-[var(--card)] text-[var(--ink-500)] border-[var(--border)] hover:bg-[var(--paper)]")
+                : "bg-[var(--card)] text-[var(--ink-500)] border-[var(--border)] hover:bg-[var(--hover)]")
             }
           >
             {f === "all" ? "All positions" : f === "unassigned" ? "Unassigned only" : f}
@@ -328,7 +328,7 @@ function MasterCard({
                 "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-inherit " +
                 (active
                   ? `text-white border border-transparent ${c.chip}`
-                  : `bg-[var(--card)] border ${c.border} ${c.text} hover:bg-[var(--paper)]`)
+                  : `bg-[var(--card)] border ${c.border} ${c.text} hover:bg-[var(--hover)]`)
               }
             >
               {active ? "✓" : pool.label.slice(-1)}
@@ -431,7 +431,7 @@ function PoolWindow({
                   aria-label={`Remove from ${pool.title}`}
                   disabled={readOnly}
                   onClick={() => onToggle(p.id, pool.key, false)}
-                  className="min-h-11 min-w-11 rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--ink-500)] hover:bg-[var(--paper)] hover:text-[var(--ink-900)] text-sm flex items-center justify-center shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--ink-500)]"
+                  className="min-h-11 min-w-11 rounded-[var(--radius-sm)] border border-[var(--border)] text-[var(--ink-500)] hover:bg-[var(--hover)] hover:text-[var(--ink-900)] text-sm flex items-center justify-center shrink-0 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-[var(--ink-500)]"
                 >
                   ✕
                 </button>

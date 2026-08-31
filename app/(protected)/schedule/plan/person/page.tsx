@@ -69,7 +69,7 @@ export default async function EmployeeSchedulePage({
               <div className="grid sm:grid-cols-2 gap-2">
                 {section.people.map((e) => (
                   <Link key={e.id} href={`/schedule/plan/person?employeeId=${e.id}&month=${monthAnchor}`}>
-                    <Card className="hover:bg-[var(--paper)] transition-colors text-sm !p-3">
+                    <Card className="hover:bg-[var(--hover)] transition-colors text-sm !p-3">
                       <span className="font-medium text-[var(--ink-900)]">{e.nickname}</span>
                       {roleLineOf(e) && (
                         <span className="block text-xs text-[var(--ink-500)] mt-0.5">{roleLineOf(e)}</span>
@@ -156,7 +156,7 @@ export default async function EmployeeSchedulePage({
                   <Link
                     href={`/schedule/plan?week=${weekStartFor(day.date)}`}
                     className={
-                      "block min-h-24 p-1.5 hover:bg-[var(--paper)]" +
+                      "block min-h-24 p-1.5 hover:bg-[var(--hover)]" +
                       (day.inMonth ? "" : " opacity-40") +
                       // Today wash + filled day number: same convention as My
                       // Schedule's calendar (e7cf846) and the plan grid's day

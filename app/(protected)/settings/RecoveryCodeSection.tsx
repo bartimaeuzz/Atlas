@@ -81,7 +81,7 @@ export function RecoveryCodeSection({ status, viewerIsAdmin }: { status: Recover
             <button
               type="submit"
               disabled={isPending}
-              className="bg-[var(--primary)] text-white px-3 py-1.5 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-600)] disabled:opacity-50 text-sm"
+              className="bg-[var(--primary)] text-white px-3 py-1.5 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-700)] disabled:opacity-50 text-sm"
             >
               {isPending ? "Generating…" : status.isSet ? "Regenerate recovery code" : "Generate recovery code"}
             </button>

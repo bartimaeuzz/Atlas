@@ -22,7 +22,7 @@ export function Tab({ href, active, children }: { href: string; active: boolean;
         // tabs, which box every day and mark the active one by fill.
         (active
           ? "bg-[var(--primary)] text-white border border-[var(--primary)]"
-          : "text-[var(--ink-700)] bg-[var(--card)] hover:bg-[var(--paper)] border border-[var(--border-strong)]")
+          : "text-[var(--ink-700)] bg-[var(--card)] hover:bg-[var(--hover)] border border-[var(--border-strong)]")
       }
     >
       {children}

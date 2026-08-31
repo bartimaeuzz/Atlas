@@ -31,7 +31,7 @@ export function RoleGroupCard({
 }) {
   return (
     <details open={defaultOpen} className="rounded-[var(--radius-md)] border border-[var(--border)] bg-white overflow-hidden">
-      <summary className="cursor-pointer select-none flex items-center justify-between gap-3 px-4 min-h-11 py-2.5 font-medium hover:bg-[var(--paper)]">
+      <summary className="cursor-pointer select-none flex items-center justify-between gap-3 px-4 min-h-11 py-2.5 font-medium hover:bg-[var(--hover)]">
         <span>{formatSystemRole(role)}</span>
         <span className="text-xs font-normal text-[var(--ink-500)]">
           {employees.length} {employees.length === 1 ? "person" : "people"}
@@ -58,7 +58,7 @@ function PersonRow({ employee }: { employee: CapabilityMatrixEmployeeRow }) {
 
   return (
     <details className="group">
-      <summary className="cursor-pointer select-none px-4 min-h-11 py-2.5 hover:bg-[var(--paper)] grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,10rem)_minmax(0,9rem)_1fr_auto] items-center gap-x-3 gap-y-0.5 text-sm">
+      <summary className="cursor-pointer select-none px-4 min-h-11 py-2.5 hover:bg-[var(--hover)] grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,10rem)_minmax(0,9rem)_1fr_auto] items-center gap-x-3 gap-y-0.5 text-sm">
         <span className="font-medium text-[var(--ink-900)] truncate">
           {employee.nickname}
           {!employee.active && <span className="ml-2 text-xs font-normal text-[var(--ink-500)]">inactive</span>}

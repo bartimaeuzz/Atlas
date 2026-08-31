@@ -328,7 +328,7 @@ function PeoplePickList({
                   key={e.id}
                   type="button"
                   onClick={() => onPick(e.id)}
-                  className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--paper)] text-left"
+                  className="flex w-full min-h-11 items-center justify-between gap-2 px-3 text-sm text-[var(--ink-900)] bg-[var(--card)] hover:bg-[var(--hover)] text-left"
                 >
                   <span>{e.name}</span>
                   <span className="text-xs text-[var(--ink-500)]">
@@ -528,7 +528,7 @@ function PersonActionDialog({
   const disabledIds = new Set([...rosteredIds].filter((id) => id !== entry.employeeId));
 
   const menuButton =
-    "w-full text-left text-sm px-3 py-2.5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--paper)] text-[var(--ink-900)]";
+    "w-full text-left text-sm px-3 py-2.5 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] hover:bg-[var(--hover)] text-[var(--ink-900)]";
 
   return (
     <Modal open onClose={onClose} labelledBy={titleId} initialFocus={closeRef}>
@@ -800,7 +800,7 @@ function RosterQuickAdd({
           setError(null);
           setPickerOpen(true);
         }}
-        className="flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] px-3 text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)] disabled:opacity-50"
+        className="flex min-h-11 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] px-3 text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] disabled:opacity-50"
       >
         {isPending ? "Adding…" : "+ Add"}
       </button>

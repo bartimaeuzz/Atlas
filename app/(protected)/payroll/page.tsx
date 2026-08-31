@@ -193,7 +193,7 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
           {canExportPayroll && (
             <a
               href={`/payroll/export?week=${weekStart}`}
-              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold text-sm px-4 py-2.5 min-h-11 border border-[var(--border-strong)] text-[var(--ink-700)] hover:bg-[var(--paper)] transition-colors"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-semibold text-sm px-4 py-2.5 min-h-11 border border-[var(--border-strong)] text-[var(--ink-700)] hover:bg-[var(--hover)] transition-colors"
             >
               Download .xlsx (check export + pay stubs + acknowledgment)
             </a>

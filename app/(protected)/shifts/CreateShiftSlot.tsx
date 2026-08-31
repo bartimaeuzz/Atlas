@@ -78,7 +78,7 @@ export function CreateShiftSlot({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--paper)]"
+        className="flex min-h-11 w-full items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)]"
       >
         + Create
       </button>

@@ -83,7 +83,7 @@ function CheckRow({
 
   return (
     <li>
-      <button type="button" onClick={onToggle} className="w-full text-left px-3 py-2.5 hover:bg-[var(--paper)]">
+      <button type="button" onClick={onToggle} className="w-full text-left px-3 py-2.5 hover:bg-[var(--hover)]">
         <div className="flex items-center justify-between">
           <span className="font-medium text-[var(--ink-900)]">{check.vendorName}</span>
           <span className="font-medium tabular-nums text-[var(--ink-900)]">{formatMoney(check.totalAmount)}</span>

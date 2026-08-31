@@ -200,7 +200,7 @@ function TileLink({ tile }: { tile: Tile }) {
   return (
     <Link
       href={tile.href}
-      className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-1)] transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--paper)] active:bg-[var(--paper)]"
+      className="flex flex-col items-start gap-3 rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-1)] transition-colors hover:border-[var(--border-strong)] hover:bg-[var(--hover)] active:bg-[var(--paper)]"
     >
       <span className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-md)] bg-[var(--paper)] text-[var(--ink-700)]">
         {tile.icon}

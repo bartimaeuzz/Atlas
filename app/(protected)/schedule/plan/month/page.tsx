@@ -98,7 +98,7 @@ export default async function MonthOverviewPage({
                         ? `/schedule/plan?week=${weekStartFor(day.date)}`
                         : `/schedule/plan/preview?week=${weekStartFor(day.date)}&view=manager`
                     }
-                    className={"block h-20 p-1.5 hover:bg-[var(--paper)]" + (day.inMonth ? "" : " opacity-40")}
+                    className={"block h-20 p-1.5 hover:bg-[var(--hover)]" + (day.inMonth ? "" : " opacity-40")}
                   >
                     <div className="flex items-center justify-between">
                       <span className="text-xs text-[var(--ink-700)]">{Number(day.date.slice(8))}</span>

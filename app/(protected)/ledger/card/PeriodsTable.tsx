@@ -10,7 +10,7 @@ export function PeriodsTable({ periods }: { periods: CardStatementPeriodView[] }
     <ul className="divide-y divide-[var(--border)] border border-[var(--border)] rounded-[var(--radius-lg)] text-sm bg-[var(--card)]">
       {periods.map((p) => (
         <li key={p.id}>
-          <Link href={`/ledger/card/period?id=${p.id}`} className="block px-3 py-2.5 hover:bg-[var(--paper)]">
+          <Link href={`/ledger/card/period?id=${p.id}`} className="block px-3 py-2.5 hover:bg-[var(--hover)]">
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium text-[var(--ink-900)]">
                 {p.cardName} — {p.periodStart} to {p.periodEnd}

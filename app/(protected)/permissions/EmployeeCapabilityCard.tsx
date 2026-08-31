@@ -58,7 +58,7 @@ export function EmployeeCapabilityCard({
       </div>
 
       <details className="group">
-        <summary className="cursor-pointer select-none px-4 py-2 text-sm text-[var(--ink-500)] hover:bg-[var(--paper)]">
+        <summary className="cursor-pointer select-none px-4 py-2 text-sm text-[var(--ink-500)] hover:bg-[var(--hover)]">
           Advanced: individual capabilities
         </summary>
 
