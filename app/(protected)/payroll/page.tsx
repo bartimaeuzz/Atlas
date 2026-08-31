@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { loadPayrollRegister } from "@/lib/payroll/loadPayrollRegister";
+import { loadPayrollYear, type PayrollMonthSummary } from "@/lib/payroll/loadPayrollYear";
+import { MonthRow } from "@/app/(protected)/ledger/MonthRow";
+import { TableCard } from "@/components/ui/Table";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { LinkButton } from "@/components/ui/Button";
 import { weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
@@ -19,6 +24,27 @@ function weekLabel(weekStart: string): string {
   return `${startStr} - ${endStr}`;
 }
 
+/** "Monday, Aug 31 – Sunday, Sep 6" — full weekday names, Aey's ask
+ * (2026-08-31: "show list of week with full weekday and date format").
+ * The weekday words are what make a payroll week unambiguous to a human
+ * who thinks in "Monday to Sunday", not in ISO dates. */
+function fullWeekLabel(weekStart: string, weekEnd: string): string {
+  const fmt = (iso: string, withYear: boolean) =>
+    new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-US", {
+      weekday: "long",
+      month: "short",
+      day: "numeric",
+      ...(withYear ? { year: "numeric" } : {}),
+      timeZone: "UTC",
+    });
+  return `${fmt(weekStart, false)} – ${fmt(weekEnd, true)}`;
+}
+
+function monthTitle(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, 1, 12)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 /** Payroll (2026-08-17) — weekly payroll register. Reuses Atlas's own
  * already-computed shift payouts (see lib/payroll/loadPayrollRegister.ts),
  * one Monday-Sunday week at a time, matching the weekly cadence Soothr's
@@ -35,10 +61,40 @@ function weekLabel(weekStart: string): string {
  * Ledger's shared formatMoney so it matches the rest of the app. The
  * mark-paid/revert actions in PayrollActions.tsx were already
  * retrofitted separately and aren't touched here. */
-export default async function PayrollPage({ searchParams }: { searchParams: Promise<{ week?: string }> }) {
+export default async function PayrollPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ week?: string; month?: string; year?: string }>;
+}) {
   const params = await searchParams;
   const todayIso = businessTodayIso();
-  const weekStart = /^\d{4}-\d{2}-\d{2}$/.test(params.week ?? "") ? weekStartFor(params.week!) : weekStartFor(todayIso);
+
+  /* Three levels since 2026-08-31 (Aey's run-through — the register was
+   * one week at a time behind Prev/Next, so a week eight weeks back took
+   * eight clicks): bare /payroll -> a month picker for the year (same
+   * front-door shape /ledger already taught her); ?month=YYYY-MM -> that
+   * month's weeks in full weekday format; ?week= -> the register this
+   * page has always been. A week files under the month its SUNDAY falls
+   * in (Oliver's call, 2026-08-31): payroll leaves the bank after the
+   * week closes, so months line up with the bank statement. */
+  if (!params.week) {
+    const month = params.month && /^\d{4}-\d{2}$/.test(params.month) ? params.month : null;
+    const year = month
+      ? Number(month.slice(0, 4))
+      : params.year && /^\d{4}$/.test(params.year)
+        ? Number(params.year)
+        : Number(todayIso.slice(0, 4));
+    const months = await loadPayrollYear(year, todayIso);
+    const currentWeekStart = weekStartFor(todayIso);
+
+    if (month) {
+      const m = months.find((x) => x.month === month);
+      return <PayrollMonthView month={month} summary={m ?? null} currentWeekStart={currentWeekStart} />;
+    }
+    return <PayrollYearView year={year} months={months} currentWeekStart={currentWeekStart} />;
+  }
+
+  const weekStart = weekStartFor(params.week);
 
   const [register, session, viewer] = await Promise.all([
     loadPayrollRegister(weekStart),
@@ -61,6 +117,14 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
         description="What every employee is owed for the week, built from Atlas's own finalized shift payouts."
       />
 
+      <div className="mb-2">
+        <Link
+          href={`/payroll?month=${datesInWeek(weekStart)[6].slice(0, 7)}`}
+          className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
+        >
+          &larr; All weeks of {monthTitle(datesInWeek(weekStart)[6].slice(0, 7))}
+        </Link>
+      </div>
       <div className="flex items-center justify-between gap-3 mb-4">
         <Link href={`/payroll?week=${prevWeek}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
           &larr; Prev week
@@ -202,6 +266,215 @@ export default async function PayrollPage({ searchParams }: { searchParams: Prom
             <MarkPaidButton weekStartDate={weekStart} disabled={!register.canMarkPaid} />
           )}
           {register.status === "paid" && isAdmin && <RevertToDraftButton weekStartDate={weekStart} />}
+        </div>
+      )}
+    </main>
+  );
+}
+
+/** Year front door: one row per month, weeks filed by their Sunday. */
+function PayrollYearView({
+  year,
+  months,
+  currentWeekStart,
+}: {
+  year: number;
+  months: PayrollMonthSummary[];
+  currentWeekStart: string;
+}) {
+  return (
+    <main className="max-w-lg lg:max-w-3xl mx-auto p-4 sm:p-8">
+      <PageHeader
+        title="Payroll"
+        description="Pick a month, then a week, to see that week's register. A week belongs to the month its Sunday falls in — same as the bank statement."
+        actions={<LinkButton href={`/payroll?week=${currentWeekStart}`}>This week&apos;s register</LinkButton>}
+      />
+
+      <div className="flex items-center justify-between mb-3">
+        <Link href={`/payroll?year=${year - 1}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+          &larr; {year - 1}
+        </Link>
+        <span className="font-medium text-sm text-[var(--ink-900)]">{year}</span>
+        <Link href={`/payroll?year=${year + 1}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
+          {year + 1} &rarr;
+        </Link>
+      </div>
+
+      {/* Phone: stacked cards */}
+      <div className="lg:hidden space-y-2">
+        {months.map((m) => {
+          const content = (
+            <>
+              <div className="flex items-center justify-between mb-1">
+                <span className={"font-semibold " + (m.isFuture ? "text-[var(--ink-500)]" : "text-[var(--ink-900)]")}>
+                  {m.name}
+                  {m.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">This month</span>}
+                </span>
+                {!m.isFuture && (
+                  <Badge tone={m.paidWeekCount === m.weeks.length ? "success" : "neutral"}>
+                    {m.paidWeekCount}/{m.weeks.length} paid
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-[var(--ink-500)]">
+                  {m.weeks.length} week{m.weeks.length === 1 ? "" : "s"}
+                </span>
+                <span className="tabular-nums text-[var(--ink-900)] font-medium">
+                  {m.paidTotal > 0 ? formatMoney(m.paidTotal) : "—"}
+                </span>
+              </div>
+            </>
+          );
+          return m.isFuture ? (
+            <div key={m.month} className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4 opacity-60">
+              {content}
+            </div>
+          ) : (
+            <Link
+              key={m.month}
+              href={`/payroll?month=${m.month}`}
+              className={
+                "block bg-[var(--card)] border rounded-[var(--radius-lg)] p-4 " +
+                (m.isCurrent ? "border-[var(--warning-border)] bg-[var(--warning-tint)]" : "border-[var(--border)]")
+              }
+            >
+              {content}
+            </Link>
+          );
+        })}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden lg:block">
+        <TableCard>
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-left text-[var(--ink-500)] border-b border-[var(--border)]">
+                <th className="py-2 px-3 font-medium">Month</th>
+                <th className="py-2 px-3 font-medium text-right">Weeks</th>
+                <th className="py-2 px-3 font-medium text-right">Paid</th>
+                <th className="py-2 px-3 font-medium text-right">Paid total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {months.map((m) =>
+                m.isFuture ? (
+                  <tr key={m.month} className="border-b border-[var(--border)] opacity-60">
+                    <td className="py-2.5 px-3">{m.name}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">{m.weeks.length}</td>
+                    <td className="py-2.5 px-3 text-right text-[var(--ink-500)]">Not yet</td>
+                    <td className="py-2.5 px-3 text-right text-[var(--ink-500)]">—</td>
+                  </tr>
+                ) : (
+                  <MonthRow key={m.month} href={`/payroll?month=${m.month}`} isToday={m.isCurrent}>
+                    <td className="py-2.5 px-3">
+                      <Link href={`/payroll?month=${m.month}`} className="font-medium text-[var(--ink-900)]">
+                        {m.name}
+                      </Link>
+                      {m.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)]">This month</span>}
+                    </td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">{m.weeks.length}</td>
+                    <td className="py-2.5 px-3 text-right tabular-nums">
+                      {m.paidWeekCount}/{m.weeks.length}
+                    </td>
+                    <td className="py-2.5 px-3 text-right tabular-nums font-medium">
+                      {m.paidTotal > 0 ? formatMoney(m.paidTotal) : "—"}
+                    </td>
+                  </MonthRow>
+                )
+              )}
+            </tbody>
+          </table>
+        </TableCard>
+      </div>
+    </main>
+  );
+}
+
+/** One month's weeks, full weekday format, each linking to its register. */
+function PayrollMonthView({
+  month,
+  summary,
+  currentWeekStart,
+}: {
+  month: string;
+  summary: PayrollMonthSummary | null;
+  currentWeekStart: string;
+}) {
+  const weeks = summary?.weeks ?? [];
+  return (
+    <main className="max-w-lg lg:max-w-2xl mx-auto p-4 sm:p-8">
+      <div className="mb-2">
+        <Link
+          href={`/payroll?year=${month.slice(0, 4)}`}
+          className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
+        >
+          &larr; All months of {month.slice(0, 4)}
+        </Link>
+      </div>
+      <PageHeader
+        title={`Payroll — ${monthTitle(month)}`}
+        description="Weeks that close (Sunday) in this month. Tap a week to open its register."
+      />
+
+      {weeks.length === 0 ? (
+        <EmptyState message="No payroll weeks close in this month." />
+      ) : (
+        <div className="space-y-2">
+          {weeks.map((w) => {
+            const label = fullWeekLabel(w.weekStart, w.weekEnd);
+            const content = (
+              <>
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <span className={"text-sm font-semibold " + (w.isFuture ? "text-[var(--ink-500)]" : "text-[var(--ink-900)]")}>
+                    {label}
+                    {w.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">This week</span>}
+                  </span>
+                  {!w.isFuture &&
+                    (w.status === "paid" ? <Badge tone="success">Paid</Badge> : <Badge tone="neutral">Draft</Badge>)}
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-[var(--ink-500)]">
+                    {w.isFuture
+                      ? "Not yet"
+                      : w.shiftCount === 0
+                        ? "No shifts"
+                        : w.status === "paid"
+                          ? `${w.shiftCount} shift${w.shiftCount === 1 ? "" : "s"}`
+                          : `${w.finalizedShiftCount}/${w.shiftCount} shift${w.shiftCount === 1 ? "" : "s"} finalized`}
+                  </span>
+                  <span className="tabular-nums font-medium text-[var(--ink-900)]">
+                    {w.paidTotal != null ? formatMoney(w.paidTotal) : "—"}
+                  </span>
+                </div>
+              </>
+            );
+            return w.isFuture && !w.isCurrent ? (
+              <div key={w.weekStart} className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4 opacity-60">
+                {content}
+              </div>
+            ) : (
+              <Link
+                key={w.weekStart}
+                href={`/payroll?week=${w.weekStart}`}
+                className={
+                  "block bg-[var(--card)] border rounded-[var(--radius-lg)] p-4 hover:bg-[var(--primary-tint)] " +
+                  (w.isCurrent ? "border-[var(--warning-border)] bg-[var(--warning-tint)]" : "border-[var(--border)]")
+                }
+              >
+                {content}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+      {/* currentWeekStart keeps the quick path visible even from an old month */}
+      {!weeks.some((w) => w.isCurrent) && (
+        <div className="mt-4">
+          <LinkButton href={`/payroll?week=${currentWeekStart}`} variant="secondary" size="sm">
+            Jump to this week&apos;s register →
+          </LinkButton>
         </div>
       )}
     </main>
