@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { updateStaffingTargets, type ScheduleActionState } from "@/lib/actions/schedule";
 import type { StaffingTargetPosition } from "@/lib/schedule/loadStaffingTargets";
 
@@ -49,6 +49,21 @@ export function TargetsForm({
   targets: Record<string, number>;
 }) {
   const [state, formAction, isPending] = useActionState(updateStaffingTargets, initialState);
+  // "Saved ✓" flash on the submit button itself (2026-08-31, Aey: the
+  // old green "Saved." banner rendered at the TOP of a page whose save
+  // button is at the BOTTOM of a 14-row grid — after saving, the human
+  // saw nothing change unless they scrolled back up). Same derived
+  // nonce-and-timer pattern as ClosingReportForm: justSaved is true
+  // while the latest savedAt hasn't been cleared, and the effect's only
+  // job is the 2s timer that clears it.
+  const [clearedSavedAt, setClearedSavedAt] = useState<number | null>(null);
+  const justSaved = !!state.savedAt && state.savedAt !== clearedSavedAt;
+  useEffect(() => {
+    if (!state.savedAt || state.savedAt === clearedSavedAt) return;
+    const savedAt = state.savedAt;
+    const t = setTimeout(() => setClearedSavedAt(savedAt), 2000);
+    return () => clearTimeout(t);
+  }, [state.savedAt, clearedSavedAt]);
   // Phone shows ONE day at a time (2026-08-23, Oliver). Defaults to today,
   // since "what do I need tomorrow" is the reason someone opens this on a
   // phone at all. Desktop ignores this entirely and shows all seven.
@@ -56,16 +71,6 @@ export function TargetsForm({
 
   return (
     <form action={formAction} className="space-y-6">
-      {state.error && (
-        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded p-4 text-sm whitespace-pre-line">
-          <div className="font-medium mb-1">Couldn&apos;t save.</div>
-          {state.error}
-        </div>
-      )}
-      {state.saved && !state.error && (
-        <div className="border border-green-300 bg-green-50 text-green-700 rounded p-3 text-sm">Saved.</div>
-      )}
-
       {/* Day picker, phone only (2026-08-23). At 390px this table measured
           820px wide with Position and Period the only columns on screen --
           every number, the entire point of the page, sat off to the right.
@@ -145,13 +150,32 @@ export function TargetsForm({
         </table>
       </div>
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="bg-[var(--primary)] text-white px-4 py-2 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-600)] text-sm disabled:opacity-50"
-      >
-        {isPending ? "Saving…" : "Save targets"}
-      </button>
+      {/* Error and result BELOW the grid, next to the button that caused
+          them (2026-08-31, Aey) — this page's grid is 14 rows tall, so
+          anything rendered above it is off-screen at the moment of
+          saving. The old top-of-page "Saved." banner was invisible
+          unless the manager scrolled back up; the button itself now
+          carries the answer, in the one spot their eyes already are. */}
+      {state.error && (
+        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded p-4 text-sm whitespace-pre-line">
+          <div className="font-medium mb-1">Couldn&apos;t save.</div>
+          {state.error}
+        </div>
+      )}
+      <div aria-live="polite">
+        <button
+          type="submit"
+          disabled={isPending}
+          className={
+            "px-4 py-2 min-h-11 rounded-[var(--radius-md)] text-sm disabled:opacity-50 transition-colors " +
+            (justSaved
+              ? "bg-[var(--success)] text-white"
+              : "bg-[var(--primary)] text-white hover:bg-[var(--primary-600)]")
+          }
+        >
+          {isPending ? "Saving…" : justSaved ? "Saved ✓" : "Save targets"}
+        </button>
+      </div>
     </form>
   );
 }

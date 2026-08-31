@@ -46,6 +46,12 @@ const PERIODS = ["Lunch", "Dinner"] as const;
 export interface ScheduleActionState {
   error: string | null;
   saved?: boolean;
+  /** Nonce stamped on each successful save (2026-08-31, Aey: the Saved
+   * banner rendered above the fold where nobody scrolled back to see it)
+   * -- the Targets form flips its own submit button to "Saved" for a
+   * moment when this changes, right where the manager's eyes already
+   * are. A nonce, not a boolean: two saves in a row must both flash. */
+  savedAt?: number;
 }
 
 /** Resyncs the WHOLE positionStaffingTargets table from one grid
@@ -92,7 +98,7 @@ export async function updateStaffingTargets(
   }
 
   revalidatePath("/schedule/targets");
-  return { error: null, saved: true };
+  return { error: null, saved: true, savedAt: Date.now() };
 }
 
 /** Sets the RED vacancy flag — confirmed with Oliver this means

@@ -13,6 +13,7 @@ import { NavBar } from "./NavBar";
 import { NavCollapseProvider } from "./NavCollapseContext";
 import { NavContentWrapper } from "./NavContentWrapper";
 import { PullToRefresh } from "./PullToRefresh";
+import { NumberPasteSanitizer } from "@/components/NumberPasteSanitizer";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 
 export const metadata: Metadata = {
@@ -64,6 +65,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <NavCollapseProvider initialCollapsed={navCollapsed}>
           <NavBar />
           <PullToRefresh />
+          <NumberPasteSanitizer />
           <NavContentWrapper hasNav={signedIn}>{children}</NavContentWrapper>
         </NavCollapseProvider>
       </body>

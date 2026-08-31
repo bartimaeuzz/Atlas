@@ -78,11 +78,15 @@ interface LinkButtonProps {
   size?: Size;
   className?: string;
   children: React.ReactNode;
+  /** For a LinkButton acting as one of several view toggles (e.g. the
+   * Analytics range presets): mark the active one so assistive tech
+   * hears what the solid variant shows (2026-08-31). */
+  "aria-current"?: "true" | "page";
 }
 
-export function LinkButton({ href, variant = "primary", size = "md", className = "", children }: LinkButtonProps) {
+export function LinkButton({ href, variant = "primary", size = "md", className = "", children, ...rest }: LinkButtonProps) {
   return (
-    <Link href={href} className={`${shared} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}>
+    <Link href={href} className={`${shared} ${variantClasses[variant]} ${sizeClasses[size]} ${className}`} {...rest}>
       {children}
     </Link>
   );

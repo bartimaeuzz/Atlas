@@ -136,3 +136,27 @@ body {
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
 }
+
+/* Numbers-only guardrail for every numeric field (2026-08-31, Aey's
+   run-through: managers paste figures from Toast with a "$" sign, and a
+   bad value only surfaced as a banner at save time). Two halves:
+
+   1. This CSS: an INSTANT danger ring the moment a number input holds
+      something the browser can't read as a number (badInput — e.g. a
+      pasted "$50" the sanitizer couldn't fully clean, a typed "1e") or a
+      value outside its min/max (a negative disciplinary deduction).
+      Keystroke-level feedback, no JS, and React re-renders can't wipe it.
+      Scoped to :not([required]) because an EMPTY required field is also
+      :invalid and must not glow red before anyone touched it — required
+      number fields (none exist today) get the post-interaction
+      :user-invalid rule instead.
+
+   2. components/NumberPasteSanitizer.tsx: cleans "$1,234.56" on paste so
+      the common case never reaches this ring at all — error prevention
+      first, the ring is the fallback. */
+input[type="number"]:not([required]):invalid,
+input[type="number"][required]:user-invalid {
+  border-color: var(--danger);
+  outline: 2px solid var(--danger);
+  outline-offset: -1px;
+}

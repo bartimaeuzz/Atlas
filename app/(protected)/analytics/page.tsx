@@ -141,7 +141,7 @@ function computePresets(today: Date) {
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; range?: string }>;
 }) {
   // Permission System Phase C (2026-08-21) -- two capabilities, one page.
   // VIEW_ANALYTICS opens the page (operating ratios and the revenue /
@@ -198,8 +198,23 @@ export default async function AnalyticsPage({
   const today = parseDate(businessTodayIso());
   const presets = computePresets(today);
 
-  const from = params.from || presets.month.from;
-  const to = params.to || presets.month.to;
+  /* ?range=week|month|year instead of baked-in ?from=&to= links
+   * (2026-08-31, Aey's run-through, two birds):
+   *  - The three preset buttons can now show WHICH one you're on --
+   *    the URL carries the mode, not just two dates that have to be
+   *    reverse-matched against today's presets.
+   *  - A bookmarked "This year" link used to freeze the dates it was
+   *    minted with -- next January it would still open 2026. A range
+   *    link computes its dates fresh on every load, so it keeps
+   *    meaning what its label says.
+   * Hand-picked ?from=&to= (the date form) still works and shows as
+   * the honest fourth state: Custom, with no preset button active. */
+  const range = params.range === "week" || params.range === "month" || params.range === "year" ? params.range : null;
+  const hasCustom = !range && !!(params.from || params.to);
+  const activeRange: "week" | "month" | "year" | "custom" = range ?? (hasCustom ? "custom" : "month");
+
+  const from = range ? presets[range].from : params.from || presets.month.from;
+  const to = range ? presets[range].to : params.to || presets.month.to;
 
   const pnl = await loadPnL(from, to);
 
@@ -222,16 +237,40 @@ export default async function AnalyticsPage({
       />
 
       <Card className="flex flex-wrap items-end gap-4 mb-6">
-        <div className="flex gap-2">
-          <LinkButton href={`/analytics?from=${presets.week.from}&to=${presets.week.to}`} variant="secondary" size="sm">
+        {/* The active preset is SOLID (primary) and marked aria-current;
+            the rest stay secondary. "You are here" must survive a glance
+            from across a kitchen counter -- the numbers changing below
+            is not an indicator (2026-08-31, Aey's run-through). */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <LinkButton
+            href="/analytics?range=week"
+            variant={activeRange === "week" ? "primary" : "secondary"}
+            size="sm"
+            aria-current={activeRange === "week" ? "true" : undefined}
+          >
             This week
           </LinkButton>
-          <LinkButton href={`/analytics?from=${presets.month.from}&to=${presets.month.to}`} variant="secondary" size="sm">
+          <LinkButton
+            href="/analytics?range=month"
+            variant={activeRange === "month" ? "primary" : "secondary"}
+            size="sm"
+            aria-current={activeRange === "month" ? "true" : undefined}
+          >
             This month
           </LinkButton>
-          <LinkButton href={`/analytics?from=${presets.year.from}&to=${presets.year.to}`} variant="secondary" size="sm">
+          <LinkButton
+            href="/analytics?range=year"
+            variant={activeRange === "year" ? "primary" : "secondary"}
+            size="sm"
+            aria-current={activeRange === "year" ? "true" : undefined}
+          >
             This year
           </LinkButton>
+          {activeRange === "custom" && (
+            <span className="inline-flex items-center min-h-9 px-3 rounded-[var(--radius-full)] bg-[var(--primary)] text-white text-sm font-medium">
+              Custom dates
+            </span>
+          )}
         </div>
         {/* 2026-08-21 visual-audit fix: this row was `flex items-end gap-2`
             with no wrap, so at 390px its two date inputs plus the View
