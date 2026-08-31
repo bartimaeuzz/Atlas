@@ -265,13 +265,31 @@ export const CAPABILITIES: CapabilityDef[] = [
     expirable: true,
     defaults: adminPartner(),
   },
+  // FA_SUPPLIER_CHECK_EDIT_LOCKED was RETIRED here on 2026-08-31 by the
+  // approved lifecycle spec: after export nothing is editable by anyone —
+  // a mistake voids the whole check (voidSupplierCheck), so the
+  // edit-locked-invoice path this key gated no longer exists. Existing
+  // grant rows in employee_capabilities are inert and ignored; removing
+  // the registry entry removes the toggle, which is the honest state
+  // (see feedback-inert-capability-keys-lie-to-the-admin). The auditor
+  // PIN that used to confirm locked edits now confirms VOIDS instead.
   {
-    key: "FA_SUPPLIER_CHECK_EDIT_LOCKED",
+    key: "SUPPLIER_CHECK_APPROVE",
     category: "FINANCIAL_AUDITOR",
-    label: "Supplier Check: edit locked invoice",
-    description: "Edit a Supplier Check invoice that's already Printed/Paid.",
+    label: "Supplier Check: approve & export",
+    description:
+      "Review a logged invoice against its bill (Draft → Ready), export Ready invoices as checks, and void a check. Can never approve an invoice they logged themselves.",
     expirable: true,
-    defaults: { ...ALL_FALSE, ADMIN: true },
+    defaults: adminPartner(),
+  },
+  {
+    key: "SUPPLIER_CHECK_INSTANT",
+    category: "FINANCIAL_AUDITOR",
+    label: "Supplier Check: instant check",
+    description:
+      "Issue an on-the-spot check single-handedly (vendor waiting at the door). Permanently badged as single-person; above the ceiling in Settings a second person's PIN is required.",
+    expirable: true,
+    defaults: adminPartner(),
   },
   {
     key: "FA_SUPPLIER_CHECK_FINALIZE",

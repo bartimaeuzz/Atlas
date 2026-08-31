@@ -41,7 +41,14 @@ test("capabilities: MANAGE_PERMISSIONS defaults true for Admin only", () => {
 // people who can do card reconciliation for now" — see the doc comment
 // above those three CAPABILITIES entries. Excluded here and covered by
 // their own test below instead of weakening this invariant for everyone.
-const FA_ADMIN_PARTNER_EXCEPTIONS = new Set(["FA_LEDGER_CARD_IMPORT", "FA_LEDGER_CARD_CATEGORIZE", "FA_LEDGER_CARD_RECONCILE"]);
+// SUPPLIER_CHECK_APPROVE / _INSTANT joined the Admin+Partner set on
+// 2026-08-31 (approved lifecycle spec): the approver role is Aey's —
+// Partner tier — by design, and instant checks are a Partner-and-up
+// trust call, both further grantable per account when she hands off.
+const FA_ADMIN_PARTNER_EXCEPTIONS = new Set([
+  "FA_LEDGER_CARD_IMPORT", "FA_LEDGER_CARD_CATEGORIZE", "FA_LEDGER_CARD_RECONCILE",
+  "SUPPLIER_CHECK_APPROVE", "SUPPLIER_CHECK_INSTANT",
+]);
 
 test("capabilities: Financial Auditor subset items are all expirable and false-by-default except Admin (Ledger Card items excepted)", () => {
   const faItems = CAPABILITIES.filter((c) => c.category === "FINANCIAL_AUDITOR" && !FA_ADMIN_PARTNER_EXCEPTIONS.has(c.key));

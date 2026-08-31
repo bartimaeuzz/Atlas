@@ -107,7 +107,7 @@ export async function buildSupplierCheckWorkbook(
       excelRow.getCell(7).value = row.payeeAddressLine1 ?? "";
       excelRow.getCell(8).value = row.payeeAddressLine2 ?? "";
       excelRow.getCell(9).value = row.payeeAddressLine3 ?? "";
-      excelRow.getCell(10).value = row.status === "paid" ? "Paid" : "Printed";
+      excelRow.getCell(10).value = row.status === "closed" ? "Closed" : row.status === "void" ? "Void" : "Exported";
     }
     r++;
   }

@@ -4,48 +4,41 @@ import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { supplierInvoices, supplierCheckPayments, employees, supplierCheckAuditLog } from "@/db/schema";
+import { supplierInvoices, supplierCheckPayments, employees, supplierCheckAuditLog, restaurantSettings, employeeCapabilities } from "@/db/schema";
 import { verifyPin } from "@/lib/auth/pin";
 import { requireCapability } from "@/lib/permissions/requireCapability";
-import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 
 export interface SupplierInvoiceActionState {
   error: string | null;
 }
 
-/** 2026-08-21 (Phase A) — server-action auth audit: this file had NO auth
- * check at all on deletePendingInvoice, and every other function only
- * fetched a session to feed some other check without ever verifying
- * systemRole. Closed with a MANAGER/ADMIN gate matching the existing
- * /ledger page guard.
+/** Supplier Check lifecycle, rebuilt 2026-08-31 from the spec Oliver and
+ * Aey approved (see the supplier-check-lifecycle artifact; found via the
+ * 2026-08-31 code audit that started from Aey's "can admin delete a
+ * printed invoice?").
  *
- * 2026-08-21 (Phase B) — every base-level action in this file (log,
- * delete-pending, edit-while-pending, print) checks the SUPPLIER_CHECK_LOG
- * capability, matching its registry label verbatim. The separate, tighter
- * Admin-or-financial-auditor + PIN-confirm gate inside editSupplierInvoice
- * for already-printed/paid invoices is untouched — that's a distinct,
- * already-correct check layered on top, not replaced by this.
+ * Invoice: draft → ready → exported → closed.
+ * Check:   exported → closed, with void as the branch.
  *
- * 2026-08-23 — mark-paid split off. It used to share SUPPLIER_CHECK_LOG
- * with the four actions above, because that capability's label claimed
- * "mark paid" and it was ambiguous what FA_SUPPLIER_CHECK_FINALIZE was
- * otherwise for; that ambiguity was flagged as an open question rather
- * than guessed. Oliver settled it: logging and printing a check is
- * day-to-day work, but marking one paid is the last step before a payment
- * is settled and belongs with whoever reconciles. markSupplierCheckPaid
- * now requires FA_SUPPLIER_CHECK_FINALIZE and SUPPLIER_CHECK_LOG was
- * narrowed to "log/print" to match. */
+ * The load-bearing rules, each enforced HERE (the UI only mirrors them):
+ *  - draft is freely editable/deletable by SUPPLIER_CHECK_LOG holders;
+ *  - ready is THE LOCK — only an approver can bounce it back to draft;
+ *  - the approver can never be the logger (two-person control — the
+ *    thing the old shared SUPPLIER_CHECK_LOG capability silently lacked);
+ *  - after export NOTHING is editable by anyone — a mistake voids the
+ *    whole check (its invoices bounce back to ready) and a new check is
+ *    issued. The old auditor-PIN edit-locked-invoice path is retired;
+ *    the auditor PIN now signs off VOIDS instead (approved decision #1);
+ *  - check numbers are Atlas's own forward-only sequence, claimed
+ *    atomically from restaurantSettings.nextCheckNumber; voided numbers
+ *    stay burned. The 9 legacy prod checks keep their empty numbers;
+ *  - door 2 (instant check) is one person + typed reason + permanent
+ *    single-person badge; above the Settings ceiling it needs a second
+ *    person's PIN — someone holding SUPPLIER_CHECK_APPROVE who is not
+ *    the actor. */
 
-/** Logging an invoice is deliberately its own form, not a reuse of
- * addPettyCashEntry -- Oliver's own words: "the input form on petty
- * cash now won't work on delivery invoice based supplier." No amount
- * paid, no due date (confirmed not needed) -- just what arrived. Now
- * lives at its own /ledger/supplier-check/new page (2026-08-14 UI
- * restructure -- "Add item" button, matching the Vendor/Position
- * dedicated-page pattern), so a successful submit redirects back to the
- * main Supplier Check page instead of staying put. */
 export async function logSupplierInvoice(
   _prevState: SupplierInvoiceActionState,
   formData: FormData
@@ -76,7 +69,9 @@ export async function logSupplierInvoice(
       invoiceNumber,
       description,
       amount,
-      status: "pending",
+      // Explicit, not the schema default — the code must not depend on
+      // which DDL default a given database carries (2026-08-31).
+      status: "draft",
       createdByEmployeeId: session.id,
     });
   } catch (e) {
@@ -87,12 +82,16 @@ export async function logSupplierInvoice(
   redirect("/ledger/supplier-check");
 }
 
-export async function deletePendingInvoice(invoiceId: number) {
+/** Delete is DRAFT-only, for everyone (approved decision #5): a draft is
+ * the one state with nothing attached to it — no approval, no check, no
+ * paper in a supplier's hands. From ready upward the paths are bounce
+ * back / void, never delete. */
+export async function deleteDraftInvoice(invoiceId: number) {
   await requireCapability("SUPPLIER_CHECK_LOG");
   const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
   if (!invoice) return;
-  if (invoice.status !== "pending") {
-    throw new Error("This invoice is no longer pending -- can't remove it.");
+  if (invoice.status !== "draft") {
+    throw new Error("Only a draft can be removed. This invoice has been approved — ask the approver to bounce it back to draft first.");
   }
   await db.delete(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
   revalidatePath("/ledger/supplier-check");
@@ -102,57 +101,32 @@ export interface EditSupplierInvoiceActionState {
   error: string | null;
 }
 
-/** Fix a typo or a wrong amount on an already-logged invoice (2026-08-15,
- * Oliver's ask -- there was previously no way to correct an invoice once
- * it existed; a Pending one could only be deleted and re-entered from
- * scratch, and a Printed/Paid one couldn't be touched at all).
- *
- * Two very different gates depending on status:
- *   - PENDING: open to any manager who reached this page (same level as
- *     deletePendingInvoice above) -- nothing's locked in yet, no
- *     confirmation code needed.
- *   - PRINTED or PAID: this invoice is part of a real, already-issued
- *     check. Oliver's rule: "in real senario it is admin and Aey ... as
- *     Aey will be a financial audit for Youk", with "a prompt to enter
- *     aey secret code for security, like manager code in bank." So:
- *     (a) only someone holding FA_SUPPLIER_CHECK_EDIT_LOCKED may even
- *     attempt it, AND (b) regardless of who's doing the edit -- even Aey
- *     herself -- a flagged auditor's PIN has to be re-entered and
- *     verified as the confirming sign-off. This is deliberately NOT
- *     "prove you're an admin" -- it's "the auditor approved this
- *     specific change," which is why the code check is always against a
- *     flagged auditor's PIN, never the current session's own. If more
- *     than one employee is flagged, any one of their codes confirms it.
- *
- *     (a) and (b) read the same column until 2026-08-23 and now do not,
- *     on purpose: (a) is a permission and lives in the registry where
- *     /permissions can show it honestly; (b) is an identity -- whose
- *     sign-off counts -- and stays on employees.isFinancialAuditor.
- *     Pointing (b) at the capability too would make every Admin a valid
- *     signer for their own edit, dissolving the two-person control this
- *     whole gate exists to be.
- *
- * Editing an invoice that's already part of a printed check does NOT
- * regenerate anything on its own -- the check's .xlsx is built on demand
- * from current data every time (see the export route), so the existing
- * "Reprint" link will naturally reflect the corrected number the next
- * time it's clicked. What this DOES do immediately is recompute the
- * parent check's totalAmount, since that's a denormalized sum stored on
- * supplierCheckPayments -- leaving it stale would make the holistic
- * table and reports show the wrong total until a reprint. */
+/** Fix a typo or wrong amount on a DRAFT invoice. That is the whole
+ * scope now (2026-08-31): the old two-gate version that let an
+ * auditor-PIN sign off edits to Printed/Paid invoices is retired by the
+ * approved spec — after export nothing is edited, a mistake voids the
+ * check. Ready is also not editable here: the approver checked those
+ * exact numbers, so the path is unapprove → edit → re-approve. */
 export async function editSupplierInvoice(input: {
   invoiceId: number;
   invoiceNumber: string;
   description: string;
   amount: number;
   reason: string;
-  auditorCode?: string;
 }): Promise<EditSupplierInvoiceActionState> {
   try {
     const session = await requireCapability("SUPPLIER_CHECK_LOG");
 
     const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, input.invoiceId));
     if (!invoice) return { error: "Invoice not found." };
+    if (invoice.status !== "draft") {
+      return {
+        error:
+          invoice.status === "ready"
+            ? "This invoice has been approved and is locked. The approver can bounce it back to draft to allow edits."
+            : "This invoice is already on a check. Nothing on a check is edited — if it's wrong, the check has to be voided and reissued.",
+      };
+    }
 
     const invoiceNumber = input.invoiceNumber.trim();
     if (!invoiceNumber) return { error: "Invoice number is required." };
@@ -163,62 +137,14 @@ export async function editSupplierInvoice(input: {
     const reason = input.reason.trim();
     if (!reason) return { error: "A reason for this change is required -- it's logged with the edit." };
 
-    if (invoice.status !== "pending") {
-      // WHO MAY ATTEMPT THIS -- moved onto the capability registry
-      // 2026-08-23. It used to read `systemRole === "ADMIN" ||
-      // session.isFinancialAuditor`, which enforced the same access
-      // through a column while FA_SUPPLIER_CHECK_EDIT_LOCKED sat in the
-      // registry describing it and guarding nothing. Two sources of
-      // truth for one rule drift, and the /permissions screen was the
-      // one telling the lie. Behaviour is unchanged today: the four
-      // accounts that passed the old test are exactly the four holding
-      // the key (Aey by her granted row, the admins by grantAllows'
-      // ADMIN bypass).
-      const viewer = await getViewerCapabilities();
-      if (!viewer?.has("FA_SUPPLIER_CHECK_EDIT_LOCKED")) {
-        return { error: "Only an Admin or the financial auditor can edit a check that's already been printed or paid." };
-      }
-
-      const code = (input.auditorCode ?? "").trim();
-      if (!code) return { error: "Enter the financial auditor's code to confirm this change." };
-
-      // WHOSE PIN SIGNS IT OFF -- deliberately still the
-      // isFinancialAuditor column, NOT the capability above (2026-08-23).
-      // These are two different questions and only the first one is a
-      // permission. Oliver's rule for this one: "regardless of who's
-      // doing the edit -- even Aey herself -- her own PIN has to be
-      // re-entered", and "the code check is always against a flagged
-      // auditor's PIN, never the current session's own". Reading the
-      // capability here would make all three Admin accounts valid
-      // signers, so an Admin could approve their own edit -- which is
-      // exactly what this control exists to prevent. The column now
-      // means only this: whose sign-off counts.
-      const auditors = await db.select().from(employees).where(eq(employees.isFinancialAuditor, true));
-      if (auditors.length === 0) {
-        return {
-          error: 'No financial auditor is set up yet -- check the "Financial auditor" box on their Employee profile first.',
-        };
-      }
-      const codeMatches = auditors.some((a) => a.pinHash && verifyPin(code, a.pinHash));
-      if (!codeMatches) {
-        return { error: "That code doesn't match -- couldn't confirm this change." };
-      }
-    }
-
     await db
       .update(supplierInvoices)
       .set({ invoiceNumber, description, amount: input.amount })
       .where(eq(supplierInvoices.id, input.invoiceId));
 
-    if (invoice.paymentId) {
-      const linked = await db.select().from(supplierInvoices).where(eq(supplierInvoices.paymentId, invoice.paymentId));
-      const newTotal = linked.reduce((sum, inv) => sum + (inv.id === invoice.id ? input.amount : inv.amount), 0);
-      await db.update(supplierCheckPayments).set({ totalAmount: newTotal }).where(eq(supplierCheckPayments.id, invoice.paymentId));
-    }
-
     await db.insert(supplierCheckAuditLog).values({
       invoiceId: invoice.id,
-      paymentId: invoice.paymentId,
+      paymentId: null,
       vendorId: invoice.vendorId,
       action: "EDITED_INVOICE",
       performedByEmployeeId: session.id,
@@ -241,133 +167,350 @@ export async function editSupplierInvoice(input: {
   return { error: null };
 }
 
-/** Prints a check for ONE vendor, always combining EVERY currently-
- * pending invoice for that vendor -- confirmed with Oliver after talking
- * to Aey: "same vendor always get combined check." No manual invoice
- * selection anymore (that's how v45 worked; replaced here). Called once
- * per selected vendor by printChecksForVendors below, whether that's one
- * vendor (an urgent, instant check) or every vendor with something
- * pending (the weekly batch) -- both now go through the same "Print
- * Checks" popup on the UI side, the caller just decides how many vendor
- * ids to pass in.
- *
- * Captures the exact invoice ids being combined (not just a re-run of
- * the "status = pending" filter) before updating them, so a brand-new
- * invoice logged in the split second between the select and the update
- * can't sneak into this check without its amount being in the total. */
-export async function printSupplierCheck(vendorId: number, checkNumber: string | null): Promise<{ paymentId: number }> {
-  const session = await requireCapability("SUPPLIER_CHECK_LOG");
-
-  const pending = await db
-    .select()
-    .from(supplierInvoices)
-    .where(and(eq(supplierInvoices.vendorId, vendorId), eq(supplierInvoices.status, "pending")));
-
-  if (pending.length === 0) {
-    throw new Error("This vendor has no pending invoices to print a check for.");
-  }
-
-  const pendingIds = pending.map((inv) => inv.id);
-  const totalAmount = pending.reduce((sum, inv) => sum + inv.amount, 0);
-  const today = businessTodayIso();
-
-  const [payment] = await db
-    .insert(supplierCheckPayments)
-    .values({
-      vendorId,
-      paidDate: today,
-      checkNumber: checkNumber?.trim() || null,
-      totalAmount,
-      paidByEmployeeId: session.id,
-      status: "printed",
-    })
-    .returning();
-
-  await db
-    .update(supplierInvoices)
-    .set({ status: "printed", paymentId: payment.id })
-    .where(inArray(supplierInvoices.id, pendingIds));
-
-  await db.insert(supplierCheckAuditLog).values({
-    invoiceId: null,
-    paymentId: payment.id,
-    vendorId,
-    action: "PRINTED_CHECK",
-    performedByEmployeeId: session.id,
-    performedByName: session.name,
-    reason: null,
-    details: JSON.stringify({ checkNumber: payment.checkNumber, totalAmount, invoiceIds: pendingIds }),
+/** Draft → Ready: the approver checked this invoice against the actual
+ * bill. THE two-person control lives on this line: the approver can
+ * never be the person who logged it — otherwise one account both writes
+ * the number and certifies it, which is the hole the whole rebuild
+ * exists to close. */
+export async function approveInvoice(invoiceId: number): Promise<ActionResult> {
+  return asActionResult(async () => {
+    const session = await requireCapability("SUPPLIER_CHECK_APPROVE");
+    const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
+    if (!invoice) throw new Error("Invoice not found.");
+    if (invoice.status !== "draft") throw new Error("Only a draft can be approved.");
+    if (invoice.createdByEmployeeId === session.id) {
+      throw new Error("You logged this invoice yourself — a different person has to approve it. That's the whole point of the review step.");
+    }
+    await db
+      .update(supplierInvoices)
+      .set({ status: "ready", readyAt: new Date().toISOString(), readyByEmployeeId: session.id })
+      .where(eq(supplierInvoices.id, invoiceId));
+    await db.insert(supplierCheckAuditLog).values({
+      invoiceId,
+      paymentId: null,
+      vendorId: invoice.vendorId,
+      action: "APPROVED_INVOICE",
+      performedByEmployeeId: session.id,
+      performedByName: session.name,
+      reason: null,
+      details: JSON.stringify({ invoiceNumber: invoice.invoiceNumber, amount: invoice.amount }),
+    });
+    revalidatePath("/ledger/supplier-check");
   });
-
-  revalidatePath("/ledger/supplier-check");
-  return { paymentId: payment.id };
 }
 
-/** Prints checks for a manager-chosen SET of vendors in one go --
- * 2026-08-14 follow-up: "when i wanna print, should show popup and
- * allow me to choose which vendor i need to print as well because i
- * want a flexibility to print some but not all or print all." Replaces
- * the old all-or-nothing printAllPendingChecks: the UI's "Print Checks"
- * popup lists every vendor with pending invoices and lets a manager
- * check off exactly which ones to print right now -- one (the urgent/
- * instant case, e.g. a maintenance vendor), some, or all (the weekly
- * batch, Aey's routine: "all invoices always get export to check format
- * at the end of the week"). Each selection can carry its own optional
- * check number. Returns the new payment ids so the caller can
- * immediately trigger a combined .xlsx download of everything just
- * printed (see /ledger/supplier-check/export/route.ts). */
-export async function printChecksForVendors(
-  selections: { vendorId: number; checkNumber: string | null }[]
-): Promise<{ paymentIds: number[]; error: string | null }> {
-  // Returns expected failures instead of throwing them -- production
-  // redacts thrown server-action errors to "Minified React error #441"
-  // (2026-08-24 sweep; see lib/actions/actionResult.ts). Carries its
-  // paymentIds alongside, so not the shared ActionResult shape.
+/** Ready → Draft: the approver unlocks an invoice so the logger can fix
+ * it. Approver-only — the lock means nothing if the logger can lift it. */
+export async function unapproveInvoice(invoiceId: number): Promise<ActionResult> {
+  return asActionResult(async () => {
+    const session = await requireCapability("SUPPLIER_CHECK_APPROVE");
+    const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
+    if (!invoice) throw new Error("Invoice not found.");
+    if (invoice.status !== "ready") throw new Error("Only a Ready invoice can be bounced back to draft.");
+    await db
+      .update(supplierInvoices)
+      .set({ status: "draft", readyAt: null, readyByEmployeeId: null })
+      .where(eq(supplierInvoices.id, invoiceId));
+    await db.insert(supplierCheckAuditLog).values({
+      invoiceId,
+      paymentId: null,
+      vendorId: invoice.vendorId,
+      action: "UNAPPROVED_INVOICE",
+      performedByEmployeeId: session.id,
+      performedByName: session.name,
+      reason: null,
+      details: JSON.stringify({ invoiceNumber: invoice.invoiceNumber }),
+    });
+    revalidatePath("/ledger/supplier-check");
+  });
+}
+
+/** Claims `count` sequential check numbers atomically. One UPDATE ...
+ * RETURNING so two concurrent exports can never hand out the same
+ * number — the whole void design rests on numbers being unique and
+ * forward-only. Throws (refuses, doesn't improvise) when the sequence
+ * was never configured. */
+async function claimCheckNumbers(count: number): Promise<number[]> {
+  const [row] = await db
+    .update(restaurantSettings)
+    .set({ nextCheckNumber: sql`${restaurantSettings.nextCheckNumber} + ${count}` })
+    .where(and(eq(restaurantSettings.restaurantId, 1), sql`${restaurantSettings.nextCheckNumber} IS NOT NULL`))
+    .returning({ next: restaurantSettings.nextCheckNumber });
+  if (!row || row.next == null) {
+    throw new Error(
+      "The check number sequence isn't set up yet. An Admin or Partner sets the next check number (from the physical checkbook) in Settings first."
+    );
+  }
+  const end = row.next; // already incremented — numbers are [end-count, end-1]
+  return Array.from({ length: count }, (_, i) => end - count + i);
+}
+
+/** Exports a chosen SET of READY invoices as checks — one check per
+ * vendor, combining that vendor's selected invoices. Approver-only, and
+ * per-invoice selection on purpose (approved spec): one questionable
+ * invoice can be held back without blocking the vendor's other bills.
+ * Numbers come from the atomic sequence; the file itself is generated by
+ * the export route from these payment rows, on demand, every time. */
+export async function exportChecks(invoiceIds: number[]): Promise<{ paymentIds: number[]; error: string | null }> {
   const paymentIds: number[] = [];
   try {
-    await requireCapability("SUPPLIER_CHECK_LOG");
+    const session = await requireCapability("SUPPLIER_CHECK_APPROVE");
+    if (invoiceIds.length === 0) throw new Error("Select at least one invoice to export.");
 
-    if (selections.length === 0) {
-      throw new Error("Select at least one vendor to print a check for.");
+    const invoices = await db.select().from(supplierInvoices).where(inArray(supplierInvoices.id, invoiceIds));
+    if (invoices.length !== invoiceIds.length) throw new Error("Some selected invoices no longer exist — refresh and try again.");
+    const notReady = invoices.filter((i) => i.status !== "ready");
+    if (notReady.length > 0) {
+      throw new Error(
+        `${notReady.length} selected invoice${notReady.length === 1 ? " is" : "s are"} not Ready — only approved invoices can go on a check.`
+      );
     }
 
-    for (const { vendorId, checkNumber } of selections) {
-      const { paymentId } = await printSupplierCheck(vendorId, checkNumber);
-      paymentIds.push(paymentId);
+    const byVendor = new Map<number, typeof invoices>();
+    for (const inv of invoices) {
+      const list = byVendor.get(inv.vendorId) ?? [];
+      list.push(inv);
+      byVendor.set(inv.vendorId, list);
+    }
+
+    const numbers = await claimCheckNumbers(byVendor.size);
+    const today = businessTodayIso();
+
+    let n = 0;
+    for (const [vendorId, vendorInvoices] of byVendor) {
+      const totalAmount = vendorInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+      const [payment] = await db
+        .insert(supplierCheckPayments)
+        .values({
+          vendorId,
+          paidDate: today,
+          checkNumber: String(numbers[n]),
+          totalAmount,
+          paidByEmployeeId: session.id,
+          status: "exported",
+        })
+        .returning();
+      n += 1;
+
+      await db
+        .update(supplierInvoices)
+        .set({ status: "exported", paymentId: payment.id })
+        .where(inArray(supplierInvoices.id, vendorInvoices.map((i) => i.id)));
+
+      await db.insert(supplierCheckAuditLog).values({
+        invoiceId: null,
+        paymentId: payment.id,
+        vendorId,
+        action: "EXPORTED_CHECK",
+        performedByEmployeeId: session.id,
+        performedByName: session.name,
+        reason: null,
+        details: JSON.stringify({ checkNumber: payment.checkNumber, totalAmount, invoiceIds: vendorInvoices.map((i) => i.id) }),
+      });
+      paymentIds.push(payment.id);
     }
   } catch (e) {
     return { paymentIds, error: e instanceof Error ? e.message : String(e) };
   }
+  revalidatePath("/ledger/supplier-check");
   return { paymentIds, error: null };
 }
 
-/** Marks a PRINTED check as delivered/paid to the supplier -- the final
- * lifecycle stage added 2026-08-14 after talking to Aey: checks get
- * printed/exported first (see printSupplierCheck), then marked paid once
- * actually handed over. Also flips the check's invoices to "paid" so the
- * holistic table's per-invoice detail reflects the final state without
- * needing to join back through the payment's own status every time. */
-export async function markSupplierCheckPaid(paymentId: number): Promise<ActionResult> {
-  // Returns expected failures instead of throwing them -- production
-  // redacts thrown server-action errors to "Minified React error #441"
-  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+/** Verifies a PIN against every flagged financial auditor — the same
+ * "whose sign-off counts" identity rule the retired locked-edit path
+ * used (2026-08-23, Oliver: always a flagged auditor's PIN, never the
+ * current session's own — otherwise an Admin approves their own act). */
+async function verifyAuditorCode(code: string): Promise<string | null> {
+  const trimmed = code.trim();
+  if (!trimmed) return 'Enter the financial auditor\'s code to confirm.';
+  const auditors = await db.select().from(employees).where(eq(employees.isFinancialAuditor, true));
+  if (auditors.length === 0) {
+    return 'No financial auditor is set up yet -- check the "Financial auditor" box on their Employee profile first.';
+  }
+  if (!auditors.some((a) => a.pinHash && verifyPin(trimmed, a.pinHash))) {
+    return "That code doesn't match -- couldn't confirm.";
+  }
+  return null;
+}
+
+/** Voids a whole check (approved spec — never a single line: the paper
+ * in the supplier's hand is one piece, and pulling one line would make
+ * the system disagree with it). Approver + typed reason + the financial
+ * auditor's PIN. The check row and its burned number stay forever; its
+ * invoices bounce back to Ready for correction and reissue. */
+export async function voidSupplierCheck(input: {
+  paymentId: number;
+  reason: string;
+  auditorCode: string;
+}): Promise<ActionResult> {
   return asActionResult(async () => {
-    // FA_SUPPLIER_CHECK_FINALIZE, not SUPPLIER_CHECK_LOG — see the split
-    // described in this file's header (2026-08-23). The page hides the button
-    // for anyone without it; this is the guard that actually enforces it.
+    const session = await requireCapability("SUPPLIER_CHECK_APPROVE");
+    const reason = input.reason.trim();
+    if (!reason) throw new Error("Write why this check is being voided — the reason goes on the permanent record.");
+    const codeError = await verifyAuditorCode(input.auditorCode);
+    if (codeError) throw new Error(codeError);
+
+    const [payment] = await db.select().from(supplierCheckPayments).where(eq(supplierCheckPayments.id, input.paymentId));
+    if (!payment) throw new Error("Check not found.");
+    if (payment.status === "void") return;
+    if (payment.status === "closed") {
+      throw new Error(
+        "This check is already marked delivered to the supplier. If it truly must be reversed, that's a conversation with the supplier and the bank — not a button."
+      );
+    }
+
+    await db
+      .update(supplierCheckPayments)
+      .set({ status: "void", voidedAt: new Date().toISOString(), voidedByEmployeeId: session.id, voidReason: reason })
+      .where(eq(supplierCheckPayments.id, input.paymentId));
+
+    await db
+      .update(supplierInvoices)
+      .set({ status: "ready", paymentId: null })
+      .where(eq(supplierInvoices.paymentId, input.paymentId));
+
+    await db.insert(supplierCheckAuditLog).values({
+      invoiceId: null,
+      paymentId: payment.id,
+      vendorId: payment.vendorId,
+      action: "VOIDED_CHECK",
+      performedByEmployeeId: session.id,
+      performedByName: session.name,
+      reason,
+      details: JSON.stringify({ checkNumber: payment.checkNumber, totalAmount: payment.totalAmount }),
+    });
+
+    revalidatePath("/ledger/supplier-check");
+  });
+}
+
+export interface InstantCheckActionState {
+  error: string | null;
+  paymentId?: number;
+}
+
+/** Door 2 — the plumber is waiting (Oliver's scenario, approved spec).
+ * One person logs the invoice AND issues the check in a single act.
+ * Cannot be prevented, so it is made VISIBLE instead: typed reason,
+ * permanent single-person badge, and a separate listing the approver
+ * reviews after the fact. Above the Settings ceiling, a second person
+ * holding SUPPLIER_CHECK_APPROVE (not the actor) enters their PIN. */
+export async function issueInstantCheck(
+  _prevState: InstantCheckActionState,
+  formData: FormData
+): Promise<InstantCheckActionState> {
+  try {
+    const session = await requireCapability("SUPPLIER_CHECK_INSTANT");
+
+    const receivedDate = String(formData.get("receivedDate") ?? "") || businessTodayIso();
+    const vendorId = Number(formData.get("vendorId"));
+    const categoryId = Number(formData.get("categoryId"));
+    const invoiceNumber = String(formData.get("invoiceNumber") ?? "").trim();
+    const description = String(formData.get("description") ?? "").trim() || null;
+    const amount = Number(formData.get("amount"));
+    const instantReason = String(formData.get("instantReason") ?? "").trim();
+
+    if (!vendorId) throw new Error("Vendor is required");
+    if (!categoryId) throw new Error("Category is required");
+    if (!invoiceNumber) throw new Error("Invoice number is required");
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be a positive number");
+    if (!instantReason) throw new Error("Write why this check can't wait for the weekly batch — the reason goes on the permanent record.");
+
+    const [settings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
+    const ceiling = settings?.instantCheckCeiling ?? 500;
+    if (amount > ceiling) {
+      const secondPin = String(formData.get("secondPin") ?? "").trim();
+      if (!secondPin) {
+        throw new Error(
+          `This check is over the $${ceiling.toFixed(0)} single-person ceiling — a second person who can approve checks has to enter their PIN.`
+        );
+      }
+      // The co-signer must hold the approve capability and must not be
+      // the actor — a second copy of the actor's own PIN is not a
+      // second person.
+      const approverRows = await db
+        .select({ employeeId: employeeCapabilities.employeeId })
+        .from(employeeCapabilities)
+        .where(and(eq(employeeCapabilities.capabilityKey, "SUPPLIER_CHECK_APPROVE"), eq(employeeCapabilities.granted, true)));
+      const adminRows = await db.select().from(employees).where(eq(employees.systemRole, "ADMIN"));
+      const cosignerIds = new Set<number>([...approverRows.map((r) => r.employeeId), ...adminRows.map((a) => a.id)]);
+      cosignerIds.delete(session.id);
+      const cosigners = cosignerIds.size
+        ? await db.select().from(employees).where(inArray(employees.id, Array.from(cosignerIds)))
+        : [];
+      const pinOk = cosigners.some((c) => c.pinHash && verifyPin(secondPin, c.pinHash));
+      if (!pinOk) {
+        throw new Error("That PIN doesn't belong to another person who can approve checks — couldn't confirm.");
+      }
+    }
+
+    const [number] = await claimCheckNumbers(1);
+    const today = businessTodayIso();
+
+    const [payment] = await db
+      .insert(supplierCheckPayments)
+      .values({
+        vendorId,
+        paidDate: today,
+        checkNumber: String(number),
+        totalAmount: amount,
+        paidByEmployeeId: session.id,
+        status: "exported",
+        singlePerson: true,
+        instantReason,
+      })
+      .returning();
+
+    await db.insert(supplierInvoices).values({
+      receivedDate,
+      vendorId,
+      categoryId,
+      invoiceNumber,
+      description,
+      amount,
+      status: "exported",
+      paymentId: payment.id,
+      createdByEmployeeId: session.id,
+    });
+
+    await db.insert(supplierCheckAuditLog).values({
+      invoiceId: null,
+      paymentId: payment.id,
+      vendorId,
+      action: "INSTANT_CHECK",
+      performedByEmployeeId: session.id,
+      performedByName: session.name,
+      reason: instantReason,
+      details: JSON.stringify({ checkNumber: payment.checkNumber, totalAmount: amount, overCeiling: amount > ceiling }),
+    });
+
+    revalidatePath("/ledger/supplier-check");
+    return { error: null, paymentId: payment.id };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+/** Exported → Closed: the check physically reached the supplier (a
+ * person confirms the hand-over; nobody waits for the bank). Kept on
+ * FA_SUPPLIER_CHECK_FINALIZE — the last step before a payment is
+ * settled belongs with whoever reconciles (2026-08-23 split). */
+export async function markSupplierCheckPaid(paymentId: number): Promise<ActionResult> {
+  return asActionResult(async () => {
     const session = await requireCapability("FA_SUPPLIER_CHECK_FINALIZE");
 
     const [payment] = await db.select().from(supplierCheckPayments).where(eq(supplierCheckPayments.id, paymentId));
     if (!payment) throw new Error("Check not found.");
-    if (payment.status === "paid") return;
+    if (payment.status === "closed") return;
+    if (payment.status === "void") throw new Error("This check was voided — it can't be marked delivered.");
 
     await db
       .update(supplierCheckPayments)
-      .set({ status: "paid", deliveredAt: new Date().toISOString(), deliveredByEmployeeId: session.id })
+      .set({ status: "closed", deliveredAt: new Date().toISOString(), deliveredByEmployeeId: session.id })
       .where(eq(supplierCheckPayments.id, paymentId));
 
-    await db.update(supplierInvoices).set({ status: "paid" }).where(eq(supplierInvoices.paymentId, paymentId));
+    await db.update(supplierInvoices).set({ status: "closed" }).where(eq(supplierInvoices.paymentId, paymentId));
 
     revalidatePath("/ledger/supplier-check");
-});
+  });
 }

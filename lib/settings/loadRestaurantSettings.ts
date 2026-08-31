@@ -37,6 +37,10 @@ export interface RestaurantSettingsData {
    * second-shift close behaves, per source. See db/schema.ts. */
   toastCloseoutMode: "ASK" | "PER_SHIFT" | "CUMULATIVE";
   platformCloseoutMode: "ASK" | "PER_SHIFT" | "CUMULATIVE";
+  /** Supplier-check number sequence + door-2 ceiling (2026-08-31
+   * lifecycle rebuild — see db/schema.ts). */
+  nextCheckNumber: number | null;
+  instantCheckCeiling: number;
 }
 
 /** Single-row settings table (restaurantId=1 reserved for future
@@ -69,6 +73,8 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
       staffLoginMethod: "NAME",
       toastCloseoutMode: "ASK",
       platformCloseoutMode: "ASK",
+      nextCheckNumber: null,
+      instantCheckCeiling: 500,
     };
   }
   return {
@@ -89,6 +95,8 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     staffLoginMethod: row.staffLoginMethod as "NAME" | "ID",
     toastCloseoutMode: row.toastCloseoutMode,
     platformCloseoutMode: row.platformCloseoutMode,
+    nextCheckNumber: row.nextCheckNumber,
+    instantCheckCeiling: row.instantCheckCeiling,
   };
 }
 

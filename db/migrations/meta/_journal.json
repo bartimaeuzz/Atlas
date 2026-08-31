@@ -267,6 +267,13 @@
       "when": 1788161977306,
       "tag": "0037_groovy_sage",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1788194770467,
+      "tag": "0038_sleepy_stark_industries",
+      "breakpoints": true
     }
   ]
 }

@@ -7,29 +7,24 @@ import { TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 
-/** Shared inline "fix a typo or wrong amount" form (2026-08-15, Oliver's
- * ask) -- used both for a still-Pending invoice (PendingByVendor.tsx, no
- * confirmation code needed) and an already-Printed/Paid one
- * (ChecksTable.tsx, requireAuditorCode=true). Only invoiceNumber /
- * description / amount are editable -- vendor and category aren't,
- * changing those would be a much bigger structural move than "typo or
- * wrong amount," out of scope here. Server-side gating (who's even
- * allowed to call this, and the code check itself) all lives in
- * editSupplierInvoice -- this component just collects the fields and
- * shows whatever error comes back. */
+/** Inline "fix a typo or wrong amount" form (2026-08-15, Oliver's ask;
+ * narrowed to DRAFT-only by the 2026-08-31 lifecycle rebuild — the old
+ * auditor-PIN path for editing Printed/Paid invoices is retired: after
+ * export nothing is edited, a mistake voids the whole check). Only
+ * invoiceNumber / description / amount are editable -- vendor and
+ * category aren't, changing those would be a much bigger structural
+ * move than "typo or wrong amount," out of scope here. */
 export function EditInvoiceForm({
   invoiceId,
   invoiceNumber,
   description,
   amount,
-  requireAuditorCode,
   onDone,
 }: {
   invoiceId: number;
   invoiceNumber: string;
   description: string | null;
   amount: number;
-  requireAuditorCode: boolean;
   onDone: () => void;
 }) {
   const [isPending, startTransition] = useTransition();
@@ -39,7 +34,6 @@ export function EditInvoiceForm({
     description: description ?? "",
     amount: String(amount),
     reason: "",
-    auditorCode: "",
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -65,7 +59,6 @@ export function EditInvoiceForm({
         description: form.description,
         amount: parsedAmount,
         reason: form.reason,
-        auditorCode: requireAuditorCode ? form.auditorCode : undefined,
       });
       if (result.error) {
         setError(result.error);
@@ -104,17 +97,6 @@ export function EditInvoiceForm({
         onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
         placeholder="e.g. amount was a typo, should be $45 not $54"
       />
-      {requireAuditorCode && (
-        <TextInput
-          type="password"
-          inputMode="numeric"
-          label="Financial auditor's code — required to confirm a change to an already printed/paid check"
-          value={form.auditorCode}
-          onChange={(e) => setForm((f) => ({ ...f, auditorCode: e.target.value }))}
-          className="max-w-[140px]"
-          placeholder="4-digit code"
-        />
-      )}
       {error && <Banner tone="danger" title={error} />}
       {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
       <div className="flex items-center gap-2 pt-1">

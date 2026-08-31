@@ -5,7 +5,11 @@ import { toIso, weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/week
 import { LedgerTabs } from "../LedgerTabs";
 import { PendingByVendor } from "./PendingByVendor";
 import { ChecksTable } from "./ChecksTable";
-import { PrintChecksButton } from "./PrintChecksButton";
+import { ExportChecksButton } from "./ExportChecksButton";
+import { InstantCheckButton } from "./InstantCheckButton";
+import { loadLedgerVendors, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
+import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
+import { getCurrentStaffSession } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { Tab } from "@/components/ui/Tabs";
@@ -91,11 +95,18 @@ export default async function SupplierCheckPage({
           return { from: b.start, to: b.end };
         })();
 
-  const [pendingGroups, checks] = await Promise.all([
+  const [pendingGroups, checks, allVendors, categories, settings, session] = await Promise.all([
     loadPendingInvoicesByVendor(),
     loadSupplierChecks(range),
+    loadLedgerVendors(),
+    loadLedgerCategories(),
+    loadRestaurantSettings(),
+    getCurrentStaffSession(),
   ]);
-  const periodTotal = checks.reduce((sum, c) => sum + c.totalAmount, 0);
+  // Void checks stay visible in the table (nothing is ever hidden) but a
+  // voided check is money that never left — it must not inflate the
+  // period total (2026-08-31 lifecycle rebuild).
+  const periodTotal = checks.filter((c) => c.status !== "void").reduce((sum, c) => sum + c.totalAmount, 0);
   // Who can even attempt to edit an already Printed/Paid invoice --
   // 2026-08-15, see editSupplierInvoice's comment in
   // lib/actions/supplierCheck.ts for the full rule (this is just the
@@ -103,7 +114,12 @@ export default async function SupplierCheckPage({
   // Reads the capability since 2026-08-23, not systemRole plus the
   // isFinancialAuditor column -- same four accounts, one source of truth,
   // and /permissions now reflects it.
-  const canEditLockedInvoices = viewer.has("FA_SUPPLIER_CHECK_EDIT_LOCKED");
+  // Approve & export & void are one capability (2026-08-31 rebuild) —
+  // the approver role. The retired FA_SUPPLIER_CHECK_EDIT_LOCKED key's
+  // old job (touching an exported check) is now void-and-reissue.
+  const canApprove = viewer.has("SUPPLIER_CHECK_APPROVE");
+  const canInstant = viewer.has("SUPPLIER_CHECK_INSTANT");
+  const viewerId = session?.id ?? -1;
   // Marking a printed check paid/delivered split off from log/print on
   // 2026-08-23 -- see lib/actions/supplierCheck.ts's header. Read through
   // the capability registry rather than a systemRole test so /permissions
@@ -119,19 +135,26 @@ export default async function SupplierCheckPage({
 
       <LedgerTabs active="supplier" showOverview showCard={showCard} />
 
-      <div className="flex items-center justify-between gap-3 mb-6">
+      <div className="flex items-center gap-3 flex-wrap mb-6">
         <LinkButton href="/ledger/supplier-check/new" size="sm">
           + Add item
         </LinkButton>
-        <PrintChecksButton groups={pendingGroups} />
+        {canApprove && <ExportChecksButton groups={pendingGroups} />}
+        {canInstant && (
+          <InstantCheckButton
+            vendors={allVendors.filter((v) => v.active)}
+            categories={categories.filter((c) => c.active)}
+            ceiling={settings.instantCheckCeiling}
+          />
+        )}
       </div>
 
       {pendingGroups.length > 0 && (
         <>
-          <h2 className="text-sm font-semibold text-[var(--ink-700)] mb-2">Not yet checked</h2>
+          <h2 className="text-sm font-semibold text-[var(--ink-700)] mb-2">Open invoices — draft &amp; ready</h2>
           <div className="space-y-4 mb-6">
             {pendingGroups.map((g) => (
-              <PendingByVendor key={g.vendorId} group={g} />
+              <PendingByVendor key={g.vendorId} group={g} canApprove={canApprove} viewerId={viewerId} />
             ))}
           </div>
         </>
@@ -177,7 +200,7 @@ export default async function SupplierCheckPage({
         {checks.length === 0 ? "No checks in this period." : `${checks.length} check${checks.length === 1 ? "" : "s"} — ${formatMoney(periodTotal)} total`}
       </p>
 
-      <ChecksTable checks={checks} canEditLockedInvoices={canEditLockedInvoices} canMarkPaid={canMarkPaid} />
+      <ChecksTable checks={checks} canVoid={canApprove} canMarkPaid={canMarkPaid} />
     </main>
   );
 }

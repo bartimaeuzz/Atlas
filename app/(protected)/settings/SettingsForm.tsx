@@ -193,6 +193,50 @@ export function SettingsForm({
       </fieldset>
 
       <fieldset>
+        <legend className="text-lg font-medium mb-3">Supplier checks</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
+          Two money controls from the check lifecycle. Both are permanent-record settings — every
+          change here is written to the Activity log with before/after.
+        </p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <label className="text-sm block">
+            <span className="block text-[var(--ink-500)] mb-1">Next check number</span>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              name="nextCheckNumber"
+              defaultValue={settings.nextCheckNumber ?? ""}
+              placeholder="not set"
+              className={`border rounded px-3 py-1.5 text-sm w-40 min-h-11 ${DISABLED_FIELD}`}
+            />
+            <span className="block text-xs text-[var(--ink-400)] mt-1">
+              Set once to the next unused number in the physical checkbook — Atlas assigns and
+              advances it automatically from there. Exporting is refused until this is set. Voided
+              numbers stay burned.
+            </span>
+          </label>
+          <label className="text-sm block">
+            <span className="block text-[var(--ink-500)] mb-1">Instant-check ceiling</span>
+            <div className="relative w-40">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">$</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                name="instantCheckCeiling"
+                defaultValue={settings.instantCheckCeiling}
+                className={`border rounded pl-6 pr-3 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}
+              />
+            </div>
+            <span className="block text-xs text-[var(--ink-400)] mt-1">
+              A single-person instant check above this amount needs a second approver&apos;s PIN.
+            </span>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend className="text-lg font-medium mb-3">POS closeout</legend>
         <p className="text-xs text-[var(--ink-500)] mb-3">
           What the Closing Report does when a second shift of the day closes and the numbers being

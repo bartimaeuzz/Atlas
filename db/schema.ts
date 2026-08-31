@@ -391,6 +391,18 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // day-to-date regardless of Toast.
   toastCloseoutMode: text("toast_closeout_mode", { enum: ["ASK", "PER_SHIFT", "CUMULATIVE"] }).notNull().default("ASK"),
   platformCloseoutMode: text("platform_closeout_mode", { enum: ["ASK", "PER_SHIFT", "CUMULATIVE"] }).notNull().default("ASK"),
+  // Supplier-check number sequence (2026-08-31 lifecycle spec): Atlas owns
+  // the numbers — set ONCE to match the physical checkbook's next number
+  // (admin/partner only, change logged), then the export action claims
+  // ranges atomically (UPDATE ... RETURNING). NULL = not configured yet;
+  // exporting refuses until it is. Voided numbers stay burned. The 9
+  // legacy prod checks predate this and keep their empty numbers.
+  nextCheckNumber: integer("next_check_number"),
+  // Door-2 ceiling (2026-08-31): a single-person instant check above this
+  // needs a second person's PIN. Settable by admin/partner only; every
+  // change is logged — otherwise whoever can raise it just raises it and
+  // the ceiling gates nothing. Default $500 (approved spec, question 4).
+  instantCheckCeiling: real("instant_check_ceiling").notNull().default(500),
   // Staff login method (2026-08-17, Oliver: "here is test seed anyway I
   // need easy way to login on each profile" -- wants BOTH the original
   // pick-your-name dropdown AND the new YK login-ID field available,
@@ -1268,7 +1280,25 @@ export const supplierInvoices = sqliteTable("supplier_invoices", {
   description: text("description"), // "nature or package" -- what was delivered
   amount: real("amount").notNull(),
   photoUrl: text("photo_url"),
-  status: text("status", { enum: ["pending", "printed", "paid"] }).notNull().default("pending"),
+  // Lifecycle rebuilt 2026-08-31 (spec approved by Oliver + Aey — see the
+  // supplier-check-lifecycle artifact / docs/atlas):
+  //   draft    — logged, nobody has reviewed it; freely editable/deletable
+  //              by SUPPLIER_CHECK_LOG holders.
+  //   ready    — the approver checked it against the attached bill. THIS
+  //              IS THE LOCK: loggers can no longer edit; only the
+  //              approver can bounce it back to draft.
+  //   exported — pulled into a check. Nobody edits it, no exceptions —
+  //              a mistake means voiding the whole check, which bounces
+  //              its invoices back to ready.
+  //   closed   — the check reached the supplier's hands.
+  // Old values migrated in 0038: pending→draft, printed→exported,
+  // paid→closed. "printed" was renamed away on Aey's point that we can
+  // never know paper came out, only that the file was generated.
+  status: text("status", { enum: ["draft", "ready", "exported", "closed"] }).notNull().default("draft"),
+  // Who approved it and when (draft → ready). The approver can never be
+  // the logger — enforced in lib/actions/supplierCheck.ts.
+  readyAt: text("ready_at"),
+  readyByEmployeeId: integer("ready_by_employee_id").references(() => employees.id),
   paymentId: integer("payment_id").references(() => supplierCheckPayments.id),
   createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
@@ -1298,9 +1328,27 @@ export const supplierCheckPayments = sqliteTable("supplier_check_payments", {
   checkNumber: text("check_number"),
   totalAmount: real("total_amount").notNull(),
   paidByEmployeeId: integer("paid_by_employee_id").notNull().references(() => employees.id), // who printed the check -- see comment above
-  status: text("status", { enum: ["printed", "paid"] }).notNull().default("printed"),
+  // Lifecycle rebuilt 2026-08-31 (approved spec): exported → closed, with
+  // void as the branch. Old printed→exported, paid→closed (migration
+  // 0038). A VOID check keeps its row and its burned number forever —
+  // nothing is ever deleted; its invoices bounce back to ready. Void is
+  // excluded from every expense report and period total.
+  status: text("status", { enum: ["exported", "closed", "void"] }).notNull().default("exported"),
   deliveredAt: text("delivered_at"), // set when a manager marks the check as delivered/paid to the supplier
   deliveredByEmployeeId: integer("delivered_by_employee_id").references(() => employees.id),
+  // Void trail (2026-08-31): approver + typed reason + the financial
+  // auditor's PIN sign-off happen in voidSupplierCheck; these record who
+  // and why, permanently.
+  voidedAt: text("voided_at"),
+  voidedByEmployeeId: integer("voided_by_employee_id").references(() => employees.id),
+  voidReason: text("void_reason"),
+  // Door 2 (2026-08-31): a check issued by ONE person on the spot (the
+  // plumber-waiting case). Permanently badged and listed separately so
+  // the approver sees every one after the fact — she can't prevent them,
+  // hiding them among normal checks is the real danger. instantReason is
+  // the typed why-now.
+  singlePerson: integer("single_person", { mode: "boolean" }).notNull().default(false),
+  instantReason: text("instant_reason"),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
 });
 
@@ -1324,7 +1372,15 @@ export const supplierCheckAuditLog = sqliteTable("supplier_check_audit_log", {
   invoiceId: integer("invoice_id").references(() => supplierInvoices.id),
   paymentId: integer("payment_id").references(() => supplierCheckPayments.id),
   vendorId: integer("vendor_id").notNull().references(() => ledgerVendors.id),
-  action: text("action", { enum: ["EDITED_INVOICE", "PRINTED_CHECK"] }).notNull(),
+  // Actions grew with the 2026-08-31 lifecycle rebuild. Type-level only
+  // (no CHECK constraint in SQLite), so extending the union needs no
+  // migration. PRINTED_CHECK stays for the legacy rows already written.
+  action: text("action", {
+    enum: [
+      "EDITED_INVOICE", "PRINTED_CHECK",
+      "APPROVED_INVOICE", "UNAPPROVED_INVOICE", "EXPORTED_CHECK", "VOIDED_CHECK", "INSTANT_CHECK",
+    ],
+  }).notNull(),
   performedByEmployeeId: integer("performed_by_employee_id").notNull().references(() => employees.id),
   performedByName: text("performed_by_name").notNull(),
   reason: text("reason"), // required (enforced in the action) for EDITED_INVOICE, always null for PRINTED_CHECK

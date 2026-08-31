@@ -13,7 +13,7 @@
  * printed/exported first, then marked paid once delivered.
  */
 
-import { and, gte, lte, eq, inArray } from "drizzle-orm";
+import { and, gte, lte, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { supplierCheckPayments, supplierInvoices, ledgerVendors, employees } from "@/db/schema";
 
@@ -25,7 +25,7 @@ export interface SupplierCheckReportRow {
   totalAmount: number;
   invoiceNumbers: string[];
   paidByName: string;
-  status: "printed" | "paid";
+  status: "exported" | "closed" | "void";
   payeeAddressLine1: string | null;
   payeeAddressLine2: string | null;
   payeeAddressLine3: string | null;
@@ -94,7 +94,10 @@ function selectPaymentRows() {
 
 export async function loadSupplierCheckReport(from: string, to: string): Promise<SupplierCheckReportData> {
   const payments = await selectPaymentRows()
-    .where(and(gte(supplierCheckPayments.paidDate, from), lte(supplierCheckPayments.paidDate, to)))
+    // ne(void): a voided check is money that never left the account —
+    // the reports and P&L must not count it (2026-08-31 lifecycle
+    // rebuild). The supplier-check page still shows voids, badged.
+    .where(and(gte(supplierCheckPayments.paidDate, from), lte(supplierCheckPayments.paidDate, to), ne(supplierCheckPayments.status, "void")))
     .orderBy(supplierCheckPayments.paidDate);
 
   return attachInvoiceNumbers(payments as RawPaymentRow[]);

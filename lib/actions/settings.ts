@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { restaurantSettings, incentiveRules, incentiveRuleConditions, incentiveRuleTargets } from "@/db/schema";
 import { OFF_PREMISE_METRIC_KEY } from "@/lib/settings/packerBonus";
 import { requireCapability } from "@/lib/permissions/requireCapability";
+import { logActivity } from "@/lib/activityLog/log";
 
 export interface SettingsActionState {
   error: string | null;
@@ -83,6 +84,44 @@ export async function updateRestaurantSettings(
     const toastCloseoutMode = closeoutMode("toastCloseoutMode");
     const platformCloseoutMode = closeoutMode("platformCloseoutMode");
 
+    /* Supplier-check money controls (2026-08-31 lifecycle rebuild).
+     * Both gate real dollars, so a CHANGE to either is written to the
+     * activity log with before/after — the ceiling means nothing if it
+     * can move silently. */
+    const [currentSettings] = await db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1));
+    const session = await (await import("@/lib/auth/session")).getCurrentStaffSession();
+
+    const nextCheckNumberRaw = String(formData.get("nextCheckNumber") ?? "").trim();
+    const nextCheckNumber = nextCheckNumberRaw === "" ? null : Number(nextCheckNumberRaw);
+    if (nextCheckNumber !== null && (!Number.isInteger(nextCheckNumber) || nextCheckNumber < 1)) {
+      throw new Error("Next check number must be a whole number (the next unused number in the physical checkbook).");
+    }
+    const instantCheckCeiling = Number(formData.get("instantCheckCeiling") ?? 500);
+    if (Number.isNaN(instantCheckCeiling) || instantCheckCeiling < 0) {
+      throw new Error("Instant-check ceiling must be a non-negative amount.");
+    }
+
+    if (session && currentSettings && currentSettings.nextCheckNumber !== nextCheckNumber) {
+      await logActivity({
+        actorEmployeeId: session.id,
+        type: "settings.check_sequence_changed",
+        entityType: "restaurant_settings",
+        entityId: "1",
+        summary: `Check number sequence changed: ${currentSettings.nextCheckNumber ?? "not set"} → ${nextCheckNumber ?? "not set"}.`,
+        detail: { before: currentSettings.nextCheckNumber, after: nextCheckNumber },
+      });
+    }
+    if (session && currentSettings && currentSettings.instantCheckCeiling !== instantCheckCeiling) {
+      await logActivity({
+        actorEmployeeId: session.id,
+        type: "settings.instant_ceiling_changed",
+        entityType: "restaurant_settings",
+        entityId: "1",
+        summary: `Instant-check ceiling changed: $${currentSettings.instantCheckCeiling.toFixed(2)} → $${instantCheckCeiling.toFixed(2)}.`,
+        detail: { before: currentSettings.instantCheckCeiling, after: instantCheckCeiling },
+      });
+    }
+
     /* Packer off-premise bonus (2026-08-31) — upserts the generic
      * incentive rule keyed by poolSourceMetricKey, see
      * lib/settings/packerBonus.ts for the full business rule. The rate
@@ -156,6 +195,8 @@ export async function updateRestaurantSettings(
       .set({
         toastCloseoutMode,
         platformCloseoutMode,
+        nextCheckNumber,
+        instantCheckCeiling,
         ccTipDeductionRate,
         hostDrinkBonusPerDrinkAmount,
         defaultSalesTaxRate,

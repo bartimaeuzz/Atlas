@@ -42,12 +42,18 @@ export type ActivityType =
   // Manager answered "whole day" to the day-total question at second-shift
   // close (2026-08-31): the earlier shift's saved figures were subtracted
   // before saving, and the raw entered numbers survive only in this row.
-  | "shift.closing_sales.day_totals_split";
+  | "shift.closing_sales.day_totals_split"
+  // Supplier-check money-control settings (2026-08-31 lifecycle rebuild):
+  // the ceiling and the number sequence gate real dollars, so every
+  // change is a permanent record — otherwise whoever can raise the
+  // ceiling just raises it and it gates nothing.
+  | "settings.check_sequence_changed"
+  | "settings.instant_ceiling_changed";
 
 export interface ActivityEntry {
   actorEmployeeId: number;
   type: ActivityType;
-  entityType: "petty_cash_entry" | "daily_cash_reconciliation" | "card_statement_period" | "ledger_card" | "shift";
+  entityType: "petty_cash_entry" | "daily_cash_reconciliation" | "card_statement_period" | "ledger_card" | "shift" | "restaurant_settings";
   /** Text, not a number: some subjects are keyed by date ("2026-08-22"). */
   entityId: string;
   /** Pre-rendered and frozen at write time. The log has to stay readable

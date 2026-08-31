@@ -31,7 +31,7 @@
  * still has old manual payroll entries under those categories can see
  * that money is being left out on purpose, not lost.
  */
-import { and, gte, lte, eq, isNotNull } from "drizzle-orm";
+import { and, gte, lte, eq, isNotNull, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   pettyCashEntries,
@@ -95,7 +95,9 @@ export async function loadExpenseBreakdown(dateFrom: string, dateTo: string): Pr
         and(
           isNotNull(supplierInvoices.paymentId),
           gte(supplierCheckPayments.paidDate, dateFrom),
-          lte(supplierCheckPayments.paidDate, dateTo)
+          lte(supplierCheckPayments.paidDate, dateTo),
+          // Voided checks are money that never left (2026-08-31).
+          ne(supplierCheckPayments.status, "void")
         )
       ),
   ]);

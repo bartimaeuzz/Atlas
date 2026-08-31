@@ -21,6 +21,7 @@ import {
 } from "@/db/schema";
 
 const deliveredByEmployee = alias(employees, "delivered_by_employee");
+const readyByEmployee = alias(employees, "ready_by_employee");
 
 export interface PendingInvoiceView {
   id: number;
@@ -30,6 +31,11 @@ export interface PendingInvoiceView {
   description: string | null;
   amount: number;
   createdByName: string;
+  /** Lifecycle rebuild 2026-08-31: draft (editable, awaiting review) or
+   * ready (approved & locked, awaiting export). */
+  status: "draft" | "ready";
+  createdByEmployeeId: number;
+  readyByName: string | null;
 }
 
 export interface VendorPendingGroup {
@@ -54,12 +60,16 @@ export async function loadPendingInvoicesByVendor(): Promise<VendorPendingGroup[
       createdByName: employees.nickname,
       vendorId: ledgerVendors.id,
       vendorName: ledgerVendors.name,
+      status: supplierInvoices.status,
+      createdByEmployeeId: supplierInvoices.createdByEmployeeId,
+      readyByName: readyByEmployee.nickname,
     })
     .from(supplierInvoices)
     .innerJoin(ledgerVendors, eq(supplierInvoices.vendorId, ledgerVendors.id))
     .innerJoin(ledgerCategories, eq(supplierInvoices.categoryId, ledgerCategories.id))
     .innerJoin(employees, eq(supplierInvoices.createdByEmployeeId, employees.id))
-    .where(eq(supplierInvoices.status, "pending"))
+    .leftJoin(readyByEmployee, eq(supplierInvoices.readyByEmployeeId, readyByEmployee.id))
+    .where(inArray(supplierInvoices.status, ["draft", "ready"]))
     .orderBy(supplierInvoices.receivedDate);
 
   const byVendor = new Map<number, VendorPendingGroup>();
@@ -77,6 +87,9 @@ export async function loadPendingInvoicesByVendor(): Promise<VendorPendingGroup[
       description: r.description,
       amount: r.amount,
       createdByName: r.createdByName,
+      status: r.status as "draft" | "ready",
+      createdByEmployeeId: r.createdByEmployeeId,
+      readyByName: r.readyByName,
     });
     group.totalPending += r.amount;
   }
@@ -99,7 +112,7 @@ export interface PaymentInvoiceDetail {
  * see supplierCheckAuditLog's schema comment for both shapes. */
 export interface CheckAuditLogEntry {
   id: number;
-  action: "EDITED_INVOICE" | "PRINTED_CHECK";
+  action: "EDITED_INVOICE" | "PRINTED_CHECK" | "APPROVED_INVOICE" | "UNAPPROVED_INVOICE" | "EXPORTED_CHECK" | "VOIDED_CHECK" | "INSTANT_CHECK";
   performedByName: string;
   reason: string | null;
   details: Record<string, unknown>;
@@ -114,9 +127,14 @@ export interface SupplierCheckView {
   checkNumber: string | null;
   totalAmount: number;
   printedByName: string;
-  status: "printed" | "paid";
+  status: "exported" | "closed" | "void";
   deliveredAt: string | null;
   deliveredByName: string | null;
+  /** Void trail + door-2 badge (2026-08-31 lifecycle rebuild). */
+  voidedAt: string | null;
+  voidReason: string | null;
+  singlePerson: boolean;
+  instantReason: string | null;
   invoices: PaymentInvoiceDetail[];
   /** Print event + any post-print edits, most recent first. Pre-print
    * edits to a still-Pending invoice are logged too (see
@@ -147,6 +165,10 @@ export async function loadSupplierChecks({ from, to }: { from: string; to: strin
       status: supplierCheckPayments.status,
       deliveredAt: supplierCheckPayments.deliveredAt,
       deliveredByName: deliveredByEmployee.nickname,
+      voidedAt: supplierCheckPayments.voidedAt,
+      voidReason: supplierCheckPayments.voidReason,
+      singlePerson: supplierCheckPayments.singlePerson,
+      instantReason: supplierCheckPayments.instantReason,
     })
     .from(supplierCheckPayments)
     .innerJoin(ledgerVendors, eq(supplierCheckPayments.vendorId, ledgerVendors.id))
@@ -210,7 +232,7 @@ export async function loadSupplierChecks({ from, to }: { from: string; to: strin
 
   return payments.map((p) => ({
     ...p,
-    status: p.status as "printed" | "paid",
+    status: p.status as "exported" | "closed" | "void",
     invoices: invoicesByPaymentId.get(p.id) ?? [],
     auditLog: auditByPaymentId.get(p.id) ?? [],
   }));
