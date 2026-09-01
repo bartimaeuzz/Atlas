@@ -39,6 +39,30 @@ export function EmployeeCapabilityCard({
   const [saveState, saveAction, savePending] = useActionState(saveEmployeeCapabilities, initialState);
   const formRef = useKeepValuesOnError(savePending, !!saveState.error);
 
+  // Remount the form whenever the STORED grants change (2026-09-01, Oliver:
+  // "after hitting permission level reset, the checkboxes weren't marked
+  // until refreshed").
+  //
+  // Root cause, measured rather than guessed: applying a preset writes to the
+  // database and revalidates correctly, and React does re-render this card
+  // with the new data — the checkbox's `checked` ATTRIBUTE flips to true. But
+  // `defaultChecked` is only a default. Once an input is mounted the browser's
+  // live `checked` PROPERTY is independent of the attribute, and nothing
+  // React does afterwards moves it. So the row said "off" while the database
+  // said "on", and only a full page load (a remount) agreed with the
+  // database. On a permissions screen that is the worst possible lie: it
+  // tells an admin they have not granted something they just granted.
+  //
+  // The signature covers expiry dates too — ExpiryField is a `defaultValue`
+  // input with exactly the same problem. When nothing stored has changed the
+  // signature is stable, so an admin's un-saved ticking is never wiped out
+  // from under them; it only remounts when the server's answer actually
+  // moved. Same fix as ClosingReportForm's save-nonce key.
+  const storedSignature = CAPABILITIES.map((def) => {
+    const c = employee.capabilities[def.key];
+    return `${def.key}:${c?.granted ? 1 : 0}:${c?.expiresAt ?? ""}`;
+  }).join("|");
+
   const manageIsGranted = employee.systemRole === "ADMIN";
 
   return (
@@ -64,7 +88,7 @@ export function EmployeeCapabilityCard({
           Advanced: individual capabilities
         </summary>
 
-        <form ref={formRef} action={saveAction} className="px-4 pb-4">
+        <form key={storedSignature} ref={formRef} action={saveAction} className="px-4 pb-4">
           <input type="hidden" name="employeeId" value={employee.employeeId} />
 
           {CAPABILITY_CATEGORIES.map((category) => (
