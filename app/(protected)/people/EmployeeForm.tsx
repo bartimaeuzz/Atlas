@@ -115,6 +115,16 @@ export function EmployeeForm({
         hint="What shows up everywhere in the app — schedule, roster, nav, tip pools. Not necessarily their legal name."
       />
 
+      <TextInput
+        type="text"
+        name="title"
+        label="Job title (optional)"
+        defaultValue={existing?.title ?? ""}
+        maxLength={60}
+        placeholder="e.g. Head Bartender"
+        hint="A label on their profile only. It does not change their position, pay or tip share — set those below."
+      />
+
       <div>
         <div className="grid sm:grid-cols-2 gap-4">
           <TextInput

@@ -53,6 +53,7 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
       <Section title="Basics">
         <Card>
           <dl className="text-sm grid grid-cols-2 gap-x-4 gap-y-1.5">
+            {employee.title && <ProfileRow label="Title" value={employee.title} />}
             <ProfileRow label="Legal name" value={[employee.legalFirstName, employee.legalLastName].filter(Boolean).join(" ") || "—"} />
             <ProfileRow label="Hire date" value={employee.hireDate ? formatPersonDate(employee.hireDate) : "—"} />
             <ProfileRow label="System role" value={formatSystemRole(employee.systemRole)} />

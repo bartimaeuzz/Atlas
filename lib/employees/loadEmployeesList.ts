@@ -52,6 +52,8 @@ export interface EmployeeHrSensitiveInfo {
 export interface EmployeeListRow {
   id: number;
   nickname: string;
+  /** Free-text job title — a label, not a position (see db/schema.ts). */
+  title: string | null;
   /** Legal name for payroll/tax documents (2026-08-17) — nullable, not
    * backfilled for pre-existing employees (see employees.legalFirstName's
    * schema comment). Enforced as required going forward at the form
@@ -150,6 +152,7 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
     .map((e) => ({
       id: e.id,
       nickname: e.nickname,
+      title: e.title,
       legalFirstName: e.legalFirstName,
       legalLastName: e.legalLastName,
       active: e.active,
@@ -213,6 +216,7 @@ export async function loadEmployeeForEdit(
   return {
     id: employee.id,
     nickname: employee.nickname,
+    title: employee.title,
     legalFirstName: employee.legalFirstName,
     legalLastName: employee.legalLastName,
     active: employee.active,

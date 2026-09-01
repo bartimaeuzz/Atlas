@@ -68,6 +68,25 @@ export function SettingsForm({
   return (
     <form ref={formRef} action={formAction} className="space-y-8 max-w-2xl">
       <fieldset>
+        <legend className="text-lg font-medium mb-3">Restaurant</legend>
+        <label className="text-sm block">
+          <span className="block text-[var(--ink-500)] mb-1">Restaurant name</span>
+          <input
+            type="text"
+            name="restaurantName"
+            maxLength={60}
+            defaultValue={settings.restaurantName ?? ""}
+            placeholder="e.g. Youk Thai"
+            autoComplete="organization"
+            className={`w-full max-w-sm border border-[var(--border)] rounded-[var(--radius-sm)] px-3 py-2 bg-[var(--surface)] ${DISABLED_FIELD}`}
+          />
+          <span className="block text-xs text-[var(--ink-500)] mt-1">
+            Your restaurant&rsquo;s name as staff should see it. Optional for now — it will appear on the sign-in screen and side menu once that part ships.
+          </span>
+        </label>
+      </fieldset>
+
+      <fieldset>
         <legend className="text-lg font-medium mb-3">Tips</legend>
         <div className="grid sm:grid-cols-2 gap-4">
           <label className="text-sm block">

@@ -87,6 +87,11 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[], access: 
   const nickname = String(formData.get("nickname") ?? "").trim();
   if (!nickname) throw new Error("Nickname/display name is required");
 
+  // Job title (2026-09-01): optional label, empty saves as NULL.
+  const titleRaw = String(formData.get("title") ?? "").trim();
+  if (titleRaw.length > 60) throw new Error("Title must be 60 characters or fewer");
+  const title = titleRaw === "" ? null : titleRaw;
+
   const legalFirstName = String(formData.get("legalFirstName") ?? "").trim();
   const legalLastName = String(formData.get("legalLastName") ?? "").trim();
   if (!legalFirstName || !legalLastName) {
@@ -169,6 +174,7 @@ function readEmployeeForm(formData: FormData, allPositionIds: number[], access: 
 
   return {
     nickname,
+    title,
     legalFirstName,
     legalLastName,
     dateOfBirth,
@@ -260,6 +266,7 @@ export async function createEmployee(_prevState: EmployeeActionState, formData: 
       .insert(employees)
       .values({
         nickname: parsed.nickname,
+        title: parsed.title,
         legalFirstName: parsed.legalFirstName,
         legalLastName: parsed.legalLastName,
         active: parsed.active,
@@ -314,6 +321,7 @@ export async function updateEmployee(_prevState: EmployeeActionState, formData: 
       .update(employees)
       .set({
         nickname: parsed.nickname,
+        title: parsed.title,
         legalFirstName: parsed.legalFirstName,
         legalLastName: parsed.legalLastName,
         active: parsed.active,

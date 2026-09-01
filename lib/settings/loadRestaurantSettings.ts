@@ -5,6 +5,9 @@ import { employees, restaurantSettings } from "@/db/schema";
 export type PoolSplitMethod = "POINT_WEIGHTED" | "EQUAL_SPLIT";
 
 export interface RestaurantSettingsData {
+  /** The restaurant's own name (2026-09-01, Mohom wordmark spec). Null
+   * until set — callers render nothing rather than a placeholder. */
+  restaurantName: string | null;
   ccTipDeductionRate: number;
   /** Split 2026-08-10 from one combined "peer earnings" toggle into
    * independent Tip and Wage visibility, still at FOH/BOH category
@@ -59,6 +62,7 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     // Should never happen post-seed, but fall back to schema defaults
     // rather than crashing the settings page if it somehow does.
     return {
+      restaurantName: null,
       ccTipDeductionRate: 0,
       rosterShowPeerTipFOH: true,
       rosterShowPeerTipBOH: false,
@@ -83,6 +87,7 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     };
   }
   return {
+    restaurantName: row.restaurantName,
     ccTipDeductionRate: row.ccTipDeductionRate,
     rosterShowPeerTipFOH: row.rosterShowPeerTipFOH,
     rosterShowPeerTipBOH: row.rosterShowPeerTipBOH,

@@ -43,6 +43,14 @@ export async function updateRestaurantSettings(
     // 2026-08-17) — typing the raw fraction (0.045) invited the same
     // silent-mistake risk. Converted to a fraction here for storage so
     // every downstream consumer (tip pool calc) is unaffected.
+    // Restaurant name (2026-09-01). Empty saves as NULL, never "" — the
+    // wordmark checks for null to decide whether to draw the separator.
+    const restaurantNameRaw = String(formData.get("restaurantName") ?? "").trim();
+    if (restaurantNameRaw.length > 60) {
+      throw new Error("Restaurant name must be 60 characters or fewer.");
+    }
+    const restaurantName = restaurantNameRaw === "" ? null : restaurantNameRaw;
+
     const ccTipDeductionRatePercent = Number(formData.get("ccTipDeductionRatePercent") ?? 0);
     if (Number.isNaN(ccTipDeductionRatePercent) || ccTipDeductionRatePercent < 0 || ccTipDeductionRatePercent > 100) {
       throw new Error("CC tip deduction rate must be a percent between 0 and 100 (e.g. 4.5 for 4.5%)");
@@ -233,6 +241,7 @@ export async function updateRestaurantSettings(
     await db
       .update(restaurantSettings)
       .set({
+        restaurantName,
         toastCloseoutMode,
         platformCloseoutMode,
         nextCheckNumber,

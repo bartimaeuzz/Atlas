@@ -86,6 +86,7 @@ export function PeopleTable({
       if (!q) return true;
       const haystack = [
         e.nickname,
+        e.title ?? "",
         e.legalFirstName ?? "",
         e.legalLastName ?? "",
         e.loginId ?? "",
