@@ -403,6 +403,28 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // change is logged — otherwise whoever can raise it just raises it and
   // the ceiling gates nothing. Default $500 (approved spec, question 4).
   instantCheckCeiling: real("instant_check_ceiling").notNull().default(500),
+
+  // Two-person money controls (2026-09-01, Oliver). The RULE the partners
+  // agreed is that recording money is open to everyone while COMMITTING it
+  // needs a second person — but they are four co-owners with Aey holding
+  // most of the finance work, so at this size the rule would block her
+  // daily. These switches let the control be turned on per step as work is
+  // handed off: "จนกว่าจะปล่อยงานออกไปให้คนอื่นรับผิดชอบแทน".
+  //
+  // A SETTING and not a per-person capability, deliberately: the reason to
+  // relax is the stage of the business, not a property of a person, and a
+  // per-person "may bypass the safeguard" key would be invisible in the
+  // worst way — you would have to read every account's grants to know
+  // whether the control is actually in force.
+  //
+  // OFF is not silent: whatever is committed while a switch is off is
+  // stamped singlePerson on its own row (below), so turning the switch on
+  // later cannot make past records look like they had two pairs of eyes.
+  // Changing either switch is ADMIN-only and written to the activity log.
+  requireTwoPersonPayroll: integer("require_two_person_payroll", { mode: "boolean" }).notNull().default(false),
+  requireTwoPersonCardReconcile: integer("require_two_person_card_reconcile", { mode: "boolean" })
+    .notNull()
+    .default(false),
   // Staff login method (2026-08-17, Oliver: "here is test seed anyway I
   // need easy way to login on each profile" -- wants BOTH the original
   // pick-your-name dropdown AND the new YK login-ID field available,
@@ -1441,6 +1463,9 @@ export const cardStatementPeriods = sqliteTable("card_statement_periods", {
   status: text("status", { enum: ["draft", "reconciled"] }).notNull().default("draft"),
   reconciledAt: text("reconciled_at"),
   reconciledByEmployeeId: integer("reconciled_by_employee_id").references(() => employees.id),
+  // See payrollPeriods.singlePerson — true when this period was closed by
+  // one person because the two-person control was switched off then.
+  singlePerson: integer("single_person", { mode: "boolean" }).notNull().default(false),
   createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
 });
@@ -1652,6 +1677,11 @@ export const payrollPeriods = sqliteTable(
     status: text("status", { enum: ["draft", "paid"] }).notNull().default("draft"),
     paidAt: text("paid_at"),
     paidByEmployeeId: integer("paid_by_employee_id").references(() => employees.id),
+    // True when this week was locked by one person because the two-person
+    // control was switched off at the time — same honesty device as
+    // supplierCheckPayments.singlePerson. Never back-filled: a row's value
+    // records the rule that was actually in force when it was written.
+    singlePerson: integer("single_person", { mode: "boolean" }).notNull().default(false),
     createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
   },
   (t) => ({

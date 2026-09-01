@@ -41,6 +41,9 @@ export interface RestaurantSettingsData {
    * lifecycle rebuild — see db/schema.ts). */
   nextCheckNumber: number | null;
   instantCheckCeiling: number;
+  /** Two-person money controls (2026-09-01) — see db/schema.ts. */
+  requireTwoPersonPayroll: boolean;
+  requireTwoPersonCardReconcile: boolean;
 }
 
 /** Single-row settings table (restaurantId=1 reserved for future
@@ -75,6 +78,8 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
       platformCloseoutMode: "ASK",
       nextCheckNumber: null,
       instantCheckCeiling: 500,
+      requireTwoPersonPayroll: false,
+      requireTwoPersonCardReconcile: false,
     };
   }
   return {
@@ -97,6 +102,8 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     platformCloseoutMode: row.platformCloseoutMode,
     nextCheckNumber: row.nextCheckNumber,
     instantCheckCeiling: row.instantCheckCeiling,
+    requireTwoPersonPayroll: row.requireTwoPersonPayroll,
+    requireTwoPersonCardReconcile: row.requireTwoPersonCardReconcile,
   };
 }
 

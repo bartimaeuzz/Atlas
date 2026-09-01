@@ -6,6 +6,7 @@ import { cardSideMatches } from "@/lib/ledger/cardReconcile";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { formatMoney } from "../formatMoney";
 
 /** Target-vs-logged comparison + the "Mark reconciled" button, blocked
@@ -22,16 +23,45 @@ export function ReconcilePanel({
   statementTotal,
   paymentsCreditsTotal,
   reconciled,
+  reconciledSinglePerson,
+  requireSecondPerson,
 }: {
   periodId: number;
   chargesLogged: number;
   creditsLogged: number;
   statementTotal: number;
   paymentsCreditsTotal: number;
+  /** True when this period was closed without a second person — see
+   * payrollPeriods.singlePerson for why it is recorded and shown. */
+  reconciledSinglePerson: boolean;
+  /** Settings → Two-person money controls (2026-09-01). When on, closing
+   * the period asks a second person who can reconcile to type their PIN. */
+  requireSecondPerson: boolean;
   reconciled: boolean;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [secondPin, setSecondPin] = useState("");
+
+  function runReconcile(pin: string) {
+    setError(null);
+    startTransition(async () => {
+      try {
+        // Return-value error -- thrown Errors get redacted to
+        // "Minified React error #441" in production builds.
+        const result = await reconcileStatementPeriod(periodId, pin);
+        if (result.error) setError(result.error);
+        else setConfirmOpen(false);
+      } catch {
+        // Without this the spinner runs forever on a dropped connection —
+        // the documented startTransition(async …) strand-the-spinner class.
+        setError("Couldn't reach the server — check your connection and try again.");
+      } finally {
+        setSecondPin("");
+      }
+    });
+  }
 
   const chargesMatch = cardSideMatches(chargesLogged, statementTotal);
   const creditsMatch = cardSideMatches(creditsLogged, paymentsCreditsTotal);
@@ -79,7 +109,11 @@ export function ReconcilePanel({
 
       {reconciled ? (
         <div className="mt-4">
-          <Banner tone="success" title="This statement period is reconciled." />
+          <Banner
+            tone="success"
+            title="This statement period is reconciled."
+            description={reconciledSinglePerson ? "Closed by one person." : undefined}
+          />
         </div>
       ) : (
         <div className="mt-4">
@@ -90,12 +124,14 @@ export function ReconcilePanel({
             loading={isPending}
             onClick={() => {
               setError(null);
-              startTransition(async () => {
-                // Return-value error -- thrown Errors get redacted to
-                // "Minified React error #441" in production builds.
-                const result = await reconcileStatementPeriod(periodId);
-                if (result.error) setError(result.error);
-              });
+              // With the two-person control on, closing the period needs a
+              // colleague's PIN, so it goes through the dialog. With it off
+              // the button stays one click, as it has always been.
+              if (requireSecondPerson) {
+                setConfirmOpen(true);
+                return;
+              }
+              runReconcile("");
             }}
             className="w-full"
           >
@@ -109,6 +145,35 @@ export function ReconcilePanel({
           )}
         </div>
       )}
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => {
+          setConfirmOpen(false);
+          setSecondPin("");
+        }}
+        title="Close this statement period?"
+        description="Reconciling locks the period against the bank statement. It stops being editable."
+        confirmLabel="Mark reconciled"
+        loading={isPending}
+        confirmDisabled={secondPin.trim() === ""}
+        body={
+          <label className="block text-sm">
+            <span className="block text-[var(--ink-700)] mb-1.5">Second person&apos;s PIN</span>
+            <input
+              type="password"
+              inputMode="numeric"
+              autoComplete="off"
+              value={secondPin}
+              onChange={(e) => setSecondPin(e.target.value)}
+              className="w-full border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 text-base min-h-11 tracking-[0.3em] text-center"
+            />
+            <span className="block text-xs text-[var(--ink-500)] mt-1.5">
+              Anyone else who can reconcile the card — it just cannot be you.
+            </span>
+          </label>
+        }
+        onConfirm={() => runReconcile(secondPin)}
+      />
     </Card>
   );
 }

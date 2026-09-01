@@ -140,6 +140,8 @@ export interface CardStatementPeriodDetail extends CardSideTotals {
   statementTotal: number;
   paymentsCreditsTotal: number;
   status: "draft" | "reconciled";
+  /** Closed without a second person (2026-09-01). */
+  singlePerson: boolean;
   reconciledAt: string | null;
   reconciledByName: string | null;
   transactions: CardTransactionView[];
@@ -157,6 +159,7 @@ export async function loadCardStatementPeriodDetail(periodId: number): Promise<C
       statementTotal: cardStatementPeriods.statementTotal,
       paymentsCreditsTotal: cardStatementPeriods.paymentsCreditsTotal,
       status: cardStatementPeriods.status,
+      singlePerson: cardStatementPeriods.singlePerson,
       reconciledAt: cardStatementPeriods.reconciledAt,
       reconciledByName: employees.nickname,
     })

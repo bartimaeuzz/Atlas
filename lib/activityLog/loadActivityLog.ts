@@ -94,6 +94,7 @@ export function describeType(type: string): { group: string; label: string } {
     "shift.closing_sales.day_totals_split": { group: "Shift", label: "Day totals split at close" },
     "settings.check_sequence_changed": { group: "Settings", label: "Check number sequence changed" },
     "settings.instant_ceiling_changed": { group: "Settings", label: "Instant-check ceiling changed" },
+    "settings.two_person_control_changed": { group: "Settings", label: "Two-person money control changed" },
   };
   if (KNOWN[type]) return KNOWN[type];
   const [group, ...rest] = type.split(".");

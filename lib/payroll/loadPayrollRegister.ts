@@ -47,6 +47,10 @@ export interface PayrollRegister {
   status: "draft" | "paid";
   paidAt: string | null;
   paidByName: string | null;
+  /** True when this week was locked without a second person, because the
+   * two-person control was off at the time (2026-09-01). Shown on the
+   * page so the record never later looks like two people checked it. */
+  paidSinglePerson: boolean;
   rows: PayrollRegisterRow[];
   total: number;
   /** Shifts that exist in this week (roster/sales was entered) but
@@ -201,6 +205,7 @@ export async function loadPayrollRegister(weekStartDate: string): Promise<Payrol
       weekStartDate,
       weekEndDate,
       status: "paid",
+      paidSinglePerson: period.singlePerson,
       paidAt: period.paidAt,
       paidByName,
       rows: snapshotRows,
@@ -218,6 +223,7 @@ export async function loadPayrollRegister(weekStartDate: string): Promise<Payrol
     weekEndDate,
     status: "draft",
     paidAt: null,
+    paidSinglePerson: false,
     paidByName: null,
     rows,
     total,

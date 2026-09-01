@@ -22,6 +22,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Confirm",
   loading,
+  confirmDisabled,
   body,
 }: {
   open: boolean;
@@ -31,6 +32,11 @@ export function ConfirmDialog({
   description?: string;
   confirmLabel?: string;
   loading?: boolean;
+  /** Blocks the confirm until the dialog's own body is complete — e.g. a
+   *  second person's PIN has been typed. Error prevention over error
+   *  messages: the button that cannot succeed should not look ready
+   *  (2026-09-01, two-person money controls). */
+  confirmDisabled?: boolean;
   /** Optional slot between the description and the buttons — for an inline
    *  error Banner when the confirmed action fails, so the failure is shown
    *  where the user is looking instead of behind a dismissed dialog
@@ -51,7 +57,7 @@ export function ConfirmDialog({
         <Button ref={cancelRef} variant="secondary" size="sm" onClick={onClose} disabled={loading}>
           Cancel
         </Button>
-        <Button variant="primary" size="sm" onClick={onConfirm} loading={loading}>
+        <Button variant="primary" size="sm" onClick={onConfirm} loading={loading} disabled={confirmDisabled}>
           {confirmLabel}
         </Button>
       </div>

@@ -17,9 +17,21 @@ import { Banner } from "@/components/ui/Banner";
  * itself just moves the record back a step, it doesn't delete anything.
  * DangerConfirmDialog's typed-word confirm is reserved for actions with
  * no way back at all (delete a shift/employee, wipe a report). */
-export function MarkPaidButton({ weekStartDate, disabled }: { weekStartDate: string; disabled: boolean }) {
+export function MarkPaidButton({
+  weekStartDate,
+  disabled,
+  requireSecondPerson,
+}: {
+  weekStartDate: string;
+  disabled: boolean;
+  /** Settings → Two-person money controls (2026-09-01). When on, somebody
+   * other than the person clicking — anyone else who can finalize payroll,
+   * no seniority implied — types their PIN before the week locks. */
+  requireSecondPerson: boolean;
+}) {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [secondPin, setSecondPin] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -44,13 +56,33 @@ export function MarkPaidButton({ weekStartDate, disabled }: { weekStartDate: str
         description="This locks the numbers as a permanent record. An Admin can revert it back to draft afterward if a correction is needed."
         confirmLabel="Mark paid"
         loading={isPending}
+        confirmDisabled={requireSecondPerson && secondPin.trim() === ""}
+        body={
+          requireSecondPerson ? (
+            <label className="block text-sm">
+              <span className="block text-[var(--ink-700)] mb-1.5">Second person&apos;s PIN</span>
+              <input
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                value={secondPin}
+                onChange={(e) => setSecondPin(e.target.value)}
+                className="w-full border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 text-base min-h-11 tracking-[0.3em] text-center"
+              />
+              <span className="block text-xs text-[var(--ink-500)] mt-1.5">
+                Anyone else who can finalize payroll — it just cannot be you.
+              </span>
+            </label>
+          ) : undefined
+        }
         onConfirm={() => {
           setError(null);
           startTransition(async () => {
             // Return-value error -- thrown server-action errors get redacted
             // to "Minified React error #441" in production (2026-08-24 sweep).
-            const result = await markPayrollPeriodPaid(weekStartDate);
+            const result = await markPayrollPeriodPaid(weekStartDate, secondPin);
             setOpen(false);
+            setSecondPin("");
             if (result.error) setError(result.error);
             else router.refresh();
           });

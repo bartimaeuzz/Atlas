@@ -15,6 +15,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { payrollPeriods, payrollPeriodEmployeeTotals } from "@/db/schema";
 import { requireCapability } from "@/lib/permissions/requireCapability";
+import { verifySecondPerson } from "@/lib/permissions/secondPerson";
+import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 import { datesInWeek } from "@/lib/schedule/weekMath";
 import { computeLivePayrollRegister } from "@/lib/payroll/loadPayrollRegister";
 
@@ -40,12 +42,28 @@ import { computeLivePayrollRegister } from "@/lib/payroll/loadPayrollRegister";
  * left unwired in card.ts/supplierCheck.ts, both functions here map
  * 1:1 onto this one capability with no ambiguity about which action(s)
  * it should gate. */
-export async function markPayrollPeriodPaid(weekStartDate: string): Promise<ActionResult> {
+/** `secondPin` is only consulted when Settings has the two-person payroll
+ * control switched ON (2026-09-01). While it is off — the state the
+ * restaurant starts in, because four co-owners with one of them holding
+ * the finance work cannot always find a second person — one person
+ * finalizes alone and the period is stamped `singlePerson` so the record
+ * never later pretends two people signed it. */
+export async function markPayrollPeriodPaid(weekStartDate: string, secondPin?: string): Promise<ActionResult> {
   // Returns expected failures instead of throwing them -- production
   // redacts thrown server-action errors to "Minified React error #441"
   // (2026-08-24 sweep; see lib/actions/actionResult.ts).
   return asActionResult(async () => {
     const session = await requireCapability("FA_PAYROLL_LOCK_FINALIZE");
+
+    // Everything that can refuse runs BEFORE the first write — locking a
+    // payroll week is several writes and a half-applied one is exactly the
+    // damage this ordering exists to prevent.
+    const settings = await loadRestaurantSettings();
+    const twoPerson = settings.requireTwoPersonPayroll;
+    if (twoPerson) {
+      const problem = await verifySecondPerson("FA_PAYROLL_LOCK_FINALIZE", session.id, secondPin ?? "");
+      if (problem) throw new Error(problem);
+    }
 
     const weekEndDate = datesInWeek(weekStartDate)[6];
 
@@ -69,7 +87,7 @@ export async function markPayrollPeriodPaid(weekStartDate: string): Promise<Acti
     if (existing) {
       await db
         .update(payrollPeriods)
-        .set({ status: "paid", paidAt, paidByEmployeeId: session.id, weekEndDate })
+        .set({ status: "paid", paidAt, paidByEmployeeId: session.id, weekEndDate, singlePerson: !twoPerson })
         .where(eq(payrollPeriods.id, existing.id));
       periodId = existing.id;
       // Correction re-run (e.g. after an ADMIN reverted to draft) — clear
@@ -78,7 +96,7 @@ export async function markPayrollPeriodPaid(weekStartDate: string): Promise<Acti
     } else {
       const [inserted] = await db
         .insert(payrollPeriods)
-        .values({ weekStartDate, weekEndDate, status: "paid", paidAt, paidByEmployeeId: session.id })
+        .values({ weekStartDate, weekEndDate, status: "paid", paidAt, paidByEmployeeId: session.id, singlePerson: !twoPerson })
         .returning({ id: payrollPeriods.id });
       periodId = inserted.id;
     }

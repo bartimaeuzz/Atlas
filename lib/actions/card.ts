@@ -16,6 +16,8 @@ import { db } from "@/db/client";
 import { ledgerCards, cardStatementPeriods, cardTransactions } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { requireCapability } from "@/lib/permissions/requireCapability";
+import { verifySecondPerson } from "@/lib/permissions/secondPerson";
+import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 import { cardReconcileMismatch, cardSideTotals } from "@/lib/ledger/cardReconcile";
 import { logActivityStatement } from "@/lib/activityLog/log";
 import { validateSplitParts, isSplitFailure } from "@/lib/ledger/cardSplit";
@@ -275,12 +277,18 @@ export async function editStatementPeriod(
  * lib/ledger/cardReconcile.ts) -- mirroring Petty Cash's "counted must
  * match expected" discipline. Confirmed with Oliver this should be a
  * forced match, not just a log. */
-export async function reconcileStatementPeriod(periodId: number): Promise<{ error: string | null }> {
+/** `secondPin` is only consulted when Settings has the two-person card
+ * control switched ON (2026-09-01) — see markPayrollPeriodPaid for why it
+ * starts off and what `singlePerson` records. */
+export async function reconcileStatementPeriod(periodId: number, secondPin?: string): Promise<{ error: string | null }> {
   // Return-value errors, not throws -- see editStatementPeriod's comment.
   // The "don't match yet" sentence is the whole reconcile UX; production
   // was redacting it to "Minified React error #441".
   try {
     const session = await requireCapability("FA_LEDGER_CARD_RECONCILE");
+
+    const settings = await loadRestaurantSettings();
+    const twoPerson = settings.requireTwoPersonCardReconcile;
 
     const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));
     if (!period) throw new Error("Statement period not found");
@@ -297,9 +305,21 @@ export async function reconcileStatementPeriod(periodId: number): Promise<{ erro
     );
     if (mismatch) throw new Error(mismatch);
 
+    // Asked for AFTER the balance check on purpose: never make someone walk
+    // over to type their PIN for a period that was never going to close.
+    if (twoPerson) {
+      const problem = await verifySecondPerson("FA_LEDGER_CARD_RECONCILE", session.id, secondPin ?? "");
+      if (problem) throw new Error(problem);
+    }
+
     await db
       .update(cardStatementPeriods)
-      .set({ status: "reconciled", reconciledAt: new Date().toISOString(), reconciledByEmployeeId: session.id })
+      .set({
+        status: "reconciled",
+        reconciledAt: new Date().toISOString(),
+        reconciledByEmployeeId: session.id,
+        singlePerson: !twoPerson,
+      })
       .where(eq(cardStatementPeriods.id, periodId));
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };

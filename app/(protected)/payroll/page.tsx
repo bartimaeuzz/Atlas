@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Banner } from "@/components/ui/Banner";
 import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
 import { formatShortDate, businessTodayIso } from "@/lib/formatDateTime";
+import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 
 function weekLabel(weekStart: string): string {
   const days = datesInWeek(weekStart);
@@ -104,10 +105,11 @@ export default async function PayrollPage({
 
   const weekStart = weekStartFor(params.week);
 
-  const [register, session, viewer] = await Promise.all([
+  const [register, session, viewer, settings] = await Promise.all([
     loadPayrollRegister(weekStart),
     getCurrentStaffSession(),
     getViewerCapabilities(),
+    loadRestaurantSettings(),
   ]);
   // Gate the control as well as the route (2026-08-23). The export handler
   // enforces this independently; rendering a download link that answers
@@ -147,6 +149,12 @@ export default async function PayrollPage({
         {register.status === "paid" ? (
           <Badge tone="success">
             Paid{register.paidByName ? ` — by ${register.paidByName}` : ""}
+            {/* Honest about how it was locked (2026-09-01): a week closed
+                while the two-person control was off must not read later as
+                though a second person had checked it. */}
+            {register.paidSinglePerson && (
+              <span className="ml-2 text-xs font-normal text-[var(--ink-500)]">· locked by one person</span>
+            )}
             {register.paidAt ? ` on ${formatShortDate(register.paidAt)}` : ""}
           </Badge>
         ) : (
@@ -271,7 +279,7 @@ export default async function PayrollPage({
             </a>
           )}
           {register.status === "draft" && (
-            <MarkPaidButton weekStartDate={weekStart} disabled={!register.canMarkPaid} />
+            <MarkPaidButton weekStartDate={weekStart} disabled={!register.canMarkPaid} requireSecondPerson={settings.requireTwoPersonPayroll} />
           )}
           {register.status === "paid" && isAdmin && <RevertToDraftButton weekStartDate={weekStart} />}
         </div>

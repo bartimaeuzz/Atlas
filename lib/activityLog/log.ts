@@ -48,7 +48,8 @@ export type ActivityType =
   // change is a permanent record — otherwise whoever can raise the
   // ceiling just raises it and it gates nothing.
   | "settings.check_sequence_changed"
-  | "settings.instant_ceiling_changed";
+  | "settings.instant_ceiling_changed"
+  | "settings.two_person_control_changed";
 
 export interface ActivityEntry {
   actorEmployeeId: number;

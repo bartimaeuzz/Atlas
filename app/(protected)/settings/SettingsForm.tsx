@@ -39,10 +39,15 @@ export function SettingsForm({
   settings,
   packerBonus,
   positions,
+  isAdmin,
 }: {
   settings: RestaurantSettingsData;
   packerBonus: PackerBonusConfig;
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
+  /** Only an Admin may change the two-person money controls — a safeguard
+   * the people it constrains can switch off is not a safeguard. Managers
+   * see the current state as read-only text instead of switches. */
+  isAdmin: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(updateRestaurantSettings, initialState);
   const formRef = useKeepValuesOnError(isPending, !!state.error);
@@ -237,6 +242,62 @@ export function SettingsForm({
             </span>
           </label>
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend className="text-lg font-medium mb-3">Two-person money controls</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
+          Recording money is always open to everyone. These control the steps that
+          <strong> commit</strong> it — where money leaves or a record locks and can no longer be
+          edited. When one is on, a second person who can do the same job types their PIN to
+          confirm; it does not have to be a manager, only somebody other than the person acting.
+          Leave them off while one person is doing the work alone: anything committed alone is
+          permanently marked as such, so turning a control on later never makes an old record look
+          like two people checked it.
+        </p>
+        {isAdmin ? (
+          <div className="space-y-3">
+            <label className="flex items-start gap-2.5 min-h-11 py-1 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="requireTwoPersonPayroll"
+                defaultChecked={settings.requireTwoPersonPayroll}
+                className={`mt-0.5 size-5 shrink-0 accent-[var(--primary)] ${DISABLED_TOGGLE}`}
+              />
+              <span className="text-[var(--ink-900)]">
+                Locking a payroll week needs a second person
+                <span className="block text-[var(--ink-500)] mt-0.5">
+                  Once a week is marked paid it becomes the locked record everyone is paid from.
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2.5 min-h-11 py-1 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                name="requireTwoPersonCardReconcile"
+                defaultChecked={settings.requireTwoPersonCardReconcile}
+                className={`mt-0.5 size-5 shrink-0 accent-[var(--primary)] ${DISABLED_TOGGLE}`}
+              />
+              <span className="text-[var(--ink-900)]">
+                Closing a card statement period needs a second person
+                <span className="block text-[var(--ink-500)] mt-0.5">
+                  Reconciling closes the period against the bank statement.
+                </span>
+              </span>
+            </label>
+          </div>
+        ) : (
+          <ul className="text-sm text-[var(--ink-700)] space-y-1">
+            <li>
+              Locking a payroll week: <strong>{settings.requireTwoPersonPayroll ? "needs two people" : "one person"}</strong>
+            </li>
+            <li>
+              Closing a card period:{" "}
+              <strong>{settings.requireTwoPersonCardReconcile ? "needs two people" : "one person"}</strong>
+            </li>
+            <li className="text-xs text-[var(--ink-500)] pt-1">Only an admin can change these.</li>
+          </ul>
+        )}
       </fieldset>
 
       <fieldset>

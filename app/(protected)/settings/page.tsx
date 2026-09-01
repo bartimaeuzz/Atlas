@@ -71,7 +71,7 @@ export default async function SettingsPage() {
           (WCAG 1.4.10) -- the same class of bug fixed on Analytics
           earlier the same day. */}
       <fieldset disabled={!canEdit} className="border-0 p-0 m-0 min-w-0">
-        <SettingsForm settings={settings} packerBonus={packerBonus} positions={activePositions} />
+        <SettingsForm settings={settings} packerBonus={packerBonus} positions={activePositions} isAdmin={viewerIsAdmin} />
       </fieldset>
       {/* Repeated at the bottom on purpose (2026-08-22 visual-audit
           finding). The banner above sits at the top of a ~2,000px form;

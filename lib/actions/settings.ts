@@ -116,6 +116,41 @@ export async function updateRestaurantSettings(
         detail: { before: currentSettings.nextCheckNumber, after: nextCheckNumber },
       });
     }
+    /* Two-person money controls (2026-09-01). ADMIN-only, deliberately:
+     * a safeguard that the people it constrains can switch off is not a
+     * safeguard. EDIT_SETTINGS is held by managers, so the gate here is
+     * the system role, not the settings capability — and every flip is
+     * logged, which is Oliver's own standing ask about permission-shaped
+     * changes ("ล็อกการให้สิทธิ์ไว้ด้วย เผื่อฉันโกง").
+     *
+     * A non-admin's form simply does not render these switches, so their
+     * submission carries no value for them; falling back to the CURRENT
+     * stored value rather than to `false` is what stops a manager saving
+     * an unrelated setting from silently turning a control off. */
+    const isAdmin = session?.systemRole === "ADMIN";
+    const requireTwoPersonPayroll = isAdmin
+      ? flag("requireTwoPersonPayroll")
+      : (currentSettings?.requireTwoPersonPayroll ?? false);
+    const requireTwoPersonCardReconcile = isAdmin
+      ? flag("requireTwoPersonCardReconcile")
+      : (currentSettings?.requireTwoPersonCardReconcile ?? false);
+
+    for (const [key, before, after] of [
+      ["payroll", currentSettings?.requireTwoPersonPayroll, requireTwoPersonPayroll],
+      ["card_reconcile", currentSettings?.requireTwoPersonCardReconcile, requireTwoPersonCardReconcile],
+    ] as const) {
+      if (session && currentSettings && before !== after) {
+        await logActivity({
+          actorEmployeeId: session.id,
+          type: "settings.two_person_control_changed",
+          entityType: "restaurant_settings",
+          entityId: "1",
+          summary: `Two-person control for ${key === "payroll" ? "payroll finalize" : "card reconcile"} turned ${after ? "ON" : "OFF"}.`,
+          detail: { control: key, before, after },
+        });
+      }
+    }
+
     if (session && currentSettings && currentSettings.instantCheckCeiling !== instantCheckCeiling) {
       await logActivity({
         actorEmployeeId: session.id,
@@ -202,6 +237,8 @@ export async function updateRestaurantSettings(
         platformCloseoutMode,
         nextCheckNumber,
         instantCheckCeiling,
+        requireTwoPersonPayroll,
+        requireTwoPersonCardReconcile,
         ccTipDeductionRate,
         hostDrinkBonusPerDrinkAmount,
         defaultSalesTaxRate,

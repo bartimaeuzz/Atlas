@@ -11,6 +11,7 @@ import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { NoAccess } from "@/components/NoAccess";
+import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 
 /** One statement period's work: log transactions against it, then
  * reconcile once the logged total matches the statement's own total.
@@ -32,7 +33,10 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
     );
   }
 
-  const data = await loadCardStatementPeriodDetail(periodId);
+  const [data, settings] = await Promise.all([
+    loadCardStatementPeriodDetail(periodId),
+    loadRestaurantSettings(),
+  ]);
   if (!data) {
     return (
       <main className="max-w-lg mx-auto p-4 sm:p-8">
@@ -119,6 +123,8 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
         statementTotal={data.statementTotal}
         paymentsCreditsTotal={data.paymentsCreditsTotal}
         reconciled={reconciled}
+        reconciledSinglePerson={data.singlePerson}
+        requireSecondPerson={settings.requireTwoPersonCardReconcile}
       />
     </main>
   );
