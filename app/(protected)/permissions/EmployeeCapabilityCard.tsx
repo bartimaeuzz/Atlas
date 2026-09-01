@@ -66,7 +66,7 @@ export function EmployeeCapabilityCard({
   const manageIsGranted = employee.systemRole === "ADMIN";
 
   return (
-    <div className={showHeader ? "rounded-[var(--radius-md)] border border-[var(--border)] bg-white overflow-hidden" : ""}>
+    <div className={showHeader ? "rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--card)] shadow-[var(--shadow-1)] overflow-hidden" : ""}>
       <div className="flex flex-wrap items-start justify-between gap-3 px-4 py-3 border-b border-[var(--border)]">
         {showHeader ? (
           <div>

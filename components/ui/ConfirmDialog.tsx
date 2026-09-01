@@ -23,6 +23,7 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   loading,
   confirmDisabled,
+  width = 360,
   body,
 }: {
   open: boolean;
@@ -37,6 +38,9 @@ export function ConfirmDialog({
    *  messages: the button that cannot succeed should not look ready
    *  (2026-09-01, two-person money controls). */
   confirmDisabled?: boolean;
+  /** Widen past the default 360 when the body carries a real list rather
+   *  than one sentence (2026-09-01, the preset-reset diff). */
+  width?: number;
   /** Optional slot between the description and the buttons — for an inline
    *  error Banner when the confirmed action fails, so the failure is shown
    *  where the user is looking instead of behind a dismissed dialog
@@ -47,7 +51,7 @@ export function ConfirmDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <Modal open={open} onClose={onClose} width={360} labelledBy={titleId} initialFocus={cancelRef}>
+    <Modal open={open} onClose={onClose} width={width} labelledBy={titleId} initialFocus={cancelRef}>
       <div id={titleId} className="text-base font-bold text-[var(--ink-900)] mb-1.5">
         {title}
       </div>

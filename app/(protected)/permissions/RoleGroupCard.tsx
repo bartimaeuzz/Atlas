@@ -29,9 +29,19 @@ export function RoleGroupCard({
   employees: CapabilityMatrixEmployeeRow[];
   defaultOpen: boolean;
 }) {
+  // border-strong + shadow-1, i.e. the recipe components/ui/Card.tsx already
+  // uses (2026-09-01, Oliver: "the card looks like a background, hard for
+  // human eyes"). Measured: the page ground and --paper are the SAME colour
+  // (#f8fafc), and card-vs-ground is 1.05:1, so no fill in this palette can
+  // separate the two surfaces. Elevation can — which is what the shadow
+  // scale is for, and why Card.tsx pairs a border with shadow-1. `bg-white`
+  // was also a raw literal; it is --card like everywhere else now.
   return (
-    <details open={defaultOpen} className="rounded-[var(--radius-md)] border border-[var(--border)] bg-white overflow-hidden">
-      <summary className="cursor-pointer select-none flex items-center justify-between gap-3 px-4 min-h-11 py-2.5 font-medium hover:bg-[var(--hover)]">
+    <details
+      open={defaultOpen}
+      className="rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--card)] shadow-[var(--shadow-1)] overflow-hidden"
+    >
+      <summary className="cursor-pointer select-none flex items-center justify-between gap-3 px-4 min-h-11 py-2.5 font-medium bg-[var(--paper)] border-b border-[var(--border)] hover:bg-[var(--hover)]">
         <span>{formatSystemRole(role)}</span>
         <span className="text-xs font-normal text-[var(--ink-500)]">
           {employees.length} {employees.length === 1 ? "person" : "people"}
@@ -56,9 +66,13 @@ export function RoleGroupCard({
 function PersonRow({ employee }: { employee: CapabilityMatrixEmployeeRow }) {
   const drift = employee.accountType ? computePresetDrift(employee.capabilities, employee.accountType) : null;
 
+  // The open row is marked by HUE (primary tint + a 3px accent rail), not by
+  // lightness: every surface in this palette sits within 1.05:1 of every
+  // other, so a luminance step here is invisible. The rail is a left border
+  // so an open row cannot be missed scanning a list of 29 collapsed ones.
   return (
-    <details className="group">
-      <summary className="cursor-pointer select-none px-4 min-h-11 py-2.5 hover:bg-[var(--hover)] grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,10rem)_minmax(0,9rem)_1fr_auto] items-center gap-x-3 gap-y-0.5 text-sm">
+    <details className="group open:bg-[var(--primary-tint)]">
+      <summary className="cursor-pointer select-none px-4 min-h-11 py-2.5 border-l-[3px] border-l-transparent group-open:border-l-[var(--primary)] group-open:bg-[var(--primary-tint)] hover:bg-[var(--hover)] grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,10rem)_minmax(0,9rem)_1fr_auto] items-center gap-x-3 gap-y-0.5 text-sm">
         <span className="font-medium text-[var(--ink-900)] truncate">
           {employee.nickname}
           {!employee.active && <span className="ml-2 text-xs font-normal text-[var(--ink-500)]">inactive</span>}
@@ -89,7 +103,11 @@ function PersonRow({ employee }: { employee: CapabilityMatrixEmployeeRow }) {
         </span>
       </summary>
 
-      <div className="bg-[var(--paper)]">
+      {/* Was bg-[var(--paper)] — which is #f8fafc, the exact colour of the
+          page behind the card, so an opened panel was painted the
+          background and vanished. It now keeps the card surface and is
+          separated by the accent rail plus a real top border. */}
+      <div className="bg-[var(--card)] border-t border-[var(--border-strong)] border-l-[3px] border-l-[var(--primary)]">
         <EmployeeCapabilityCard employee={employee} showHeader={false} />
       </div>
     </details>

@@ -6,7 +6,7 @@ import { Banner } from "@/components/ui/Banner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { applyAccountTypePreset, type PermissionActionState } from "@/lib/actions/permissions";
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, type AccountType } from "@/lib/permissions/capabilities";
-import { computePresetDiff, presetDiffIsEmpty } from "@/lib/permissions/presetDiff";
+import { computePresetDiff, presetDiffIsEmpty, type PresetDiff } from "@/lib/permissions/presetDiff";
 import type { CapabilityMatrixEmployeeRow } from "@/lib/permissions/loadCapabilityMatrix";
 import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
@@ -210,34 +210,7 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
                 This replaces {employee.nickname}&apos;s permissions with the{" "}
                 {ACCOUNT_TYPE_LABELS[choice as AccountType]} preset:
               </p>
-              <ul className="space-y-1">
-                {diff.turningOn.length > 0 && (
-                  <li>
-                    <span className="font-medium">Turns ON ({diff.turningOn.length}):</span> {diff.turningOn.join(", ")}
-                  </li>
-                )}
-                {diff.turningOff.length > 0 && (
-                  <li>
-                    <span className="font-medium text-[var(--danger-700)]">
-                      Turns OFF ({diff.turningOff.length}):
-                    </span>{" "}
-                    {diff.turningOff.join(", ")}
-                  </li>
-                )}
-                {diff.restoringExpired.length > 0 && (
-                  <li>
-                    {/* Deliberately worded as a restoration, not as
-                        "clears the expiry date". The row already reads
-                        granted=true, but the date has passed, so the
-                        person does not hold it today — wiping the date
-                        gives the access back. Burying that under a
-                        date-formatting phrase would understate it, and
-                        these are Financial Auditor capabilities. */}
-                    <span className="font-medium">Gives back access that had expired:</span>{" "}
-                    {diff.restoringExpired.join(", ")}
-                  </li>
-                )}
-              </ul>
+              <DiffList diff={diff} />
               <p className="mt-1.5 text-[var(--ink-700)]">
                 Everything else stays as it is. This can&apos;t be undone in one step — you&apos;d have to set the
                 capabilities back by hand.
@@ -257,14 +230,71 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
           formRef.current?.requestSubmit();
         }}
         title={`Reset ${employee.nickname} to ${choice === "" ? "" : ACCOUNT_TYPE_LABELS[choice]}?`}
-        description={
-          diff
-            ? `This turns ON ${diff.turningOn.length + diff.restoringExpired.length} and turns OFF ${diff.turningOff.length} of their permissions, replacing what they have now. The full list is on the page behind this box. It can't be undone in one step.`
-            : undefined
+        description="This replaces what they have now, and can't be undone in one step."
+        width={460}
+        /* The dialog used to give counts and point at "the full list on the
+           page behind this box" — behind the box that was covering it
+           (Oliver, 2026-09-01). Naming the actual capabilities is the whole
+           point of a confirm step on a permissions screen: "turns OFF 4"
+           is not something anyone can consent to. Same component as the
+           page preview so the two can never drift apart. */
+        body={
+          diff ? (
+            <div className="max-h-[46vh] overflow-y-auto text-sm">
+              <DiffList diff={diff} />
+            </div>
+          ) : undefined
         }
         confirmLabel="Yes, reset"
         loading={pending}
       />
     </div>
+  );
+}
+
+/** The three lists that make up a preset change, named rather than
+ * counted. Rendered both as the on-page preview (as soon as a preset is
+ * picked) and inside the confirm dialog (2026-09-01) — one component so
+ * the preview and the thing being consented to are literally the same. */
+function DiffList({ diff }: { diff: PresetDiff }) {
+  return (
+    <ul className="space-y-2">
+      {diff.turningOn.length > 0 && (
+        <li>
+          <span className="font-medium">Turns ON ({diff.turningOn.length}):</span>
+          <ul className="mt-0.5 ml-4 list-disc space-y-0.5 text-[var(--ink-700)]">
+            {diff.turningOn.map((label) => (
+              <li key={label}>{label}</li>
+            ))}
+          </ul>
+        </li>
+      )}
+      {diff.turningOff.length > 0 && (
+        <li>
+          <span className="font-medium text-[var(--danger-700)]">Turns OFF ({diff.turningOff.length}):</span>
+          <ul className="mt-0.5 ml-4 list-disc space-y-0.5 text-[var(--ink-700)]">
+            {diff.turningOff.map((label) => (
+              <li key={label}>{label}</li>
+            ))}
+          </ul>
+        </li>
+      )}
+      {diff.restoringExpired.length > 0 && (
+        <li>
+          {/* Deliberately worded as a restoration, not as "clears the
+              expiry date". The row already reads granted=true, but the
+              date has passed, so the person does not hold it today —
+              wiping the date gives the access back. Burying that under a
+              date-formatting phrase would understate it, and these are
+              Financial Auditor capabilities. */}
+          <span className="font-medium">Gives back access that had expired:</span>
+          <ul className="mt-0.5 ml-4 list-disc space-y-0.5 text-[var(--ink-700)]">
+            {diff.restoringExpired.map((label) => (
+              <li key={label}>{label}</li>
+            ))}
+          </ul>
+        </li>
+      )}
+    </ul>
   );
 }
