@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ChevronDownIcon } from "@/components/ui/icons";
 import { Banner } from "@/components/ui/Banner";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: ClosingReportActionState = { error: null };
 
@@ -58,6 +59,12 @@ export function ClosingReportForm({
   }, [saveState.savedAt, clearedSavedAt]);
   const [previewState, previewFormAction, isGoingToPreview] = useActionState(saveClosingReportAndPreview, initialState);
   const error = saveState.error ?? previewState.error;
+  // Both actions post this one form, so either one refusing is what has
+  // to hand the manager's typing back — the 21 uncontrolled defaultValue
+  // fields below (wage adjustments, deductions, per-employee reasons) are
+  // the ones React 19 would otherwise reset. The controlled cards inside
+  // were already safe; restoring an identical value into them is a no-op.
+  const formRef = useKeepValuesOnError(isSaving || isGoingToPreview, !!error);
   const taxRate = data.defaultSalesTaxRate;
 
   // Live sales-tax auto-calc (2026-08-10, Oliver: "after I enter the net
@@ -94,7 +101,7 @@ export function ClosingReportForm({
     // the fields showing the entered day totals while the database holds
     // the subtracted per-shift figures — a silent screen-vs-DB mismatch,
     // exactly the rendered-only defect class this repo keeps meeting.
-    <form key={saveState.savedAt ?? "initial"} className="space-y-4">
+    <form ref={formRef} key={saveState.savedAt ?? "initial"} className="space-y-4">
       <input type="hidden" name="shiftId" value={shiftId} />
 
       {error && (

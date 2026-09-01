@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { Select, TextInput } from "@/components/ui/Field";
 import { formatMoney } from "../formatMoney";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: InstantCheckActionState = { error: null };
 
@@ -39,6 +40,7 @@ export function InstantCheckButton({
   const [form, setForm] = useState({ vendorId: "", categoryId: "", invoiceNumber: "", description: "", amount: "", instantReason: "", secondPin: "" });
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [state, formAction, isPending] = useActionState(issueInstantCheck, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   const overCeiling = Number(form.amount) > ceiling;
 
@@ -66,7 +68,7 @@ export function InstantCheckButton({
           For a vendor standing here waiting — this skips the weekly review, so it&apos;s permanently
           marked as issued by one person and listed for the approver to see afterwards.
         </p>
-        <form action={formAction} className="space-y-2">
+        <form ref={formRef} action={formAction} className="space-y-2">
           {state.error && <Banner tone="danger" title="Couldn't issue the check" description={state.error} />}
           <div className="grid grid-cols-2 gap-2">
             <Select name="vendorId" label="Vendor" required value={form.vendorId} onChange={set("vendorId")}>

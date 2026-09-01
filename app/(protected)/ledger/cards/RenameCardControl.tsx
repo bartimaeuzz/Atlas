@@ -5,6 +5,7 @@ import { renameLedgerCard, type CardActionState } from "@/lib/actions/card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: CardActionState = { error: null };
 
@@ -34,11 +35,12 @@ function useIsDesktop(): boolean {
 export function RenameCardControl({ cardId, currentName }: { cardId: number; currentName: string }) {
   const [editing, setEditing] = useState(false);
   const [state, formAction, isPending] = useActionState(renameLedgerCard, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   const isDesktop = useIsDesktop();
   const titleId = useId();
 
   const formBody = (
-    <form action={formAction} className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
+    <form ref={formRef} action={formAction} className="flex flex-wrap items-center gap-2 flex-1 min-w-0">
       <input type="hidden" name="cardId" value={cardId} />
       <input
         type="text"

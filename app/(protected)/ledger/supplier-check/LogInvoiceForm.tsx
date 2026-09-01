@@ -10,6 +10,7 @@ import { VendorPicker, type PickerVendor } from "@/app/(protected)/ledger/Vendor
 import { AUTOFILLED_CATEGORY_HINT, useVendorCategoryPair } from "@/app/(protected)/ledger/useVendorCategoryPair";
 import { CategorySuggestions } from "@/app/(protected)/ledger/CategorySuggestions";
 import type { VendorCategoryLinkProps } from "@/lib/ledger/vendorCategoryLinks";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: SupplierInvoiceActionState = { error: null };
 
@@ -28,6 +29,7 @@ export function LogInvoiceForm({
   links: VendorCategoryLinkProps;
 }) {
   const [state, formAction, isPending] = useActionState(logSupplierInvoice, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   // Controlled (2026-08-31): React 19 resets uncontrolled fields after a
   // form action — a server refusal wiped the whole invoice the manager
   // had typed. Same fix as InstantCheckButton; see
@@ -44,7 +46,7 @@ export function LogInvoiceForm({
   const pair = useVendorCategoryPair(links);
 
   return (
-    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
+    <form ref={formRef} action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
       {state.error && <Banner tone="danger" title="Couldn't log invoice" description={state.error} />}
       <TextInput type="date" name="receivedDate" label="Date received" required value={form.receivedDate} onChange={set("receivedDate")} />
       <div className="grid grid-cols-2 gap-2 items-start">

@@ -7,6 +7,7 @@ import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { AlertTriangleIcon } from "@/components/ui/icons";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: DangerZoneActionState = { error: null };
 
@@ -43,6 +44,8 @@ export function DangerZone({
 }) {
   const [clearState, clearAction, clearPending] = useActionState(clearDay, initialState);
   const [deleteState, deleteActionFn, deletePending] = useActionState(deleteWeek, initialState);
+  const clearFormRef = useKeepValuesOnError(clearPending, !!clearState.error);
+  const deleteFormRef = useKeepValuesOnError(deletePending, !!deleteState.error);
   const [selectedDate, setSelectedDate] = useState(dates[0] ?? "");
 
   const isPublished = status === "published";
@@ -62,7 +65,7 @@ export function DangerZone({
           />
         )}
 
-        <form action={clearAction} className="space-y-2 border-t border-[var(--danger-border)] pt-4">
+        <form ref={clearFormRef} action={clearAction} className="space-y-2 border-t border-[var(--danger-border)] pt-4">
           <p className="text-xs text-[var(--danger-700)]">
             <strong>Clear a day</strong> — removes every assignment (any position, Lunch &amp; Dinner)
             for the date you pick, for this week only. The rest of the week is untouched. Cannot be
@@ -94,7 +97,7 @@ export function DangerZone({
           {clearState.error && <p className="text-xs text-[var(--danger-700)]">{clearState.error}</p>}
         </form>
 
-        <form action={deleteActionFn} className="space-y-2 border-t border-[var(--danger-border)] pt-4">
+        <form ref={deleteFormRef} action={deleteActionFn} className="space-y-2 border-t border-[var(--danger-border)] pt-4">
           <p className="text-xs text-[var(--danger-700)]">
             <strong>Delete this whole week</strong> — removes all {totalAssignments} assignment
             {totalAssignments === 1 ? "" : "s"} in this week and resets it to &quot;Not planned,&quot;

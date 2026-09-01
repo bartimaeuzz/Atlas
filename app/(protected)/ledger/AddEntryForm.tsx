@@ -9,6 +9,7 @@ import { VendorPicker, type PickerVendor } from "./VendorPicker";
 import { AUTOFILLED_CATEGORY_HINT, useVendorCategoryPair } from "./useVendorCategoryPair";
 import { CategorySuggestions } from "./CategorySuggestions";
 import type { VendorCategoryLinkProps } from "@/lib/ledger/vendorCategoryLinks";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: PettyCashEntryActionState = { error: null };
 
@@ -31,6 +32,7 @@ export function AddEntryForm({
   links: VendorCategoryLinkProps;
 }) {
   const [state, formAction, isPending] = useActionState(addPettyCashEntry, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   // Controlled (2026-08-31): a server refusal (e.g. the finalized-day
   // gate) used to wipe the typed entry — React 19 resets uncontrolled
   // fields after a form action. The parent still clears this form after
@@ -42,7 +44,7 @@ export function AddEntryForm({
   const pair = useVendorCategoryPair(links);
 
   return (
-    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
+    <form ref={formRef} action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
       <input type="hidden" name="date" value={date} />
       {state.error && <Banner tone="danger" title="Couldn't add expense" description={state.error} />}
       <div className="grid grid-cols-2 gap-2 items-start">

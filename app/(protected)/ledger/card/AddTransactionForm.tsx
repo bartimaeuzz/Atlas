@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { SplitPartsEditor, emptyPart, partsComplete, type EditablePart } from "./SplitPartsEditor";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: CardTransactionActionState = { error: null };
 
@@ -42,6 +43,8 @@ export function AddTransactionForm({
 }) {
   const [state, formAction, isPending] = useActionState(addCardTransaction, initialState);
   const [splitState, splitFormAction, isSplitPending] = useActionState(addCardTransactionSplit, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
+  const splitFormRef = useKeepValuesOnError(isSplitPending, !!splitState.error);
   const [splitMode, setSplitMode] = useState(false);
   const [date, setDate] = useState("");
   const [parts, setParts] = useState<EditablePart[]>([emptyPart(), emptyPart()]);
@@ -69,7 +72,7 @@ export function AddTransactionForm({
 
   if (splitMode) {
     return (
-      <form action={splitFormAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
+      <form ref={splitFormRef} action={splitFormAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
         <input type="hidden" name="periodId" value={periodId} />
         <input
           type="hidden"
@@ -98,7 +101,7 @@ export function AddTransactionForm({
   }
 
   return (
-    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
+    <form ref={formRef} action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
       <input type="hidden" name="periodId" value={periodId} />
       {activeError && <Banner tone="danger" title="Couldn't add transaction" description={activeError} />}
       <div className="grid grid-cols-2 gap-2">

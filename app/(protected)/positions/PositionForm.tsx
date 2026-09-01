@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { createPosition, updatePosition, type PositionActionState } from "@/lib/actions/positions";
 import type { PositionListRow, TipPoolGroup } from "@/lib/positions/loadPositionsList";
 import { Button, TextInput, Checkbox, Radio, Banner, Card } from "@/components/ui";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: PositionActionState = { error: null };
 
@@ -28,12 +29,13 @@ export function PositionForm({
 }) {
   const action = existing ? updatePosition : createPosition;
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   const [category, setCategory] = useState<"FOH" | "BOH">(existing?.category ?? "FOH");
 
   const rateFor = (period: "Lunch" | "Dinner") => existing?.shiftRates.find((r) => r.period === period)?.flatRate;
 
   return (
-    <form action={formAction} className="space-y-6 max-w-xl">
+    <form ref={formRef} action={formAction} className="space-y-6 max-w-xl">
       {existing && <input type="hidden" name="positionId" value={existing.id} />}
 
       {state.error && (

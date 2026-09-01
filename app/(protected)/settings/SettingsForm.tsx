@@ -6,6 +6,7 @@ import { updateRestaurantSettings, type SettingsActionState } from "@/lib/action
 import type { RestaurantSettingsData } from "@/lib/settings/loadRestaurantSettings";
 import type { PackerBonusConfig } from "@/lib/settings/packerBonus";
 import { useEffect, useState } from "react";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: SettingsActionState = { error: null, saved: false };
 
@@ -44,6 +45,7 @@ export function SettingsForm({
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
 }) {
   const [state, formAction, isPending] = useActionState(updateRestaurantSettings, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   // "Saved ✓" flash on the button itself (2026-08-31, third member of the
   // above-the-fold class after staffing targets and the People form) —
   // same derived nonce-and-timer pattern as ClosingReportForm.
@@ -59,7 +61,7 @@ export function SettingsForm({
   const [packerStyle, setPackerStyle] = useState<"PERCENT" | "PER_BLOCK">(packerBonus.style);
 
   return (
-    <form action={formAction} className="space-y-8 max-w-2xl">
+    <form ref={formRef} action={formAction} className="space-y-8 max-w-2xl">
       <fieldset>
         <legend className="text-lg font-medium mb-3">Tips</legend>
         <div className="grid sm:grid-cols-2 gap-4">

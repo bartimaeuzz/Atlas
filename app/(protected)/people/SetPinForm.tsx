@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: EmployeeActionState = { error: null };
 
@@ -17,6 +18,7 @@ const initialState: EmployeeActionState = { error: null };
  * a full redirect/revalidate round trip disrupting the edit page. */
 export function SetPinForm({ employeeId, hasPinSet }: { employeeId: number; hasPinSet: boolean }) {
   const [state, formAction, isPending] = useActionState(setEmployeePin, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   return (
     <Card>
@@ -26,7 +28,7 @@ export function SetPinForm({ employeeId, hasPinSet }: { employeeId: number; hasP
           ? "A PIN is already set — entering a new one below replaces it."
           : "No PIN set yet — this person can't sign in to their pay view until one is set."}
       </p>
-      <form action={formAction} className="flex flex-col sm:flex-row sm:items-end gap-3">
+      <form ref={formRef} action={formAction} className="flex flex-col sm:flex-row sm:items-end gap-3">
         <input type="hidden" name="employeeId" value={employeeId} />
         <div className="flex-1">
           <TextInput

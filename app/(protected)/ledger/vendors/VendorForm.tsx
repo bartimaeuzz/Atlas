@@ -5,6 +5,7 @@ import { createLedgerVendor, updateLedgerVendor, type LedgerAdminActionState } f
 import { TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 interface Vendor {
   id: number;
@@ -19,9 +20,10 @@ const initialState: LedgerAdminActionState = { error: null };
 export function VendorForm({ existing }: { existing: Vendor | null }) {
   const action = existing ? updateLedgerVendor : createLedgerVendor;
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   return (
-    <form action={formAction} className="space-y-3 max-w-sm">
+    <form ref={formRef} action={formAction} className="space-y-3 max-w-sm">
       {existing && <input type="hidden" name="vendorId" value={existing.id} />}
       {state.error && <Banner tone="danger" title="Couldn't save vendor" description={state.error} />}
       <TextInput type="text" name="name" label="Name" defaultValue={existing?.name ?? ""} required />

@@ -7,6 +7,7 @@ import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: LoginActionState = { error: null };
 
@@ -20,9 +21,25 @@ export function LoginForm({
   method: "NAME" | "ID";
 }) {
   const [state, formAction, isPending] = useActionState(login, initialState);
+  // 2026-09-01, found by the live audit: a wrong PIN used to blank the
+  // NAME as well, which left a dead end — the red banner says "Wrong
+  // PIN", focus sits in the PIN box, and retyping the PIN does nothing
+  // at all, because the now-empty and genuinely `required` name select
+  // fails validation silently. The browser's own "Please select an item
+  // in the list" bubble points at a control above where the person is
+  // looking while the loud red message points at the wrong field. On the
+  // app's front door, for a low-computer-literacy user, that reads as
+  // "the app is broken".
+  //
+  // The hook restores the name and deliberately does NOT restore the PIN
+  // — a wrong credential must not sit in the box waiting to be
+  // resubmitted by accident. Controlled state does NOT fix this: React
+  // only writes a controlled value back to the DOM when the value
+  // PROP changes, and after a refusal it has not, so the reset wins.
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form ref={formRef} action={formAction} className="space-y-4">
       {state.error && <Banner tone="danger" title="Couldn't sign in" description={state.error} />}
       {method === "NAME" ? (
         <Select name="employeeId" required defaultValue="" label="Your name">

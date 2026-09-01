@@ -6,6 +6,7 @@ import { guessLoginIdDepartment, type LoginIdDepartment } from "@/lib/employees/
 import { Select } from "@/components/ui/Field";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: EmployeeActionState = { error: null };
 
@@ -42,6 +43,7 @@ export function GenerateLoginIdControl({
   viewerIsAdmin?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(generateLoginId, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   const [open, setOpen] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [isResetting, startReset] = useTransition();
@@ -88,7 +90,7 @@ export function GenerateLoginIdControl({
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-1.5">
+    <form ref={formRef} action={formAction} className="flex flex-wrap items-center gap-1.5">
       <input type="hidden" name="employeeId" value={employeeId} />
       {state.error && <span className="text-xs text-[var(--danger)]">{state.error}</span>}
       <div className="w-28">

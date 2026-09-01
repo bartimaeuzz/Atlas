@@ -12,6 +12,7 @@ import {
 } from "@/lib/permissions/capabilities";
 import { PresetApplyForm } from "./PresetApplyForm";
 import type { CapabilityMatrixEmployeeRow } from "@/lib/permissions/loadCapabilityMatrix";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: PermissionActionState = { error: null, saved: false };
 
@@ -36,6 +37,7 @@ export function EmployeeCapabilityCard({
   showHeader?: boolean;
 }) {
   const [saveState, saveAction, savePending] = useActionState(saveEmployeeCapabilities, initialState);
+  const formRef = useKeepValuesOnError(savePending, !!saveState.error);
 
   const manageIsGranted = employee.systemRole === "ADMIN";
 
@@ -62,7 +64,7 @@ export function EmployeeCapabilityCard({
           Advanced: individual capabilities
         </summary>
 
-        <form action={saveAction} className="px-4 pb-4">
+        <form ref={formRef} action={saveAction} className="px-4 pb-4">
           <input type="hidden" name="employeeId" value={employee.employeeId} />
 
           {CAPABILITY_CATEGORIES.map((category) => (

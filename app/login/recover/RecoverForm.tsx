@@ -5,18 +5,23 @@ import { redeemRecoveryCode, type RedeemRecoveryCodeState } from "@/lib/actions/
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: RedeemRecoveryCodeState = { error: null, success: false };
 
 export function RecoverForm({ employees }: { employees: { id: number; name: string }[] }) {
   const [state, formAction, isPending] = useActionState(redeemRecoveryCode, initialState);
+  // A mistyped recovery code used to cost the whole form — including the
+  // name, which is the slowest field to redo. Both PIN fields are
+  // deliberately left cleared; see useKeepValuesOnError.
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   if (state.success) {
     return <Banner tone="success" title="PIN reset" description="Sign in with the new PIN from the sign-in page." />;
   }
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form ref={formRef} action={formAction} className="space-y-4">
       {state.error && <Banner tone="danger" title="Couldn't reset" description={state.error} />}
       <TextInput
         type="text"

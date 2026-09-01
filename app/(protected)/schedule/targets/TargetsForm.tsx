@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 import { updateStaffingTargets, type ScheduleActionState } from "@/lib/actions/schedule";
 import type { StaffingTargetPosition } from "@/lib/schedule/loadStaffingTargets";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 // Indexed BY dayOfWeek value, so this stays in JS 0=Sun..6=Sat order.
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -49,6 +50,7 @@ export function TargetsForm({
   targets: Record<string, number>;
 }) {
   const [state, formAction, isPending] = useActionState(updateStaffingTargets, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   // "Saved ✓" flash on the submit button itself (2026-08-31, Aey: the
   // old green "Saved." banner rendered at the TOP of a page whose save
   // button is at the BOTTOM of a 14-row grid — after saving, the human
@@ -70,7 +72,7 @@ export function TargetsForm({
   const [selectedDay, setSelectedDay] = useState<number>(() => new Date().getDay());
 
   return (
-    <form action={formAction} className="space-y-6">
+    <form ref={formRef} action={formAction} className="space-y-6">
       {/* Day picker, phone only (2026-08-23). At 390px this table measured
           820px wide with Position and Period the only columns on screen --
           every number, the entire point of the page, sat off to the right.

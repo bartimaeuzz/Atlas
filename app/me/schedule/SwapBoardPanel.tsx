@@ -12,6 +12,7 @@ import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { EmptyState } from "@/components/ui/Card";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: SwapRequestActionState = { error: null };
 
@@ -86,6 +87,7 @@ function OfferSwapForm({
   swappable: { assignmentId: number; date: string; period: "Lunch" | "Dinner"; positionName: string }[];
 }) {
   const [state, formAction, isPending] = useActionState(createSwapRequest, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   if (swappable.length === 0) {
     return (
@@ -96,7 +98,7 @@ function OfferSwapForm({
   }
 
   return (
-    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)] space-y-3 mb-3 text-sm">
+    <form ref={formRef} action={formAction} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)] space-y-3 mb-3 text-sm">
       {state.error && <Banner tone="danger" title="Couldn't post" description={state.error} />}
       <Select label="Which shift?" name="assignmentId" required>
         {swappable.map((s) => (

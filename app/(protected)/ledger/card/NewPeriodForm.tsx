@@ -5,6 +5,7 @@ import { createStatementPeriod, type CardActionState } from "@/lib/actions/card"
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: CardActionState = { error: null };
 
@@ -15,9 +16,10 @@ const initialState: CardActionState = { error: null };
  * get logged against it on the period's own detail page. */
 export function NewPeriodForm({ cards }: { cards: { id: number; name: string }[] }) {
   const [state, formAction, isPending] = useActionState(createStatementPeriod, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   return (
-    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2">
+    <form ref={formRef} action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2">
       {state.error && <Banner tone="danger" title="Couldn't start period" description={state.error} />}
       <Select name="cardId" label="Card" required>
         <option value="">Choose…</option>

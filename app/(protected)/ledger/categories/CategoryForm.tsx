@@ -5,14 +5,16 @@ import { createLedgerCategory, type LedgerAdminActionState } from "@/lib/actions
 import { TextInput, Select } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: LedgerAdminActionState = { error: null };
 
 export function CategoryForm() {
   const [state, formAction, isPending] = useActionState(createLedgerCategory, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   return (
-    <form action={formAction} className="space-y-2">
+    <form ref={formRef} action={formAction} className="space-y-2">
       {state.error && <Banner tone="danger" title="Couldn't add category" description={state.error} />}
       <div className="flex flex-wrap items-end gap-2">
         <div className="flex-1 min-w-[160px]">

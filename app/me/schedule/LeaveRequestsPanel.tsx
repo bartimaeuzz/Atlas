@@ -10,6 +10,7 @@ import { Banner } from "@/components/ui/Banner";
 import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/Card";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: LeaveRequestActionState = { error: null };
 
@@ -52,10 +53,11 @@ export function LeaveRequestsPanel({ requests }: { requests: LeaveRequestView[] 
 
 function LeaveRequestForm() {
   const [state, formAction, isPending] = useActionState(submitLeaveRequest, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   const today = businessTodayIso();
 
   return (
-    <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)] space-y-3 mb-3 text-sm">
+    <form ref={formRef} action={formAction} className="border border-[var(--border)] rounded-[var(--radius-md)] p-3 bg-[var(--paper)] space-y-3 mb-3 text-sm">
       {state.error && <Banner tone="danger" title="Couldn't submit" description={state.error} />}
       <div className="grid grid-cols-2 gap-2">
         <TextInput label="Start date" type="date" name="startDate" required min={today} defaultValue={today} />

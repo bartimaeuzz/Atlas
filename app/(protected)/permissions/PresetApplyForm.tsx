@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useRef, useState } from "react";
+import { useActionState, useCallback, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -8,6 +8,7 @@ import { applyAccountTypePreset, type PermissionActionState } from "@/lib/action
 import { ACCOUNT_TYPES, ACCOUNT_TYPE_LABELS, type AccountType } from "@/lib/permissions/capabilities";
 import { computePresetDiff, presetDiffIsEmpty } from "@/lib/permissions/presetDiff";
 import type { CapabilityMatrixEmployeeRow } from "@/lib/permissions/loadCapabilityMatrix";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: PermissionActionState = { error: null, saved: false };
 
@@ -66,6 +67,23 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
   const previewId = useId();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+  // This form already owns formRef for requestSubmit() from the confirm
+  // dialog, so the two refs are composed rather than one replacing the
+  // other. Controlled state is not enough on its own here either: React
+  // rewrites a controlled value only when the value PROP changes, and a
+  // refusal does not change it — see useKeepValuesOnError.
+  const keepValues = useKeepValuesOnError(pending, !!state.error);
+  const setFormRef = useCallback(
+    (node: HTMLFormElement | null) => {
+      formRef.current = node;
+      const cleanup = keepValues(node);
+      return () => {
+        formRef.current = null;
+        cleanup?.();
+      };
+    },
+    [keepValues]
+  );
   /** A ref, not state: the confirm handler has to flip this and re-submit
    * within the same tick, before React has re-rendered. */
   const confirmedRef = useRef(false);
@@ -97,7 +115,7 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
           because every submission, however triggered, runs onSubmit. The
           worst an errant Enter can now do is open a dialog. */}
       <form
-        ref={formRef}
+        ref={setFormRef}
         action={formAction}
         onSubmit={(e) => {
           if (confirmedRef.current) {

@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { generateRecoveryCode, type GenerateRecoveryCodeState } from "@/lib/actions/recovery";
 import type { RecoveryCodeStatus } from "@/lib/settings/loadRestaurantSettings";
 import { formatDateTime } from "@/lib/formatDateTime";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: GenerateRecoveryCodeState = { error: null };
 
@@ -19,6 +20,7 @@ const initialState: GenerateRecoveryCodeState = { error: null };
  * EmployeeForm. */
 export function RecoveryCodeSection({ status, viewerIsAdmin }: { status: RecoveryCodeStatus; viewerIsAdmin: boolean }) {
   const [state, formAction, isPending] = useActionState(generateRecoveryCode, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
 
   if (!viewerIsAdmin) return null;
@@ -71,7 +73,7 @@ export function RecoveryCodeSection({ status, viewerIsAdmin }: { status: Recover
           Regenerate recovery code
         </button>
       ) : (
-        <form action={formAction}>
+        <form ref={formRef} action={formAction}>
           {status.isSet && !state.code && (
             <p className="text-xs text-[var(--warning-700)] mb-2">
               Generating a new code immediately invalidates the old one.

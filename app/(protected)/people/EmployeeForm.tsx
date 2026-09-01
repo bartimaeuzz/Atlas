@@ -10,6 +10,7 @@ import { Banner } from "@/components/ui/Banner";
 import { LinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ChevronDownIcon, EyeIcon, EyeOffIcon } from "@/components/ui/icons";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const initialState: EmployeeActionState = { error: null };
 
@@ -41,6 +42,7 @@ export function EmployeeForm({
 }) {
   const action = existing ? updateEmployee : createEmployee;
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const formRef = useKeepValuesOnError(isPending, !!state.error);
 
   const initialAssigned = new Set(existing?.positions.map((p) => p.positionId) ?? []);
   // SSN/ITIN formats itself as XXX-XX-XXXX while typing (2026-08-24,
@@ -101,7 +103,7 @@ export function EmployeeForm({
   };
 
   return (
-    <form action={formAction} className="space-y-6 max-w-2xl">
+    <form ref={formRef} action={formAction} className="space-y-6 max-w-2xl">
       {existing && <input type="hidden" name="employeeId" value={existing.id} />}
 
       <TextInput

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { Badge } from "@/components/ui/Badge";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
 const parseInitial: ImportParseState = { error: null };
 const commitInitial: ImportCommitState = { error: null };
@@ -43,6 +44,7 @@ export function ImportClient({
 }) {
   const [parseState, parseAction, isParsing] = useActionState(parseStatementUpload, parseInitial);
   const [commitState, commitAction, isCommitting] = useActionState(commitStatementImport, commitInitial);
+  const formRef = useKeepValuesOnError(isParsing, !!parseState.error);
 
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
   const [loadedFrom, setLoadedFrom] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function ImportClient({
   /* ------------------------------ upload ------------------------------ */
   if (!rows) {
     return (
-      <form action={parseAction} className="space-y-4">
+      <form ref={formRef} action={parseAction} className="space-y-4">
         <input type="hidden" name="periodId" value={periodId} />
         {parseState.error && <Banner tone="danger" title="Couldn't read that file" description={parseState.error} />}
         <label className="block text-sm">
