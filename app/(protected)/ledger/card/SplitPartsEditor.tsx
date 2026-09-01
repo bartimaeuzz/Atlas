@@ -256,6 +256,21 @@ export function SplitPartsEditor({
         + Add another part
       </button>
 
+      {/* When the money balances but the submit is still disabled, SAY
+          WHY (2026-08-31 visual audit: green all-clear beside a disabled
+          button with no explanation — Nielsen #1). */}
+      {remainderCents === 0 && !partsComplete(parts) && (
+        <p className="text-sm text-[var(--warning-700)]">
+          {parts
+            .map((part, i) => ({ part, i }))
+            .filter(({ part }) => part.categoryId === "" || (toCents(part.amount) ?? 0) === 0)
+            .map(({ part, i }) =>
+              part.categoryId === "" ? `Part ${i + 1} still needs a category` : `Part ${i + 1} still needs an amount`
+            )
+            .join(" · ")}
+          .
+        </p>
+      )}
       {targetCents != null && (
         <p
           className={

@@ -66,7 +66,7 @@ export function ReconcilePanel({
                 ? "Neither side matches the statement yet."
                 : !chargesMatch
                   ? `Charges off by ${offBy(chargesLogged, statementTotal)}.`
-                  : `Payments & credits off by ${offBy(creditsLogged, paymentsCreditsTotal)}.`
+                  : `Payments & credits off by ${offBy(creditsLogged, paymentsCreditsTotal)} — record the missing payment with "+ Add transaction", entered as a negative amount.`
           }
         />
       </div>

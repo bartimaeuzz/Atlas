@@ -37,16 +37,38 @@ export function VendorPicker({
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string>("");
 
-  const allTags = Array.from(new Set(vendors.flatMap((v) => v.tags))).sort((a, b) => a.localeCompare(b));
+  // Deduped case-insensitively (2026-08-31 visual audit: "Bar" and "bar"
+  // on different vendors rendered as two chips) — first spelling wins,
+  // matching happens lowercased.
+  const tagMap = new Map<string, string>();
+  for (const v of vendors) for (const t of v.tags) if (!tagMap.has(t.toLowerCase())) tagMap.set(t.toLowerCase(), t);
+  const allTags = Array.from(tagMap.values()).sort((a, b) => a.localeCompare(b));
   const filtered =
     activeTag === null
       ? vendors
-      : vendors.filter((v) => v.tags.includes(activeTag) || String(v.id) === selectedId);
+      : vendors.filter((v) => v.tags.some((t) => t.toLowerCase() === activeTag.toLowerCase()) || String(v.id) === selectedId);
 
   return (
     <div>
+      <Select name={name} label={label} required={required} value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+        <option value="">{noneLabel ?? "Choose…"}</option>
+        {filtered.map((v) => (
+          <option key={v.id} value={v.id}>
+            {v.name}
+          </option>
+        ))}
+      </Select>
+      {/* Chips BELOW the select (2026-08-31 visual audit, the headline
+          regression): above the label they pushed the Vendor cell out of
+          line with its paired Category field — 114px of skew at 390px —
+          and read as belonging to the field ABOVE. Below the select the
+          grid rows stay label-aligned and the chips visually attach to
+          the control they filter. Data-triggered: with zero tags this
+          whole block is absent, which is exactly how the misalignment
+          shipped unseen. */}
       {allTags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-1.5">
+        <div role="group" aria-label="Filter vendors by tag" className="flex flex-wrap items-center gap-1.5 mt-1.5">
+          <span className="text-[11px] text-[var(--ink-500)]">Filter:</span>
           <button
             type="button"
             onClick={() => setActiveTag(null)}
@@ -78,14 +100,6 @@ export function VendorPicker({
           ))}
         </div>
       )}
-      <Select name={name} label={label} required={required} value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
-        <option value="">{noneLabel ?? "Choose…"}</option>
-        {filtered.map((v) => (
-          <option key={v.id} value={v.id}>
-            {v.name}
-          </option>
-        ))}
-      </Select>
       {activeTag !== null && (
         <p className="text-[11px] text-[var(--ink-500)] mt-1">
           Showing {filtered.length} {activeTag} vendor{filtered.length === 1 ? "" : "s"} — tap All to see everyone.

@@ -135,11 +135,14 @@ export default async function SupplierCheckPage({
 
       <LedgerTabs active="supplier" showOverview showCard={showCard} />
 
-      <div className="flex items-center gap-3 flex-wrap mb-6">
+      {/* items-start (2026-08-31 visual audit): the disabled Export block
+          carries a helper line, and items-center floated its button 11px
+          above the siblings. */}
+      <div className="flex items-start gap-3 flex-wrap mb-6">
         <LinkButton href="/ledger/supplier-check/new" size="sm">
           + Add item
         </LinkButton>
-        {canApprove && <ExportChecksButton groups={pendingGroups} />}
+        {canApprove && <ExportChecksButton groups={pendingGroups} sequenceReady={settings.nextCheckNumber != null} />}
         {canInstant && (
           <InstantCheckButton
             vendors={allVendors.filter((v) => v.active)}

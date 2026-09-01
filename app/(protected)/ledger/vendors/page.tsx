@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { loadLedgerVendors } from "@/lib/ledger/loadLedgerAdmin";
+import { loadLedgerVendorsWithTags } from "@/lib/ledger/loadLedgerAdmin";
 import { VendorsList } from "./VendorsList";
 import { PageHeader } from "@/components/ui/Card";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
@@ -10,7 +10,7 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
  * before going live, see db/seed.ts's ledger section. Address fields
  * exist for a later check-export feature, not used anywhere yet. */
 export default async function LedgerVendorsPage() {
-  const vendors = await loadLedgerVendors();
+  const vendors = await loadLedgerVendorsWithTags();
 
   return (
     <main className="max-w-2xl mx-auto p-6 sm:p-8">
@@ -19,7 +19,7 @@ export default async function LedgerVendorsPage() {
       </Link>
       <PageHeader
         title="Vendors"
-        description="Suppliers used on Petty Cash and (later) Supplier Check entries. Retiring a vendor keeps every past entry that used it intact; it just stops being offered for new ones."
+        description="Suppliers used on Petty Cash and Supplier Check entries. Retiring a vendor keeps every past entry that used it intact; it just stops being offered for new ones."
       />
 
       <VendorsList vendors={vendors} />

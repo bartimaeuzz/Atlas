@@ -46,7 +46,10 @@ type TextInputProps = InputHTMLAttributes<HTMLInputElement> & Omit<WrapperProps,
 export function TextInput({ label, hint, error, required, className = "", ...rest }: TextInputProps) {
   return (
     <FieldWrapper label={label} hint={hint} error={error} required={required}>
-      <input className={`${fieldShell} ${fieldBorder(!!error)} ${className}`} {...rest} />
+      {/* required reaches the INPUT too (2026-08-31 visual audit): it used
+          to stop at the wrapper, so every "required" field in the app drew
+          a red asterisk while enforcing nothing — the browser never knew. */}
+      <input required={required} className={`${fieldShell} ${fieldBorder(!!error)} ${className}`} {...rest} />
     </FieldWrapper>
   );
 }
@@ -62,7 +65,7 @@ export function Select({ label, hint, error, required, className = "", children,
           appearance-none + our own ChevronDownIcon at right-3, matching
           the 12px inner padding every other field edge uses. */}
       <div className="relative">
-        <select className={`${fieldShell} ${fieldBorder(!!error)} appearance-none pr-9 ${className}`} {...rest}>
+        <select required={required} className={`${fieldShell} ${fieldBorder(!!error)} appearance-none pr-9 ${className}`} {...rest}>
           {children}
         </select>
         <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--ink-500)]" />

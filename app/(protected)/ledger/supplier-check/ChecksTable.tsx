@@ -38,7 +38,7 @@ export function ChecksTable({
   const [openId, setOpenId] = useState<number | null>(null);
 
   if (checks.length === 0) {
-    return <EmptyState message="No checks printed yet." />;
+    return <EmptyState message="No checks yet." />;
   }
 
   return (
@@ -77,27 +77,39 @@ function CheckRow({
   const [voidReason, setVoidReason] = useState("");
   const [auditorCode, setAuditorCode] = useState("");
 
+  // Both handlers catch (2026-08-31 visual audit): startTransition(async)
+  // with no catch is the documented strand-the-spinner class — a network
+  // drop would leave loading={isPending} spinning forever.
   function handleMarkPaid() {
     setError(null);
     startTransition(async () => {
-      // Return-value error -- thrown server-action errors get redacted to
-      // "Minified React error #441" in production (2026-08-24 sweep).
-      const result = await markSupplierCheckPaid(check.id);
-      if (result.error) setError(result.error);
+      try {
+        // Return-value error -- thrown server-action errors get redacted to
+        // "Minified React error #441" in production (2026-08-24 sweep).
+        const result = await markSupplierCheckPaid(check.id);
+        if (result.error) setError(result.error);
+      } catch {
+        setError("Couldn't reach the server — nothing was changed. Try again.");
+      }
     });
   }
 
   function handleVoid() {
     setError(null);
     startTransition(async () => {
-      const result = await voidSupplierCheck({ paymentId: check.id, reason: voidReason, auditorCode });
-      if (result.error) {
+      try {
+        const result = await voidSupplierCheck({ paymentId: check.id, reason: voidReason, auditorCode });
+        if (result.error) {
+          setVoidOpen(false);
+          setError(result.error);
+        } else {
+          setVoidOpen(false);
+          setVoidReason("");
+          setAuditorCode("");
+        }
+      } catch {
         setVoidOpen(false);
-        setError(result.error);
-      } else {
-        setVoidOpen(false);
-        setVoidReason("");
-        setAuditorCode("");
+        setError("Couldn't reach the server — nothing was changed. Try again.");
       }
     });
   }
@@ -146,7 +158,9 @@ function CheckRow({
           </ul>
           {check.auditLog.length > 0 && (
             <details className="mb-2">
-              <summary className="text-[11px] text-[var(--ink-500)] cursor-pointer hover:text-[var(--ink-900)]">
+              {/* min-h-6 + flex (2026-08-31 visual audit BLOCKER): this
+                  measured 422x16px, under WCAG 2.5.8's 24px floor. */}
+              <summary className="text-[11px] text-[var(--ink-500)] cursor-pointer hover:text-[var(--ink-900)] min-h-6 flex items-center">
                 History ({check.auditLog.length})
               </summary>
               <ul className="mt-1.5 space-y-1.5">
@@ -177,7 +191,7 @@ function CheckRow({
                 href={`/ledger/supplier-check/export?paymentIds=${check.id}`}
                 className={`text-xs underline text-[var(--ink-700)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
               >
-                Reprint
+                Download check
               </a>
             )}
             {check.status === "closed" ? (
@@ -235,7 +249,14 @@ function CheckRow({
                 <Button type="button" variant="secondary" size="sm" onClick={() => setVoidOpen(false)} disabled={isPending}>
                   Cancel
                 </Button>
-                <Button type="button" variant="destructive" size="sm" loading={isPending} onClick={handleVoid}>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  loading={isPending}
+                  disabled={voidReason.trim() === "" || auditorCode.trim() === ""}
+                  onClick={handleVoid}
+                >
                   {isPending ? "Voiding…" : "Void this check"}
                 </Button>
               </div>

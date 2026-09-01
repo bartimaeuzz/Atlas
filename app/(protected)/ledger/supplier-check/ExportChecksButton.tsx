@@ -20,7 +20,7 @@ import { formatMoney } from "../formatMoney";
  *    (Settings) assigns numbers atomically at export.
  * Only READY invoices appear here at all — drafts haven't been reviewed
  * and can't go on a check. */
-export function ExportChecksButton({ groups }: { groups: VendorPendingGroup[] }) {
+export function ExportChecksButton({ groups, sequenceReady }: { groups: VendorPendingGroup[]; sequenceReady: boolean }) {
   const titleId = useId();
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -51,19 +51,32 @@ export function ExportChecksButton({ groups }: { groups: VendorPendingGroup[] })
   function handleExport() {
     setError(null);
     startTransition(async () => {
-      const { paymentIds, error } = await exportChecks(Array.from(selected));
-      if (error) setError(error);
-      else window.location.href = `/ledger/supplier-check/export?paymentIds=${paymentIds.join(",")}`;
+      // catch (2026-08-31 visual audit): the documented strand-the-spinner
+      // class — a network drop would spin loading={isPending} forever.
+      try {
+        const { paymentIds, error } = await exportChecks(Array.from(selected));
+        if (error) setError(error);
+        else window.location.href = `/ledger/supplier-check/export?paymentIds=${paymentIds.join(",")}`;
+      } catch {
+        setError("Couldn't reach the server — nothing was exported. Try again.");
+      }
     });
   }
 
-  if (allReadyIds.length === 0) {
+  // Both real preconditions surface HERE, before any clicking (2026-08-31
+  // visual audit: the unset check-number sequence used to be discovered
+  // only after selecting invoices and hitting Export).
+  if (allReadyIds.length === 0 || !sequenceReady) {
     return (
       <div>
         <Button type="button" variant="secondary" size="sm" disabled>
           Export checks
         </Button>
-        <p className="text-xs text-[var(--ink-500)] mt-1.5">Nothing approved to export yet.</p>
+        <p className="text-xs text-[var(--ink-500)] mt-1.5">
+          {!sequenceReady
+            ? "Set the next check number in Settings first."
+            : "Nothing approved to export yet."}
+        </p>
       </div>
     );
   }

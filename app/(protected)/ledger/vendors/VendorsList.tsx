@@ -11,10 +11,10 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 interface Vendor {
   id: number;
   name: string;
-  payeeAddressLine1: string | null;
-  payeeAddressLine2: string | null;
-  payeeAddressLine3: string | null;
   active: boolean;
+  /** Filter tags (2026-08-31) — shown here so the feature is visible
+   * where a manager would scan for it, not only inside the pickers. */
+  tags?: string[];
 }
 
 /** Same "dedicated /new and /[id]/edit pages, not an inline expandable
@@ -33,6 +33,15 @@ export function VendorsList({ vendors }: { vendors: Vendor[] }) {
               <span className="text-[var(--ink-900)]">
                 {v.name}
                 {!v.active && <span className="ml-2 text-xs text-[var(--ink-500)]">(retired)</span>}
+                {v.tags && v.tags.length > 0 && (
+                  <span className="ml-2 inline-flex flex-wrap gap-1 align-middle">
+                    {v.tags.map((t) => (
+                      <span key={t} className="text-[10px] px-1.5 py-0.5 rounded-[var(--radius-full)] bg-[var(--primary-tint)] text-[var(--primary-700)]">
+                        {t}
+                      </span>
+                    ))}
+                  </span>
+                )}
               </span>
               <div className="flex items-center gap-3">
                 <Link
