@@ -4,7 +4,8 @@ import { useId, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { LogInvoiceForm } from "./LogInvoiceForm";
-import type { TaggedVendor } from "@/app/(protected)/ledger/VendorPicker";
+import type { PickerVendor } from "@/app/(protected)/ledger/VendorPicker";
+import type { VendorCategoryLinkProps } from "@/lib/ledger/vendorCategoryLinks";
 
 /** "+ Add item" as a popup over the Supplier Check page instead of a
  * separate /new page (2026-08-31, Oliver's ask — logging a bill is a
@@ -16,9 +17,11 @@ import type { TaggedVendor } from "@/app/(protected)/ledger/VendorPicker";
 export function LogInvoiceButton({
   vendors,
   categories,
+  links,
 }: {
-  vendors: TaggedVendor[];
+  vendors: PickerVendor[];
   categories: { id: number; name: string }[];
+  links: VendorCategoryLinkProps;
 }) {
   const titleId = useId();
   const [open, setOpen] = useState(false);
@@ -32,7 +35,7 @@ export function LogInvoiceButton({
         <h3 id={titleId} className="text-base font-bold text-[var(--ink-900)] mb-2">
           Log an invoice
         </h3>
-        <LogInvoiceForm vendors={vendors} categories={categories} />
+        <LogInvoiceForm vendors={vendors} categories={categories} links={links} />
         <div className="flex justify-end">
           <Button variant="secondary" size="sm" onClick={() => setOpen(false)}>
             Cancel

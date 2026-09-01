@@ -7,7 +7,9 @@ import { PendingByVendor } from "./PendingByVendor";
 import { ChecksTable } from "./ChecksTable";
 import { ExportChecksButton } from "./ExportChecksButton";
 import { InstantCheckButton } from "./InstantCheckButton";
-import { loadLedgerVendorsWithTags, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
+import { loadLedgerVendors, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
+import { loadVendorCategoryLinks } from "@/lib/ledger/loadVendorCategoryLinks";
+import { serializeVendorCategoryLinks } from "@/lib/ledger/vendorCategoryLinks";
 import { LogInvoiceButton } from "./LogInvoiceButton";
 import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 import { getCurrentStaffSession } from "@/lib/auth/session";
@@ -95,14 +97,18 @@ export default async function SupplierCheckPage({
           return { from: b.start, to: b.end };
         })();
 
-  const [pendingGroups, checks, allVendors, categories, settings, session] = await Promise.all([
+  const [pendingGroups, checks, allVendors, categories, categoryLinks, settings, session] = await Promise.all([
     loadPendingInvoicesByVendor(),
     loadSupplierChecks(range),
-    loadLedgerVendorsWithTags(),
+    loadLedgerVendors(),
     loadLedgerCategories(),
+    loadVendorCategoryLinks(),
     loadRestaurantSettings(),
     getCurrentStaffSession(),
   ]);
+  // Learned vendor <-> category links (2026-08-31) — see
+  // lib/ledger/vendorCategoryLinks.ts.
+  const links = serializeVendorCategoryLinks(categoryLinks);
   // Void checks stay visible in the table (nothing is ever hidden) but a
   // voided check is money that never left — it must not inflate the
   // period total (2026-08-31 lifecycle rebuild).
@@ -142,6 +148,7 @@ export default async function SupplierCheckPage({
         <LogInvoiceButton
           vendors={allVendors.filter((v) => v.active)}
           categories={categories.filter((c) => c.active)}
+          links={links}
         />
         {canApprove && <ExportChecksButton groups={pendingGroups} sequenceReady={settings.nextCheckNumber != null} />}
         {canInstant && (

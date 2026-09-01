@@ -5,7 +5,10 @@ import { addPettyCashEntry, type PettyCashEntryActionState } from "@/lib/actions
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
-import { VendorPicker, type TaggedVendor } from "./VendorPicker";
+import { VendorPicker, type PickerVendor } from "./VendorPicker";
+import { AUTOFILLED_CATEGORY_HINT, useVendorCategoryPair } from "./useVendorCategoryPair";
+import { CategorySuggestions } from "./CategorySuggestions";
+import type { VendorCategoryLinkProps } from "@/lib/ledger/vendorCategoryLinks";
 
 const initialState: PettyCashEntryActionState = { error: null };
 
@@ -20,33 +23,61 @@ export function AddEntryForm({
   date,
   vendors,
   categories,
+  links,
 }: {
   date: string;
-  vendors: TaggedVendor[];
+  vendors: PickerVendor[];
   categories: { id: number; name: string }[];
+  links: VendorCategoryLinkProps;
 }) {
   const [state, formAction, isPending] = useActionState(addPettyCashEntry, initialState);
   // Controlled (2026-08-31): a server refusal (e.g. the finalized-day
   // gate) used to wipe the typed entry — React 19 resets uncontrolled
   // fields after a form action. The parent still clears this form after
   // a SUCCESSFUL add by remounting via resetKey, unchanged.
-  const [form, setForm] = useState({ categoryId: "", note: "", amount: "" });
+  const [form, setForm] = useState({ note: "", amount: "" });
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  // Vendor and category are controlled together, not separately -- see
+  // useVendorCategoryPair.
+  const pair = useVendorCategoryPair(links);
 
   return (
     <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
       <input type="hidden" name="date" value={date} />
       {state.error && <Banner tone="danger" title="Couldn't add expense" description={state.error} />}
-      <div className="grid grid-cols-2 gap-2">
-        <Select name="categoryId" label="Category" required value={form.categoryId} onChange={set("categoryId")}>
-          <option value="">Choose…</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </Select>
-        <VendorPicker name="vendorId" label="Vendor (optional)" vendors={vendors} noneLabel="No vendor" />
+      <div className="grid grid-cols-2 gap-2 items-start">
+        <div>
+          <Select
+            name="categoryId"
+            label="Category"
+            required
+            value={pair.categoryId}
+            onChange={(e) => pair.setCategoryId(e.target.value)}
+            hint={pair.categoryAutofilled ? AUTOFILLED_CATEGORY_HINT : undefined}
+          >
+            <option value="">Choose…</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+          <CategorySuggestions
+            categoryIds={pair.suggestedCategoryIds}
+            categories={categories}
+            onPick={pair.setCategoryId}
+          />
+        </div>
+        <VendorPicker
+          name="vendorId"
+          label="Vendor (optional)"
+          vendors={vendors}
+          noneLabel="No vendor"
+          value={pair.vendorId}
+          onChange={pair.setVendorId}
+          categoryId={pair.categoryId}
+          links={links}
+        />
       </div>
       <TextInput type="text" name="note" label="Note" placeholder="e.g. Pay out to Tommy: flowers" value={form.note} onChange={set("note")} />
       <TextInput

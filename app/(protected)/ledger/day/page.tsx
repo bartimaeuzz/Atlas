@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadPettyCashDay } from "@/lib/ledger/loadPettyCashDay";
+import { loadVendorCategoryLinks } from "@/lib/ledger/loadVendorCategoryLinks";
+import { serializeVendorCategoryLinks } from "@/lib/ledger/vendorCategoryLinks";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { addDays } from "@/lib/schedule/weekMath";
 import { AddEntryForm } from "../AddEntryForm";
@@ -70,7 +72,11 @@ export default async function LedgerDayPage({
   const session = await getCurrentStaffSession();
   const isAdmin = session?.systemRole === "ADMIN";
 
-  const data = await loadPettyCashDay(date);
+  const [data, categoryLinks] = await Promise.all([loadPettyCashDay(date), loadVendorCategoryLinks()]);
+  // Which vendors this restaurant actually uses per category, learned
+  // from its own history — shrinks the vendor dropdown to the ones that
+  // belong with the category being logged (2026-08-31).
+  const links = serializeVendorCategoryLinks(categoryLinks);
   const finalized = data.status === "finalized";
   const editable = !finalized || isAdmin;
 
@@ -132,7 +138,7 @@ export default async function LedgerDayPage({
           <section className={onStep(1)}>
             <StepHeading n={1}>Add an expense</StepHeading>
             {editable ? (
-              <AddEntryForm key={data.entries.length} date={date} vendors={data.vendors} categories={data.categories} />
+              <AddEntryForm key={data.entries.length} date={date} vendors={data.vendors} categories={data.categories} links={links} />
             ) : (
               <Banner tone="info" title="This day is finalized." description="Its expenses can no longer be changed." />
             )}

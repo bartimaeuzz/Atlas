@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { loadLedgerVendorsWithTags, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
+import { loadLedgerVendors, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
+import { loadVendorCategoryLinks } from "@/lib/ledger/loadVendorCategoryLinks";
+import { serializeVendorCategoryLinks } from "@/lib/ledger/vendorCategoryLinks";
 import { LogInvoiceForm } from "../LogInvoiceForm";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
@@ -13,8 +15,15 @@ import { NoAccess } from "@/components/NoAccess";
 export default async function NewSupplierInvoicePage() {
   if (!(await hasCapability("VIEW_LEDGER_OVERVIEW"))) return <NoAccess pageLabel="Supplier Check" />;
 
-  const [allVendors, categories] = await Promise.all([loadLedgerVendorsWithTags(), loadLedgerCategories()]);
+  const [allVendors, categories, categoryLinks] = await Promise.all([
+    loadLedgerVendors(),
+    loadLedgerCategories(),
+    loadVendorCategoryLinks(),
+  ]);
   const vendors = allVendors.filter((v) => v.active);
+  // Learned vendor <-> category links (2026-08-31) — see
+  // lib/ledger/vendorCategoryLinks.ts.
+  const links = serializeVendorCategoryLinks(categoryLinks);
 
   return (
     <main className="max-w-lg mx-auto p-4 sm:p-8">
@@ -22,7 +31,7 @@ export default async function NewSupplierInvoicePage() {
         &larr; Supplier
       </Link>
       <h1 className="text-2xl font-bold text-[var(--ink-900)] mt-2 mb-4">Log an invoice</h1>
-      <LogInvoiceForm vendors={vendors} categories={categories} />
+      <LogInvoiceForm vendors={vendors} categories={categories} links={links} />
     </main>
   );
 }

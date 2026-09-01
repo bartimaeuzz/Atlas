@@ -1108,15 +1108,18 @@ export const ledgerVendors = sqliteTable("ledger_vendors", {
   active: integer("active", { mode: "boolean" }).notNull().default(true),
 });
 
-// Vendor tags (2026-08-31, Aey: "add tag or category to vendor so when
-// search can select only group that she want to use... some vendor fall
-// in multiple categories") — free-text tags, many per vendor, so "Bar"
-// filters the vendor picker down to bar suppliers when logging an
-// invoice or petty cash entry. Deliberately NOT a fixed category enum
-// and NOT the ledgerCategories table: those classify the EXPENSE (and
-// feed the P&L); this classifies the RELATIONSHIP, purely to shrink a
-// picker. Tag names are restaurant-invented; the UI offers existing
-// tags for reuse so spellings converge.
+// DEPRECATED 2026-08-31, same day it shipped. Free-text vendor tags were
+// a misreading of the ask: Aey wanted the vendor picker to follow the
+// CATEGORY she had already chosen, not a second hand-maintained
+// vocabulary to keep in sync. Replaced by lib/ledger/vendorCategoryLinks.ts,
+// which learns the same links from petty cash entries and supplier
+// invoices the restaurant already recorded — nothing to type in, nothing
+// to keep up to date.
+//
+// NOTHING READS THIS TABLE. It stays declared only because dropping it is
+// DDL: it rides a future migration alongside other schema work rather
+// than getting its own. Oliver's call on the three rows in production —
+// abandon them, no data migration ("ลบไปเลยจ้า"). Do not build on it.
 export const ledgerVendorTags = sqliteTable(
   "ledger_vendor_tags",
   {

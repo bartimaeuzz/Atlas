@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { loadLedgerVendorsWithTags } from "@/lib/ledger/loadLedgerAdmin";
+import { loadLedgerVendors } from "@/lib/ledger/loadLedgerAdmin";
 import { VendorsList } from "./VendorsList";
 import { PageHeader } from "@/components/ui/Card";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
@@ -10,7 +10,7 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
  * before going live, see db/seed.ts's ledger section. Address fields
  * exist for a later check-export feature, not used anywhere yet. */
 export default async function LedgerVendorsPage() {
-  const vendors = await loadLedgerVendorsWithTags();
+  const vendors = await loadLedgerVendors();
 
   return (
     <main className="max-w-2xl mx-auto p-6 sm:p-8">

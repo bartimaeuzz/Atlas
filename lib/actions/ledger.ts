@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { ledgerVendors, ledgerVendorTags, ledgerCategories, pettyCashEntries, dailyCashReconciliations, shifts } from "@/db/schema";
+import { ledgerVendors, ledgerCategories, pettyCashEntries, dailyCashReconciliations, shifts } from "@/db/schema";
 import { logActivityStatement, logMoney } from "@/lib/activityLog/log";
 import { requiresOtherCashReason } from "@/lib/ledger/otherCashRule";
 import { getCurrentStaffSession } from "@/lib/auth/session";
@@ -60,39 +60,11 @@ function readVendorForm(formData: FormData) {
   };
 }
 
-/** Tags off the vendor form (2026-08-31, Aey: filter the vendor picker
- * down to e.g. bar suppliers). Comma-separated in one field, normalized:
- * trimmed, deduped case-insensitively (first spelling wins), empties
- * dropped. Sync = delete-and-reinsert — the set is tiny and the form
- * always posts the complete list. */
-function readVendorTags(formData: FormData): string[] {
-  const raw = String(formData.get("tags") ?? "");
-  const seen = new Set<string>();
-  const tags: string[] = [];
-  for (const part of raw.split(",")) {
-    const tag = part.trim();
-    if (!tag) continue;
-    const key = tag.toLowerCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    tags.push(tag);
-  }
-  return tags;
-}
-
-async function syncVendorTags(vendorId: number, tags: string[]) {
-  await db.delete(ledgerVendorTags).where(eq(ledgerVendorTags.vendorId, vendorId));
-  if (tags.length > 0) {
-    await db.insert(ledgerVendorTags).values(tags.map((tag) => ({ vendorId, tag })));
-  }
-}
-
 export async function createLedgerVendor(_prevState: LedgerAdminActionState, formData: FormData): Promise<LedgerAdminActionState> {
   try {
     await requireManagerAction();
     const parsed = readVendorForm(formData);
-    const [vendor] = await db.insert(ledgerVendors).values({ ...parsed, active: true }).returning();
-    await syncVendorTags(vendor.id, readVendorTags(formData));
+    await db.insert(ledgerVendors).values({ ...parsed, active: true });
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
@@ -107,7 +79,6 @@ export async function updateLedgerVendor(_prevState: LedgerAdminActionState, for
     await requireManagerAction();
     const parsed = readVendorForm(formData);
     await db.update(ledgerVendors).set(parsed).where(eq(ledgerVendors.id, vendorId));
-    await syncVendorTags(vendorId, readVendorTags(formData));
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
