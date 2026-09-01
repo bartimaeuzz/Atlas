@@ -16,9 +16,27 @@ const initialState: EmployeeActionState = { error: null };
  * for why). Shows a quick success flash by keying off state changing to
  * {error: null} after a real submit — cheap way to give feedback without
  * a full redirect/revalidate round trip disrupting the edit page. */
-export function SetPinForm({ employeeId, hasPinSet }: { employeeId: number; hasPinSet: boolean }) {
+export function SetPinForm({
+  employeeId,
+  hasPinSet,
+  loginLockedUntil,
+}: {
+  employeeId: number;
+  hasPinSet: boolean;
+  /** A wrong-PIN lockout that was still ACTIVE when the page rendered
+   * (the server page does the "is it in the future" check — see
+   * lib/auth/lockout.ts), else null. */
+  loginLockedUntil: string | null;
+}) {
   const [state, formAction, isPending] = useActionState(setEmployeePin, initialState);
   const formRef = useKeepValuesOnError(isPending, !!state.error);
+  // Rendered once per page load; a lock that expires while the manager is
+  // reading is a stale line for a few minutes at worst, and the reset
+  // below works the same either way. Hidden once a reset has succeeded
+  // in this session (the action clears the lock).
+  const lockedUntil = loginLockedUntil ? new Date(loginLockedUntil) : null;
+  const resetSucceeded = !state.error && !isPending && state !== initialState;
+  const isLocked = !!lockedUntil && !resetSucceeded;
 
   return (
     <Card>
@@ -28,6 +46,15 @@ export function SetPinForm({ employeeId, hasPinSet }: { employeeId: number; hasP
           ? "A PIN is already set — entering a new one below replaces it."
           : "No PIN set yet — this person can't sign in to their pay view until one is set."}
       </p>
+      {isLocked && (
+        <div className="mb-3">
+          <Banner
+            tone="warning"
+            title="Locked out after too many wrong PINs"
+            description={`Sign-in unlocks by itself at ${lockedUntil.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}. Setting a new PIN below unlocks it right now.`}
+          />
+        </div>
+      )}
       <form ref={formRef} action={formAction} className="flex flex-col sm:flex-row sm:items-end gap-3">
         <input type="hidden" name="employeeId" value={employeeId} />
         <div className="flex-1">

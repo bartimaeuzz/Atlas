@@ -72,6 +72,10 @@ export interface EmployeeListRow {
    * page can show "Set PIN" vs "Reset PIN" without the hash ever leaving
    * the server. */
   hasPinSet: boolean;
+  /** ISO timestamp while a wrong-PIN lockout is active, else null (2026-09-01).
+   * Shown on the edit page so a manager resetting a PIN knows WHY the
+   * person was sent to them; the reset itself clears it. */
+  loginLockedUntil: string | null;
   /** See employees.isFinancialAuditor's schema comment -- who's allowed
    * to edit an already Printed/Paid Supplier Check invoice, and whose
    * PIN doubles as the confirmation code required on those edits. */
@@ -161,6 +165,7 @@ export async function loadEmployeesList(): Promise<EmployeeListRow[]> {
       primaryPositionName: e.primaryPositionId ? positionById.get(e.primaryPositionId)?.name ?? null : null,
       systemRole: e.systemRole as "STAFF" | "MANAGER" | "ADMIN",
       hasPinSet: e.pinHash !== null,
+      loginLockedUntil: e.loginLockedUntil,
       isFinancialAuditor: e.isFinancialAuditor,
       isPartner: e.isPartner,
       loginId: e.loginId,
@@ -225,6 +230,7 @@ export async function loadEmployeeForEdit(
     primaryPositionName: employee.primaryPositionId ? positionById.get(employee.primaryPositionId)?.name ?? null : null,
     systemRole: employee.systemRole as "STAFF" | "MANAGER" | "ADMIN",
     hasPinSet: employee.pinHash !== null,
+    loginLockedUntil: employee.loginLockedUntil,
     isFinancialAuditor: employee.isFinancialAuditor,
     isPartner: employee.isPartner,
     loginId: employee.loginId,

@@ -5,6 +5,7 @@ import { getCurrentStaffSession } from "@/lib/auth/session";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { EmployeeForm } from "../../EmployeeForm";
 import { SetPinForm } from "../../SetPinForm";
+import { lockoutMinutesLeft } from "@/lib/auth/lockout";
 import { GenerateLoginIdControl } from "../../GenerateLoginIdControl";
 import { Card } from "@/components/ui/Card";
 import { ChevronDownIcon } from "@/components/ui/icons";
@@ -65,7 +66,11 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
                 viewerIsAdmin={viewerIsAdmin}
               />
             </div>
-            <SetPinForm employeeId={employee.id} hasPinSet={employee.hasPinSet} />
+            <SetPinForm
+              employeeId={employee.id}
+              hasPinSet={employee.hasPinSet}
+              loginLockedUntil={lockoutMinutesLeft({ failedAttempts: 0, lockedUntil: employee.loginLockedUntil }, new Date()) > 0 ? employee.loginLockedUntil : null}
+            />
           </div>
         </details>
       </Card>
