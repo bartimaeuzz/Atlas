@@ -78,7 +78,7 @@ export function SettingsForm({
             defaultValue={settings.restaurantName ?? ""}
             placeholder="e.g. Youk Thai"
             autoComplete="organization"
-            className={`w-full max-w-sm border border-[var(--border)] rounded-[var(--radius-sm)] px-3 py-2 bg-[var(--surface)] ${DISABLED_FIELD}`}
+            className={`border rounded px-3 py-1.5 text-sm w-full max-w-sm min-h-11 ${DISABLED_FIELD}`}
           />
           <span className="block text-xs text-[var(--ink-500)] mt-1">
             Your restaurant&rsquo;s name as staff should see it. Optional for now — it will appear on the sign-in screen and side menu once that part ships.
