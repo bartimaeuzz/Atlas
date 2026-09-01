@@ -93,6 +93,13 @@ export const employees = sqliteTable("employees", {
   // deliberately, since "nickname" is genuinely what those screens want
   // to show, not a UI wording change.
   nickname: text("nickname").notNull(),
+  // Free-text job title (2026-09-01, flat permission model): "Head
+  // Bartender", "Assistant Manager". A LABEL, deliberately separate from
+  // `positions` -- positions drive tip pools and the roster, so adding a
+  // title there would force a tip-point decision and put it on every
+  // shift. A title may later graduate into a real position; until then
+  // it grants nothing and appears nowhere but the person's profile.
+  title: text("title"),
   // Legal name for payroll/tax documents (2026-08-17, Oliver: "I need a
   // real name and last name for their payroll"). Nullable, NOT backfilled
   // with a placeholder for existing seeded employees -- an empty legal
@@ -291,6 +298,13 @@ export const staffSessions = sqliteTable("staff_sessions", {
 export const restaurantSettings = sqliteTable("restaurant_settings", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   restaurantId: integer("restaurant_id").notNull().default(1),
+  // The restaurant's own name (2026-08-31, Mohom wordmark spec): shown
+  // large on the login screen and next to the MHM mark in the expanded
+  // nav rail, so staff at a shared terminal see THEIR restaurant, not the
+  // vendor. Nullable on purpose -- while unset the UI renders the mark
+  // alone, never a dangling separator and never a hardcoded "Soothr".
+  // First field of the future new-restaurant setup screen.
+  restaurantName: text("restaurant_name"),
   ccTipDeductionRate: real("cc_tip_deduction_rate").notNull().default(0), // e.g. 0.045 for 4.5%. Default 0 — NOT hardcoded per restaurant.
   // Whether STAFF can see PEERS' money figures (tip share / wage) in the
   // roster view — confirmed 2026-08-08 as restaurant-configurable, but with
@@ -1129,30 +1143,6 @@ export const ledgerVendors = sqliteTable("ledger_vendors", {
   payeeAddressLine3: text("payee_address_line_3"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
 });
-
-// DEPRECATED 2026-08-31, same day it shipped. Free-text vendor tags were
-// a misreading of the ask: Aey wanted the vendor picker to follow the
-// CATEGORY she had already chosen, not a second hand-maintained
-// vocabulary to keep in sync. Replaced by lib/ledger/vendorCategoryLinks.ts,
-// which learns the same links from petty cash entries and supplier
-// invoices the restaurant already recorded — nothing to type in, nothing
-// to keep up to date.
-//
-// NOTHING READS THIS TABLE. It stays declared only because dropping it is
-// DDL: it rides a future migration alongside other schema work rather
-// than getting its own. Oliver's call on the three rows in production —
-// abandon them, no data migration ("ลบไปเลยจ้า"). Do not build on it.
-export const ledgerVendorTags = sqliteTable(
-  "ledger_vendor_tags",
-  {
-    id: integer("id").primaryKey({ autoIncrement: true }),
-    vendorId: integer("vendor_id").notNull().references(() => ledgerVendors.id),
-    tag: text("tag").notNull(),
-  },
-  (t) => ({
-    uniqVendorTag: uniqueIndex("uniq_vendor_tag").on(t.vendorId, t.tag),
-  })
-);
 
 // Expense categories (Bar/Food/Mis/PAYROLL BOH/etc in Soothr's sheet) —
 // deliberately a restaurant-configurable table, not a hardcoded enum,
