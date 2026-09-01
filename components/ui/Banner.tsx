@@ -18,8 +18,22 @@ const toneStyles: Record<BannerTone, { bg: string; border: string; text: string;
 export function Banner({ tone, title, description }: { tone: BannerTone; title: string; description?: ReactNode }) {
   const s = toneStyles[tone];
   const Icon = s.Icon;
+  // Announce the banner when it appears (2026-09-01 visual audit). This
+  // component is how ~47 files report "Couldn't save" / "Wrong PIN" /
+  // "Couldn't add expense", and it carried no role or aria-live at all —
+  // every failure in Atlas was silent to anyone not watching that exact
+  // spot on the screen. WCAG 4.1.3 Status Messages (AA).
+  //
+  // danger/warning are assertive because they report something that just
+  // went wrong and the person is mid-task; success/info are polite so a
+  // "Saved ✓" never interrupts what someone is typing.
+  const assertive = tone === "danger" || tone === "warning";
   return (
-    <div className={`flex items-start gap-2.5 ${s.bg} border ${s.border} rounded-[var(--radius-md)] px-3.5 py-3`}>
+    <div
+      role={assertive ? "alert" : "status"}
+      aria-live={assertive ? "assertive" : "polite"}
+      className={`flex items-start gap-2.5 ${s.bg} border ${s.border} rounded-[var(--radius-md)] px-3.5 py-3`}
+    >
       <Icon className={`${s.text} mt-0.5 shrink-0`} width={18} height={18} />
       <div>
         <div className={`text-sm font-semibold ${s.text}`}>{title}</div>

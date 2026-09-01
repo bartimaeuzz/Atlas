@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { login, type LoginActionState } from "@/lib/actions/auth";
 import { Select, TextInput } from "@/components/ui/Field";
@@ -37,6 +37,15 @@ export function LoginForm({
   // only writes a controlled value back to the DOM when the value
   // PROP changes, and after a refusal it has not, so the reset wins.
   const formRef = useKeepValuesOnError(isPending, !!state.error);
+  // Put the cursor in the PIN box when a wrong PIN comes back (2026-09-01
+  // visual audit: focus was landing on <body>). The banner says "try
+  // again" and the hook has already cleared the field and kept the name,
+  // so the only thing left to do is type — this saves the person hunting
+  // for where. Runs only when the error changes, never on first paint.
+  const pinRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (state.error) pinRef.current?.focus();
+  }, [state.error]);
 
   return (
     <form ref={formRef} action={formAction} className="space-y-4">
@@ -65,6 +74,7 @@ export function LoginForm({
         />
       )}
       <TextInput
+        ref={pinRef}
         type="password"
         inputMode="numeric"
         name="pin"

@@ -240,7 +240,21 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
            page preview so the two can never drift apart. */
         body={
           diff ? (
-            <div className="max-h-[46vh] overflow-y-auto text-sm">
+            /* 2026-09-01 visual audit: at 390 this list overflowed by 26px
+               with NO affordance — "Turns OFF (17)" while the 17th item sat
+               entirely below the fold, on the dialog that asks you to
+               consent to exactly those 17. Three fixes: 60vh instead of
+               46vh so a normal-length list simply fits (414px of content in
+               506px at 844 tall); tabIndex so a keyboard user can scroll it
+               at all when it genuinely is longer; and a group label so it is
+               reachable and announced rather than being an anonymous
+               scrolling div. */
+            <div
+              tabIndex={0}
+              role="group"
+              aria-label="Permissions this preset changes"
+              className="max-h-[60vh] overflow-y-auto text-sm rounded-[var(--radius-sm)] focus-visible:outline-2 focus-visible:outline-[var(--primary)] focus-visible:outline-offset-2"
+            >
               <DiffList diff={diff} />
             </div>
           ) : undefined

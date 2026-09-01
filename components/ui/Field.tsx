@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, SelectHTMLAttributes, ReactNode } from "react";
+import type { ComponentPropsWithRef, InputHTMLAttributes, SelectHTMLAttributes, ReactNode } from "react";
 import { ChevronDownIcon } from "./icons";
 import { AlertCircleIcon } from "./icons";
 
@@ -41,7 +41,11 @@ function FieldWrapper({ label, hint, error, required, children }: WrapperProps) 
   );
 }
 
-type TextInputProps = InputHTMLAttributes<HTMLInputElement> & Omit<WrapperProps, "children">;
+/** ComponentPropsWithRef, not InputHTMLAttributes: React 19 makes `ref` an
+ * ordinary prop (no forwardRef), but the attribute type alone does not
+ * declare it, so passing one was a type error. Needed by LoginForm to put
+ * the cursor in the PIN box after a wrong PIN. */
+type TextInputProps = ComponentPropsWithRef<"input"> & Omit<WrapperProps, "children">;
 
 export function TextInput({ label, hint, error, required, className = "", ...rest }: TextInputProps) {
   return (

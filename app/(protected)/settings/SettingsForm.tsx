@@ -247,13 +247,11 @@ export function SettingsForm({
       <fieldset>
         <legend className="text-lg font-medium mb-3">Two-person money controls</legend>
         <p className="text-xs text-[var(--ink-500)] mb-3">
-          Recording money is always open to everyone. These control the steps that
-          <strong> commit</strong> it — where money leaves or a record locks and can no longer be
-          edited. When one is on, a second person who can do the same job types their PIN to
-          confirm; it does not have to be a manager, only somebody other than the person acting.
-          Leave them off while one person is doing the work alone: anything committed alone is
-          permanently marked as such, so turning a control on later never makes an old record look
-          like two people checked it.
+          Recording money stays open to everyone. These cover the steps that
+          <strong> commit</strong> it — where money leaves or a record locks for good. With one on, a
+          second person who can do the same job types their PIN; it only has to be somebody other
+          than you. Leave them off while one person works alone — anything done alone is marked as
+          such on the record.
         </p>
         {isAdmin ? (
           <div className="space-y-3">
