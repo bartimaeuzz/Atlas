@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import type { EmployeeListRow } from "@/lib/employees/loadEmployeesList";
 import { EmployeeToggleActiveButton } from "./EmployeeToggleActiveButton";
@@ -102,6 +102,14 @@ export function PeopleTable({
     return copy;
   }, [employeeList, sortKey, sortDir, query, roleFilter, statusFilter]);
 
+  // Retired people live under their own header instead of dimmed rows
+  // mixed into the alphabet (2026-08-31, Oliver: "when retire people on
+  // people page, move them to retire card") — the same Active/Deactivated
+  // grouping /positions already uses. Sorting and filters apply within
+  // each group; the Retired group only renders when it has rows.
+  const activePeople = sorted.filter((e) => e.active);
+  const retiredPeople = sorted.filter((e) => !e.active);
+
   return (
     <div>
       {/* Search + filters, both layouts */}
@@ -164,14 +172,21 @@ export function PeopleTable({
       </div>
 
       <div className="lg:hidden space-y-3">
-        {sorted.map((e) => {
+        {retiredPeople.length > 0 && activePeople.length > 0 && (
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)]">Active ({activePeople.length})</h2>
+        )}
+        {[...activePeople, ...retiredPeople].map((e, idx) => {
+          const firstRetired = !e.active && (idx === 0 || [...activePeople, ...retiredPeople][idx - 1].active);
           // Card opens the person's PROFILE page (2026-08-24, Oliver's
           // second pass: "i think we need a staff profile page" -- view
           // first, Edit behind a button there). Replaced the same-day
           // tap-to-expand accordion; the detail now has a real page.
           return (
+            <Fragment key={e.id}>
+            {firstRetired && (
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] pt-2">Retired ({retiredPeople.length})</h2>
+            )}
             <Link
-              key={e.id}
               href={`/people/${e.id}`}
               className={
                 "flex items-center justify-between gap-2 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-4 min-h-11" +
@@ -190,6 +205,7 @@ export function PeopleTable({
               </div>
               <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90" />
             </Link>
+            </Fragment>
           );
         })}
       </div>
@@ -216,15 +232,27 @@ export function PeopleTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((e) => {
+          {[...activePeople, ...retiredPeople].map((e, idx, list) => {
+            const showHeader =
+              retiredPeople.length > 0 &&
+              activePeople.length > 0 &&
+              (idx === 0 || list[idx - 1].active !== e.active);
             const primaryPositionCategory =
               e.positions.find((p) => p.positionId === e.primaryPositionId)?.positionCategory ?? null;
             return (
-              // Whole row clickable with a pointer (Oliver, 2026-08-24),
-              // same shared MonthRow as the Ledger/Shifts pickers; the name
-              // link stays the keyboard tab stop, and the row's own
-              // buttons/selects keep their behaviour.
-              <MonthRow key={e.id} href={`/people/${e.id}`} isToday={false} className={e.active ? "" : "opacity-50"}>
+              <Fragment key={e.id}>
+              {showHeader && (
+                <tr className="border-b border-[var(--border)] bg-[var(--paper)]">
+                  <td colSpan={7} className="py-1.5 px-3 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)]">
+                    {e.active ? `Active (${activePeople.length})` : `Retired (${retiredPeople.length})`}
+                  </td>
+                </tr>
+              )}
+              {/* Whole row clickable with a pointer (Oliver, 2026-08-24),
+                  same shared MonthRow as the Ledger/Shifts pickers; the name
+                  link stays the keyboard tab stop, and the row's own
+                  buttons/selects keep their behaviour. */}
+              <MonthRow href={`/people/${e.id}`} isToday={false} className={e.active ? "" : "opacity-50"}>
                 <td className="py-2 px-3 text-[var(--ink-900)]">
                   <Link href={`/people/${e.id}`} className="font-medium hover:underline">
                     {e.nickname}
@@ -254,6 +282,7 @@ export function PeopleTable({
                   <EmployeeToggleActiveButton employeeId={e.id} active={e.active} />
                 </td>
               </MonthRow>
+              </Fragment>
             );
           })}
         </tbody>

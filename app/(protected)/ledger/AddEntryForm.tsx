@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { addPettyCashEntry, type PettyCashEntryActionState } from "@/lib/actions/ledger";
 import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
@@ -26,13 +26,19 @@ export function AddEntryForm({
   categories: { id: number; name: string }[];
 }) {
   const [state, formAction, isPending] = useActionState(addPettyCashEntry, initialState);
+  // Controlled (2026-08-31): a server refusal (e.g. the finalized-day
+  // gate) used to wipe the typed entry — React 19 resets uncontrolled
+  // fields after a form action. The parent still clears this form after
+  // a SUCCESSFUL add by remounting via resetKey, unchanged.
+  const [form, setForm] = useState({ categoryId: "", note: "", amount: "" });
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   return (
     <form action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
       <input type="hidden" name="date" value={date} />
       {state.error && <Banner tone="danger" title="Couldn't add expense" description={state.error} />}
       <div className="grid grid-cols-2 gap-2">
-        <Select name="categoryId" label="Category" required>
+        <Select name="categoryId" label="Category" required value={form.categoryId} onChange={set("categoryId")}>
           <option value="">Choose…</option>
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -42,7 +48,7 @@ export function AddEntryForm({
         </Select>
         <VendorPicker name="vendorId" label="Vendor (optional)" vendors={vendors} noneLabel="No vendor" />
       </div>
-      <TextInput type="text" name="note" label="Note" placeholder="e.g. Pay out to Tommy: flowers" />
+      <TextInput type="text" name="note" label="Note" placeholder="e.g. Pay out to Tommy: flowers" value={form.note} onChange={set("note")} />
       <TextInput
         type="number"
         name="amount"
@@ -52,6 +58,8 @@ export function AddEntryForm({
         required
         placeholder="0.00"
         inputMode="decimal"
+        value={form.amount}
+        onChange={set("amount")}
       />
       <Button type="submit" loading={isPending} className="w-full">
         {isPending ? "Adding…" : "+ Add expense"}

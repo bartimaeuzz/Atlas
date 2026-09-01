@@ -3,7 +3,7 @@
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   employeeScheduleTemplates,
@@ -209,6 +209,35 @@ export async function syncEmployeePositionTemplate(
   // (2026-08-24 sweep; see lib/actions/actionResult.ts).
   return asActionResult(async () => {
     await requireCapability("SCHEDULE_MANAGE");
+
+    // One person, one position per slot (2026-08-31, Oliver's case: Aey
+    // already Manager on Monday Lunch+Dinner, then added as Host and
+    // Monday became checkable). The plan grid only FLAGS this conflict
+    // after generation; the template grid must refuse it at the source —
+    // the standing rule is a rule, not a warning.
+    const otherPositionRows = await db
+      .select({
+        dayOfWeek: employeeScheduleTemplates.dayOfWeek,
+        period: employeeScheduleTemplates.period,
+        positionName: positions.name,
+      })
+      .from(employeeScheduleTemplates)
+      .innerJoin(positions, eq(positions.id, employeeScheduleTemplates.positionId))
+      .where(
+        and(
+          eq(employeeScheduleTemplates.employeeId, employeeId),
+          ne(employeeScheduleTemplates.positionId, positionId),
+          eq(employeeScheduleTemplates.active, true)
+        )
+      );
+    const takenBy = new Map(otherPositionRows.map((r) => [`${r.dayOfWeek}-${r.period}`, r.positionName]));
+    const conflict = cells.find((c) => takenBy.has(`${c.dayOfWeek}-${c.period}`));
+    if (conflict) {
+      const dayName = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][conflict.dayOfWeek];
+      throw new Error(
+        `They're already ${takenBy.get(`${conflict.dayOfWeek}-${conflict.period}`)} on ${dayName} ${conflict.period} — one person holds one position per slot. Untick it there first.`
+      );
+    }
 
     const existing = await db
       .select()

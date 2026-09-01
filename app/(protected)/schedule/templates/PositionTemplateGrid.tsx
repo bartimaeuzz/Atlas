@@ -66,7 +66,7 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
   // first checkbox is saved. Once that happens, the revalidated `group`
   // prop will include them for real, and the effect below drops them
   // from this pending set so they don't render twice.
-  const [pendingNewIds, setPendingNewIds] = useState<{ id: number; name: string }[]>([]);
+  const [pendingNewIds, setPendingNewIds] = useState<{ id: number; name: string; slotsHeldElsewhere: Record<string, string> }[]>([]);
 
   useEffect(() => {
     const assignedIds = new Set(group.assignedEmployees.map((e) => e.employeeId));
@@ -79,7 +79,7 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
 
   const rows: AssignedEmployeeGroup[] = [
     ...group.assignedEmployees,
-    ...pendingNewIds.map((p) => ({ employeeId: p.id, employeeName: p.name, cells: [], vacancyReason: null, vacancyStartsOn: null })),
+    ...pendingNewIds.map((p) => ({ employeeId: p.id, employeeName: p.name, cells: [], vacancyReason: null, vacancyStartsOn: null, slotsHeldElsewhere: p.slotsHeldElsewhere })),
   ].sort((a, b) => a.employeeName.localeCompare(b.employeeName));
 
   return (
@@ -255,28 +255,41 @@ function EmployeeTemplateCard({ group, employee }: { group: PositionTemplateGrou
           label={DAY_SHORT[d]}
           value={
             <span className="flex items-center gap-1 justify-end">
-              {PERIODS.map((period) => (
-                <label
-                  key={period}
-                  className={
-                    "flex items-center gap-1 min-h-11 px-2 rounded-[var(--radius-md)] border " +
-                    (checked.has(keyFor(d, period))
-                      ? "border-[var(--primary)] bg-[var(--primary-tint)] text-[var(--primary)]"
-                      : "border-[var(--border)] text-[var(--ink-500)]") +
-                    (editing ? " cursor-pointer" : " cursor-not-allowed opacity-60")
-                  }
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked.has(keyFor(d, period))}
-                    onChange={() => toggle(d, period)}
-                    disabled={!editing}
-                    className="size-4 shrink-0 accent-[var(--primary)]"
-                    aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} ${period}`}
-                  />
-                  {period === "Lunch" ? "L" : "D"}
-                </label>
-              ))}
+              {PERIODS.map((period) => {
+                // Slot already held in another position (2026-08-31,
+                // Oliver's Aey-is-Manager-on-Monday case): shown
+                // disabled with the position named, never checkable —
+                // one person, one position per slot. Server refuses too.
+                const heldBy = employee.slotsHeldElsewhere[keyFor(d, period)];
+                return (
+                  <label
+                    key={period}
+                    title={heldBy ? `Already ${heldBy} this ${period.toLowerCase()} — one position per slot` : undefined}
+                    className={
+                      "flex items-center gap-1 min-h-11 px-2 rounded-[var(--radius-md)] border " +
+                      (heldBy
+                        ? "border-[var(--border)] text-[var(--ink-400)] bg-[var(--paper)] cursor-not-allowed"
+                        : (checked.has(keyFor(d, period))
+                            ? "border-[var(--primary)] bg-[var(--primary-tint)] text-[var(--primary)]"
+                            : "border-[var(--border)] text-[var(--ink-500)]") +
+                          (editing ? " cursor-pointer" : " cursor-not-allowed opacity-60"))
+                    }
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked.has(keyFor(d, period))}
+                      onChange={() => toggle(d, period)}
+                      disabled={!editing || !!heldBy}
+                      className="size-4 shrink-0 accent-[var(--primary)]"
+                      aria-label={
+                        `${employee.employeeName} — ${DAY_SHORT[d]} ${period}` +
+                        (heldBy ? ` (already ${heldBy})` : "")
+                      }
+                    />
+                    {heldBy ? <span className="text-[10px]">{heldBy}</span> : period === "Lunch" ? "L" : "D"}
+                  </label>
+                );
+              })}
             </span>
           }
         />
@@ -316,40 +329,46 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
           {error && <div className="text-[10px] text-[var(--danger-700)] mt-0.5">{error}</div>}
         </td>
         <td className="text-[10px] text-[var(--ink-400)] border-t">L</td>
-        {DISPLAY_DAYS.map((d) => (
-          <td key={d} className="text-center p-0 border-t">
-            <label className={cellTargetClass}>
-              <input
-                type="checkbox"
-                checked={checked.has(keyFor(d, "Lunch"))}
-                onChange={() => toggle(d, "Lunch")}
-                disabled={!editing}
-                className={checkboxClass}
-                aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Lunch`}
-              />
-            </label>
-          </td>
-        ))}
+        {DISPLAY_DAYS.map((d) => {
+          const heldBy = employee.slotsHeldElsewhere[keyFor(d, "Lunch")];
+          return (
+            <td key={d} className="text-center p-0 border-t">
+              <label className={cellTargetClass} title={heldBy ? `Already ${heldBy} this lunch — one position per slot` : undefined}>
+                <input
+                  type="checkbox"
+                  checked={checked.has(keyFor(d, "Lunch"))}
+                  onChange={() => toggle(d, "Lunch")}
+                  disabled={!editing || !!heldBy}
+                  className={checkboxClass + (heldBy ? " opacity-30" : "")}
+                  aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Lunch` + (heldBy ? ` (already ${heldBy})` : "")}
+                />
+              </label>
+            </td>
+          );
+        })}
         <td rowSpan={2} className="text-right align-top pl-2 py-1 border-t">
           <EmployeeEdit group={group} employee={employee} editing={editing} setEditing={setEditing} />
         </td>
       </tr>
       <tr className={rowBg}>
         <td className="text-[10px] text-[var(--ink-400)]">D</td>
-        {DISPLAY_DAYS.map((d) => (
-          <td key={d} className="text-center p-0">
-            <label className={cellTargetClass}>
-              <input
-                type="checkbox"
-                checked={checked.has(keyFor(d, "Dinner"))}
-                onChange={() => toggle(d, "Dinner")}
-                disabled={!editing}
-                className={checkboxClass}
-                aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Dinner`}
-              />
-            </label>
-          </td>
-        ))}
+        {DISPLAY_DAYS.map((d) => {
+          const heldBy = employee.slotsHeldElsewhere[keyFor(d, "Dinner")];
+          return (
+            <td key={d} className="text-center p-0">
+              <label className={cellTargetClass} title={heldBy ? `Already ${heldBy} this dinner — one position per slot` : undefined}>
+                <input
+                  type="checkbox"
+                  checked={checked.has(keyFor(d, "Dinner"))}
+                  onChange={() => toggle(d, "Dinner")}
+                  disabled={!editing || !!heldBy}
+                  className={checkboxClass + (heldBy ? " opacity-30" : "")}
+                  aria-label={`${employee.employeeName} — ${DAY_SHORT[d]} Dinner` + (heldBy ? ` (already ${heldBy})` : "")}
+                />
+              </label>
+            </td>
+          );
+        })}
       </tr>
     </>
   );
@@ -366,8 +385,8 @@ function PersonPicker({
   onPick,
 }: {
   positionName: string;
-  eligibleEmployees: { id: number; name: string }[];
-  onPick: (employee: { id: number; name: string }) => void;
+  eligibleEmployees: { id: number; name: string; slotsHeldElsewhere: Record<string, string> }[];
+  onPick: (employee: { id: number; name: string; slotsHeldElsewhere: Record<string, string> }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const titleId = useId();

@@ -8,6 +8,7 @@ import { LinkButton } from "@/components/ui/Button";
 import { weekStartFor, datesInWeek, shiftWeek } from "@/lib/schedule/weekMath";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { NoAccess } from "@/components/NoAccess";
 import { MarkPaidButton, RevertToDraftButton } from "./PayrollActions";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -66,6 +67,13 @@ export default async function PayrollPage({
 }: {
   searchParams: Promise<{ week?: string; month?: string; year?: string }>;
 }) {
+  // VIEW_PAYROLL gate (2026-08-31) ahead of every branch — the front
+  // door, the month view and the register are one page with one guard.
+  // The export route and the paid/revert actions carry their own
+  // stricter FA_* checks independently.
+  const gateViewer = await getViewerCapabilities();
+  if (!gateViewer?.has("VIEW_PAYROLL")) return <NoAccess pageLabel="Payroll" />;
+
   const params = await searchParams;
   const todayIso = businessTodayIso();
 

@@ -7,11 +7,11 @@ import { PendingByVendor } from "./PendingByVendor";
 import { ChecksTable } from "./ChecksTable";
 import { ExportChecksButton } from "./ExportChecksButton";
 import { InstantCheckButton } from "./InstantCheckButton";
-import { loadLedgerVendors, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
+import { loadLedgerVendorsWithTags, loadLedgerCategories } from "@/lib/ledger/loadLedgerAdmin";
+import { LogInvoiceButton } from "./LogInvoiceButton";
 import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/Card";
-import { LinkButton } from "@/components/ui/Button";
 import { Tab } from "@/components/ui/Tabs";
 import { formatMoney } from "../formatMoney";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
@@ -98,7 +98,7 @@ export default async function SupplierCheckPage({
   const [pendingGroups, checks, allVendors, categories, settings, session] = await Promise.all([
     loadPendingInvoicesByVendor(),
     loadSupplierChecks(range),
-    loadLedgerVendors(),
+    loadLedgerVendorsWithTags(),
     loadLedgerCategories(),
     loadRestaurantSettings(),
     getCurrentStaffSession(),
@@ -139,9 +139,10 @@ export default async function SupplierCheckPage({
           carries a helper line, and items-center floated its button 11px
           above the siblings. */}
       <div className="flex items-start gap-3 flex-wrap mb-6">
-        <LinkButton href="/ledger/supplier-check/new" size="sm">
-          + Add item
-        </LinkButton>
+        <LogInvoiceButton
+          vendors={allVendors.filter((v) => v.active)}
+          categories={categories.filter((c) => c.active)}
+        />
         {canApprove && <ExportChecksButton groups={pendingGroups} sequenceReady={settings.nextCheckNumber != null} />}
         {canInstant && (
           <InstantCheckButton

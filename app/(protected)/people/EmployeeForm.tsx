@@ -104,13 +104,6 @@ export function EmployeeForm({
     <form action={formAction} className="space-y-6 max-w-2xl">
       {existing && <input type="hidden" name="employeeId" value={existing.id} />}
 
-      {state.error && (
-        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded-[var(--radius-md)] p-4 text-sm whitespace-pre-line">
-          <div className="font-semibold mb-1">Couldn&apos;t save.</div>
-          {state.error}
-        </div>
-      )}
-
       <TextInput
         type="text"
         name="nickname"
@@ -490,6 +483,15 @@ export function EmployeeForm({
           dismissive-left/primary-right is what every ConfirmDialog, the
           preview's Back|Finalize pair, and Apple HIG / Material both do --
           five in-page forms had it backwards and were flipped together. */}
+      {/* Error renders HERE, beside the buttons that triggered it — at
+          the top of this very long form it was off-screen at save time
+          (2026-08-31, same class Aey reported on Settings). */}
+      {state.error && (
+        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded-[var(--radius-md)] p-4 text-sm whitespace-pre-line">
+          <div className="font-semibold mb-1">Couldn&apos;t save.</div>
+          {state.error}
+        </div>
+      )}
       <div className="flex items-center gap-3">
         <LinkButton href={existing ? `/people/${existing.id}` : "/people"} variant="secondary">
           Cancel

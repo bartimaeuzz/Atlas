@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { updateRestaurantSettings, type SettingsActionState } from "@/lib/actions/settings";
 import type { RestaurantSettingsData } from "@/lib/settings/loadRestaurantSettings";
 import type { PackerBonusConfig } from "@/lib/settings/packerBonus";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const initialState: SettingsActionState = { error: null, saved: false };
 
@@ -44,21 +44,22 @@ export function SettingsForm({
   positions: { id: number; name: string; category: "FOH" | "BOH" }[];
 }) {
   const [state, formAction, isPending] = useActionState(updateRestaurantSettings, initialState);
+  // "Saved ✓" flash on the button itself (2026-08-31, third member of the
+  // above-the-fold class after staffing targets and the People form) —
+  // same derived nonce-and-timer pattern as ClosingReportForm.
+  const [clearedSavedAt, setClearedSavedAt] = useState<number | null>(null);
+  const justSaved = !!state.savedAt && state.savedAt !== clearedSavedAt;
+  useEffect(() => {
+    if (!state.savedAt || state.savedAt === clearedSavedAt) return;
+    const savedAt = state.savedAt;
+    const t = setTimeout(() => setClearedSavedAt(savedAt), 2000);
+    return () => clearTimeout(t);
+  }, [state.savedAt, clearedSavedAt]);
   // Controlled only to swap the rate hint between the two styles.
   const [packerStyle, setPackerStyle] = useState<"PERCENT" | "PER_BLOCK">(packerBonus.style);
 
   return (
     <form action={formAction} className="space-y-8 max-w-2xl">
-      {state.error && (
-        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded p-4 text-sm whitespace-pre-line">
-          <div className="font-medium mb-1">Couldn&apos;t save.</div>
-          {state.error}
-        </div>
-      )}
-      {state.saved && !state.error && (
-        <div className="border border-green-300 bg-green-50 text-green-700 rounded p-3 text-sm">Saved.</div>
-      )}
-
       <fieldset>
         <legend className="text-lg font-medium mb-3">Tips</legend>
         <div className="grid sm:grid-cols-2 gap-4">
@@ -387,13 +388,27 @@ export function SettingsForm({
         </div>
       </fieldset>
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="bg-[var(--primary)] text-white px-4 py-2 min-h-11 rounded-[var(--radius-md)] hover:bg-[var(--primary-700)] text-sm disabled:opacity-50"
-      >
-        {isPending ? "Saving…" : "Save settings"}
-      </button>
+      {/* Error and result live BESIDE the button, where the eyes are at
+          save time — the old top-of-page banners were invisible from a
+          form this long (2026-08-31, Aey's report on this exact page). */}
+      {state.error && (
+        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded p-4 text-sm whitespace-pre-line">
+          <div className="font-medium mb-1">Couldn&apos;t save.</div>
+          {state.error}
+        </div>
+      )}
+      <div aria-live="polite">
+        <button
+          type="submit"
+          disabled={isPending}
+          className={
+            "px-4 py-2 min-h-11 rounded-[var(--radius-md)] text-sm disabled:opacity-50 transition-colors " +
+            (justSaved ? "bg-[var(--success)] text-white" : "bg-[var(--primary)] text-white hover:bg-[var(--primary-700)]")
+          }
+        >
+          {isPending ? "Saving…" : justSaved ? "Saved ✓" : "Save settings"}
+        </button>
+      </div>
     </form>
   );
 }

@@ -14,13 +14,23 @@ export interface AssignedEmployeeGroup {
   cells: TemplateCell[];
   vacancyReason: "RESIGNATION" | "PROMOTION" | "OTHER" | null;
   vacancyStartsOn: string | null;
+  /** Slots this person already holds in a DIFFERENT position, keyed
+   * "dayOfWeek-period" → that position's name (2026-08-31, Oliver's
+   * Aey-is-already-Manager-on-Monday case). The grid disables those
+   * checkboxes with the position named; the server refuses regardless. */
+  slotsHeldElsewhere: Record<string, string>;
 }
 
 export interface PositionTemplateGroup {
   positionId: number;
   positionName: string;
   positionCategory: "FOH" | "BOH";
-  eligibleEmployees: { id: number; name: string }[];
+  /** slotsHeldElsewhere rides along so a person picked via "+ Add a
+   * person" — whose row exists only client-side until the first save —
+   * still gets their taken slots disabled (2026-08-31; this exact gap
+   * was Oliver's repro: add Aey to Host, Monday was tickable even
+   * though she's Manager on Monday). */
+  eligibleEmployees: { id: number; name: string; slotsHeldElsewhere: Record<string, string> }[];
   assignedEmployees: AssignedEmployeeGroup[];
 }
 
@@ -76,11 +86,32 @@ export async function loadTemplatesByPosition(): Promise<PositionTemplateGroup[]
     .innerJoin(employees, eq(employeeScheduleTemplates.employeeId, employees.id))
     .where(eq(employeeScheduleTemplates.active, true));
 
+  const positionNameById = new Map(activePositions.map((p) => [p.id, p.name]));
+  // employeeId -> every active template slot they hold, with position —
+  // feeds slotsHeldElsewhere per group below.
+  const slotsByEmployee = new Map<number, { key: string; positionId: number; positionName: string }[]>();
+  for (const r of templateRows) {
+    const list = slotsByEmployee.get(r.employeeId) ?? [];
+    list.push({
+      key: `${r.dayOfWeek}-${r.period}`,
+      positionId: r.positionId,
+      positionName: positionNameById.get(r.positionId) ?? "another position",
+    });
+    slotsByEmployee.set(r.employeeId, list);
+  }
+  const slotsHeldElsewhereFor = (employeeId: number, positionId: number): Record<string, string> => {
+    const out: Record<string, string> = {};
+    for (const s of slotsByEmployee.get(employeeId) ?? []) {
+      if (s.positionId !== positionId) out[s.key] = s.positionName;
+    }
+    return out;
+  };
+
   return activePositions
     .map((p) => {
       const eligibleEmployees = activeEmployees
         .filter((e) => assignedPositionIdsByEmployee.get(e.id)?.has(p.id))
-        .map((e) => ({ id: e.id, name: e.nickname }))
+        .map((e) => ({ id: e.id, name: e.nickname, slotsHeldElsewhere: slotsHeldElsewhereFor(e.id, p.id) }))
         .sort((a, b) => a.name.localeCompare(b.name));
 
       const rowsForPosition = templateRows.filter((r) => r.positionId === p.id);
@@ -94,6 +125,7 @@ export async function loadTemplatesByPosition(): Promise<PositionTemplateGroup[]
             cells: [],
             vacancyReason: r.vacancyReason as "RESIGNATION" | "PROMOTION" | "OTHER" | null,
             vacancyStartsOn: r.vacancyStartsOn,
+            slotsHeldElsewhere: slotsHeldElsewhereFor(r.employeeId, p.id),
           };
           byEmployee.set(r.employeeId, group);
         }

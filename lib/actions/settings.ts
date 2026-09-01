@@ -11,6 +11,11 @@ import { logActivity } from "@/lib/activityLog/log";
 export interface SettingsActionState {
   error: string | null;
   saved: boolean;
+  /** Nonce for the submit button's "Saved" flash (2026-08-31 — same
+   * above-the-fold fix as staffing targets: this form's old banner
+   * rendered at the top of a page whose save button sits ~8 sections
+   * down). A nonce, not a boolean: two saves in a row must both flash. */
+  savedAt?: number;
 }
 
 /** 2026-08-21 (Phase A) — server-action auth audit: this file had NO auth
@@ -220,5 +225,5 @@ export async function updateRestaurantSettings(
   }
 
   revalidatePath("/settings");
-  return { error: null, saved: true };
+  return { error: null, saved: true, savedAt: Date.now() };
 }

@@ -111,6 +111,21 @@ export const CAPABILITIES: CapabilityDef[] = [
     defaults: adminPartner(),
   },
   {
+    key: "VIEW_PAYROLL",
+    category: "GENERAL",
+    label: "View Payroll",
+    description: "Open the Payroll pages — every employee's weekly pay register.",
+    // Closes the 2026-08-30 finding "VIEW_PNL is not a boundary": /payroll
+    // was open to any manager, so payroll ÷ the Analytics Labor cost %
+    // reconstructed revenue for accounts that were deliberately denied
+    // VIEW_PNL. Wired 2026-08-31: the /payroll page, its nav item and its
+    // home tile all read this key; the .xlsx export stays behind the
+    // stricter FA_PAYROLL_PRINT_EXPORT, and mark-paid/revert stay behind
+    // FA_PAYROLL_LOCK_FINALIZE — this key only opens the view.
+    expirable: false,
+    defaults: adminPartner(),
+  },
+  {
     key: "VIEW_SETTINGS",
     category: "GENERAL",
     label: "View Settings pages",

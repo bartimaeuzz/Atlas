@@ -133,6 +133,7 @@ const MANAGER_TILES: Tile[] = [
     href: "/payroll",
     label: "Payroll",
     description: "Weekly pay register, export, and sign-off",
+    capability: "VIEW_PAYROLL",
     icon: (
       <svg {...iconProps}>
         <rect x="2.5" y="6" width="19" height="13" rx="2" />
