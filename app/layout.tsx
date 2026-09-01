@@ -17,12 +17,12 @@ import { NumberPasteSanitizer } from "@/components/NumberPasteSanitizer";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 
 export const metadata: Metadata = {
-  title: "Atlas",
+  title: "Mohom",
   description: "Restaurant closing report & management",
   // PWA (2026-08-25): with app/manifest.ts, Add to Home Screen opens
   // Atlas full-screen with no Safari bars. iOS reads these apple fields
   // and the touch icon, not the manifest's.
-  appleWebApp: { capable: true, title: "Atlas", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "Mohom", statusBarStyle: "default" },
   icons: { apple: "/icons/apple-touch-icon.png" },
 };
 

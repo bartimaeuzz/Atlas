@@ -238,7 +238,7 @@ export function SettingsForm({
               className={`border rounded px-3 py-1.5 text-sm w-40 min-h-11 ${DISABLED_FIELD}`}
             />
             <span className="block text-xs text-[var(--ink-400)] mt-1">
-              Set once to the next unused number in the physical checkbook — Atlas assigns and
+              Set once to the next unused number in the physical checkbook — Mohom assigns and
               advances it automatically from there. Exporting is refused until this is set. Voided
               numbers stay burned.
             </span>

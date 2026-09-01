@@ -729,7 +729,7 @@ function DayTotalChooser({
           <span>
             <span className="font-medium text-[var(--ink-900)]">Whole day so far</span>
             <span className="block text-xs text-[var(--ink-500)]">
-              The screen shows {priorPeriod} and this shift together — Atlas will subtract{" "}
+              The screen shows {priorPeriod} and this shift together — Mohom will subtract{" "}
               {priorPeriod}&apos;s saved numbers before saving, and the fields will show the result.
             </span>
           </span>

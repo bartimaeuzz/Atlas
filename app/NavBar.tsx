@@ -3,6 +3,7 @@ import { businessTodayIso } from "@/lib/formatDateTime";
 import { loadUnseenSwapCount } from "@/lib/schedule/loadSwapRequests";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NavBarClient } from "./NavBarClient";
+import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 import { NAV_ITEM_CAPABILITY, resolveLedgerHref } from "./navItemCapabilities";
 import { SessionIdleWarning } from "./SessionIdleWarning";
 
@@ -80,6 +81,9 @@ export async function NavBar() {
   const [unseenLeaveCount, unseenSwapCount] = isManager
     ? await Promise.all([loadUnseenLeaveRequestCount(session.id, today), loadUnseenSwapCount(session.id, today)])
     : [0, 0];
+  // Restaurant name for the wordmark (2026-09-01) — one cheap single-row
+  // read; the rail renders on every navigation, same as the badge counts.
+  const { restaurantName } = await loadRestaurantSettings();
 
   return (
     <>
@@ -89,6 +93,7 @@ export async function NavBar() {
       {session && <SessionIdleWarning />}
       <NavBarClient
         auth={{ name: session.name, systemRole: session.systemRole }}
+        restaurantName={restaurantName}
         unseenScheduleCount={unseenLeaveCount + unseenSwapCount}
         hiddenNavHrefs={hiddenNavHrefs}
         navHrefOverrides={navHrefOverrides}

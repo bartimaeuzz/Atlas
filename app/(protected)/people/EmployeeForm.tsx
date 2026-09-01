@@ -366,7 +366,7 @@ export function EmployeeForm({
             </div>
             <p className="text-xs text-[var(--ink-500)] mt-1.5">
               SSN is generally required for a W-2 employee; ITIN generally applies to people who aren&apos;t authorized as a W-2
-              employee. Check with your accountant or payroll provider before relying on this field for actual tax filing — Atlas
+              employee. Check with your accountant or payroll provider before relying on this field for actual tax filing — Mohom
               doesn&apos;t validate or distinguish the two.
             </p>
           </div>

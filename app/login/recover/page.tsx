@@ -4,6 +4,8 @@ import { db } from "@/db/client";
 import { employees } from "@/db/schema";
 import { RecoverForm } from "./RecoverForm";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { LoginWordmark } from "@/components/ui/Wordmark";
+import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 
 /** Public "Forgot PIN?" page (2026-08-17) — deliberately reachable without
  * any session, same as /login itself. Lists every active employee (not
@@ -18,11 +20,12 @@ export default async function RecoverPage() {
     .from(employees)
     .where(eq(employees.active, true));
   activeEmployees.sort((a, b) => a.name.localeCompare(b.name));
+  const { restaurantName } = await loadRestaurantSettings();
 
   return (
     <main className="max-w-sm mx-auto px-4 py-16 sm:py-24">
       <div className="text-center mb-8">
-        <div className="text-2xl font-bold text-[var(--brand)] mb-4">Atlas</div>
+        <LoginWordmark restaurantName={restaurantName} />
         <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1.5">Reset a PIN with your recovery code</h1>
         <p className="text-sm text-[var(--ink-500)]">
           Enter the restaurant&apos;s recovery code (from Settings → Account recovery), choose whose PIN to reset,

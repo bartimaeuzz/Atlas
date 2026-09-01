@@ -6,6 +6,7 @@ import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 import { Banner } from "@/components/ui/Banner";
 import { LoginForm } from "./LoginForm";
+import { LoginWordmark } from "@/components/ui/Wordmark";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ reason?: string }> }) {
   // Already signed in — no point showing the login form again. "/" is the
@@ -36,7 +37,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="max-w-sm mx-auto px-4 py-16 sm:py-24">
       <div className="text-center mb-8">
-        <div className="text-2xl font-bold text-[var(--brand)] mb-4">Atlas</div>
+        <LoginWordmark restaurantName={settings.restaurantName} />
         <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1.5">Staff sign in</h1>
         <p className="text-sm text-[var(--ink-500)]">
           {settings.staffLoginMethod === "NAME"

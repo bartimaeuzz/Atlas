@@ -231,8 +231,8 @@ export default async function AnalyticsPage({
         title={canSeePnL ? "Analytics & P&L" : "Analytics"}
         description={
           canSeePnL
-            ? `Revenue, expenses, and the "sweet spot" indicators for the range below — computed from finalized shifts and Ledger entries already in Atlas. No POS integration yet, so this only reflects what's been entered here.`
-            : `The "sweet spot" cost indicators and where revenue is coming from, for the range below — computed from finalized shifts and Ledger entries already in Atlas. Dollar totals and the expense breakdown are part of the P&L, which isn't turned on for your account.`
+            ? `Revenue, expenses, and the "sweet spot" indicators for the range below — computed from finalized shifts and Ledger entries already in Mohom. No POS integration yet, so this only reflects what's been entered here.`
+            : `The "sweet spot" cost indicators and where revenue is coming from, for the range below — computed from finalized shifts and Ledger entries already in Mohom. Dollar totals and the expense breakdown are part of the P&L, which isn't turned on for your account.`
         }
       />
 
@@ -351,7 +351,7 @@ export default async function AnalyticsPage({
               a footnote about an absent chart is worse than no footnote. */}
           Note: spending logged under the PAYROLL BOH/PAYROLL FOH ledger categories (
           {formatMoney(pnl.expenses.excludedTotal)}) was
-          left out of the chart above — Payroll on this page comes from Atlas&apos;s own computed shift-wage data instead,
+          left out of the chart above — Payroll on this page comes from Mohom&apos;s own computed shift-wage data instead,
           so counting both would double-count. Re-tag those categories from{" "}
           <Link href="/ledger/categories" className="underline hover:text-[var(--ink-900)]">
             Expense categories

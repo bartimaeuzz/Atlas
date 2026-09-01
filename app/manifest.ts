@@ -7,8 +7,8 @@ import type { MetadataRoute } from "next";
  * light theme's --paper/--primary tokens. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Atlas",
-    short_name: "Atlas",
+    name: "Mohom",
+    short_name: "Mohom",
     description: "Restaurant closing report & management",
     start_url: "/",
     display: "standalone",

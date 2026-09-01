@@ -1,5 +1,6 @@
 "use client";
 
+import { MohomMark, RailWordmark } from "@/components/ui/Wordmark";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -348,6 +349,7 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
  */
 export function NavBarClient({
   auth,
+  restaurantName = null,
   unseenScheduleCount = 0,
   hiddenNavHrefs = [],
   navHrefOverrides = {},
@@ -355,6 +357,8 @@ export function NavBarClient({
   /** Never null: NavBar returns null for a signed-out visitor, so this
    *  component only ever renders for a real session (2026-08-23). */
   auth: { name: string; systemRole: SystemRole };
+  /** Settings → Restaurant name; null until set. See components/ui/Wordmark.tsx. */
+  restaurantName?: string | null;
   unseenScheduleCount?: number;
   /** Hrefs from NAV_ITEM_CAPABILITY the current viewer doesn't hold the
    * capability for — resolved server-side in NavBar.tsx (2026-08-21).
@@ -434,21 +438,20 @@ export function NavBarClient({
       >
         <Link
           href="/"
-          aria-label="Atlas home"
+          aria-label="Mohom home"
           className={
             (collapsed ? "" : "sm:hidden ") +
-            "w-8 h-8 rounded-[var(--radius-md)] bg-[var(--brand)] text-white flex items-center justify-center font-bold text-[13px]"
+            "w-8 h-8 rounded-[var(--radius-md)] bg-[var(--brand)] text-white flex items-center justify-center"
           }
         >
-          A
+          <MohomMark className="text-[10px]" />
         </Link>
         <Link
           href="/"
-          className={
-            (collapsed ? "hidden" : "hidden sm:block") + " font-bold text-[17px] text-[var(--brand)] hover:text-[var(--brand-700)] tracking-tight"
-          }
+          aria-label={restaurantName ? `Mohom home — ${restaurantName}` : "Mohom home"}
+          className={(collapsed ? "hidden" : "hidden sm:flex") + " group min-w-0 flex-1 items-center"}
         >
-          Atlas
+          <RailWordmark restaurantName={restaurantName} />
         </Link>
       </div>
 

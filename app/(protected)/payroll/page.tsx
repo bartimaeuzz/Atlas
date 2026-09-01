@@ -124,7 +124,7 @@ export default async function PayrollPage({
     <main className="max-w-3xl mx-auto p-4 sm:p-8">
       <PageHeader
         title="Payroll"
-        description="What every employee is owed for the week, built from Atlas's own finalized shift payouts."
+        description="What every employee is owed for the week, built from Mohom's own finalized shift payouts."
       />
 
       <div className="mb-2">
