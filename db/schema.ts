@@ -167,6 +167,14 @@ export const employees = sqliteTable("employees", {
   // log in (see setEmployeePin in lib/actions/employees.ts for how an
   // admin assigns/resets one from the Employee admin page).
   pinHash: text("pin_hash"),
+  // Wrong-PIN lockout (2026-09-01, Oliver: 5 wrong tries -> 15 minutes,
+  // same shape recovery already uses on restaurantSettings). PER ACCOUNT,
+  // not per terminal: a shared terminal locking everyone out after one
+  // person's five typos would stop the whole floor signing in. The
+  // counter resets to 0 when a lockout starts (see lib/auth/lockout.ts)
+  // and both fields clear on a correct PIN or on any PIN reset.
+  loginFailedAttempts: integer("login_failed_attempts").notNull().default(0),
+  loginLockedUntil: text("login_locked_until"), // ISO timestamp; null/past = not locked
   // Financial auditor flag (2026-08-15) — Oliver, after catching a
   // Supplier Check editing gap: "in real senario it is admin and Aey ...
   // as Aey will be a financial audit for Youk."

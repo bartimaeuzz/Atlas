@@ -24,10 +24,9 @@ import { useCallback, useEffect, useRef } from "react";
  *
  * What it deliberately does NOT restore:
  *   - password fields. A wrong PIN must not sit in the box waiting to be
- *     resubmitted by accident; the person retypes it. (This is why
- *     app/login/LoginForm.tsx keeps its own controlled state instead of
- *     using this hook — it needs the name back and the PIN gone, and
- *     being explicit on the app's front door is worth the extra lines.)
+ *     resubmitted by accident; the person retypes it. (This is exactly
+ *     what app/login/LoginForm.tsx needs — the name back and the PIN
+ *     gone — so since 2026-09-01 it uses this hook too.)
  *   - file inputs, which cannot be assigned programmatically at all.
  *   - hidden fields, which the server sets and the user never touches.
  *

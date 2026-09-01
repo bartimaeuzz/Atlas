@@ -12,6 +12,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees } from "@/db/schema";
 import { verifyPin } from "@/lib/auth/pin";
+import { CLEARED_LOCKOUT, formatMinutes, lockoutMinutesLeft, recordFailedAttempt } from "@/lib/auth/lockout";
 import { createSession, destroySessionByToken, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 
 export interface LoginActionState {
@@ -62,8 +63,38 @@ export async function login(_prevState: LoginActionState, formData: FormData): P
   if (!employee || !employee.active) return { error: "That account isn't available — ask a manager" };
   if (!employee.pinHash) return { error: "No PIN has been set for you yet — ask a manager to set one in Employee admin" };
 
+  // Lockout (2026-09-01): checked BEFORE the PIN is looked at, so a
+  // locked account cannot be probed at all -- not even with the right
+  // PIN. The message names the two ways out: wait, or the Forgot PIN?
+  // link two inches below, which (like a manager reset) clears the lock.
+  // Scrutinize 2026-09-01: "ask a manager" was wrong when the locked
+  // person IS the only manager on the floor.
+  const now = new Date();
+  const lockout = { failedAttempts: employee.loginFailedAttempts, lockedUntil: employee.loginLockedUntil };
+  const minutesLeft = lockoutMinutesLeft(lockout, now);
+  if (minutesLeft > 0) {
+    return { error: `Too many wrong PINs. Wait ${formatMinutes(minutesLeft)}, or use Forgot PIN? below.` };
+  }
+
   if (!verifyPin(pin, employee.pinHash)) {
+    const { next, locked } = recordFailedAttempt(lockout, now);
+    await db
+      .update(employees)
+      .set({ loginFailedAttempts: next.failedAttempts, loginLockedUntil: next.lockedUntil })
+      .where(eq(employees.id, employee.id));
+    if (locked) {
+      return { error: `Too many wrong PINs. Wait ${formatMinutes(lockoutMinutesLeft(next, now))}, or use Forgot PIN? below.` };
+    }
     return { error: "Wrong PIN — try again" };
+  }
+
+  // A correct PIN wipes the earlier misses so they never carry over to a
+  // later day and lock the person out of the blue.
+  if (employee.loginFailedAttempts > 0 || employee.loginLockedUntil) {
+    await db
+      .update(employees)
+      .set({ loginFailedAttempts: CLEARED_LOCKOUT.failedAttempts, loginLockedUntil: CLEARED_LOCKOUT.lockedUntil })
+      .where(eq(employees.id, employee.id));
   }
 
   const token = await createSession(employee.id);

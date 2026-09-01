@@ -398,7 +398,13 @@ export async function setEmployeePin(_prevState: EmployeeActionState, formData: 
   if (!employeeId) return { error: "Missing employee id" };
   if (!/^\d{4,8}$/.test(pin)) return { error: "PIN must be 4–8 digits" };
 
-  await db.update(employees).set({ pinHash: hashPin(pin) }).where(eq(employees.id, employeeId));
+  // A new PIN also clears any login lockout (2026-09-01) -- "ask a
+  // manager to reset your PIN" is the way out the lockout message offers,
+  // so the reset must actually open the door, not just change the key.
+  await db
+    .update(employees)
+    .set({ pinHash: hashPin(pin), loginFailedAttempts: 0, loginLockedUntil: null })
+    .where(eq(employees.id, employeeId));
 
   revalidatePath(`/people/${employeeId}/edit`);
   return { error: null };

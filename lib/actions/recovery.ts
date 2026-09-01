@@ -23,9 +23,7 @@ import { employees, restaurantSettings } from "@/db/schema";
 import { hashPin, verifyPin } from "@/lib/auth/pin";
 import { generateRecoveryCodePlaintext, normalizeRecoveryCodeInput } from "@/lib/auth/recoveryCode";
 import { getCurrentStaffSession } from "@/lib/auth/session";
-
-const LOCKOUT_THRESHOLD = 5;
-const LOCKOUT_MINUTES = 15;
+import { formatMinutes, lockoutMinutesLeft, recordFailedAttempt } from "@/lib/auth/lockout";
 
 export interface GenerateRecoveryCodeState {
   error: string | null;
@@ -94,33 +92,25 @@ export async function redeemRecoveryCode(
 
   // Lockout check happens BEFORE touching the submitted code at all — a
   // locked-out attempt shouldn't even get the chance to guess.
-  if (settings.recoveryLockedUntil) {
-    const lockedUntil = new Date(settings.recoveryLockedUntil);
-    if (lockedUntil > now) {
-      const minutesLeft = Math.ceil((lockedUntil.getTime() - now.getTime()) / 60000);
-      return { error: `Too many attempts. Try again in ${minutesLeft} minute${minutesLeft === 1 ? "" : "s"}.`, success: false };
-    }
+  // The rule itself lives in lib/auth/lockout.ts, shared with /login.
+  const lockout = { failedAttempts: settings.recoveryFailedAttempts, lockedUntil: settings.recoveryLockedUntil };
+  const minutesLeft = lockoutMinutesLeft(lockout, now);
+  if (minutesLeft > 0) {
+    return { error: `Too many attempts. Try again in ${formatMinutes(minutesLeft)}.`, success: false };
   }
 
   const normalized = normalizeRecoveryCodeInput(codeRaw);
   const codeIsCorrect = normalized.length > 0 && verifyPin(normalized, settings.recoveryCodeHash);
 
   if (!codeIsCorrect) {
-    const nextAttempts = settings.recoveryFailedAttempts + 1;
-    if (nextAttempts >= LOCKOUT_THRESHOLD) {
-      await db
-        .update(restaurantSettings)
-        .set({
-          recoveryFailedAttempts: 0, // fresh count once the NEXT lockout window opens
-          recoveryLockedUntil: new Date(now.getTime() + LOCKOUT_MINUTES * 60000).toISOString(),
-        })
-        .where(eq(restaurantSettings.restaurantId, 1));
-      return { error: `Too many attempts. Try again in ${LOCKOUT_MINUTES} minutes.`, success: false };
-    }
+    const { next, locked } = recordFailedAttempt(lockout, now);
     await db
       .update(restaurantSettings)
-      .set({ recoveryFailedAttempts: nextAttempts })
+      .set({ recoveryFailedAttempts: next.failedAttempts, recoveryLockedUntil: next.lockedUntil })
       .where(eq(restaurantSettings.restaurantId, 1));
+    if (locked) {
+      return { error: `Too many attempts. Try again in ${formatMinutes(lockoutMinutesLeft(next, now))}.`, success: false };
+    }
     return { error: "Incorrect recovery code.", success: false };
   }
 
@@ -139,7 +129,11 @@ export async function redeemRecoveryCode(
   const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId));
   if (!employee || !employee.active) return { error: "That account isn't available.", success: false };
 
-  await db.update(employees).set({ pinHash: hashPin(pin) }).where(eq(employees.id, employeeId));
+  // Same as setEmployeePin: a fresh PIN clears the login lockout too.
+  await db
+    .update(employees)
+    .set({ pinHash: hashPin(pin), loginFailedAttempts: 0, loginLockedUntil: null })
+    .where(eq(employees.id, employeeId));
   await db
     .update(restaurantSettings)
     .set({ recoveryCodeLastUsedAt: now.toISOString(), recoveryCodeLastUsedForEmployeeId: employeeId })
