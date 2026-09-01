@@ -27,7 +27,7 @@ export function CategorySuggestions({
 
   return (
     <div role="group" aria-label="Categories this vendor is usually booked under" className="mt-1.5">
-      <p className="text-xs text-[var(--ink-500)]">เคยลงหมวดนี้ — แตะเพื่อเลือก</p>
+      <p className="text-xs text-[var(--ink-500)]">Used before with — tap to choose</p>
       <div className="flex flex-wrap items-center gap-1.5 mt-1">
         {named.map((c) => (
           <button

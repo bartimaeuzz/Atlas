@@ -104,7 +104,7 @@ export function VendorPicker({
               vendor riding along under rule 2, and counting that one in
               would claim a history it doesn't have. */}
           <span>
-            {showAll ? `ทุกร้าน (${vendors.length})` : `ร้านที่เคยใช้กับหมวดนี้ · ${inCategory.length}`}
+            {showAll ? `All vendors (${vendors.length})` : `Used with this category · ${inCategory.length}`}
           </span>
           <button
             type="button"
@@ -114,7 +114,7 @@ export function VendorPicker({
             // over the gutter between the two columns (measured 2026-08-31).
             className="inline-flex items-center min-h-8 px-1.5 rounded-[var(--radius-md)] underline text-[var(--primary-700)] hover:bg-[var(--hover)]"
           >
-            {showAll ? `แสดงเฉพาะหมวดนี้ (${inCategory.length})` : `แสดงทุกร้าน (${vendors.length})`}
+            {showAll ? `Show this category only (${inCategory.length})` : `Show all (${vendors.length})`}
           </button>
         </p>
       )}

@@ -62,5 +62,7 @@ export function useVendorCategoryPair(links: VendorCategoryLinkProps) {
   return { vendorId, setVendorId, categoryId, setCategoryId, categoryAutofilled, suggestedCategoryIds };
 }
 
-/** Shown under a category Atlas filled in by itself. */
-export const AUTOFILLED_CATEGORY_HINT = "เติมให้จากการใช้งานประจำ — แก้ได้";
+/** Shown under a category Atlas filled in by itself. English, like every
+ * other string a user reads: the Thai in the build brief was Oliver
+ * TALKING to Claude, not copy for the app (his correction, 2026-09-01). */
+export const AUTOFILLED_CATEGORY_HINT = "Filled in from past entries — change it if it's wrong";
