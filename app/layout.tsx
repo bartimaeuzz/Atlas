@@ -1,13 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import "@fontsource/noto-sans/400.css";
-import "@fontsource/noto-sans/500.css";
-import "@fontsource/noto-sans/600.css";
-import "@fontsource/noto-sans/700.css";
-import "@fontsource/noto-sans-thai/400.css";
-import "@fontsource/noto-sans-thai/500.css";
-import "@fontsource/noto-sans-thai/600.css";
-import "@fontsource/noto-sans-thai/700.css";
+// Mohom type (2026-09-02): Archivo 700 for display/page titles, IBM Plex
+// Sans for all UI, IBM Plex Sans Thai as the glyph fallback for Thai names
+// (the UI itself is English; Thai only appears in user-entered data).
+import "@fontsource/archivo/700.css";
+import "@fontsource/ibm-plex-sans/400.css";
+import "@fontsource/ibm-plex-sans/500.css";
+import "@fontsource/ibm-plex-sans/600.css";
+import "@fontsource/ibm-plex-sans-thai/400.css";
+import "@fontsource/ibm-plex-sans-thai/600.css";
 import "./globals.css";
 import { NavBar } from "./NavBar";
 import { NavCollapseProvider } from "./NavCollapseContext";

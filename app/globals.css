@@ -102,7 +102,12 @@
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
-  --font-sans: "Noto Sans", "Noto Sans Thai", -apple-system, BlinkMacSystemFont, sans-serif;
+  /* UI + body. Plex Sans Thai is the fallback so Thai names render in the
+   * same family feel; Latin uses Plex Sans. (2026-09-02) */
+  --font-sans: "IBM Plex Sans", "IBM Plex Sans Thai", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Display face — page titles (h1) and the one big money number. Archivo
+   * carries no Thai, so a Thai heading falls back to Plex Sans Thai. */
+  --font-display: "Archivo", "IBM Plex Sans Thai", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 html {
@@ -113,6 +118,14 @@ html {
      press state or tap state?"). Design-system Buttons additionally
      carry their own :active styles. Desktop mice never see this. */
   -webkit-tap-highlight-color: color-mix(in srgb, var(--primary) 14%, transparent);
+}
+
+/* Every h1 is a page title: Archivo 700 (spec type scale, 2026-09-02).
+ * Applied on the element so it lands regardless of the per-h1 class
+ * strings the type codemod will later unify. */
+h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
 }
 
 body {
