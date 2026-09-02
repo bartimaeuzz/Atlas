@@ -172,3 +172,30 @@ input[type="number"][required]:user-invalid {
   outline: 2px solid var(--danger);
   outline-offset: -1px;
 }
+
+/* Skip link (2026-09-02, WCAG 2.4.1) — the first focusable element on
+   every page (app/layout.tsx). Off-screen until focused, then a visible
+   pill top-left, so a keyboard/screen-reader user reaches the content
+   without walking the whole sidebar every page. A dedicated rule rather
+   than Tailwind's `focus:not-sr-only`, which this build does NOT generate
+   (verified live 2026-09-02: no `.not-sr-only` rule exists, so that class
+   was a silent no-op and the link never appeared). Uses only tokens, so
+   the Phase 1 palette swap carries it unchanged. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 50;
+}
+.skip-link:focus {
+  left: 8px;
+  top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink-900);
+  font-size: 14px;
+  font-weight: 500;
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}

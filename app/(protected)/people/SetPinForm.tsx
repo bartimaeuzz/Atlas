@@ -75,7 +75,7 @@ export function SetPinForm({
       </form>
       {state.error && (
         <div className="mt-3">
-          <Banner tone="danger" title="Couldn't save PIN" description={state.error} />
+          <Banner tone="danger" title="Couldn't save PIN" description={state.error} announceKey={state} />
         </div>
       )}
       {!state.error && !isPending && state !== initialState && (

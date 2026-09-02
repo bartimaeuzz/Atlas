@@ -61,6 +61,7 @@ export default async function LedgerDayPage({
           <DayLabel iso={date} />
         </h1>
         <Banner
+          announce={false}
           tone="info"
           title="This day hasn't happened yet"
           description={`Come back on ${date} to log petty cash and reconcile the drawer.`}
@@ -123,6 +124,7 @@ export default async function LedgerDayPage({
       {adminOnFinalized && (
         <div className="mb-4">
           <Banner
+            announce={false}
             tone="warning"
             title="Editing a finalized day"
             description="Changes save straight away without reopening the day, and every one is recorded in the activity log."
@@ -140,7 +142,7 @@ export default async function LedgerDayPage({
             {editable ? (
               <AddEntryForm key={data.entries.length} date={date} vendors={data.vendors} categories={data.categories} links={links} />
             ) : (
-              <Banner tone="info" title="This day is finalized." description="Its expenses can no longer be changed." />
+              <Banner announce={false} tone="info" title="This day is finalized." description="Its expenses can no longer be changed." />
             )}
 
             <StepHeading n={1}>

@@ -28,7 +28,7 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
   if (!periodId) {
     return (
       <main className="max-w-lg mx-auto p-4 sm:p-8">
-        <Banner tone="danger" title="No statement period specified." />
+        <Banner announce={false} tone="danger" title="No statement period specified." />
       </main>
     );
   }
@@ -44,7 +44,7 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
           &larr; Card
         </Link>
         <div className="mt-4">
-          <Banner tone="danger" title="That statement period doesn't exist." />
+          <Banner announce={false} tone="danger" title="That statement period doesn't exist." />
         </div>
       </main>
     );
@@ -72,6 +72,7 @@ export default async function CardStatementPeriodPage({ searchParams }: { search
       {reconciled && isAdmin && (
         <div className="mb-4">
           <Banner
+            announce={false}
             tone="info"
             title="Editing as admin"
             description="This period is already reconciled. Changes save directly without re-opening it."

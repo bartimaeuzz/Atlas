@@ -22,7 +22,7 @@ export function RecoverForm({ employees }: { employees: { id: number; name: stri
 
   return (
     <form ref={formRef} action={formAction} className="space-y-4">
-      {state.error && <Banner tone="danger" title="Couldn't reset" description={state.error} />}
+      {state.error && <Banner tone="danger" title="Couldn't reset" description={state.error} announceKey={state} />}
       <TextInput
         type="text"
         name="code"

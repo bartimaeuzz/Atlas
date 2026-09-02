@@ -256,7 +256,7 @@ export function ImportClient({
       {/* Sticky footer: the running answer to "what will Import actually
           do", plus the one correct next action — disabled with its reason
           stated, never a mystery-grey button. */}
-      <div className="fixed bottom-0 left-12 right-0 sm:left-[216px] bg-[var(--card)] border-t border-[var(--border)] p-3 z-[3]">
+      <div className="fixed bottom-0 left-12 right-0 lg:left-[216px] bg-[var(--card)] border-t border-[var(--border)] p-3 z-[3]">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
           <span className="text-sm text-[var(--ink-700)]">
             {included.length} of {rows.length} rows · {money(total)}

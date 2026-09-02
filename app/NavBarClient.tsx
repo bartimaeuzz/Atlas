@@ -1,5 +1,13 @@
 "use client";
 
+// Breakpoint note (2026-09-02, design-system Phase 2): every `lg:` in this
+// file used to be `sm:`. The sidebar expands to 216px, so a 640px viewport
+// left a 424px content box styled by 640px rules — the "viewport
+// breakpoint is not a content-width breakpoint" trap CLAUDE.md records.
+// The expanded sidebar now appears from 1024px; below that every screen
+// gets the 48px icon rail. Comments below that say `lg:` were written when
+// the class was still `sm:`; the reasoning is unchanged.
+
 import { MohomMark, RailWordmark } from "@/components/ui/Wordmark";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -66,7 +74,7 @@ function UnseenBadge({ count, corner, collapsed }: { count: number; corner?: boo
     return (
       <span
         className={
-          (collapsed ? "" : "sm:hidden ") +
+          (collapsed ? "" : "lg:hidden ") +
           "absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[9px] font-medium leading-none"
         }
         aria-label={label}
@@ -78,7 +86,7 @@ function UnseenBadge({ count, corner, collapsed }: { count: number; corner?: boo
   return (
     <span
       className={
-        (collapsed ? "hidden" : "hidden sm:inline-flex") +
+        (collapsed ? "hidden" : "hidden lg:inline-flex") +
         " ml-auto items-center justify-center min-w-[16px] h-[16px] px-1 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[10px] font-medium leading-none align-middle"
       }
       aria-label={label}
@@ -114,6 +122,23 @@ function UnseenBadge({ count, corner, collapsed }: { count: number; corner?: boo
  * NavItem doc comment above; the desktop-collapsed toggle intentionally
  * doesn't affect mobile's own icon-only rendering — see NavItem's
  * `collapsed` prop usage). */
+/** True below the 1024px sidebar breakpoint (2026-09-02). Below it the
+ * rail is icon-only, so the label is not shown inline and the hover/focus
+ * tooltip has to stand in — the same need the collapsed desktop rail has.
+ * SSR-safe: starts false (assume desktop) and corrects on mount, so the
+ * server and first client render agree. */
+function useBelowDesktop(): boolean {
+  const [below, setBelow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setBelow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return below;
+}
+
 function useCollapsedTooltip<T extends HTMLElement>(label: string, active: boolean) {
   const ref = useRef<T | null>(null);
   const [open, setOpen] = useState(false);
@@ -186,8 +211,16 @@ function NavItem({
   // 44px and the nav's own overflow-y-auto scrolls instead.
   const sizeClasses = collapsed
     ? "shrink-0 mx-auto w-11 h-11 justify-center px-0"
-    : "shrink-0 mx-auto sm:mx-0 w-11 h-11 sm:w-auto justify-center sm:justify-start px-0 sm:px-3";
-  const { ref: tooltipRef, handlers: tooltipHandlers, tooltip } = useCollapsedTooltip<HTMLAnchorElement>(label, collapsed);
+    : "shrink-0 mx-auto lg:mx-0 w-11 h-11 lg:w-auto justify-center lg:justify-start px-0 lg:px-3";
+  // Tooltip whenever the label is not inline: the desktop rail collapsed,
+  // OR any width below 1024 where the rail is icon-only (2026-09-02 — the
+  // sm:→lg: sweep made 640–1023 icon-only, reopening the 2026-08-19 "icon
+  // with no visible name" finding at a new width).
+  const belowDesktop = useBelowDesktop();
+  const { ref: tooltipRef, handlers: tooltipHandlers, tooltip } = useCollapsedTooltip<HTMLAnchorElement>(
+    label,
+    collapsed || belowDesktop
+  );
   return (
     <>
       <Link
@@ -206,7 +239,7 @@ function NavItem({
         {...tooltipHandlers}
       >
         <Icon className="w-[18px] h-[18px] shrink-0" />
-        <span className={collapsed ? "hidden" : "hidden sm:inline"}>{label}</span>
+        <span className={collapsed ? "hidden" : "hidden lg:inline"}>{label}</span>
         {typeof badgeCount === "number" && badgeCount > 0 && (
           <>
             <UnseenBadge count={badgeCount} collapsed={collapsed} />
@@ -230,9 +263,9 @@ function NavItem({
  *
  * Expanded-state alignment (2026-08-23, Oliver caught it from a live
  * DevTools inspection): this row used `mx-2` on top of the wrapper's
- * `sm:px-2`, so its icon sat 28px from the rail's left edge while every
- * NavItem sat at 20px (wrapper `sm:px-2` = 8px + item `sm:px-3` = 12px,
- * no margin — NavItem is explicitly `sm:mx-0`). An 8px indent, visible
+ * `lg:px-2`, so its icon sat 28px from the rail's left edge while every
+ * NavItem sat at 20px (wrapper `lg:px-2` = 8px + item `lg:px-3` = 12px,
+ * no margin — NavItem is explicitly `lg:mx-0`). An 8px indent, visible
  * as soon as you look down the column. It was also `w-auto`, so its
  * hover pill was ~108px against the NavItems' full-width ~200px, which
  * made the mismatch read as two different kinds of control rather than
@@ -254,7 +287,7 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
         aria-pressed={collapsed}
         className={
-          "relative hidden sm:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] " +
+          "relative hidden lg:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] " +
           (collapsed ? "w-11 mx-auto justify-center px-0" : "w-full justify-start px-3")
         }
         {...tooltipHandlers}
@@ -291,10 +324,10 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
  * `<nav>`/bottom-icons horizontal alignment (2026-08-19, Oliver caught it
  * from a live screenshot — took two passes to actually fix, see below):
  *
- * First pass swapped a flat `items-center sm:items-stretch` for a branch
- * on the JS `collapsed` prop, since `sm:` is a viewport-width breakpoint
+ * First pass swapped a flat `items-center lg:items-stretch` for a branch
+ * on the JS `collapsed` prop, since `lg:` is a viewport-width breakpoint
  * and doesn't know about `collapsed` — a *desktop-width* collapsed
- * sidebar was still getting `sm:items-stretch`. That was real, but
+ * sidebar was still getting `lg:items-stretch`. That was real, but
  * shipping and re-checking it live (commit 5176147) showed the icons
  * were STILL flush against the rail's right edge with no gap — the
  * actual bug was one level deeper and this alone didn't fix it.
@@ -312,7 +345,7 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
  * on the container never mattered here; `mx-auto` on the child was
  * always what did the centering, and it silently failed under overflow.
  * (The same `px-1` was present on the always-icon-only mobile rail too,
- * via the shared non-`sm:` base classes — same latent bug there, just
+ * via the shared non-`lg:` base classes — same latent bug there, just
  * less visually obvious at that width; this fix covers both.)
  *
  * Fix: drop that redundant `px-1`/`px-0 pb-1` padding to `px-0` on the
@@ -412,7 +445,7 @@ export function NavBarClient({
 
   const navItemSizeClasses = collapsed
     ? "mx-auto w-11 h-11 justify-center px-0"
-    : "mx-auto sm:mx-0 w-11 h-11 sm:w-auto justify-center sm:justify-start px-0 sm:px-3";
+    : "mx-auto lg:mx-0 w-11 h-11 lg:w-auto justify-center lg:justify-start px-0 lg:px-3";
 
   const {
     ref: accountTooltipRef,
@@ -427,20 +460,20 @@ export function NavBarClient({
         // the edge of iphone curve") -- body-level insets don't reach a
         // fixed element, so the rail carries its own. Zero off-iPhone.
         "fixed left-0 top-0 bottom-0 z-20 w-12 flex flex-col bg-[var(--card)] border-r border-[var(--border)] transition-[width] duration-150 ease-out pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] " +
-        (collapsed ? "" : "sm:w-[216px]")
+        (collapsed ? "" : "lg:w-[216px]")
       }
       aria-label="Main navigation"
     >
       <div
         className={
-          "h-14 flex items-center shrink-0 " + (collapsed ? "justify-center px-0" : "justify-center sm:justify-start px-0 sm:px-4")
+          "h-14 flex items-center shrink-0 " + (collapsed ? "justify-center px-0" : "justify-center lg:justify-start px-0 lg:px-4")
         }
       >
         <Link
           href="/"
           aria-label="Mohom home"
           className={
-            (collapsed ? "" : "sm:hidden ") +
+            (collapsed ? "" : "lg:hidden ") +
             "w-8 h-8 rounded-[var(--radius-md)] bg-[var(--brand)] text-white flex items-center justify-center"
           }
         >
@@ -449,13 +482,13 @@ export function NavBarClient({
         <Link
           href="/"
           aria-label={restaurantName ? `Mohom home — ${restaurantName}` : "Mohom home"}
-          className={(collapsed ? "hidden" : "hidden sm:flex") + " group min-w-0 flex-1 items-center"}
+          className={(collapsed ? "hidden" : "hidden lg:flex") + " group min-w-0 flex-1 items-center"}
         >
           <RailWordmark restaurantName={restaurantName} />
         </Link>
       </div>
 
-      <div className={collapsed ? "px-0 pb-1" : "px-0 sm:px-2 pb-1"}>
+      <div className={collapsed ? "px-0 pb-1" : "px-0 lg:px-2 pb-1"}>
         <CollapseToggle collapsed={collapsed} onToggle={toggle} />
       </div>
 
@@ -464,7 +497,7 @@ export function NavBarClient({
           aria-label="Sections"
           className={
             "flex-1 overflow-y-auto flex flex-col gap-1 py-2 " +
-            (collapsed ? "items-center px-0" : "items-center sm:items-stretch px-0 sm:px-2")
+            (collapsed ? "items-center px-0" : "items-center lg:items-stretch px-0 lg:px-2")
           }
         >
           {visibleManagerNavItems.map((item) => (
@@ -485,7 +518,7 @@ export function NavBarClient({
       <div
         className={
           "border-t border-[var(--border)] py-2 flex flex-col gap-1 shrink-0 " +
-          (collapsed ? "items-center px-0" : "items-center sm:items-stretch px-0 sm:px-2")
+          (collapsed ? "items-center px-0" : "items-center lg:items-stretch px-0 lg:px-2")
         }
       >
         {isManager && !hidden.has(SETTINGS_ITEM.href) && (
@@ -520,7 +553,7 @@ export function NavBarClient({
               {...accountTooltipHandlers}
             >
               <Avatar name={auth.name} size={32} />
-              <span className={(collapsed ? "hidden" : "hidden sm:flex") + " flex-col items-start leading-tight overflow-hidden min-w-0"}>
+              <span className={(collapsed ? "hidden" : "hidden lg:flex") + " flex-col items-start leading-tight overflow-hidden min-w-0"}>
                 <span className="text-[13px] font-semibold text-[var(--ink-900)] truncate max-w-[130px]">
                   {auth.name}
                 </span>
@@ -541,7 +574,7 @@ export function NavBarClient({
                   role="menu"
                   className={
                     "absolute bottom-full mb-2 w-48 z-20 bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-md)] shadow-[var(--shadow-2)] py-1 text-sm " +
-                    (collapsed ? "left-0" : "left-0 sm:left-1")
+                    (collapsed ? "left-0" : "left-0 lg:left-1")
                   }
                 >
                   <div className="px-3 py-2 border-b border-[var(--border)]">

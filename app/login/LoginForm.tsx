@@ -49,7 +49,7 @@ export function LoginForm({
 
   return (
     <form ref={formRef} action={formAction} className="space-y-4">
-      {state.error && <Banner tone="danger" title="Couldn't sign in" description={state.error} />}
+      {state.error && <Banner tone="danger" title="Couldn't sign in" description={state.error} announceKey={state} />}
       {method === "NAME" ? (
         <Select name="employeeId" required defaultValue="" label="Your name">
           <option value="" disabled>
