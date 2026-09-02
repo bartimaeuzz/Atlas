@@ -14,6 +14,7 @@ import {
   employees, employeePayouts, shifts, shiftRosterEntries, positions, restaurantSettings,
 } from "@/db/schema";
 import { getVisibleRosterEntries, type RosterEntryView, type Viewer } from "@/lib/roster/visibility";
+import { poolTotalsFor, type PoolTotals } from "./poolTotals";
 
 export interface MyEarningsCoworkerRow extends RosterEntryView {
   employeeName: string;
@@ -43,6 +44,13 @@ export interface MyShiftEarnings {
     totalTip: number;
     totalCorePayout: number;
   };
+  /** Size of each pool this shift, summed from the locked payout rows
+   * (see lib/staff/poolTotals.ts). Each pool is null when the viewer may
+   * not see some member's tips — a pool total is the sum of exactly the
+   * figures the peer-tip settings hide, so showing the sum while hiding
+   * the rows would be a cosmetic gate. Managers/Admins (standing or
+   * shift-granted) always get every pool. */
+  poolTotals: PoolTotals;
   /** Everyone this employee is ALLOWED to see on this shift's roster,
    * already filtered by getVisibleRosterEntries — money figures on other
    * people's rows are already stripped out where the visibility rules say
@@ -205,6 +213,30 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
 
     const visibleEntries = getVisibleRosterEntries(viewer, allEntries, visibilitySettings) as MyEarningsCoworkerRow[];
 
+    // Pool totals, gated per pool by its MEMBERS' visibility (see
+    // poolTotals.ts). allEntries carries every person on the shift with
+    // their representative position's category/hidden flag; the payout
+    // map supplies their per-pool shares.
+    const poolTotals = poolTotalsFor(
+      employeeId,
+      allEntries.map((e) => {
+        const payout = payoutByShiftAndEmployee.get(`${row.shiftId}:${e.employeeId}`);
+        return {
+          employeeId: e.employeeId,
+          pool1Share: payout?.pool1Share ?? 0,
+          pool2Share: payout?.pool2Share ?? 0,
+          pool3Share: payout?.pool3Share ?? 0,
+          positionCategory: e.positionCategory,
+          earningsHiddenFromStaff: e.earningsHiddenFromStaff,
+        };
+      }),
+      {
+        seesEverything: effectiveSystemRole !== "STAFF",
+        showPeerTipFOH: visibilitySettings.showPeerTipFOH,
+        showPeerTipBOH: visibilitySettings.showPeerTipBOH,
+      }
+    );
+
     return {
       shiftId: row.shiftId,
       date: row.date,
@@ -224,6 +256,7 @@ export async function loadMyEarnings(employeeId: number): Promise<MyEarningsData
         totalTip: row.totalTip,
         totalCorePayout: row.totalCorePayout,
       },
+      poolTotals,
       coworkers: visibleEntries,
     };
   });

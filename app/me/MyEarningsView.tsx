@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { MyShiftEarnings } from "@/lib/staff/loadMyEarnings";
+import { formatSlice } from "@/lib/staff/poolTotals";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 
@@ -94,9 +95,20 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
         {p.pointValueUsed !== null && (
           <Row label="Your point value" value={p.pointValueUsed.toFixed(2)} />
         )}
-        {p.pool1Share > 0 && <Row label="Pool 1 (dine-in) tip" value={`$${p.pool1Share.toFixed(2)}`} />}
-        {p.pool2Share > 0 && <Row label="Pool 2 (takeout/online) tip" value={`$${p.pool2Share.toFixed(2)}`} />}
-        {p.pool3Share > 0 && <Row label="Pool 3 (delivery) tip" value={`$${p.pool3Share.toFixed(2)}`} />}
+        {/* 2026-09-01: the inputs behind the number (backlog round 4 item
+            3). Each pool the person was in shows its total and their slice,
+            then their dollar share — read-only, from the locked payout
+            rows, no money rule changes. Totals are null when the viewer
+            may not see peers' tips (see loadMyEarnings). */}
+        {p.pool1Share > 0 && (
+          <PoolRows label="Pool 1 (dine-in)" share={p.pool1Share} total={shift.poolTotals.pool1Total} />
+        )}
+        {p.pool2Share > 0 && (
+          <PoolRows label="Pool 2 (takeout/online)" share={p.pool2Share} total={shift.poolTotals.pool2Total} />
+        )}
+        {p.pool3Share > 0 && (
+          <PoolRows label="Pool 3 (delivery)" share={p.pool3Share} total={shift.poolTotals.pool3Total} />
+        )}
         {p.hostUpsellTipShare > 0 && <Row label="Drink bonus" value={`$${p.hostUpsellTipShare.toFixed(2)}`} />}
         <Row label="Total tip" value={`$${p.totalTip.toFixed(2)}`} />
         <Row label="Wage" value={`$${p.flatWageAmount.toFixed(2)}`} />
@@ -141,6 +153,24 @@ function ShiftCard({ shift, viewerEmployeeId }: { shift: MyShiftEarnings; viewer
         </div>
       )}
     </Card>
+  );
+}
+
+/** One pool's block: the pool's total, the person's share of it as a
+ * percent, and their dollars. Collapses to the dollar line alone when the
+ * total is not available to this viewer; a solo member sees the total and
+ * "only you" instead of a redundant 100%. */
+function PoolRows({ label, share, total }: { label: string; share: number; total: number | null }) {
+  const poolName = label.replace(/\s*\(.*\)$/, ""); // "Pool 1 (dine-in)" -> "Pool 1"
+  const solo = total !== null && Math.abs(total - share) < 0.005;
+  const slice = total !== null && !solo ? formatSlice(share, total) : null;
+  return (
+    <>
+      {total !== null && <Row label={`${label} total`} value={`$${total.toFixed(2)}`} />}
+      {solo && <Row label={`Your share of ${poolName}`} value="only you" />}
+      {slice !== null && <Row label={`Your share of ${poolName}`} value={slice} />}
+      <Row label={`${label} tip`} value={`$${share.toFixed(2)}`} />
+    </>
   );
 }
 
