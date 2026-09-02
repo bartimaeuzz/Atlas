@@ -13,3 +13,4 @@ export * from "./ConfirmDialog";
 export * from "./DangerConfirmDialog";
 export * from "./DangerZoneSection";
 export * from "./touchTarget";
+export * from "./RoleChip";

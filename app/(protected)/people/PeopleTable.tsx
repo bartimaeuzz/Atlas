@@ -10,6 +10,12 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { TableCard } from "@/components/ui/Table";
 import { ChevronDownIcon } from "@/components/ui/icons";
 import { MonthRow } from "@/app/(protected)/ledger/MonthRow";
+import { RoleChip } from "@/components/ui/RoleChip";
+
+/** FOH/BOH of the primary position, for the role chip. */
+function primaryCategory(e: EmployeeListRow): "FOH" | "BOH" | null {
+  return e.positions.find((p) => p.positionId === e.primaryPositionId)?.positionCategory ?? null;
+}
 
 type SortKey = "name" | "primaryPosition" | "positions" | "role";
 type SortDir = "asc" | "desc";
@@ -199,9 +205,11 @@ export function PeopleTable({
                   {e.nickname}
                   {!e.active && <span className="ml-2 text-xs text-[var(--ink-500)] font-normal">(retired)</span>}
                 </div>
-                <div className="text-xs text-[var(--ink-500)] mt-0.5">
-                  {e.systemRole}
-                  {e.primaryPositionName ? ` · ${e.primaryPositionName}` : ""}
+                {/* Role chip (2026-09-01): FOH/BOH + title-or-position, with
+                    the system role as plain text beside it. */}
+                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-[var(--ink-500)]">
+                  <RoleChip side={primaryCategory(e)} title={e.title} positionName={e.primaryPositionName} />
+                  <span>{e.systemRole}</span>
                 </div>
               </div>
               <ChevronDownIcon className="w-5 h-5 shrink-0 text-[var(--ink-500)] -rotate-90" />
@@ -238,8 +246,7 @@ export function PeopleTable({
               retiredPeople.length > 0 &&
               activePeople.length > 0 &&
               (idx === 0 || list[idx - 1].active !== e.active);
-            const primaryPositionCategory =
-              e.positions.find((p) => p.positionId === e.primaryPositionId)?.positionCategory ?? null;
+            const primaryPositionCategory = primaryCategory(e);
             return (
               <Fragment key={e.id}>
               {showHeader && (
@@ -260,7 +267,13 @@ export function PeopleTable({
                   </Link>
                   {!e.active && <span className="ml-2 text-xs text-[var(--ink-500)]">(retired)</span>}
                 </td>
-                <td className="py-2 px-3 text-[var(--ink-700)]">{e.primaryPositionName ?? "—"}</td>
+                <td className="py-2 px-3 text-[var(--ink-700)]">
+                  {e.primaryPositionName || e.title ? (
+                    <RoleChip side={primaryPositionCategory} title={e.title} positionName={e.primaryPositionName} />
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="py-2 px-3 text-[var(--ink-700)]">
                   {e.positions.length === 0 ? "—" : e.positions.map((p) => p.positionName).join(", ")}
                 </td>

@@ -8,6 +8,7 @@ import { formatUsPhone } from "@/lib/format/formatUsPhone";
 import { Card, Section } from "@/components/ui/Card";
 import { LinkButton } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { RoleChip } from "@/components/ui/RoleChip";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { MaskedValue } from "../MaskedValue";
 
@@ -45,10 +46,14 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
           Edit
         </LinkButton>
       </div>
-      <p className="text-sm text-[var(--ink-500)] mb-6">
-        {formatSystemRole(employee.systemRole)}
-        {employee.primaryPositionName ? ` · ${employee.primaryPositionName}` : ""}
-      </p>
+      <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--ink-500)] mb-6">
+        <RoleChip
+          side={employee.positions.find((p) => p.positionId === employee.primaryPositionId)?.positionCategory ?? null}
+          title={employee.title}
+          positionName={employee.primaryPositionName}
+        />
+        <span>{formatSystemRole(employee.systemRole)}</span>
+      </div>
 
       <Section title="Basics">
         <Card>
