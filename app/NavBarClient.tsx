@@ -477,7 +477,7 @@ export function NavBarClient({
             "w-8 h-8 rounded-[var(--radius-md)] bg-[var(--brand)] text-white flex items-center justify-center"
           }
         >
-          <MohomMark className="text-xs" />
+          <MohomMark className="h-5" />
         </Link>
         <Link
           href="/"
