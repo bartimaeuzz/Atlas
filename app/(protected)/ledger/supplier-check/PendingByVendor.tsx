@@ -84,7 +84,7 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
             {isDraft ? <Badge tone="neutral">Draft</Badge> : <Badge tone="primary">Ready</Badge>}
           </div>
           {inv.description && <div className="text-[var(--ink-500)] text-xs">{inv.description}</div>}
-          <div className="text-[var(--ink-500)] opacity-75 text-[11px]">
+          <div className="text-[var(--ink-500)] opacity-75 text-xs">
             {inv.receivedDate} · logged by {inv.createdByName}
             {!isDraft && inv.readyByName ? ` · approved by ${inv.readyByName}` : ""}
           </div>
@@ -114,7 +114,7 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
                   the reason instead of a button that would only error. */}
               {canApprove &&
                 (ownInvoice ? (
-                  <span className="text-[10px] text-[var(--ink-500)] max-w-[9rem]">
+                  <span className="text-xs text-[var(--ink-500)] max-w-[9rem]">
                     Yours — someone else approves it
                   </span>
                 ) : (
@@ -132,7 +132,7 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
           )}
         </div>
       </div>
-      {error && <div className="text-[11px] text-[var(--danger-700)] mt-1">{error}</div>}
+      {error && <div className="text-xs text-[var(--danger-700)] mt-1">{error}</div>}
     </li>
   );
 }

@@ -75,7 +75,7 @@ function UnseenBadge({ count, corner, collapsed }: { count: number; corner?: boo
       <span
         className={
           (collapsed ? "" : "lg:hidden ") +
-          "absolute top-0.5 right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[9px] font-medium leading-none"
+          "absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-[16px] px-0.5 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-xs font-medium leading-none"
         }
         aria-label={label}
       >
@@ -87,7 +87,7 @@ function UnseenBadge({ count, corner, collapsed }: { count: number; corner?: boo
     <span
       className={
         (collapsed ? "hidden" : "hidden lg:inline-flex") +
-        " ml-auto items-center justify-center min-w-[16px] h-[16px] px-1 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-[10px] font-medium leading-none align-middle"
+        " ml-auto items-center justify-center min-w-[16px] h-[16px] px-1 rounded-[var(--radius-full)] bg-[var(--danger)] text-white text-xs font-medium leading-none align-middle"
       }
       aria-label={label}
     >
@@ -167,7 +167,7 @@ function useCollapsedTooltip<T extends HTMLElement>(label: string, active: boole
           <span
             role="tooltip"
             style={{ top: pos.top, left: pos.left }}
-            className="pointer-events-none fixed z-30 hidden -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-[12px] font-medium text-[var(--ink-900)] shadow-[var(--shadow-2)] sm:block"
+            className="pointer-events-none fixed z-30 hidden -translate-y-1/2 whitespace-nowrap rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--card)] px-2 py-1 text-xs font-medium text-[var(--ink-900)] shadow-[var(--shadow-2)] sm:block"
           >
             {label}
           </span>,
@@ -229,7 +229,7 @@ function NavItem({
         aria-label={label}
         aria-current={active ? "page" : undefined}
         className={
-          "relative flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-[13.5px] " +
+          "relative flex items-center gap-3 rounded-[var(--radius-md)] font-medium text-xs " +
           sizeClasses +
           " " +
           (active
@@ -287,7 +287,7 @@ function CollapseToggle({ collapsed, onToggle }: { collapsed: boolean; onToggle:
         aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
         aria-pressed={collapsed}
         className={
-          "relative hidden lg:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-[13.5px] text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] " +
+          "relative hidden lg:flex items-center gap-3 h-11 rounded-[var(--radius-md)] font-medium text-xs text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] " +
           (collapsed ? "w-11 mx-auto justify-center px-0" : "w-full justify-start px-3")
         }
         {...tooltipHandlers}
@@ -477,7 +477,7 @@ export function NavBarClient({
             "w-8 h-8 rounded-[var(--radius-md)] bg-[var(--brand)] text-white flex items-center justify-center"
           }
         >
-          <MohomMark className="text-[10px]" />
+          <MohomMark className="text-xs" />
         </Link>
         <Link
           href="/"
@@ -554,10 +554,10 @@ export function NavBarClient({
             >
               <Avatar name={auth.name} size={32} />
               <span className={(collapsed ? "hidden" : "hidden lg:flex") + " flex-col items-start leading-tight overflow-hidden min-w-0"}>
-                <span className="text-[13px] font-semibold text-[var(--ink-900)] truncate max-w-[130px]">
+                <span className="text-xs font-semibold text-[var(--ink-900)] truncate max-w-[130px]">
                   {auth.name}
                 </span>
-                <span className="text-[11.5px] text-[var(--ink-500)]">
+                <span className="text-xs text-[var(--ink-500)]">
                   {formatSystemRole(auth.systemRole)}
                 </span>
               </span>

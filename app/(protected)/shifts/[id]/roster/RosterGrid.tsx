@@ -103,13 +103,13 @@ export function RosterGrid({
   return (
     <>
     <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
-      <div className="grid grid-cols-[minmax(96px,1fr)_minmax(0,2.2fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
+      <div className="grid grid-cols-[minmax(96px,1fr)_minmax(0,2.2fr)] gap-2 px-3 py-2 text-xs font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
         <span>Position</span>
         <span>People</span>
       </div>
       {groups.map((group) => (
         <div key={group.header}>
-          <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)] border-b border-[var(--border)]">
+          <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)] border-b border-[var(--border)]">
             {group.header}
           </div>
           <div className="divide-y divide-[var(--border)] border-b border-[var(--border)] last:border-b-0">
@@ -259,7 +259,7 @@ function SubstituteBadge({ covers }: { covers: string | null }) {
   return (
     <span
       title={covers ? `Substituting for ${covers}` : "Substitute"}
-      className="whitespace-nowrap text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300"
+      className="whitespace-nowrap text-xs leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300"
     >
       sub{covers ? ` for ${covers}` : ""}
     </span>
@@ -315,7 +315,7 @@ function PeoplePickList({
     <div className="max-h-[60vh] overflow-y-auto -mx-1 px-1">
       {groups.map((g) => (
         <div key={g.header}>
-          <div className="px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)]">{g.header}</div>
+          <div className="px-1 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)]">{g.header}</div>
           <div className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)] mb-2">
             {g.people.map((e) =>
               disabledIds.has(e.id) ? (
@@ -804,7 +804,7 @@ function RosterQuickAdd({
       >
         {isPending ? "Adding…" : "+ Add"}
       </button>
-      {error && <span className="text-[11px] text-[var(--danger)]">{error}</span>}
+      {error && <span className="text-xs text-[var(--danger)]">{error}</span>}
 
       <Modal open={pickerOpen} onClose={() => setPickerOpen(false)} labelledBy={pickerTitleId}>
         <div id={pickerTitleId} className="text-base font-bold text-[var(--ink-900)] mb-2">

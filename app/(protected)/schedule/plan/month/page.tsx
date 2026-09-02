@@ -127,7 +127,7 @@ export default async function MonthOverviewPage({
                     </div>
                     {day.targetCells > 0 && (
                       <div
-                        className={"text-[11px] mt-1 " + (day.shortfallCells > 0 ? "text-[var(--danger-700)] font-medium" : "text-[var(--success-700)]")}
+                        className={"text-xs mt-1 " + (day.shortfallCells > 0 ? "text-[var(--danger-700)] font-medium" : "text-[var(--success-700)]")}
                       >
                         {day.shortfallCells > 0 ? `${day.shortfallCells} short` : "Covered"}
                       </div>

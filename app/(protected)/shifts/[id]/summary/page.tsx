@@ -37,7 +37,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
   if (data.shift.status !== "finalized" || !data.tipPoolCalculation) {
     return (
       <main className="max-w-2xl mx-auto px-4 sm:px-8 py-8">
-        <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-2">Summary Report</h1>
+        <h1 className="text-2xl font-bold text-[var(--ink-900)] mb-2">Summary Report</h1>
         <p className="text-sm text-[var(--ink-500)] mb-4">
           This shift ({data.shift.date}, {data.shift.period}) hasn&apos;t been saved &amp; finalized yet.
         </p>
@@ -85,7 +85,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         </Link>
       </p>
       <div className="flex items-center gap-2.5 mb-1.5">
-        <h1 className="text-[24px] font-bold text-[var(--ink-900)]">
+        <h1 className="text-2xl font-bold text-[var(--ink-900)]">
           <span className="hidden sm:inline">Summary Report — {formatDayLabelLong(data.shift.date)} ({data.shift.period})</span>
           <span className="sm:hidden">Summary Report — {formatDayLabelShort(data.shift.date)} ({data.shift.period})</span>
         </h1>
@@ -125,7 +125,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
           <AttendanceCoverageCard attendance={attendance} />
           {data.shift.incidentReport && (
             <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] overflow-hidden">
-              <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--paper)]">
+              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--paper)]">
                 Incident report
               </div>
               <p className="px-3 py-2.5 text-sm text-[var(--ink-900)] whitespace-pre-line">{data.shift.incidentReport}</p>

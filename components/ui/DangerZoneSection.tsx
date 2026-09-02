@@ -8,7 +8,7 @@ export function DangerZoneSection({ children }: { children: React.ReactNode }) {
     <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] rounded-[var(--radius-lg)] p-5">
       <div className="flex items-center gap-2 mb-1">
         <AlertTriangleIcon className="text-[var(--danger)]" width={18} height={18} />
-        <span className="text-[15px] font-bold text-[var(--danger-700)]">Danger zone</span>
+        <span className="text-sm font-bold text-[var(--danger-700)]">Danger zone</span>
       </div>
       <p className="text-sm text-[var(--danger-700)] mb-3.5">These actions can&apos;t be undone. Double-check before continuing.</p>
       <div className="space-y-2">{children}</div>

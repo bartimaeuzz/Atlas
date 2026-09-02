@@ -46,7 +46,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
       className="max-w-3xl lg:max-w-6xl mx-auto px-4 sm:px-8 py-8"
     >
       <div className="flex items-center gap-2.5 mb-1.5">
-        <h1 className="text-[24px] font-bold text-[var(--ink-900)]">
+        <h1 className="text-2xl font-bold text-[var(--ink-900)]">
           {/* Long date on sm+, short on phones -- same pair as the roster
               and Reports headings (2026-08-24 standard). */}
           <span className="hidden sm:inline">Payout — {formatDayLabelLong(shift.date)} ({shift.period})</span>
@@ -70,7 +70,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
           <AttendanceCoverageCard attendance={attendance} />
           {shift.incidentReport && (
             <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] overflow-hidden">
-              <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--paper)]">
+              <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--paper)]">
                 Incident report
               </div>
               <p className="px-3 py-2.5 text-sm text-[var(--ink-900)] whitespace-pre-line">{shift.incidentReport}</p>

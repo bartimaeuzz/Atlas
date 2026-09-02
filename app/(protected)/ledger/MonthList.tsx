@@ -40,7 +40,7 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
                       treatment as the shifts list. */}
                   <span className="inline-block w-9 font-normal text-[var(--ink-500)]">{weekdayOf(day.date)}</span>
                   {day.date}
-                  {isToday && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">Today</span>}
+                  {isToday && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-normal">Today</span>}
                 </span>
                 {isFuture ? (
                   <span className="text-xs text-[var(--ink-500)]">Not yet</span>
@@ -111,7 +111,7 @@ export function MonthList({ data, todayIso }: { data: PettyCashReportData; today
                     <Link href={`/ledger/day?date=${day.date}`} className="hover:underline font-medium text-[var(--ink-900)]">
                       <span className="inline-block w-9 font-normal text-[var(--ink-500)]">{weekdayOf(day.date)}</span>
                       {day.date}
-                      {isToday && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">Today</span>}
+                      {isToday && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-normal">Today</span>}
                     </Link>
                   )}
                 </td>

@@ -47,7 +47,7 @@ export function SplitTransactionDialog({
   return (
     <Modal open={open} onClose={onClose} width={420} labelledBy={titleId} initialFocus={cancelRef}>
       <div className="p-4 space-y-3">
-        <h2 id={titleId} className="text-[15px] font-semibold text-[var(--ink-900)]">
+        <h2 id={titleId} className="text-sm font-semibold text-[var(--ink-900)]">
           Split this transaction
         </h2>
         <div className="text-sm text-[var(--ink-500)]">

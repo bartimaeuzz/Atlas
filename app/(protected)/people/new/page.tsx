@@ -18,7 +18,7 @@ export default async function NewEmployeePage() {
       <Link href="/people" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
         &larr; People
       </Link>
-      <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-6">New employee</h1>
+      <h1 className="text-3xl font-bold text-[var(--ink-900)] mt-2 mb-6">New employee</h1>
       <EmployeeForm
         existing={null}
         allPositions={allPositions}

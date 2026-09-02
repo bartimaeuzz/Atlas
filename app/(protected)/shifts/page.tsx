@@ -99,7 +99,7 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                 <div className="flex items-center justify-between">
                   <span className="font-semibold text-[var(--ink-900)]">
                     {m.name}
-                    {m.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">This month</span>}
+                    {m.isCurrent && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-normal">This month</span>}
                   </span>
                   <span className="text-sm text-[var(--ink-500)]">
                     {m.count} shift{m.count === 1 ? "" : "s"}
@@ -139,7 +139,7 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                     {m.clickable ? (
                       <Link href={`/shifts?month=${m.month}`} className="hover:underline font-medium text-[var(--ink-900)]">
                         {m.name}
-                        {m.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">This month</span>}
+                        {m.isCurrent && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-normal">This month</span>}
                       </Link>
                     ) : (
                       <span className="text-[var(--ink-500)] opacity-60">{m.name}</span>
@@ -235,7 +235,7 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
            * by eye. Each period's shift is a 44px tappable card going where
            * the old row linked (summary when finalized, roster otherwise). */}
           <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
-            <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
+            <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 text-xs font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
               <span>Date</span>
               <span>Lunch</span>
               <span>Dinner</span>
@@ -263,7 +263,7 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                       not-yet rows. */}
                   <span className={"text-sm " + (isFuture ? "text-[var(--ink-500)] opacity-60" : "text-[var(--ink-900)]")}>
                     <span className="lg:hidden block leading-tight">
-                      <span className={"block text-[11px] " + (isToday ? "font-medium text-[var(--warning-700)]" : "text-[var(--ink-500)]")}>
+                      <span className={"block text-xs " + (isToday ? "font-medium text-[var(--warning-700)]" : "text-[var(--ink-500)]")}>
                         {isToday ? "Today" : DAY_LABELS[dayOfWeek(date)]}
                       </span>
                       <span className="block font-medium">{Number(date.slice(8, 10))}</span>
@@ -271,7 +271,7 @@ export default async function ShiftsListPage({ searchParams }: { searchParams: P
                     <span className="hidden lg:inline">
                       <span className="inline-block w-9 text-[var(--ink-500)]">{DAY_LABELS[dayOfWeek(date)]}</span>
                       {date}
-                      {isToday && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-medium">Today</span>}
+                      {isToday && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-medium">Today</span>}
                     </span>
                   </span>
                   {(["Lunch", "Dinner"] as const).map((period) => {

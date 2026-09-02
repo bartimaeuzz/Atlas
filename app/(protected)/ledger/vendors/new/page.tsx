@@ -8,7 +8,7 @@ export default function NewVendorPage() {
       <Link href="/ledger/vendors" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Vendors
       </Link>
-      <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-6">New vendor</h1>
+      <h1 className="text-3xl font-bold text-[var(--ink-900)] mt-2 mb-6">New vendor</h1>
       <VendorForm existing={null} />
     </main>
   );

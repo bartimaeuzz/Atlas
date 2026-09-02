@@ -36,7 +36,7 @@ export default async function LedgerCardsPage() {
       <Link href="/ledger/card" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Card
       </Link>
-      <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-1">Cards</h1>
+      <h1 className="text-3xl font-bold text-[var(--ink-900)] mt-2 mb-1">Cards</h1>
       <p className="text-sm text-[var(--ink-500)] mb-6">
         Every card whose statement gets reconciled here. Retiring a card keeps its past statement
         periods intact; it just stops being offered for new ones.

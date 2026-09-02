@@ -121,7 +121,7 @@ export default async function SchedulePage() {
           <CalendarIcon />
         </span>
         <span>
-          <span className="block text-[17px] font-bold text-[var(--ink-900)]">Weekly plan</span>
+          <span className="block text-lg font-bold text-[var(--ink-900)]">Weekly plan</span>
           <span className="block text-sm text-[var(--ink-700)]">
             Pick a week, then build, publish, and adjust its schedule -- start here.
           </span>

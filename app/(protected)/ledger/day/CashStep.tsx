@@ -106,7 +106,7 @@ export function CashStep({ data, seen, locked }: { data: PettyCashDayData; seen:
       </Card>
 
       <div>
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-500)] mb-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-500)] mb-2">
           Comes from finalized shifts
         </h3>
         <Card>

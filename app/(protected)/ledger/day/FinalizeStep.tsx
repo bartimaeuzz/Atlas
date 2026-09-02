@@ -85,7 +85,7 @@ export function FinalizeStep({ data, seen, locked }: { data: PettyCashDayData; s
       )}
 
       <div>
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-500)] mb-2">Day summary</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-500)] mb-2">Day summary</h3>
         <Card>
           <SummaryRow label="Drawer at open" value={data.beginningBalance} />
           <SummaryRow label={`Cash in${data.cashSales + data.cashTip > 0 ? " · sales and tips" : ""}`} value={data.cashSales + data.cashTip} />

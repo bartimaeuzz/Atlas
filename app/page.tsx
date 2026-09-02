@@ -242,7 +242,7 @@ export default async function Home() {
 
   return (
     <main className="max-w-4xl mx-auto p-6 sm:p-8">
-      <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1">Welcome, {session.name.split(" ")[0]}</h1>
+      <h1 className="text-2xl font-bold text-[var(--ink-900)] mb-1">Welcome, {session.name.split(" ")[0]}</h1>
       <p className="text-[var(--ink-500)] text-sm mb-6">
         {isManager ? "Pick where you want to work." : "Your schedule and pay, in one place."}
       </p>

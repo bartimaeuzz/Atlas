@@ -72,7 +72,7 @@ export function ReconcilePanel({
 
   return (
     <Card>
-      <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">Reconciliation</h2>
+      <h2 className="text-sm font-semibold text-[var(--ink-900)] mb-3">Reconciliation</h2>
       <div className="space-y-2 text-sm">
         <SideRow label="Charges logged" logged={chargesLogged} target={statementTotal} targetLabel="Charges & fees total" match={chargesMatch} />
         {showCredits && (

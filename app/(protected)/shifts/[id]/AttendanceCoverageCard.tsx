@@ -13,7 +13,7 @@ export function AttendanceCoverageCard({ attendance, footer }: { attendance: Shi
   if (attendance.marks.length === 0 && attendance.coverage.length === 0) return null;
   return (
     <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] overflow-hidden">
-      <div className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--paper)]">
+      <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--paper)]">
         Attendance &amp; coverage today
       </div>
       <div className="divide-y divide-[var(--border)] text-sm">
@@ -30,7 +30,7 @@ export function AttendanceCoverageCard({ attendance, footer }: { attendance: Shi
             {c.kind === "extra" ? (
               <Badge tone="warning">extra</Badge>
             ) : (
-              <span className="whitespace-nowrap text-[10px] leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300">
+              <span className="whitespace-nowrap text-xs leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300">
                 sub{c.coversEmployeeName ? ` for ${c.coversEmployeeName}` : ""}
               </span>
             )}

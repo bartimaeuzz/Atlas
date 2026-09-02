@@ -40,7 +40,7 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
         </Link>
       </p>
       <div className="flex items-center gap-2.5 mb-1">
-        <h1 className="text-[24px] font-bold text-[var(--ink-900)]">
+        <h1 className="text-2xl font-bold text-[var(--ink-900)]">
           {/* Long date (Oliver, 2026-08-24), same pair as the Reports
               heading: full weekday on sm+, short on a phone. */}
           <span className="hidden sm:inline">Roster — {formatDayLabelLong(data.shift.date)} ({data.shift.period})</span>
@@ -72,7 +72,7 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
       )}
 
       <section className="mt-6 mb-8">
-        <h2 className="text-[19px] font-semibold text-[var(--ink-900)] mb-1">On the roster ({data.roster.length})</h2>
+        <h2 className="text-xl font-semibold text-[var(--ink-900)] mb-1">On the roster ({data.roster.length})</h2>
         {!isFinalized && (
           <p className="text-xs text-[var(--ink-500)] mb-3">
             Point value adjustments happen later, on the Closing Report page right before Save — not here. This page is just

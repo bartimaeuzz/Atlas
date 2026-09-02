@@ -296,7 +296,7 @@ export default async function AnalyticsPage({
       </Card>
 
       {/* Benchmarked KPIs -- the "sweet spot" indicators Oliver asked for */}
-      <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">Health indicators</h2>
+      <h2 className="text-sm font-semibold text-[var(--ink-900)] mb-3">Health indicators</h2>
       {/* 2026-08-30: adding Total cost % takes the VIEW_PNL grid from 5 to
           6 cards. Five-across was already tight -- each card carries a
           meter, a status line, a 2-3 line note AND a source line -- so
@@ -364,7 +364,7 @@ export default async function AnalyticsPage({
           this component for why this is a separate capability. */}
       {canSeePnL && (
         <>
-          <h2 className="text-[15px] font-semibold text-[var(--ink-900)] mb-3">P&amp;L statement</h2>
+          <h2 className="text-sm font-semibold text-[var(--ink-900)] mb-3">P&amp;L statement</h2>
           <div className="border border-[var(--border)] rounded-[var(--radius-lg)] overflow-x-auto mb-2">
             <table className="w-full text-sm border-collapse">
               {/* Header added 2026-08-30 with the "% of sales" column. The

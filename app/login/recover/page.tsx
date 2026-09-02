@@ -26,7 +26,7 @@ export default async function RecoverPage() {
     <main className="max-w-sm mx-auto px-4 py-16 sm:py-24">
       <div className="text-center mb-8">
         <LoginWordmark restaurantName={restaurantName} />
-        <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1.5">Reset a PIN with your recovery code</h1>
+        <h1 className="text-2xl font-bold text-[var(--ink-900)] mb-1.5">Reset a PIN with your recovery code</h1>
         <p className="text-sm text-[var(--ink-500)]">
           Enter the restaurant&apos;s recovery code (from Settings → Account recovery), choose whose PIN to reset,
           and set a new one.

@@ -34,7 +34,7 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
       <Link href={`/people/${employee.id}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; {employee.nickname}&apos;s profile
       </Link>
-      <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-6">Edit employee — {employee.nickname}</h1>
+      <h1 className="text-3xl font-bold text-[var(--ink-900)] mt-2 mb-6">Edit employee — {employee.nickname}</h1>
 
       {/* Sign-in & access FIRST, as one collapsible card (2026-08-24,
           Oliver: "why login ID are at the bottom. page layout is bad") --

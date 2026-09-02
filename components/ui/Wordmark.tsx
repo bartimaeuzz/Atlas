@@ -48,7 +48,7 @@ export function RailWordmark({ restaurantName }: { restaurantName: string | null
           <span className="shrink-0 text-[var(--ink-400)]" aria-hidden="true">
             ·
           </span>
-          <span className="min-w-0 truncate text-[15px] font-semibold text-[var(--ink-900)]" title={restaurantName}>
+          <span className="min-w-0 truncate text-sm font-semibold text-[var(--ink-900)]" title={restaurantName}>
             {restaurantName}
           </span>
         </>
@@ -67,7 +67,7 @@ export function LoginWordmark({ restaurantName }: { restaurantName: string | nul
       <div className="text-2xl font-bold text-[var(--ink-900)] truncate" title={restaurantName}>
         {restaurantName}
       </div>
-      <div className="text-[11px] font-semibold tracking-[0.2em] uppercase text-[var(--brand)] mt-1">{PRODUCT_NAME}</div>
+      <div className="text-xs font-semibold tracking-[0.2em] uppercase text-[var(--brand)] mt-1">{PRODUCT_NAME}</div>
     </div>
   );
 }

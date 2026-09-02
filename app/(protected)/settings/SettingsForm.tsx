@@ -379,7 +379,7 @@ export function SettingsForm({
         <legend className="text-lg font-medium mb-3">Tip pools</legend>
         <Link
           href="/settings/tip-pools"
-          className="flex items-center justify-between gap-3 border rounded-lg p-4 hover:bg-[var(--hover)] hover:border-[var(--border-strong)]"
+          className="flex items-center justify-between gap-3 border rounded-[var(--radius-md)] p-4 hover:bg-[var(--hover)] hover:border-[var(--border-strong)]"
         >
           <span>
             <span className="block text-sm font-medium">Manage tip pool assignment &amp; split method</span>

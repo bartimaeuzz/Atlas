@@ -350,7 +350,7 @@ export function WeeklyPlanGrid({
                       : "bg-[var(--card)] text-[var(--ink-700)] border-[var(--border-strong)]")
                 }
               >
-                <span className="block text-[11px] opacity-80">{DAY_LABELS[dayOfWeekFor(date)]}</span>
+                <span className="block text-xs opacity-80">{DAY_LABELS[dayOfWeekFor(date)]}</span>
                 <span className="block font-medium">{Number(date.slice(8, 10))}</span>
               </button>
             );
@@ -369,7 +369,7 @@ export function WeeklyPlanGrid({
             <span className="text-[var(--ink-500)] text-sm ml-2">{selectedDate}</span>
             {selectedDate === todayIso && <span className="text-xs text-[var(--primary)] ml-2">today</span>}
           </div>
-          <div className={PHONE_COLS + " text-[11px] font-medium text-[var(--ink-500)]"}>
+          <div className={PHONE_COLS + " text-xs font-medium text-[var(--ink-500)]"}>
             <span>Position</span>
             <span>Lunch</span>
             <span>Dinner</span>
@@ -435,7 +435,7 @@ export function WeeklyPlanGrid({
                 {rows.map(({ position, lunch, dinner }, ri) => (
                   <Fragment key={position.id}>
                   {(ri === 0 || rows[ri - 1].position.category !== position.category) && (
-                    <div className="px-2 pt-2 pb-1 text-[11px] font-semibold tracking-wide uppercase text-[var(--ink-500)] bg-[var(--paper)]">
+                    <div className="px-2 pt-2 pb-1 text-xs font-semibold tracking-wide uppercase text-[var(--ink-500)] bg-[var(--paper)]">
                       {position.category === "FOH" ? "FOH — Front of house" : "BOH — Back of house"}
                     </div>
                   )}
@@ -554,11 +554,11 @@ export function WeeklyPlanGrid({
         </div>
         {/* Phone legend for the status dots (words live on desktop badges
             and in the tap popup). */}
-        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[11px] text-[var(--ink-500)]">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-[var(--ink-500)]">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> On leave</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--danger)] inline-block" /> Leaving</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block" /> Reassigned</span>
-          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-[3px] bg-[var(--warning-tint)] border border-[var(--warning-border)] inline-block" /> Extra coverage</span>
+          <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-[var(--radius-md)] bg-[var(--warning-tint)] border border-[var(--warning-border)] inline-block" /> Extra coverage</span>
         </div>
       </div>
 
@@ -869,7 +869,7 @@ function AssignmentPill({
         {vacatingSoon && (
           <>
             <span aria-label="leaving" className="lg:hidden w-2 h-2 rounded-full bg-[var(--danger)] shrink-0" />
-            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--danger-tint)] text-[var(--danger-700)] border border-[var(--danger-border)] shrink-0">
+            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--danger-tint)] text-[var(--danger-700)] border border-[var(--danger-border)] shrink-0">
               leaving
             </span>
           </>
@@ -877,7 +877,7 @@ function AssignmentPill({
         {onLeave && (
           <>
             <span aria-label="on leave" className="lg:hidden w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-purple-100 text-purple-700 border border-purple-300 shrink-0">
+            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-purple-100 text-purple-700 border border-purple-300 shrink-0">
               on leave
             </span>
           </>
@@ -887,7 +887,7 @@ function AssignmentPill({
             we can identify it was swapped by staff"). Word + color, never
             color alone. */}
         {swap?.status === "completed" && (
-          <span className="text-[11px] lg:text-[10px] font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--success-tint)] text-[var(--success-700)] border border-[var(--success-border)] shrink-0">
+          <span className="text-xs font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--success-tint)] text-[var(--success-700)] border border-[var(--success-border)] shrink-0">
             swapped
           </span>
         )}
@@ -897,7 +897,7 @@ function AssignmentPill({
         {assignment.sourceType === "REASSIGNED" && (
           <>
             <span aria-label="reassigned" className="lg:hidden w-2 h-2 rounded-full bg-teal-500 shrink-0" />
-            <span className="hidden lg:inline text-[10px] leading-tight px-1 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300 shrink-0">
+            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300 shrink-0">
               reassigned
             </span>
           </>
@@ -908,19 +908,19 @@ function AssignmentPill({
             text (the old thin 10px blue was unreadable); pending = solid
             blue with white text; swapped keeps its green tint. */}
         {swap?.status === "open" && (
-          <span className="text-[11px] lg:text-[10px] font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--card)] text-[var(--primary-700)] border-[1.5px] border-dashed border-[var(--primary)] shrink-0">
+          <span className="text-xs font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--card)] text-[var(--primary-700)] border-[1.5px] border-dashed border-[var(--primary)] shrink-0">
             offered
           </span>
         )}
         {swap?.status === "pending_manager_approval" && (
-          <span className="text-[11px] lg:text-[10px] font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--primary)] text-white shrink-0">
+          <span className="text-xs font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--primary)] text-white shrink-0">
             pending
           </span>
         )}
         {hasConflict && (
           <span
             title={`Also scheduled as ${conflictPositionNames.join(", ")} in this same slot — double check this is intentional.`}
-            className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-orange-500 text-white text-[9px] font-bold leading-none cursor-help shrink-0"
+            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-white text-xs font-bold leading-none cursor-help shrink-0"
           >
             !
           </span>
@@ -1246,11 +1246,11 @@ function QuickAddCell({
           setError(null);
           setPickerOpen(true);
         }}
-        className="flex w-full lg:w-auto min-h-11 lg:min-h-6 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] px-2 text-xs lg:text-[10px] font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] disabled:opacity-50"
+        className="flex w-full lg:w-auto min-h-11 lg:min-h-6 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--border-strong)] px-2 text-xs font-medium text-[var(--ink-500)] hover:text-[var(--ink-900)] hover:bg-[var(--hover)] disabled:opacity-50"
       >
         {isPending ? "Adding…" : "+ Add"}
       </button>
-      {error && <div className="text-[9px] text-[var(--danger-700)] mt-0.5">{error}</div>}
+      {error && <div className="text-xs text-[var(--danger-700)] mt-0.5">{error}</div>}
 
       <Modal open={pickerOpen} onClose={closePicker} labelledBy={pickerTitleId}>
         <div id={pickerTitleId} className="text-base font-bold text-[var(--ink-900)] mb-0.5">
@@ -1262,7 +1262,7 @@ function QuickAddCell({
         <div className="max-h-[55vh] overflow-y-auto -mx-1 px-1">
           {groups.map((g) => (
             <div key={g.header}>
-              <div className="px-1 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)]">
+              <div className="px-1 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)]">
                 {g.header}
               </div>
               <div className="divide-y divide-[var(--border)] rounded-[var(--radius-md)] border border-[var(--border)] mb-2">
@@ -1294,12 +1294,12 @@ function QuickAddCell({
                       <span className="flex-1">
                         {e.name}
                         {leave && (
-                          <span className="block text-[11px] text-[#7C3AED]">
+                          <span className="block text-xs text-[#7C3AED]">
                             On leave this day{leave.note ? ` — "${leave.note}"` : ""}
                           </span>
                         )}
                         {sameDay.length > 0 && (
-                          <span className="block text-[11px] text-[var(--warning-700)]">
+                          <span className="block text-xs text-[var(--warning-700)]">
                             Also works today: {sameDay.join(", ")}
                           </span>
                         )}

@@ -12,7 +12,7 @@ export function Card({ className = "", ...rest }: HTMLAttributes<HTMLDivElement>
 export function Section({ title, children, className = "" }: { title?: string; children: React.ReactNode; className?: string }) {
   return (
     <section className={`mb-6 ${className}`}>
-      {title && <h2 className="text-[19px] font-semibold text-[var(--ink-900)] mb-3">{title}</h2>}
+      {title && <h2 className="text-xl font-semibold text-[var(--ink-900)] mb-3">{title}</h2>}
       {children}
     </section>
   );
@@ -22,7 +22,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
   return (
     <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
       <div>
-        <h1 className="text-[28px] font-bold text-[var(--ink-900)]">{title}</h1>
+        <h1 className="text-3xl font-bold text-[var(--ink-900)]">{title}</h1>
         {description && <p className="text-sm text-[var(--ink-500)] mt-1">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}

@@ -38,7 +38,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="max-w-sm mx-auto px-4 py-16 sm:py-24">
       <div className="text-center mb-8">
         <LoginWordmark restaurantName={settings.restaurantName} />
-        <h1 className="text-[24px] font-bold text-[var(--ink-900)] mb-1.5">Staff sign in</h1>
+        <h1 className="text-2xl font-bold text-[var(--ink-900)] mb-1.5">Staff sign in</h1>
         <p className="text-sm text-[var(--ink-500)]">
           {settings.staffLoginMethod === "NAME"
             ? "Pick your name and enter your PIN to see your own shift earnings."

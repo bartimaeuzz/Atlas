@@ -277,7 +277,7 @@ export function ClosingReportForm({
           // (2026-08-25, Oliver: "use consistency header card") -- same
           // grouping and visual language as the roster page's table.
           <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
-            <div className="hidden lg:grid lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:gap-3 text-[11px] font-medium text-[var(--ink-500)] px-3 py-2 border-b border-[var(--border)] bg-[var(--card)]">
+            <div className="hidden lg:grid lg:grid-cols-[1.3fr_0.7fr_1fr_1fr_1.4fr] lg:gap-3 text-xs font-medium text-[var(--ink-500)] px-3 py-2 border-b border-[var(--border)] bg-[var(--card)]">
               <span>Employee</span>
               <span>Auto wage</span>
               <span>Override</span>
@@ -286,7 +286,7 @@ export function ClosingReportForm({
             </div>
             {groupWageRows(data.wageAdjustmentRows).map((group) => (
               <div key={group.header}>
-                <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)] border-b border-[var(--border)]">
+                <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)] border-b border-[var(--border)]">
                   {group.header}
                 </div>
                 <div className="divide-y divide-[var(--border)] border-b border-[var(--border)] last:border-b-0">
@@ -557,14 +557,14 @@ function TipPointsSection({
 
   return (
     <div className="rounded-[var(--radius-md)] border border-[var(--border)] overflow-hidden">
-      <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)] gap-2 px-3 py-2 text-[11px] font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
+      <div className="grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)] gap-2 px-3 py-2 text-xs font-medium text-[var(--ink-500)] border-b border-[var(--border)] bg-[var(--card)]">
         <span>Employee</span>
         <span>Points per pool</span>
       </div>
       <div className="divide-y divide-[var(--border)]">
         {positionGroups.map((group) => (
           <Fragment key={group.positionName}>
-            <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)]">
+            <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] bg-[var(--paper)]">
               {group.positionName}
             </div>
             {group.rows.map((r) => (
@@ -603,7 +603,7 @@ function TipPointsSection({
             <div className="flex flex-wrap gap-3">
               {r.tipPoolGroups.filter((g) => weighted.has(g)).map((g) => (
                 <label key={g} className="block">
-                  <span className="block text-[10px] text-[var(--primary-700)] mb-0.5">{(POOL_LABELS[g] ?? g).split(" · ")[0]}</span>
+                  <span className="block text-xs text-[var(--primary-700)] mb-0.5">{(POOL_LABELS[g] ?? g).split(" · ")[0]}</span>
                   <input
                     type="number"
                     step={0.1}
@@ -628,7 +628,7 @@ function TipPointsSection({
               ))}
               {/* Equal-split pools this row is also in: named, no field. */}
               {r.tipPoolGroups.filter((g) => !weighted.has(g)).map((g) => (
-                <span key={g} className="self-end pb-2.5 text-[10px] text-[var(--ink-500)]">
+                <span key={g} className="self-end pb-2.5 text-xs text-[var(--ink-500)]">
                   {(POOL_LABELS[g] ?? g).split(" · ")[0]} — equal split
                 </span>
               ))}

@@ -89,7 +89,7 @@ function PositionsGroup({ title, rows }: { title: string; rows: PositionRow[] })
   if (rows.length === 0) return null;
   return (
     <section className="mb-8">
-      <h2 className="text-[19px] font-semibold text-[var(--ink-900)] mb-3">{title}</h2>
+      <h2 className="text-xl font-semibold text-[var(--ink-900)] mb-3">{title}</h2>
 
       {/* Phone: stacked cards */}
       <StackedCardList>

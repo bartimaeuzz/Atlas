@@ -27,7 +27,7 @@ export default async function LedgerCategoriesPage() {
       <Link href="/ledger" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Ledger
       </Link>
-      <h1 className="text-[28px] font-bold text-[var(--ink-900)] mt-2 mb-1">Expense categories</h1>
+      <h1 className="text-3xl font-bold text-[var(--ink-900)] mt-2 mb-1">Expense categories</h1>
       <p className="text-sm text-[var(--ink-500)] mb-6">
         Categories used across Petty Cash, Supplier Check, and Card entries. Retiring a category
         keeps every past entry that used it intact; it just stops being offered for new ones. The

@@ -59,7 +59,7 @@ export function YearMonthList({ data, year, todayIso }: { data: PettyCashReportD
               <div className="flex items-center justify-between mb-1">
                 <span className={"font-semibold " + (m.isFuture ? "text-[var(--ink-500)]" : "text-[var(--ink-900)]")}>
                   {m.name}
-                  {m.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">This month</span>}
+                  {m.isCurrent && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-normal">This month</span>}
                 </span>
                 {m.isFuture ? <span className="text-xs text-[var(--ink-500)]">Not yet</span> : <MonthStatusBadge m={m} />}
               </div>
@@ -114,7 +114,7 @@ export function YearMonthList({ data, year, todayIso }: { data: PettyCashReportD
                     ) : (
                       <Link href={`/ledger?month=${m.month}`} className="hover:underline font-medium text-[var(--ink-900)]">
                         {m.name}
-                        {m.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">This month</span>}
+                        {m.isCurrent && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-normal">This month</span>}
                       </Link>
                     )}
                   </td>

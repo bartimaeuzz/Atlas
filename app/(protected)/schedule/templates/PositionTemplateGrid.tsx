@@ -89,7 +89,7 @@ function PositionCard({ group }: { group: PositionTemplateGroup }) {
     // bg-card + radius + shadow shell every other grid sits on.
     <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] shadow-[var(--shadow-1)] p-4">
       <div className="flex items-center gap-2 mb-3">
-        <h3 className="text-[15px] font-semibold text-[var(--ink-900)]">{group.positionName}</h3>
+        <h3 className="text-sm font-semibold text-[var(--ink-900)]">{group.positionName}</h3>
         <Badge tone={group.positionCategory === "FOH" ? "primary" : "neutral"}>{group.positionCategory}</Badge>
         <span className="text-xs text-[var(--ink-500)]">
           {rows.length} {rows.length === 1 ? "person" : "people"}
@@ -241,11 +241,11 @@ function EmployeeTemplateCard({ group, employee }: { group: PositionTemplateGrou
       footer={
         <>
           {isVacant && (
-            <span className="text-[11px] text-[var(--danger-700)]">
+            <span className="text-xs text-[var(--danger-700)]">
               {VACANCY_LABELS[employee.vacancyReason ?? ""] ?? employee.vacancyReason} · {employee.vacancyStartsOn}
             </span>
           )}
-          {error && <span className="text-[11px] text-[var(--danger-700)]">{error}</span>}
+          {error && <span className="text-xs text-[var(--danger-700)]">{error}</span>}
         </>
       }
     >
@@ -286,7 +286,7 @@ function EmployeeTemplateCard({ group, employee }: { group: PositionTemplateGrou
                         (heldBy ? ` (already ${heldBy})` : "")
                       }
                     />
-                    {heldBy ? <span className="text-[10px]">{heldBy}</span> : period === "Lunch" ? "L" : "D"}
+                    {heldBy ? <span className="text-xs">{heldBy}</span> : period === "Lunch" ? "L" : "D"}
                   </label>
                 );
               })}
@@ -322,13 +322,13 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
         <td rowSpan={2} className="align-top pr-2 py-1 border-t">
           <div className={"font-medium" + (isPending ? " opacity-50" : "")}>{employee.employeeName}</div>
           {isVacant && (
-            <div className="text-[10px] text-[var(--danger-700)]">
+            <div className="text-xs text-[var(--danger-700)]">
               {VACANCY_LABELS[employee.vacancyReason ?? ""] ?? employee.vacancyReason} · {employee.vacancyStartsOn}
             </div>
           )}
-          {error && <div className="text-[10px] text-[var(--danger-700)] mt-0.5">{error}</div>}
+          {error && <div className="text-xs text-[var(--danger-700)] mt-0.5">{error}</div>}
         </td>
-        <td className="text-[10px] text-[var(--ink-400)] border-t">L</td>
+        <td className="text-xs text-[var(--ink-400)] border-t">L</td>
         {DISPLAY_DAYS.map((d) => {
           const heldBy = employee.slotsHeldElsewhere[keyFor(d, "Lunch")];
           return (
@@ -351,7 +351,7 @@ function EmployeeRowPair({ group, employee }: { group: PositionTemplateGroup; em
         </td>
       </tr>
       <tr className={rowBg}>
-        <td className="text-[10px] text-[var(--ink-400)]">D</td>
+        <td className="text-xs text-[var(--ink-400)]">D</td>
         {DISPLAY_DAYS.map((d) => {
           const heldBy = employee.slotsHeldElsewhere[keyFor(d, "Dinner")];
           return (
@@ -469,7 +469,7 @@ function EmployeeEdit({
         {editing ? "Done" : "Edit"}
       </Button>
       {editing && (
-        <div className="mt-1 flex flex-col items-end gap-1 text-[11px]">
+        <div className="mt-1 flex flex-col items-end gap-1 text-xs">
           {isVacant ? (
             <button
               type="button"
@@ -578,7 +578,7 @@ function VacancyPopoverForm({
             className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2 min-h-11 w-full text-sm bg-[var(--card)]"
           />
         </label>
-        <p className="text-[11px] text-[var(--ink-500)] mb-3">{scopeHint[reason]}</p>
+        <p className="text-xs text-[var(--ink-500)] mb-3">{scopeHint[reason]}</p>
         {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}
         <div className="flex items-center justify-end gap-2">
           <Button type="button" variant="secondary" size="sm" onClick={onCancel}>

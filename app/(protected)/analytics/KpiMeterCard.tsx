@@ -86,7 +86,7 @@ export function KpiMeterCard({ benchmark }: { benchmark: Benchmark }) {
       </div>
 
       <p className="text-xs text-[var(--ink-500)] leading-snug">{benchmark.note}</p>
-      <p className="text-[10px] text-[var(--ink-400)] mt-1">Source: {benchmark.source}</p>
+      <p className="text-xs text-[var(--ink-400)] mt-1">Source: {benchmark.source}</p>
     </Card>
   );
 }

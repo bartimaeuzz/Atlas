@@ -130,7 +130,7 @@ function CheckRow({
           {check.singlePerson && <Badge tone="warning">Single-person</Badge>}
           {!check.checkNumber && <Badge tone="neutral">Legacy · no number</Badge>}
         </div>
-        <div className="text-[var(--ink-500)] opacity-75 text-[11px] mt-0.5">
+        <div className="text-[var(--ink-500)] opacity-75 text-xs mt-0.5">
           {check.invoices.length} invoice{check.invoices.length === 1 ? "" : "s"} · {open ? "hide detail ▲" : "view detail ▼"}
         </div>
       </button>
@@ -160,7 +160,7 @@ function CheckRow({
             <details className="mb-2">
               {/* min-h-6 + flex (2026-08-31 visual audit BLOCKER): this
                   measured 422x16px, under WCAG 2.5.8's 24px floor. */}
-              <summary className="text-[11px] text-[var(--ink-500)] cursor-pointer hover:text-[var(--ink-900)] min-h-6 flex items-center">
+              <summary className="text-xs text-[var(--ink-500)] cursor-pointer hover:text-[var(--ink-900)] min-h-6 flex items-center">
                 History ({check.auditLog.length})
               </summary>
               <ul className="mt-1.5 space-y-1.5">
@@ -279,7 +279,7 @@ function HistoryEntry({ entry }: { entry: CheckAuditLogEntry }) {
   if (entry.action === "PRINTED_CHECK") {
     const d = entry.details as { checkNumber: string | null; totalAmount: number; invoiceIds: number[] };
     return (
-      <li className="text-[11px] text-[var(--ink-500)] border-t border-[var(--border)] pt-1.5 first:border-t-0 first:pt-0">
+      <li className="text-xs text-[var(--ink-500)] border-t border-[var(--border)] pt-1.5 first:border-t-0 first:pt-0">
         <span className="font-medium text-[var(--ink-700)]">Printed</span> by {entry.performedByName} · {when}
         {d.checkNumber && ` · check #${d.checkNumber}`} · {formatMoney(d.totalAmount)} · {d.invoiceIds.length} invoice
         {d.invoiceIds.length === 1 ? "" : "s"}
@@ -301,7 +301,7 @@ function HistoryEntry({ entry }: { entry: CheckAuditLogEntry }) {
   if (d.descriptionBefore !== d.descriptionAfter) changes.push("description changed");
 
   return (
-    <li className="text-[11px] text-[var(--ink-500)] border-t border-[var(--border)] pt-1.5 first:border-t-0 first:pt-0">
+    <li className="text-xs text-[var(--ink-500)] border-t border-[var(--border)] pt-1.5 first:border-t-0 first:pt-0">
       <span className="font-medium text-[var(--ink-700)]">Edited</span> by {entry.performedByName} · {when}
       {changes.length > 0 && ` · ${changes.join(", ")}`}
       {entry.reason && <div className="text-[var(--ink-500)] opacity-75 italic">&ldquo;{entry.reason}&rdquo;</div>}

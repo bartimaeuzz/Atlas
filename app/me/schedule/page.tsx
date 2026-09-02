@@ -131,13 +131,13 @@ export default async function MyScheduleView({
           <span className="w-2.5 h-2.5 rounded-full bg-[var(--primary)] inline-block" /> Today
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-[var(--primary-tint)] border border-[var(--primary-border)] inline-block" /> Your shift
+          <span className="w-2 h-2 rounded-[var(--radius-md)] bg-[var(--primary-tint)] border border-[var(--primary-border)] inline-block" /> Your shift
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-[var(--paper)] border border-[var(--border-strong)] inline-block" /> Day off
+          <span className="w-2 h-2 rounded-[var(--radius-md)] bg-[var(--paper)] border border-[var(--border-strong)] inline-block" /> Day off
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-sm bg-[var(--border-strong)] inline-block" /> Not published yet
+          <span className="w-2 h-2 rounded-[var(--radius-md)] bg-[var(--border-strong)] inline-block" /> Not published yet
         </span>
       </div>
 
@@ -192,7 +192,7 @@ export default async function MyScheduleView({
                           <div
                             key={ri}
                             className={
-                              "text-[10px] font-medium rounded-[var(--radius-sm)] px-1.5 py-0.5 border " +
+                              "text-xs font-medium rounded-[var(--radius-sm)] px-1.5 py-0.5 border " +
                               (r.kind === "no_show"
                                 ? "bg-[var(--danger-tint)] text-[var(--danger-700)] border-[var(--danger-border)]"
                                 : r.kind === "late" || r.kind === "extra"

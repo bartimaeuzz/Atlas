@@ -184,7 +184,7 @@ export function SplitPartsEditor({
                         const current = toCents(part.amount) ?? 0;
                         setPart(i, { amount: ((current + remainderCents) / 100).toFixed(2) });
                       }}
-                      className="mt-1 text-[11px] text-[var(--primary-700)] underline underline-offset-2 min-h-6"
+                      className="mt-1 text-xs text-[var(--primary-700)] underline underline-offset-2 min-h-6"
                     >
                       Balance → {formatMoney(((toCents(part.amount) ?? 0) + remainderCents) / 100)}
                     </button>
@@ -208,7 +208,7 @@ export function SplitPartsEditor({
                       recomputeFromWeights(next);
                     }}
                   />
-                  <p className="text-[11px] text-[var(--ink-500)] mt-1 tabular-nums">
+                  <p className="text-xs text-[var(--ink-500)] mt-1 tabular-nums">
                     = {part.amount ? formatMoney(Number(part.amount)) : "—"}
                   </p>
                 </div>

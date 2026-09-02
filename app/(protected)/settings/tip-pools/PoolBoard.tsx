@@ -278,19 +278,19 @@ function MasterCard({
       }
     >
       <div className="min-w-0">
-        <div className="text-[13px] font-medium truncate text-[var(--ink-900)]">
+        <div className="text-xs font-medium truncate text-[var(--ink-900)]">
           {position.name}
           {!position.active && <span className="text-[var(--ink-400)] font-normal"> (retired)</span>}
         </div>
         <div className="flex gap-1 mt-0.5 flex-wrap">
           {position.tipPoolGroups.length === 0 ? (
-            <span className="text-[10px] text-[var(--ink-400)]">Unassigned</span>
+            <span className="text-xs text-[var(--ink-400)]">Unassigned</span>
           ) : (
             position.tipPoolGroups.map((g) => {
               const pool = POOLS.find((p) => p.key === g)!;
               const c = COLOR[pool.colorClass as PoolColorKey];
               return (
-                <span key={g} className={`text-[9px] font-bold text-white rounded-[var(--radius-sm)] px-1.5 py-0.5 ${c.chip}`}>
+                <span key={g} className={`text-xs font-bold text-white rounded-[var(--radius-sm)] px-1.5 py-0.5 ${c.chip}`}>
                   {pool.label}
                 </span>
               );
@@ -313,7 +313,7 @@ function MasterCard({
               disabled={readOnly}
               onClick={() => onToggle(position.id, pool.key, !active)}
               className={
-                "min-h-11 min-w-11 rounded-[var(--radius-sm)] text-[13px] flex items-center justify-center font-bold transition-colors " +
+                "min-h-11 min-w-11 rounded-[var(--radius-sm)] text-xs flex items-center justify-center font-bold transition-colors " +
                 // Without these, a disabled button still lights up on
                 // hover (:hover matches disabled elements) and then does
                 // nothing on click -- which reads as broken rather than
@@ -385,13 +385,13 @@ function PoolWindow({
     >
       <div className="flex items-center gap-2 mb-0.5">
         <span className={`w-2.5 h-2.5 rounded-full ${c.dot}`} />
-        <span className="text-[13px] font-semibold text-[var(--ink-900)]">{pool.title}</span>
+        <span className="text-xs font-semibold text-[var(--ink-900)]">{pool.title}</span>
       </div>
-      <p className="text-[11px] text-[var(--ink-500)] mb-2">{pool.hint}</p>
+      <p className="text-xs text-[var(--ink-500)] mb-2">{pool.hint}</p>
 
       <div className="space-y-1.5 mb-3">
         {positions.length === 0 ? (
-          <div className="text-[11px] text-[var(--ink-500)] text-center border border-dashed border-[var(--border)] rounded-[var(--radius-md)] py-5 px-2">
+          <div className="text-xs text-[var(--ink-500)] text-center border border-dashed border-[var(--border)] rounded-[var(--radius-md)] py-5 px-2">
             No positions in this pool yet.
             <br />
             Tap + on a position, or drag it here.
@@ -412,9 +412,9 @@ function PoolWindow({
                 }
               >
                 <div className="min-w-0">
-                  <div className="text-[13px] font-medium truncate text-[var(--ink-900)]">{p.name}</div>
+                  <div className="text-xs font-medium truncate text-[var(--ink-900)]">{p.name}</div>
                   {otherPools.length > 0 && (
-                    <div className="text-[10px] text-[var(--ink-500)]">
+                    <div className="text-xs text-[var(--ink-500)]">
                       also in {otherPools.map((g) => POOLS.find((pl) => pl.key === g)!.label).join(", ")}
                     </div>
                   )}

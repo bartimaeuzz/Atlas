@@ -70,7 +70,7 @@ function TransactionRow({
           <span className="text-[var(--ink-500)] font-normal"> · {transaction.date}</span>
         </div>
         {transaction.memo && <div className="text-[var(--ink-500)] text-xs mt-0.5">{transaction.memo}</div>}
-        <div className="text-[var(--ink-500)] opacity-75 text-[11px] mt-0.5">by {transaction.createdByName}</div>
+        <div className="text-[var(--ink-500)] opacity-75 text-xs mt-0.5">by {transaction.createdByName}</div>
         {!locked && (
           <div className="flex items-center gap-3 mt-0.5">
             {/* Word buttons, not icons: "rename and tag" (edit) and split

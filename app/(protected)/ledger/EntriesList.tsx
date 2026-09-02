@@ -150,7 +150,7 @@ function EntryRow({
           {entry.vendorName && <span className="text-[var(--ink-500)]"> · {entry.vendorName}</span>}
         </div>
         {entry.note && <div className="text-[var(--ink-500)] text-xs mt-0.5">{entry.note}</div>}
-        <div className="text-[var(--ink-400)] text-[11px] mt-0.5">by {entry.createdByName}</div>
+        <div className="text-[var(--ink-400)] text-xs mt-0.5">by {entry.createdByName}</div>
         {!locked && (
           <div className="flex gap-2 mt-2">
             <Button variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={isPending}>

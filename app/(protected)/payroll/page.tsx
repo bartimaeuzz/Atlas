@@ -324,7 +324,7 @@ function PayrollYearView({
               <div className="flex items-center justify-between mb-1">
                 <span className={"font-semibold " + (m.isFuture ? "text-[var(--ink-500)]" : "text-[var(--ink-900)]")}>
                   {m.name}
-                  {m.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">This month</span>}
+                  {m.isCurrent && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-normal">This month</span>}
                 </span>
                 {!m.isFuture && (
                   <Badge tone={m.paidWeekCount === m.weeks.length ? "success" : "neutral"}>
@@ -388,7 +388,7 @@ function PayrollYearView({
                       <Link href={`/payroll?month=${m.month}`} className="font-medium text-[var(--ink-900)]">
                         {m.name}
                       </Link>
-                      {m.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)]">This month</span>}
+                      {m.isCurrent && <span className="ml-1.5 text-xs text-[var(--warning-700)]">This month</span>}
                     </td>
                     <td className="py-2.5 px-3 text-right tabular-nums">{m.weeks.length}</td>
                     <td className="py-2.5 px-3 text-right tabular-nums">
@@ -445,7 +445,7 @@ function PayrollMonthView({
                 <div className="flex items-center justify-between gap-3 mb-1">
                   <span className={"text-sm font-semibold " + (w.isFuture ? "text-[var(--ink-500)]" : "text-[var(--ink-900)]")}>
                     {label}
-                    {w.isCurrent && <span className="ml-1.5 text-[10px] text-[var(--warning-700)] font-normal">This week</span>}
+                    {w.isCurrent && <span className="ml-1.5 text-xs text-[var(--warning-700)] font-normal">This week</span>}
                   </span>
                   {!w.isFuture &&
                     (w.status === "paid" ? <Badge tone="success">Paid</Badge> : <Badge tone="neutral">Draft</Badge>)}

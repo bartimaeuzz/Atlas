@@ -38,7 +38,7 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
 
       <div className="flex flex-wrap items-center justify-between gap-3 mt-2 mb-1">
         <div className="flex items-center gap-2.5">
-          <h1 className="text-[28px] font-bold text-[var(--ink-900)]">{employee.nickname}</h1>
+          <h1 className="text-3xl font-bold text-[var(--ink-900)]">{employee.nickname}</h1>
           {!employee.active && <Badge tone="neutral">Retired</Badge>}
           {employee.isPartner && <Badge tone="primary">Partner</Badge>}
         </div>
@@ -90,7 +90,7 @@ export default async function PersonProfilePage({ params }: { params: Promise<{ 
                         <span>
                           {p.positionName}
                           {p.positionId === employee.primaryPositionId && (
-                            <span className="ml-1.5 text-[10px] text-[var(--primary)]">Primary</span>
+                            <span className="ml-1.5 text-xs text-[var(--primary)]">Primary</span>
                           )}
                         </span>
                         <span className="text-xs text-[var(--ink-500)] tabular-nums">{p.tipPointValue} pt</span>

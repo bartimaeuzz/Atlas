@@ -406,7 +406,7 @@ export function EmployeeForm({
                   FOH/BOH grouping language the roster and closing report
                   use. */}
               {(i === 0 || allPositions[i - 1].category !== p.category) && (
-                <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-500)] mt-2 mb-1.5">
+                <div className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)] mt-2 mb-1.5">
                   {p.category === "FOH" ? "FOH — Front of house" : "BOH — Back of house"}
                 </div>
               )}

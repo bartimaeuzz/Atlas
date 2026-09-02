@@ -31,7 +31,7 @@ export function DetailDisclosure({ detail }: { detail: string }) {
         {open ? "Hide what changed" : "See what changed"}
       </button>
       {open && (
-        <pre className="mt-1.5 p-3 bg-[var(--paper)] border border-[var(--border)] rounded-[var(--radius-md)] text-[11px] leading-relaxed text-[var(--ink-700)] overflow-x-auto">
+        <pre className="mt-1.5 p-3 bg-[var(--paper)] border border-[var(--border)] rounded-[var(--radius-md)] text-xs leading-relaxed text-[var(--ink-700)] overflow-x-auto">
           {pretty}
         </pre>
       )}

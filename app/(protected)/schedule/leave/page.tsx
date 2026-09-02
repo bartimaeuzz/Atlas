@@ -63,7 +63,7 @@ export default async function LeavePage() {
                   </Badge>
                 </div>
                 {r.note && <div className="text-[var(--ink-500)] text-xs mt-0.5">{r.note}</div>}
-                <div className="text-[var(--ink-400)] text-[11px] mt-0.5">
+                <div className="text-[var(--ink-400)] text-xs mt-0.5">
                   logged {r.loggedAt.slice(0, 10)}
                   {r.status !== "pending" && r.decidedByName ? ` · ${r.status} by ${r.decidedByName}` : ""}
                 </div>

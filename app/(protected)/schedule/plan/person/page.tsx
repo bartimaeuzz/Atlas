@@ -224,7 +224,7 @@ export default async function EmployeeSchedulePage({
                         <div
                           key={`r-${ri}`}
                           className={
-                            "text-[10px] font-medium rounded border px-1 py-0.5 " +
+                            "text-xs font-medium rounded border px-1 py-0.5 " +
                             (r.kind === "no_show"
                               ? "bg-[var(--danger-tint)] text-[var(--danger-700)] border-[var(--danger-border)]"
                               : r.kind === "late" || r.kind === "extra"

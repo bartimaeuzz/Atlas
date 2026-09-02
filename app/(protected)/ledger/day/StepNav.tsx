@@ -79,7 +79,7 @@ export function StepNav({ date, step, seen }: { date: string; step: number; seen
  *  layouts describing the same process. */
 export function StepHeading({ n, children }: { n: number; children: React.ReactNode }) {
   return (
-    <h2 className="text-[11px] font-semibold uppercase tracking-wider text-[var(--ink-500)] mt-6 mb-2 pb-1.5 border-b border-[var(--border)] first:mt-0">
+    <h2 className="text-xs font-semibold uppercase tracking-wider text-[var(--ink-500)] mt-6 mb-2 pb-1.5 border-b border-[var(--border)] first:mt-0">
       <span className="lg:inline hidden">{n} · </span>
       {children}
     </h2>
