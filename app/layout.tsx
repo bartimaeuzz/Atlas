@@ -31,7 +31,7 @@ export const viewport: Viewport = {
   // cover + the safe-area padding in globals.css: content extends under
   // the notch/home-indicator without controls getting trapped there.
   viewportFit: "cover",
-  themeColor: "#1D4ED8",
+  themeColor: "#101B33",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

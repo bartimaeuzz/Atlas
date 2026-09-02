@@ -31,12 +31,12 @@ const sizeClasses: Record<Size, string> = {
  *   reset the ring to 1px. Source order never came into it. Fixed by
  *   putting the width on the focus-visible variant itself.
  *
- *   COLOUR. `--primary-border` (#BFDBFE) is a border tint, not an
- *   indicator colour: ~1.4:1 against white. The ring sits at
- *   `outline-offset: 2px`, i.e. on the page background rather than on the
- *   button, so one strong colour serves every variant — `--primary` gives
- *   6.7:1 in light and 4.5:1 in dark, both clear of the 3:1 floor, and
- *   keeps the blue focus affordance rather than going neutral.
+ *   COLOUR. `--primary-border` is a border tint, not an indicator colour.
+ *   The ring sits at `outline-offset: 2px`, i.e. on the page background
+ *   rather than on the button, so one strong colour serves every variant —
+ *   `--primary` (Mohom indigo #1B2B4D since 2026-09-02) gives 12.65:1 on
+ *   chalk and 13.78:1 on card, far clear of the 3:1 floor. A dedicated
+ *   3px `--focus` (#101B33) is the spec target for the component pass.
  *
  * Consequence for variants: none of them set their own focus colour any
  * more. Resist re-adding a per-variant ring — a focus indicator's job is

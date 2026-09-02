@@ -1,44 +1,56 @@
 @import "tailwindcss";
-@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* ---- Neutral scale (slate) ---- */
-  --paper: #F8FAFC;
-  --card: #FFFFFF;
-  --border: #E2E8F0;
-  --border-strong: #CBD5E1;
-  --ink-900: #0F172A;
-  --ink-700: #334155;
-  --ink-500: #64748B;
-  --ink-400: #94A3B8;
+  /* ---- Mohom palette (2026-09-02 design-system rollout, exact locked
+   * values from the spec Foundations table; contrast ratios computed, not
+   * estimated). Token NAMES are unchanged from the old slate/blue set, so
+   * every component reads the same var() and repaints with no edit — this
+   * commit is colour only; radius/type/fonts follow per module. ---- */
 
-  /* ---- Functional primary (blue) ---- */
-  --primary: #1D4ED8;
-  --primary-600: #2563EB;
-  --primary-700: #1E40AF;
-  --primary-tint: #EFF6FF;
-  --primary-border: #BFDBFE;
+  /* ---- Neutral scale (warm paper + indigo ink) ---- */
+  --paper: #F7F3EA;         /* chalk — page ground */
+  --cloth: #EDE7DA;         /* secondary surface — inset panels, sidebar */
+  --card: #FFFDF8;          /* raised surface, needs a border */
+  --border: #D2CBBA;        /* subtle — card edges, dividers. DECORATIVE ONLY */
+  --border-strong: #7C8392; /* mandatory on every input/select/checkbox (3.44:1) */
+  --ink-900: #1B2B4D;       /* text primary — 12.65:1 on chalk */
+  --ink-700: #2B4C7E;       /* text secondary — 7.78:1 */
+  --ink-500: #405E90;       /* text tertiary — labels, captions, 5.89:1 */
+  --ink-400: #405E90;       /* hints collapse to tertiary — the spec bans the
+                             * lighter indigo ramps (#7F93BC..#55709F) for text */
 
-  /* ---- Brand (mor hom indigo) — logo + single most consequential action per flow only ---- */
-  --brand: #2E3B7A;
-  --brand-700: #232D5E;
-  --brand-tint: #EEF0FA;
+  /* ---- Primary = the one indigo. No blue in Mohom; the single most
+   * consequential action, links, focus. Interactive states mix indigo into
+   * the surface (spec: hover 8%, pressed 14%). ---- */
+  --primary: #1B2B4D;
+  --primary-600: #1B2B4D;
+  --primary-700: #101B33;   /* deep — active/pressed, focus outline */
+  --primary-tint: color-mix(in srgb, #1B2B4D 10%, #FFFDF8);
+  --primary-border: color-mix(in srgb, #1B2B4D 35%, #FFFDF8);
+  --focus: #101B33;         /* 3px outline at 2px offset (per-component pass) */
 
-  /* ---- Semantic status ---- */
-  --success: #16A34A;
-  --success-700: #15803D;
-  --success-tint: #F0FDF4;
-  --success-border: #BBF7D0;
+  /* ---- Brand indigo — logo + active/selected surfaces. Same family as
+   * primary; kept as its own name for the nav's selected-item tint. ---- */
+  --brand: #1B2B4D;
+  --brand-700: #101B33;
+  --brand-tint: color-mix(in srgb, #1B2B4D 12%, #FFFDF8);
 
-  --warning: #B45309;
-  --warning-700: #92400E;
-  --warning-tint: #FFFBEB;
-  --warning-border: #FDE68A;
+  /* ---- Status: olive / ochre / brick (never colour alone — every status
+   * also carries a word; olive and ochre sit 4.6% apart in luminance). ---- */
+  --success: #4A5D23;       /* olive — paid, done, active */
+  --success-700: #4A5D23;
+  --success-tint: #EDEDE3;
+  --success-border: #808D63;
 
-  --danger: #DC2626;
-  --danger-700: #B91C1C;
-  --danger-tint: #FEF2F2;
-  --danger-border: #FECACA;
+  --warning: #7A5210;       /* ochre — draft, pending */
+  --warning-700: #7A5210;
+  --warning-tint: #F2ECE1;
+  --warning-border: #A28556;
+
+  --danger: #9A3728;        /* brick — short, late, over */
+  --danger-700: #9A3728;
+  --danger-tint: #F5E9E3;
+  --danger-border: #B87266;
 
   /* ---- Type scale ---- */
   --text-h1: 32px;
@@ -60,58 +72,23 @@
    * no-op on the page background itself. These two exist so every
    * hoverable surface takes the SAME two visible steps: rest ->
    * --hover -> --pressed. Never hover to --paper again. ---- */
-  --hover: #E2E8F0;
-  --pressed: #CBD5E1;
+  --hover: color-mix(in srgb, var(--primary) 8%, var(--card));
+  --pressed: color-mix(in srgb, var(--primary) 14%, var(--card));
 
   /* ---- Elevation ---- */
-  --shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-2: 0 4px 10px rgba(15, 23, 42, 0.10);
-  --shadow-3: 0 12px 28px rgba(15, 23, 42, 0.18);
+  --shadow-1: 0 1px 2px rgba(16, 27, 51, 0.06);
+  --shadow-2: 0 4px 10px rgba(16, 27, 51, 0.10);
+  --shadow-3: 0 12px 28px rgba(16, 27, 51, 0.18);
 
-  /* Light mode is the only active mode today — see the dark mode note below. */
+  /* One mode. Dark mode was deleted 2026-09-02 (design-system decision):
+   * no single dark border token clears 3:1 against both a dark page and a
+   * dark card, so it needs a second border token and a full second audit;
+   * against that, the brand's whole identity is a warm paper ground and
+   * the costliest failure is a misread number. A dormant block invites the
+   * half-dark regression that already happened once. */
   color-scheme: light;
 }
 
-/* ---- Dark mode token values ----
- * Defined now, verified for WCAG AA contrast (see project_atlas_ui_design
- * memory, 2026-08-16 contrast pass), but NOT activated anywhere yet — no
- * `.dark` class is applied on any page. This app was burned once already
- * (2026-08-10) by a `prefers-color-scheme` override flipping the background
- * while components stayed light-only, producing a broken half-dark page.
- * These values exist so components can be built dark-mode-safe from day
- * one (semantic var() everywhere, never a literal hex) — the actual toggle
- * is a separate, deliberate future step, not implied by this file existing. */
-.dark {
-  --paper: #0F172A;
-  --card: #1E293B;
-  --border: #334155;
-  --border-strong: #475569;
-  --ink-900: #F1F5F9;
-  --ink-700: #CBD5E1;
-  --ink-500: #94A3B8;
-  --ink-400: #64748B;
-
-  --primary: #3B82F6;
-  --primary-600: #60A5FA;
-  --primary-700: #93C5FD;
-  --primary-tint: #1E3A8A;
-  --primary-border: #1E40AF;
-
-  /* Brand indigo fails WCAG AA against the dark card bg at the light-mode
-   * value (1.4:1) — same lightening treatment already applied to primary. */
-  --brand: #7C8FE0;
-  --brand-700: #95A3EE;
-  --brand-tint: #1E2451;
-
-  --success: #4ADE80;
-  --warning: #FBBF24;
-  --danger: #F87171;
-
-  --hover: #334155;
-  --pressed: #475569;
-
-  color-scheme: dark;
-}
 
 @theme inline {
   --color-paper: var(--paper);

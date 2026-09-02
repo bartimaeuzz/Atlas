@@ -31,10 +31,11 @@ export function RoleGroupCard({
 }) {
   // border-strong + shadow-1, i.e. the recipe components/ui/Card.tsx already
   // uses (2026-09-01, Oliver: "the card looks like a background, hard for
-  // human eyes"). Measured: the page ground and --paper are the SAME colour
-  // (#f8fafc), and card-vs-ground is 1.05:1, so no fill in this palette can
-  // separate the two surfaces. Elevation can — which is what the shadow
-  // scale is for, and why Card.tsx pairs a border with shadow-1. `bg-white`
+  // human eyes"). The old slate palette painted page ground and --paper the
+  // SAME colour (#f8fafc, ~1.05:1), so no fill could separate the surfaces
+  // and elevation had to. Under Mohom (2026-09-02) card #FFFDF8 and ground
+  // #F7F3EA do differ, but the border+shadow-1 pairing Card.tsx uses stays
+  // the reliable separator. `bg-white`
   // was also a raw literal; it is --card like everywhere else now.
   return (
     <details
@@ -103,9 +104,9 @@ function PersonRow({ employee }: { employee: CapabilityMatrixEmployeeRow }) {
         </span>
       </summary>
 
-      {/* Was bg-[var(--paper)] — which is #f8fafc, the exact colour of the
-          page behind the card, so an opened panel was painted the
-          background and vanished. It now keeps the card surface and is
+      {/* Was bg-[var(--paper)] — under the old slate palette that was the
+          exact colour of the page behind the card, so an opened panel
+          vanished into the background. It now keeps the card surface and is
           separated by the accent rail plus a real top border. */}
       <div className="bg-[var(--card)] border-t border-[var(--border-strong)] border-l-[3px] border-l-[var(--primary)]">
         <EmployeeCapabilityCard employee={employee} showHeader={false} />
