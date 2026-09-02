@@ -12,7 +12,7 @@
 /** All roles, one rule (confirmed via AskUserQuestion 2026-08-18) — this
  * is a shared restaurant terminal, so 30 minutes idle signs everyone out
  * regardless of Staff/Manager/Admin. Sits alongside the existing 14h hard
- * cap (SESSION_DURATION_MS in session.ts) as a tighter, resettable bound;
+ * cap (SHARED_DEVICE_SESSION_MS in sessionLifetime.ts) as a tighter, resettable bound;
  * whichever limit is hit first ends the session. */
 export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 

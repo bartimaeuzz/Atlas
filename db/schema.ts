@@ -300,6 +300,11 @@ export const staffSessions = sqliteTable("staff_sessions", {
   // resolveSessionToken; a session is only valid within BOTH the 30-min
   // idle window and the 14h hard cap, whichever is stricter.
   lastActivityAt: text("last_activity_at").notNull().default(sql`(current_timestamp)`),
+  // "This is my own phone" (2026-09-01): a 30-day session with NO idle
+  // sign-out, chosen by the person at /login. False = the shared-device
+  // rules above. See lib/auth/sessionLifetime.ts. Ended early by Sign
+  // out or by a PIN reset for that person (Oliver: they log in again).
+  ownDevice: integer("own_device", { mode: "boolean" }).notNull().default(false),
 });
 
 // Single-row settings table (restaurantId reserved for future multi-tenant use).

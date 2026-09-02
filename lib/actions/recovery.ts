@@ -22,7 +22,7 @@ import { db } from "@/db/client";
 import { employees, restaurantSettings } from "@/db/schema";
 import { hashPin, verifyPin } from "@/lib/auth/pin";
 import { generateRecoveryCodePlaintext, normalizeRecoveryCodeInput } from "@/lib/auth/recoveryCode";
-import { getCurrentStaffSession } from "@/lib/auth/session";
+import { deleteSessionsForEmployeeQuery, getCurrentStaffSession } from "@/lib/auth/session";
 import { formatMinutes, lockoutMinutesLeft, recordFailedAttempt } from "@/lib/auth/lockout";
 
 export interface GenerateRecoveryCodeState {
@@ -129,11 +129,15 @@ export async function redeemRecoveryCode(
   const [employee] = await db.select().from(employees).where(eq(employees.id, employeeId));
   if (!employee || !employee.active) return { error: "That account isn't available.", success: false };
 
-  // Same as setEmployeePin: a fresh PIN clears the login lockout too.
-  await db
-    .update(employees)
-    .set({ pinHash: hashPin(pin), loginFailedAttempts: 0, loginLockedUntil: null })
-    .where(eq(employees.id, employeeId));
+  // Same as setEmployeePin: a fresh PIN clears the login lockout and signs
+  // that person out everywhere, in one batch (see the note there).
+  await db.batch([
+    db
+      .update(employees)
+      .set({ pinHash: hashPin(pin), loginFailedAttempts: 0, loginLockedUntil: null })
+      .where(eq(employees.id, employeeId)),
+    deleteSessionsForEmployeeQuery(employeeId),
+  ]);
   await db
     .update(restaurantSettings)
     .set({ recoveryCodeLastUsedAt: now.toISOString(), recoveryCodeLastUsedForEmployeeId: employeeId })

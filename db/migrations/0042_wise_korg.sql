@@ -1,0 +1,1 @@
+ALTER TABLE `staff_sessions` ADD `own_device` integer DEFAULT false NOT NULL;

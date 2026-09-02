@@ -14,6 +14,7 @@ import { employees } from "@/db/schema";
 import { verifyPin } from "@/lib/auth/pin";
 import { CLEARED_LOCKOUT, formatMinutes, lockoutMinutesLeft, recordFailedAttempt } from "@/lib/auth/lockout";
 import { createSession, destroySessionByToken, SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { sessionCookieMaxAgeSeconds } from "@/lib/auth/sessionLifetime";
 
 export interface LoginActionState {
   error: string | null;
@@ -97,13 +98,16 @@ export async function login(_prevState: LoginActionState, formData: FormData): P
       .where(eq(employees.id, employee.id));
   }
 
-  const token = await createSession(employee.id);
+  // "This is my own phone" (2026-09-01) — an unticked box posts nothing,
+  // so absence means the shared-device default. See sessionLifetime.ts.
+  const ownDevice = formData.get("ownDevice") === "on";
+  const token = await createSession(employee.id, ownDevice);
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 14 * 60 * 60, // matches session.ts's SESSION_DURATION_MS
+    maxAge: sessionCookieMaxAgeSeconds(ownDevice),
   });
 
   // Tile home page (2026-08-16): "/" is now a role-aware dashboard —

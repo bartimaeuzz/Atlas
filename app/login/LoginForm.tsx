@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { login, type LoginActionState } from "@/lib/actions/auth";
-import { Select, TextInput } from "@/components/ui/Field";
+import { Checkbox, Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
@@ -83,6 +83,15 @@ export function LoginForm({
         placeholder="••••"
         label="PIN"
         className="tracking-[0.4em] text-lg text-center"
+      />
+      {/* 2026-09-01: 30-day sign-in for personal phones (Oliver). Off by
+       * default — the safe choice on a device other people use — and
+       * worded as a fact about the device, not a preference, so ticking it
+       * on the restaurant's tablet feels obviously wrong. */}
+      <Checkbox
+        name="ownDevice"
+        label={<span className="font-medium">This is my own phone</span>}
+        description="Stay signed in for 30 days. Leave this off on a device other people use."
       />
       <Button type="submit" loading={isPending} className="w-full" size="md">
         {isPending ? "Signing in…" : "Sign in"}

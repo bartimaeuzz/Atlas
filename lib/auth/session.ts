@@ -9,19 +9,17 @@
 
 import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, or, ne } from "drizzle-orm";
 import { db } from "@/db/client";
 import { staffSessions, employees } from "@/db/schema";
 import { idleCutoff, shouldTouchActivity, msUntilIdleTimeout, IDLE_TIMEOUT_MS } from "./idleTimeout";
+import { sessionExpiresAt } from "./sessionLifetime";
 
 export const SESSION_COOKIE_NAME = "atlas_staff_session";
-// A shift-length-ish window, not a "remember me forever" session — this is
-// a shared terminal, so sessions shouldn't silently outlive the person's
-// actual shift by much. This is the outer bound; the 30-minute inactivity
-// timeout below (IDLE_TIMEOUT_MS, added 2026-08-19) is the tighter,
-// resettable one that actually fires first in normal use — see
-// idleTimeout.ts and project memory "Atlas Session Security".
-const SESSION_DURATION_MS = 14 * 60 * 60 * 1000; // 14 hours
+// Two lifetimes since 2026-09-01 — see sessionLifetime.ts. Shared device
+// (default): a shift-length 14h cap plus the 30-minute idle sign-out
+// (idleTimeout.ts, 2026-08-19), whichever fires first. Own phone: 30
+// days, no idle sign-out.
 
 export interface StaffSessionEmployee {
   id: number;
@@ -34,11 +32,11 @@ export interface StaffSessionEmployee {
   isFinancialAuditor: boolean;
 }
 
-export async function createSession(employeeId: number): Promise<string> {
+export async function createSession(employeeId: number, ownDevice: boolean): Promise<string> {
   const token = randomBytes(32).toString("hex");
-  const nowIso = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
-  await db.insert(staffSessions).values({ token, employeeId, expiresAt, lastActivityAt: nowIso });
+  const now = new Date();
+  const expiresAt = sessionExpiresAt(now, ownDevice).toISOString();
+  await db.insert(staffSessions).values({ token, employeeId, expiresAt, lastActivityAt: now.toISOString(), ownDevice });
   return token;
 }
 
@@ -46,9 +44,22 @@ export async function destroySessionByToken(token: string): Promise<void> {
   await db.delete(staffSessions).where(eq(staffSessions.token, token));
 }
 
+/** Signs one person out everywhere — every phone and terminal. Returned
+ * as a query (not awaited) so a PIN reset can db.batch() it with the PIN
+ * write. Used by a PIN reset (2026-09-01, Oliver: after a reset "they need to log in
+ * again"), which is also how a lost phone with a 30-day session gets
+ * shut: reset the PIN. `exceptToken` keeps the session doing the
+ * resetting alive when a manager resets their OWN PIN — being bounced to
+ * /login mid-page by your own action reads as "the app broke". */
+export function deleteSessionsForEmployeeQuery(employeeId: number, exceptToken?: string) {
+  const own = eq(staffSessions.employeeId, employeeId);
+  return db.delete(staffSessions).where(exceptToken ? and(own, ne(staffSessions.token, exceptToken)) : own);
+}
+
 /** Resolves a raw token to the employee it belongs to, or null if the
- * token doesn't exist, has hit the 14h hard expiry, or has sat idle past
- * IDLE_TIMEOUT_MS (30 min — see idleTimeout.ts). Doesn't touch cookies —
+ * token doesn't exist, has hit its hard expiry (14h shared / 30 days own
+ * phone), or — shared device only — has sat idle past IDLE_TIMEOUT_MS
+ * (30 min, see idleTimeout.ts). Doesn't touch cookies —
  * callers that need the current request's session should use
  * getCurrentStaffSession below instead; this is split out so it stays
  * easily unit-testable against a token string directly.
@@ -72,6 +83,7 @@ export async function resolveSessionToken(token: string): Promise<StaffSessionEm
       primaryPositionId: employees.primaryPositionId,
       isFinancialAuditor: employees.isFinancialAuditor,
       lastActivityAt: staffSessions.lastActivityAt,
+      ownDevice: staffSessions.ownDevice,
     })
     .from(staffSessions)
     .innerJoin(employees, eq(staffSessions.employeeId, employees.id))
@@ -79,12 +91,14 @@ export async function resolveSessionToken(token: string): Promise<StaffSessionEm
       and(
         eq(staffSessions.token, token),
         gt(staffSessions.expiresAt, nowIso),
-        gt(staffSessions.lastActivityAt, idleCutoffIso),
+        // The idle rule is for shared devices only — an own-phone session
+        // is bounded by its 30-day expiresAt alone.
+        or(eq(staffSessions.ownDevice, true), gt(staffSessions.lastActivityAt, idleCutoffIso)),
       ),
     );
   if (!row) return null;
 
-  if (shouldTouchActivity(new Date(row.lastActivityAt), now)) {
+  if (!row.ownDevice && shouldTouchActivity(new Date(row.lastActivityAt), now)) {
     await db.update(staffSessions).set({ lastActivityAt: nowIso }).where(eq(staffSessions.token, token));
   }
 
@@ -108,12 +122,16 @@ export async function resolveSessionToken(token: string): Promise<StaffSessionEm
 export async function peekSessionIdleStatus(token: string): Promise<{ msRemaining: number } | null> {
   const now = new Date();
   const [row] = await db
-    .select({ lastActivityAt: staffSessions.lastActivityAt, expiresAt: staffSessions.expiresAt })
+    .select({ lastActivityAt: staffSessions.lastActivityAt, expiresAt: staffSessions.expiresAt, ownDevice: staffSessions.ownDevice })
     .from(staffSessions)
     .where(eq(staffSessions.token, token));
   if (!row) return null;
   if (new Date(row.expiresAt) <= now) return null;
-  const msRemaining = msUntilIdleTimeout(new Date(row.lastActivityAt), now);
+  // An own-phone session has no idle clock; what remains is the time to
+  // its 30-day expiry, which keeps the warning banner silent for weeks.
+  const msRemaining = row.ownDevice
+    ? new Date(row.expiresAt).getTime() - now.getTime()
+    : msUntilIdleTimeout(new Date(row.lastActivityAt), now);
   return msRemaining > 0 ? { msRemaining } : null;
 }
 

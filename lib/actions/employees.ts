@@ -1,12 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees, employeePositions, employeeWageRates, positions } from "@/db/schema";
 import { hashPin } from "@/lib/auth/pin";
-import { getCurrentStaffSession } from "@/lib/auth/session";
+import { getCurrentStaffSession, deleteSessionsForEmployeeQuery, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { buildLoginId, LOGIN_ID_DEPARTMENTS, type LoginIdDepartment } from "@/lib/employees/loginId";
 
@@ -401,10 +402,19 @@ export async function setEmployeePin(_prevState: EmployeeActionState, formData: 
   // A new PIN also clears any login lockout (2026-09-01) -- "ask a
   // manager to reset your PIN" is the way out the lockout message offers,
   // so the reset must actually open the door, not just change the key.
-  await db
-    .update(employees)
-    .set({ pinHash: hashPin(pin), loginFailedAttempts: 0, loginLockedUntil: null })
-    .where(eq(employees.id, employeeId));
+  // A new PIN signs that person out everywhere (2026-09-01, Oliver) — this
+  // is also how a lost phone with a 30-day session gets shut. The session
+  // doing the resetting is spared so a manager resetting their OWN PIN is
+  // not bounced to /login by their own click. One batch: a changed PIN
+  // with the old phone still signed in is the half-state we must not leave.
+  const currentToken = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
+  await db.batch([
+    db
+      .update(employees)
+      .set({ pinHash: hashPin(pin), loginFailedAttempts: 0, loginLockedUntil: null })
+      .where(eq(employees.id, employeeId)),
+    deleteSessionsForEmployeeQuery(employeeId, currentToken),
+  ]);
 
   revalidatePath(`/people/${employeeId}/edit`);
   return { error: null };
