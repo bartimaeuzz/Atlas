@@ -84,14 +84,14 @@ export function LoginForm({
         label="PIN"
         className="tracking-[0.4em] text-lg text-center"
       />
-      {/* 2026-09-01: 30-day sign-in for personal phones (Oliver). Off by
-       * default — the safe choice on a device other people use — and
-       * worded as a fact about the device, not a preference, so ticking it
-       * on the restaurant's tablet feels obviously wrong. */}
+      {/* 2026-09-01: 30-day sign-in for personal phones. Off by default —
+       * the safe choice on a device other people use. Oliver chose the
+       * familiar label ("keep me logged in") over a device-fact wording;
+       * the helper line carries the shared-device warning. */}
       <Checkbox
         name="ownDevice"
-        label={<span className="font-medium">This is my own phone</span>}
-        description="Stay signed in for 30 days. Leave this off on a device other people use."
+        label={<span className="font-medium">Keep me logged in</span>}
+        description="Stays signed in for 30 days. Leave this off on a device other people use."
       />
       <Button type="submit" loading={isPending} className="w-full" size="md">
         {isPending ? "Signing in…" : "Sign in"}
