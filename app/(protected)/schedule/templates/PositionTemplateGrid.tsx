@@ -455,9 +455,10 @@ function EmployeeEdit({
   setEditing: (v: boolean) => void;
 }) {
   const [showVacancyForm, setShowVacancyForm] = useState(false);
-  // The last live window.confirm() in the app (caught by the 2026-08-24
-  // behaviour sweep for the raw-confirm bug class). Same ConfirmDialog
-  // tier as swap-approve: destructive-ish but recoverable by re-assigning.
+  // Was the last raw window.confirm() in the app; migrated to ConfirmDialog
+  // in the 2026-08-24 behaviour sweep for the raw-confirm bug class. Same
+  // ConfirmDialog tier as swap-approve: destructive-ish but recoverable by
+  // re-assigning.
   const [confirmingRetire, setConfirmingRetire] = useState(false);
   const [isPending, startTransition] = useTransition();
   const isVacant = employee.vacancyReason !== null;

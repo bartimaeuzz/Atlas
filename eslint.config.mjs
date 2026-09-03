@@ -10,11 +10,22 @@ import nextTs from "eslint-config-next/typescript";
 // chunks (className={`...`}); comments are AST-free and never match, so a
 // history comment naming an old colour is safe.
 //
-// NOT YET here, deliberately: a window.confirm/alert/prompt ban (7 real
-// call sites still use it; they need replacing with the DangerConfirmDialog
-// primitive first — its own task) and an unlabelled-nav-item rule (needs a
-// custom rule, low value). Add the confirm rule once those 7 are migrated.
+// The window.confirm/alert/prompt ban landed 2026-09-03: all seven raw-confirm
+// call sites had already been migrated to ConfirmDialog / DangerConfirmDialog
+// (2026-08-16 → 2026-08-26), so the sweep to zero was a no-op and the rule now
+// fails only on NEW native dialogs. Still deliberately absent: an
+// unlabelled-nav-item rule (needs a custom rule, low value).
 const RESTRICTED = [
+  {
+    selector: "CallExpression[callee.object.name='window'][callee.property.name=/^(confirm|alert|prompt)$/]",
+    message:
+      "No native window.confirm/alert/prompt. Use the design-system dialogs: ConfirmDialog for reversible confirms, DangerConfirmDialog (typed-word) for destructive or record-locking actions.",
+  },
+  {
+    selector: "CallExpression[callee.name=/^(confirm|alert|prompt)$/]",
+    message:
+      "No native confirm/alert/prompt. Use the design-system dialogs: ConfirmDialog for reversible confirms, DangerConfirmDialog (typed-word) for destructive or record-locking actions.",
+  },
   {
     selector: "Literal[value=/text-\\[[0-9.]+px\\]/]",
     message: "Arbitrary text size. Use the type scale (text-xs…text-3xl or a --text-* token), never text-[Npx].",
