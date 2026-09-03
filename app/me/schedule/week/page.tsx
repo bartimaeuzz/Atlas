@@ -78,7 +78,7 @@ export default async function StaffWeeklyPlanPage({
               <span className="w-2 h-2 rounded-full ring-1 ring-[var(--border-strong)] bg-[var(--card)] inline-block" /> Covering leave
             </span>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full ring-1 ring-[var(--primary-border)] bg-[var(--card)] inline-block" /> Shift swap — awaiting manager approval
+              <span className="w-2 h-2 rounded-full ring-1 ring-[var(--primary-border)] bg-[var(--card)] inline-block" /> Shift swap — never settled (old)
             </span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full ring-1 ring-[var(--success)] bg-[var(--card)] inline-block" /> Shift swap — completed

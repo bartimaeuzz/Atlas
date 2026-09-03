@@ -807,7 +807,7 @@ function AssignmentPill({
       : swap?.status === "completed"
       ? `Covering for ${swap.requestingEmployeeName} via a completed shift swap`
       : swap?.status === "pending_manager_approval"
-        ? `${assignment.employeeName} accepted a swap from ${swap.requestingEmployeeName}, awaiting manager approval (shift is within 3 days)`
+        ? `${assignment.employeeName} took a swap from ${swap.requestingEmployeeName} under the old approval rule, and it was never decided`
         : undefined;
   const reassignedTitle =
     assignment.sourceType === "REASSIGNED"
@@ -915,7 +915,7 @@ function AssignmentPill({
         )}
         {swap?.status === "pending_manager_approval" && (
           <span className="text-xs font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--primary)] text-white shrink-0">
-            pending
+            unsettled
           </span>
         )}
         {hasConflict && (
@@ -1049,7 +1049,7 @@ function AssignmentActionsDialog({
           )}
           {swap?.status === "pending_manager_approval" && (
             <span className="block text-[var(--primary-700)] mt-0.5">
-              Accepted a swap from {swap.requestingEmployeeName} — awaiting manager approval.
+              Took a swap from {swap.requestingEmployeeName} — never decided under the old rule.
             </span>
           )}
           {swap?.status === "open" && (

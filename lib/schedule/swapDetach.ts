@@ -2,6 +2,9 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { swapRequests, plannedShiftAssignments, employees, positions } from "@/db/schema";
 import { formatDayLabelShort } from "@/lib/format/formatDayLabel";
+import type { SwapStatus } from "@/lib/schedule/loadSwapRequests";
+import { expireStaleSwaps } from "@/lib/schedule/expireStaleSwaps";
+import { businessTodayIso } from "@/lib/formatDateTime";
 
 /** What deleting a set of planned assignments means for the swap requests
  * that reference them (2026-08-30, after Aey hit a raw SQLITE_CONSTRAINT
@@ -27,12 +30,41 @@ import { formatDayLabelShort } from "@/lib/format/formatDayLabel";
  * first. Error prevention over error messages — the same reason the
  * danger zone requires a typed word instead of just a red button. */
 
-const UNRESOLVED = ["open", "pending_manager_approval"] as const;
-const RESOLVED = ["completed", "declined", "cancelled"] as const;
+/** Every status, classified -- a Record over the enum rather than two
+ * hand-kept arrays, so adding a status FAILS THE BUILD until it is
+ * classified here (2026-09-03). It was two arrays, and the three statuses
+ * added that day landed in neither: such a row would have been neither
+ * blocked nor detached, so its FK would still point at the assignment
+ * being deleted and the manager would get the raw SQLITE_CONSTRAINT this
+ * whole file exists to prevent.
+ *
+ *   blocks -- a live promise to a staff member. Refuse the delete and
+ *     name it, so the manager resolves it deliberately.
+ *   detach -- history. Keep the record, snapshot the shift onto it, null
+ *     the FK, let the delete proceed. */
+type SwapDisposition = "blocks" | "detach";
+
+const DISPOSITION: Record<SwapStatus, SwapDisposition> = {
+  open: "blocks",
+  // Legacy: the approval gate was deleted 2026-09-03 and no new row can
+  // reach this state, but one still pending on a FUTURE shift is still a
+  // promise. Past-dated ones are swept to "unresolved" by the
+  // expireStaleSwaps call at the top of prepareAssignmentsForDelete.
+  pending_manager_approval: "blocks",
+  completed: "detach",
+  declined: "detach",
+  cancelled: "detach",
+  put_back: "detach",
+  // Swept because its shift already happened -- history by definition,
+  // and never a reason to block anything. This is the whole point of the
+  // sweep: these used to sit as "open" forever and jam week deletion.
+  unclaimed: "detach",
+  unresolved: "detach",
+};
 
 interface SwapRow {
   swapId: number;
-  status: string;
+  status: SwapStatus;
   requesterName: string;
   assignmentId: number;
   date: string;
@@ -64,7 +96,7 @@ async function loadSwapRowsFor(assignmentIds: number[]): Promise<SwapRow[]> {
 /** Plain-language reason a delete is blocked, naming every unresolved
  * swap — never a constraint error. Returns null when nothing blocks. */
 export function describeBlockingSwaps(rows: SwapRow[]): string | null {
-  const blocking = rows.filter((r) => (UNRESOLVED as readonly string[]).includes(r.status));
+  const blocking = rows.filter((r) => DISPOSITION[r.status] === "blocks");
   if (blocking.length === 0) return null;
   const items = blocking
     .map((r) => {
@@ -75,7 +107,7 @@ export function describeBlockingSwaps(rows: SwapRow[]): string | null {
   return (
     `Can't remove this yet: ${items}. ` +
     `Someone is counting on that swap, so it won't be deleted as a side effect — ` +
-    `go to Schedule → Swaps and approve, decline, or cancel it first, then try again.`
+    `go to Schedule → Swaps and cancel it first, then try again.`
   );
 }
 
@@ -90,10 +122,16 @@ export function describeBlockingSwaps(rows: SwapRow[]): string | null {
  * early) — whereas composing would force every caller's existing delete
  * shape to change. */
 export async function prepareAssignmentsForDelete(assignmentIds: number[]): Promise<string | null> {
+  // Sweep FIRST (2026-09-03). Jamming a week delete with a dead request is
+  // the concrete harm the sweep exists to remove, and this is the code
+  // that does the jamming -- so it cannot depend on a manager having
+  // happened to open the Swaps page beforehand. Idempotent, and a no-op in
+  // the normal case where nothing is stale.
+  await expireStaleSwaps(businessTodayIso());
   const rows = await loadSwapRowsFor(assignmentIds);
   const blockMessage = describeBlockingSwaps(rows);
   if (blockMessage) return blockMessage;
-  const detachable = rows.filter((r) => (RESOLVED as readonly string[]).includes(r.status));
+  const detachable = rows.filter((r) => DISPOSITION[r.status] === "detach");
   for (const r of detachable) {
     await db
       .update(swapRequests)

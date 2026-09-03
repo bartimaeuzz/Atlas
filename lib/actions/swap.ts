@@ -8,13 +8,13 @@
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { revalidatePath } from "next/cache";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { swapRequests, plannedShiftAssignments, scheduleWeeks, employeePositions, leaveRequests } from "@/db/schema";
+import { swapRequests, plannedShiftAssignments, scheduleWeeks, employeePositions, employees } from "@/db/schema";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { requireCapability } from "@/lib/permissions/requireCapability";
-import { daysBetween } from "@/lib/schedule/weekMath";
-import { completeSwap } from "@/lib/schedule/completeSwap";
+import { prepareSwapCompletion, prepareSwapReversal } from "@/lib/schedule/completeSwap";
+import { loadOnLeaveLookup } from "@/lib/schedule/onLeave";
 
 // respondedAt/decidedAt are written via SQLite's own current_timestamp
 // (through `sql`), NOT a JS-side `new Date().toISOString()` -- the same
@@ -26,8 +26,6 @@ import { completeSwap } from "@/lib/schedule/completeSwap";
 // correctly against each other with `>` -- caught by verify_swap.ts
 // before this shipped (it broke the OTHER direction from the leave bug:
 // the badge would never have cleared at all).
-
-const APPROVAL_WINDOW_DAYS = 3; // <=3 days out needs a manager decision; further out auto-completes
 
 export interface SwapRequestActionState {
   error: string | null;
@@ -81,7 +79,7 @@ export async function createSwapRequest(
       .select()
       .from(swapRequests)
       .where(
-        and(eq(swapRequests.assignmentId, assignmentId), inArray(swapRequests.status, ["open", "pending_manager_approval"]))
+        and(eq(swapRequests.assignmentId, assignmentId), eq(swapRequests.status, "open"))
       );
     if (liveRequest) throw new Error("This shift already has an active swap request");
 
@@ -118,8 +116,9 @@ export async function cancelSwapRequest(requestId: number): Promise<ActionResult
  * call, made when the danger-zone delete gate exposed the gap: an OPEN
  * request could only ever be cancelled by its own requester, so a
  * blocked week-delete sent managers to a page with nothing they could
- * act on). Allowed on open and pending_manager_approval -- the two
- * states where the swap is still a live promise. A REASON IS REQUIRED:
+ * act on). Allowed on open only -- the one
+ * state where the swap is still a live promise -- once someone has taken
+ * it, the manager's control is putBackSwap instead. A REASON IS REQUIRED:
  * the requester sees it verbatim on their own My Schedule panel along
  * with who cancelled ("notify staff that your request was cancel why
  * and by whom"), so this field is the notification -- Atlas has no
@@ -134,11 +133,11 @@ export async function managerCancelSwapRequest(requestId: number, reason: string
     const session = await requireCapability("SCHEDULE_MANAGE");
 
     const trimmedReason = reason.trim();
-    if (!trimmedReason) throw new Error("Add a short reason -- the person who posted this will see it");
+    if (!trimmedReason) throw new Error("Add a short reason — the person who posted this will see it");
 
     const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
     if (!request) throw new Error("That request no longer exists");
-    if (request.status !== "open" && request.status !== "pending_manager_approval") {
+    if (request.status !== "open") {
       throw new Error("That request has already been settled");
     }
 
@@ -156,14 +155,17 @@ export async function managerCancelSwapRequest(requestId: number, reason: string
 });
 }
 
-/** A coworker accepts an open swap request. Re-checks every eligibility
- * rule server-side: must actively hold the position, can't accept your
+/** A coworker takes an open swap request. Re-checks every eligibility
+ * rule server-side: must actively hold the position, can't take your
  * own request, can't already be assigned elsewhere at that exact
- * date+period, can't be on logged leave that day. Shifts due <=3 days
- * out go to pending_manager_approval instead of completing immediately
- * (confirmed with Oliver: closer-in swaps need a manager's eyes on
- * them; anything further out just notifies the manager after the
- * fact). */
+ * date+period, can't be on leave that day.
+ *
+ * Taking COMPLETES the swap immediately, at any notice (2026-09-03). The
+ * old rule sent shifts due within three days to pending_manager_approval
+ * instead; that gate was deleted because it fired precisely when the
+ * manager had least time to click, and a swap left unclicked meant the
+ * schedule asserted the wrong person had worked. The manager's control is
+ * now putBackSwap, after the fact, where it costs nothing when unused. */
 export async function acceptSwapRequest(requestId: number): Promise<ActionResult> {
   // Returns expected failures instead of throwing them -- production
   // redacts thrown server-action errors to "Minified React error #441"
@@ -211,81 +213,115 @@ export async function acceptSwapRequest(requestId: number): Promise<ActionResult
       );
     if (conflict) throw new Error("You're already scheduled that day/period");
 
-    const onLeave = await db
-      .select()
-      .from(leaveRequests)
-      .where(eq(leaveRequests.employeeId, session.id));
-    if (onLeave.some((l) => assignment.date >= l.startDate && assignment.date <= l.endDate)) {
+    const onLeaveOn = await loadOnLeaveLookup(assignment.date, assignment.date);
+    if (onLeaveOn(session.id, assignment.date)) {
       throw new Error("You have leave logged over that date");
     }
 
-    const today = businessTodayIso();
-    const daysOut = daysBetween(today, assignment.date);
-    const needsApproval = daysOut <= APPROVAL_WINDOW_DAYS;
-
-    await db
+    // Prepared, not executed: prepareSwapCompletion does the last refusal
+    // (a finalized shift's payroll is locked) BEFORE anything is written,
+    // and hands back the moves so they commit in one batch with the status.
+    // Previously the status was set to "completed" first and the move could
+    // still throw afterwards, leaving a completed swap whose shift never
+    // moved -- and the plan and the roster row could diverge from each
+    // other, which is what the wage and tip-pool calculation reads.
+    const move = await prepareSwapCompletion({ ...request, acceptingEmployeeId: session.id });
+    const statusQuery = db
       .update(swapRequests)
       .set({
         acceptingEmployeeId: session.id,
-        status: needsApproval ? "pending_manager_approval" : "completed",
+        status: "completed",
         respondedAt: sql`(current_timestamp)`,
       })
       .where(eq(swapRequests.id, requestId));
 
-    if (!needsApproval) {
-      const [updated] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
-      await completeSwap(updated);
+    if (move.rosterQuery) await db.batch([move.planQuery, move.rosterQuery, statusQuery]);
+    else await db.batch([move.planQuery, statusQuery]);
+
+    revalidateSwapPaths();
+});
+}
+
+/** The manager's control over swaps, after the fact (2026-09-03) --
+ * this replaced approveSwapRequest/declineSwapRequest when the approval
+ * gate was deleted.
+ *
+ * "Put it back" reverses a completed swap: the shift returns to whoever
+ * originally offered it. Available until the shift starts -- afterwards
+ * the shift has happened and the roster, not a planning row, is the
+ * record of who worked it.
+ *
+ * Undo rather than approve, deliberately: it is the same veto, but it
+ * costs nothing when unused and nothing can rot waiting for a click. If
+ * the original person still can't work the shift, they offer it again.
+ *
+ * A REASON IS REQUIRED, for the same reason managerCancelSwapRequest
+ * requires one: the two staff members see it verbatim on their own My
+ * Schedule, and Atlas has no other channel to them. */
+export async function putBackSwap(requestId: number, reason: string): Promise<ActionResult> {
+  // Returns expected failures instead of throwing them -- production
+  // redacts thrown server-action errors to "Minified React error #441"
+  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
+  return asActionResult(async () => {
+    const session = await requireCapability("SCHEDULE_MANAGE");
+
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) throw new Error("Add a short reason — both people will see it");
+
+    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
+    if (!request) throw new Error("That request no longer exists");
+    if (request.status !== "completed") throw new Error("Only a completed swap can be put back");
+
+    const [requester] = await db.select().from(employees).where(eq(employees.id, request.requestingEmployeeId));
+    const requesterName = requester?.nickname ?? "the person who offered it";
+
+    if (request.assignmentId == null) throw new Error("The underlying shift no longer exists");
+    const [assignment] = await db
+      .select()
+      .from(plannedShiftAssignments)
+      .where(eq(plannedShiftAssignments.id, request.assignmentId));
+    if (!assignment) throw new Error("The underlying shift no longer exists");
+    if (assignment.date < businessTodayIso()) {
+      throw new Error("That shift has already happened — adjust the roster for it instead");
     }
 
-    revalidateSwapPaths();
-});
-}
-
-/** Manager approves a swap that's within the <=3-day window. */
-export async function approveSwapRequest(requestId: number): Promise<ActionResult> {
-  // Returns expected failures instead of throwing them -- production
-  // redacts thrown server-action errors to "Minified React error #441"
-  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
-  return asActionResult(async () => {
-    // Tightened 2026-08-24 from the coarse manager-role check to
-    // SCHEDULE_MANAGE -- swap decisions belong to whoever runs the
-    // schedule, same as the capability's own label always claimed.
-    const session = await requireCapability("SCHEDULE_MANAGE");
-
-    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
-    if (!request) throw new Error("That request no longer exists");
-    if (request.status !== "pending_manager_approval") throw new Error("That request isn't awaiting approval");
-
-    await completeSwap(request);
-    await db
+    // Same prepare-then-batch shape as accepting: the last refusal (a
+    // finalized shift) happens before the first write, and the plan, the
+    // roster row and the status all commit together.
+    const move = await prepareSwapReversal(request);
+    const statusQuery = db
       .update(swapRequests)
-      .set({ status: "completed", decidedAt: sql`(current_timestamp)`, decidedByEmployeeId: session.id })
+      .set({
+        status: "put_back",
+        cancelReason: trimmedReason,
+        decidedAt: sql`(current_timestamp)`,
+        decidedByEmployeeId: session.id,
+      })
       .where(eq(swapRequests.id, requestId));
 
-    revalidateSwapPaths();
-});
-}
-
-/** Manager declines a pending swap -- confirmed with Oliver: the shift
- * simply reverts to the original requester (it was never actually
- * reassigned during the pending state, so this is just closing out the
- * request, not undoing anything). */
-export async function declineSwapRequest(requestId: number): Promise<ActionResult> {
-  // Returns expected failures instead of throwing them -- production
-  // redacts thrown server-action errors to "Minified React error #441"
-  // (2026-08-24 sweep; see lib/actions/actionResult.ts).
-  return asActionResult(async () => {
-    // Tightened 2026-08-24 -- see approveSwapRequest above.
-    const session = await requireCapability("SCHEDULE_MANAGE");
-
-    const [request] = await db.select().from(swapRequests).where(eq(swapRequests.id, requestId));
-    if (!request) throw new Error("That request no longer exists");
-    if (request.status !== "pending_manager_approval") throw new Error("That request isn't awaiting approval");
-
-    await db
+    // Any open offer on this same shift is void: the person who posted it
+    // was the one who took the shift, and they no longer have it to give.
+    // Left alone it would sit on the board as a takeable shift, and the
+    // holder guard in prepareSwapCompletion would refuse it at the last
+    // moment with an error -- better that it simply stops being offered.
+    const voidOffersQuery = db
       .update(swapRequests)
-      .set({ status: "declined", decidedAt: sql`(current_timestamp)`, decidedByEmployeeId: session.id })
-      .where(eq(swapRequests.id, requestId));
+      .set({
+        status: "cancelled",
+        cancelReason: `The shift went back to ${requesterName}, so this offer no longer applies.`,
+        decidedAt: sql`(current_timestamp)`,
+        decidedByEmployeeId: session.id,
+      })
+      .where(
+        and(
+          eq(swapRequests.assignmentId, request.assignmentId),
+          eq(swapRequests.status, "open"),
+          ne(swapRequests.id, requestId)
+        )
+      );
+
+    if (move.rosterQuery) await db.batch([move.planQuery, move.rosterQuery, statusQuery, voidOffersQuery]);
+    else await db.batch([move.planQuery, statusQuery, voidOffersQuery]);
 
     revalidateSwapPaths();
 });

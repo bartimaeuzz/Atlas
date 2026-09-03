@@ -94,7 +94,7 @@ export default async function MyScheduleView({
 
       <LeaveRequestsPanel requests={leaveRequests} />
 
-      <SwapBoardPanel swappable={swappable} acceptable={acceptableSwaps} mine={mySwaps} />
+      <SwapBoardPanel swappable={swappable} acceptable={acceptableSwaps} mine={mySwaps} viewerId={session.id} />
 
       <div className="mb-6">
         <h2 className="text-sm font-medium mb-2 text-[var(--ink-900)]">Recent changes to your schedule</h2>

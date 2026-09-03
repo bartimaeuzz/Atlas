@@ -44,10 +44,12 @@ export interface PlannedAssignmentRow {
    * their normal template once it ends), a vacancy is permanent. */
   onLeave: { note: string | null } | null;
   /** Set when this assignment currently reflects a shift swap (Schedule
-   * Planner Phase E, 2026-08-16) — "completed" once reassigned,
-   * "pending_manager_approval" if it's within the <=3-day approval
-   * window and a manager still needs to decide. DERIVED at read time
+   * Planner Phase E, 2026-08-16) — "open" while it is offered and unclaimed,
+   * "completed" once it has actually changed hands. DERIVED at read time
    * from swapRequests, same convention as onLeave/vacatingSoon above.
+   * "pending_manager_approval" is legacy: the approval gate was deleted on
+   * 2026-09-03 and nothing can enter that state again, but old rows are
+   * still rendered rather than silently dropped.
    * requestingEmployeeName is who originally held this slot before the
    * swap (the current employeeName on this row is whoever has it now). */
   swap: { status: "open" | "pending_manager_approval" | "completed"; requestingEmployeeName: string } | null;

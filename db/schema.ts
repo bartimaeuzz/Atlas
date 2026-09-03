@@ -1627,8 +1627,41 @@ export const swapRequests = sqliteTable("swap_requests", {
   detachedPositionId: integer("detached_position_id").references(() => positions.id),
   requestingEmployeeId: integer("requesting_employee_id").notNull().references(() => employees.id),
   acceptingEmployeeId: integer("accepting_employee_id").references(() => employees.id),
+  // 2026-09-03: the manager APPROVAL GATE was deleted (Oliver, after a
+  // design review). Accepting now completes the swap immediately at any
+  // notice, and the manager's control moved to an after-the-fact "put it
+  // back", available until the shift starts. Rationale: the gate never
+  // prevented a failure the system could not already catch (position
+  // eligibility and double-booking are enforced in code, and Atlas pays a
+  // flat rate per shift so there are no hours to project), but it DID
+  // cause one -- a swap sat unapproved for nine days while the schedule
+  // asserted the wrong person had worked the shift.
+  //
+  // Live states written by today's code:
+  //   open        -- offered, nobody has taken it
+  //   completed   -- taken; the assignment has actually moved
+  //   cancelled   -- withdrawn by the requester, or by a manager with a reason
+  //   put_back    -- a manager reversed a completed swap; the shift went
+  //                  back to the original person
+  //   unclaimed   -- the shift date arrived and nobody ever took it. Set
+  //                  automatically (see lib/schedule/expireStaleSwaps.ts);
+  //                  terminal, and never blocks a week/day delete.
+  //   unresolved  -- accepted under the old gate, never decided, shift
+  //                  already passed. Closed WITHOUT inferring who worked:
+  //                  the finalized roster is the truth for that shift.
+  // Legacy, still read, never written again:
+  //   pending_manager_approval, declined
   status: text("status", {
-    enum: ["open", "pending_manager_approval", "completed", "declined", "cancelled"],
+    enum: [
+      "open",
+      "pending_manager_approval",
+      "completed",
+      "declined",
+      "cancelled",
+      "put_back",
+      "unclaimed",
+      "unresolved",
+    ],
   })
     .notNull()
     .default("open"),
