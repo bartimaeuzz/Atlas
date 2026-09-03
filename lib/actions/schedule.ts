@@ -19,6 +19,7 @@ import {
   shiftRosterEntries,
 } from "@/db/schema";
 import { projectAssignmentsForWeek } from "@/lib/schedule/projectTemplate";
+import { loadOnLeaveLookup } from "@/lib/schedule/onLeave";
 import { datesInWeek, dayOfWeek } from "@/lib/schedule/weekMath";
 import { requireCapability } from "@/lib/permissions/requireCapability";
 import { prepareAssignmentsForDelete } from "@/lib/schedule/swapDetach";
@@ -315,6 +316,9 @@ export async function retireEmployeeFromPosition(employeeId: number, positionId:
  *     so the slot is deliberately left open here rather than auto-filled
  *     with someone who's leaving; that's what makes the resulting gap
  *     visible against the staffing target on the grid).
+ *   - the employee has non-denied leave covering that date (2026-09-03) --
+ *     same reasoning as the vacancy case: leave the gap visible rather
+ *     than write a name who will not be there.
  */
 export async function generateWeekFromTemplate(weekStartDate: string) {
   await requireCapability("SCHEDULE_MANAGE");
@@ -338,7 +342,16 @@ export async function generateWeekFromTemplate(weekStartDate: string) {
     }))
   );
 
-  const rows = projected.map((p) => ({ ...p, weekId: week.id, sourceType: "FROM_TEMPLATE" as const }));
+  // Skip anyone on leave that date (2026-09-03, Oliver: "template should
+  // skip leave too"). Same shape as the vacancyStartsOn RED case above --
+  // the row is simply not written, so the gap shows against the staffing
+  // target on the grid instead of a name who will not be there. Auto-fill
+  // then fills it with someone who IS available.
+  const weekDates = datesInWeek(weekStartDate);
+  const onLeaveOn = await loadOnLeaveLookup(weekDates[0], weekDates[weekDates.length - 1]);
+  const rows = projected
+    .filter((p) => !onLeaveOn(p.employeeId, p.date))
+    .map((p) => ({ ...p, weekId: week.id, sourceType: "FROM_TEMPLATE" as const }));
 
   if (rows.length > 0) {
     await db.insert(plannedShiftAssignments).values(rows);
@@ -412,9 +425,24 @@ export interface AutoFillSkippedSlot {
   missing: number;
 }
 
+/** Someone auto-fill would otherwise have placed, but who has non-denied
+ * leave covering that date (2026-09-03, Oliver: "skip them and report in
+ * the summary"). Deduped per person per date — a day's leave is one fact,
+ * not one per slot it blocked. */
+export interface AutoFillOnLeaveSkip {
+  employeeId: number;
+  employeeName: string;
+  date: string;
+}
+
 export interface AutoFillActionState {
   error: string | null;
-  summary?: { filled: number; totalSkipped: number; skipped: AutoFillSkippedSlot[] };
+  summary?: {
+    filled: number;
+    totalSkipped: number;
+    skipped: AutoFillSkippedSlot[];
+    onLeaveSkipped: AutoFillOnLeaveSkip[];
+  };
 }
 
 /** "Auto-fill" button on the Weekly Plan (2026-08-15, Oliver's ask) --
@@ -465,7 +493,7 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
 
     const activePositions = await db.select().from(positions).where(eq(positions.active, true));
     if (activePositions.length === 0) {
-      return { error: null, summary: { filled: 0, totalSkipped: 0, skipped: [] } };
+      return { error: null, summary: { filled: 0, totalSkipped: 0, skipped: [], onLeaveSkipped: [] } };
     }
 
     const targetRows = await db.select().from(positionStaffingTargets);
@@ -474,7 +502,7 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
 
     const activeEmployees = await db.select().from(employees).where(eq(employees.active, true));
     if (activeEmployees.length === 0) {
-      return { error: null, summary: { filled: 0, totalSkipped: 0, skipped: [] } };
+      return { error: null, summary: { filled: 0, totalSkipped: 0, skipped: [], onLeaveSkipped: [] } };
     }
 
     // Two separate tiers, never merged -- 2026-08-15 fix after Oliver
@@ -507,6 +535,11 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
       .from(plannedShiftAssignments)
       .where(eq(plannedShiftAssignments.weekId, weekId));
 
+    // Auto-fill must not schedule someone who is on leave (2026-09-03).
+    // Before this it had no leave awareness at all and would silently place
+    // an absent person -- no warning at the moment, nothing in the summary.
+    const onLeaveOn = await loadOnLeaveLookup(dates[0], dates[dates.length - 1]);
+
     // date -> Set<employeeId> already used that date (both periods, every position)
     const usedToday = new Map<string, Set<number>>();
     for (const d of dates) usedToday.set(d, new Set());
@@ -536,6 +569,9 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
       isExtraCoverage: boolean;
     }[] = [];
     const skipped: AutoFillSkippedSlot[] = [];
+    // Deduped per person per date — see AutoFillOnLeaveSkip.
+    const onLeaveSkippedSeen = new Set<string>();
+    const onLeaveSkipped: AutoFillOnLeaveSkip[] = [];
     let filled = 0;
 
     for (const date of dates) {
@@ -554,9 +590,23 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
           const secondarySet = secondaryByPosition.get(position.id) ?? new Set<number>();
 
           while (need > 0) {
-            let candidates = activeEmployees.filter((e) => primarySet.has(e.id) && !usedSet.has(e.id));
+            // Eligible by position and not already working that day...
+            const primaryEligible = activeEmployees.filter((e) => primarySet.has(e.id) && !usedSet.has(e.id));
+            const secondaryEligible = activeEmployees.filter(
+              (e) => secondarySet.has(e.id) && !primarySet.has(e.id) && !usedSet.has(e.id)
+            );
+            // ...then anyone on leave that date is skipped and reported,
+            // rather than silently scheduled.
+            for (const e of [...primaryEligible, ...secondaryEligible]) {
+              if (!onLeaveOn(e.id, date)) continue;
+              const seenKey = `${e.id}:${date}`;
+              if (onLeaveSkippedSeen.has(seenKey)) continue;
+              onLeaveSkippedSeen.add(seenKey);
+              onLeaveSkipped.push({ employeeId: e.id, employeeName: e.nickname, date });
+            }
+            let candidates = primaryEligible.filter((e) => !onLeaveOn(e.id, date));
             if (candidates.length === 0) {
-              candidates = activeEmployees.filter((e) => secondarySet.has(e.id) && !primarySet.has(e.id) && !usedSet.has(e.id));
+              candidates = secondaryEligible.filter((e) => !onLeaveOn(e.id, date));
             }
             if (candidates.length === 0) {
               skipped.push({ positionName: position.name, date, period, missing: need });
@@ -596,7 +646,7 @@ export async function autoFillWeek(weekId: number): Promise<AutoFillActionState>
 
     revalidatePath("/schedule/plan");
     const totalSkipped = skipped.reduce((sum, s) => sum + s.missing, 0);
-    return { error: null, summary: { filled, totalSkipped, skipped } };
+    return { error: null, summary: { filled, totalSkipped, skipped, onLeaveSkipped } };
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
