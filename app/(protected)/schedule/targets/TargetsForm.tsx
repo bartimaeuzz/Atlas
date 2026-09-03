@@ -159,7 +159,7 @@ export function TargetsForm({
           unless the manager scrolled back up; the button itself now
           carries the answer, in the one spot their eyes already are. */}
       {state.error && (
-        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded p-4 text-sm whitespace-pre-line">
+        <div className="border border-[var(--danger-border)] bg-[var(--danger-tint)] text-[var(--danger-700)] rounded-[var(--radius-md)] p-4 text-sm whitespace-pre-line">
           <div className="font-medium mb-1">Couldn&apos;t save.</div>
           {state.error}
         </div>
@@ -304,7 +304,7 @@ function TargetStepper({
   onChange: (next: number) => void;
 }) {
   return (
-    <div className="inline-flex items-center border rounded overflow-hidden select-none">
+    <div className="inline-flex items-center border rounded-[var(--radius-md)] overflow-hidden select-none">
       <button
         type="button"
         onClick={() => onChange(value - 1)}

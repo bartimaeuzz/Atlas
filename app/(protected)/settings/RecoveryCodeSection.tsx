@@ -26,7 +26,7 @@ export function RecoveryCodeSection({ status, viewerIsAdmin }: { status: Recover
   if (!viewerIsAdmin) return null;
 
   return (
-    <fieldset className="border rounded p-4">
+    <fieldset className="border rounded-[var(--radius-md)] p-4">
       <legend className="text-sm font-medium px-1">Account recovery</legend>
       <p className="text-xs text-[var(--ink-500)] mb-3">
         A one-time code that can reset ANY employee&apos;s PIN from the &quot;Forgot PIN?&quot; link on the sign-in
@@ -36,7 +36,7 @@ export function RecoveryCodeSection({ status, viewerIsAdmin }: { status: Recover
       </p>
 
       {state.code ? (
-        <div className="border border-green-300 bg-green-50 rounded p-3 mb-3">
+        <div className="border border-green-300 bg-green-50 rounded-[var(--radius-md)] p-3 mb-3">
           <p className="text-xs font-medium text-green-800 mb-1">
             Your new recovery code -- write this down now. It will not be shown again.
           </p>
