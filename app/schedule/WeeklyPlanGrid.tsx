@@ -862,17 +862,16 @@ function AssignmentPill({
             call as the "swapped" badge: a word survives where a dot is
             invisible; fills keep meaning kind-of-shift, badges mean
             something needs attention). */}
-        {/* Phone: 8px status dot + legend below the grid (Oliver,
-            2026-08-25 — the word badges overflowed the chip on narrow
-            cells; the tap popup still spells the status out in words).
-            Desktop keeps the text badge. */}
+        {/* Word badge on BOTH viewports (2026-09-03), for parity with leave /
+            reassigned / swapped — this was the last state whose word was
+            desktop-only, showing on a phone as a bare 8px dot. Less acute
+            than the leave-vs-reassigned pair (its brick reads clearly against
+            their neutral and indigo) but the same class, and a word beats a
+            dot at any width. */}
         {vacatingSoon && (
-          <>
-            <span aria-label="leaving" className="lg:hidden w-2 h-2 rounded-full bg-[var(--danger)] shrink-0" />
-            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--danger-tint)] text-[var(--danger-700)] border border-[var(--danger-border)] shrink-0">
-              leaving
-            </span>
-          </>
+          <span className="text-xs font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--danger-tint)] text-[var(--danger-700)] border border-[var(--danger-border)] shrink-0">
+            leaving
+          </span>
         )}
         {/* Word badge on BOTH viewports (2026-09-03 audit fix). It used to be
             a bare 8px dot on phone with the word only from lg: — and once
