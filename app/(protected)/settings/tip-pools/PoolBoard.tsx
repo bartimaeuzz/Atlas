@@ -78,10 +78,14 @@ const POOLS: { key: TipPoolGroup; label: string; title: string; hint: string; co
   { key: "POOL_3_DELIVERY", label: "Pool 3", title: "Pool 3 — Delivery", hint: "Delivery Guy (equal split, not point-weighted)", colorClass: "pool3" },
 ];
 
+// The three pools are CATEGORICAL — merely different, not better/worse — so
+// they use three steps of the brand indigo ramp (design-system spec), NOT
+// three hues. Dips 4/5/6 (not 2) because the active chip is a SOLID fill
+// with white text and only the darker steps clear white-on-fill contrast.
 const COLOR = {
-  pool1: { dot: "bg-blue-600", chip: "bg-blue-600", border: "border-blue-600", text: "text-blue-600", ring: "ring-blue-400 bg-blue-50" },
-  pool2: { dot: "bg-emerald-600", chip: "bg-emerald-600", border: "border-emerald-600", text: "text-emerald-600", ring: "ring-emerald-400 bg-emerald-50" },
-  pool3: { dot: "bg-amber-600", chip: "bg-amber-600", border: "border-amber-600", text: "text-amber-600", ring: "ring-amber-400 bg-[var(--warning-tint)]" },
+  pool1: { dot: "bg-[var(--dip-4)]", chip: "bg-[var(--dip-4)]", border: "border-[var(--dip-4)]", text: "text-[var(--dip-4)]", ring: "ring-[var(--dip-4)] bg-[var(--primary-tint)]" },
+  pool2: { dot: "bg-[var(--dip-5)]", chip: "bg-[var(--dip-5)]", border: "border-[var(--dip-5)]", text: "text-[var(--dip-5)]", ring: "ring-[var(--dip-5)] bg-[var(--primary-tint)]" },
+  pool3: { dot: "bg-[var(--dip-6)]", chip: "bg-[var(--dip-6)]", border: "border-[var(--dip-6)]", text: "text-[var(--dip-6)]", ring: "ring-[var(--dip-6)] bg-[var(--primary-tint)]" },
 } as const;
 
 type PoolColorKey = keyof typeof COLOR;
@@ -322,7 +326,7 @@ function MasterCard({
                 //
                 // bg-inherit, NOT bg-[var(--card)]: `disabled:hover:` is
                 // one class plus two pseudo-classes, so it outranks the
-                // active branch's own bg-blue-600/emerald/amber -- an
+                // active branch's own solid dip fill -- an
                 // in-pool button would have painted itself white while
                 // its "✓" stayed white, making the glyph vanish.
                 "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-inherit " +

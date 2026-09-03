@@ -26,10 +26,14 @@ export const CATEGORICAL_SLOTS = [
 /** Status palette (fixed, reserved — never reused as a categorical
  * slot). Used only on the benchmarked KPI meters below, always paired
  * with an icon + label, never color alone. */
+// Mohom status tokens (2026-09-02): the KPI meter's good/attention/neutral
+// map straight to olive/ochre/neutral. Used only in inline style fills, so
+// the CSS vars resolve. The CATEGORICAL series palette above stays as-is
+// until a colour-vision re-validation pass (dataviz skill).
 export const STATUS_COLORS = {
-  good: "#0ca30c",
-  warning: "#fab219",
-  neutral: "#8c8b84", // "not applicable" / no benchmark -- a step of chart-furniture gray, not a status color
+  good: "var(--success)",
+  warning: "var(--warning)",
+  neutral: "var(--ink-400)", // no benchmark -- neutral chart-furniture, not a status colour
 } as const;
 
 export function categoricalSlot(index: number): string {

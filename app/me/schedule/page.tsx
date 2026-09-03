@@ -199,7 +199,7 @@ export default async function MyScheduleView({
                                   ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border-[var(--warning-border)]"
                                   : r.kind === "emergency" || r.kind === "other"
                                     ? "bg-[var(--paper)] text-[var(--ink-700)] border-[var(--border-strong)]"
-                                    : "bg-teal-100 text-teal-700 border-teal-300")
+                                    : "bg-[var(--reassign-tint)] text-[var(--dip-5)] border-[var(--dip-3)]")
                             }
                           >
                             {r.kind === "no_show" ? "No show" : r.kind === "late" ? "Late" : r.kind === "emergency" ? "Emergency" : r.kind === "other" ? "Absent" : r.kind === "extra" ? "Extra" : "Sub"}

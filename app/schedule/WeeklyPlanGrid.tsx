@@ -555,9 +555,9 @@ export function WeeklyPlanGrid({
         {/* Phone legend for the status dots (words live on desktop badges
             and in the tap popup). */}
         <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-[var(--ink-500)]">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> On leave</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--border-strong)] inline-block" /> On leave</span>
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--danger)] inline-block" /> Leaving</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-teal-500 inline-block" /> Reassigned</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--dip-2)] inline-block" /> Reassigned</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-[var(--radius-md)] bg-[var(--warning-tint)] border border-[var(--warning-border)] inline-block" /> Extra coverage</span>
         </div>
       </div>
@@ -842,14 +842,14 @@ function AssignmentPill({
           ? "bg-[var(--warning-tint)] text-[var(--warning-700)] border-[var(--warning-border)]"
           : "bg-[var(--primary-tint)] text-[var(--primary-700)] border-[var(--primary-border)]") +
         (vacatingSoon ? " ring-1 ring-[var(--danger)]" : "") +
-        (onLeave ? " ring-1 ring-purple-400" : "") +
+        (onLeave ? " ring-1 ring-[var(--border-strong)]" : "") +
         (swap?.status === "completed" ? " ring-1 ring-[var(--success)]" : "") +
         (swap?.status === "pending_manager_approval" ? " ring-1 ring-[var(--primary-border)]" : "") +
         // Dashed outline = "still floating": the shift is offered for
         // swap and nobody has taken it yet (Oliver, 2026-08-25). Same
         // blue family as swap-pending, one step earlier.
         (swap?.status === "open" ? " outline-dashed outline-1 outline-[var(--primary)] outline-offset-1" : "") +
-        (assignment.sourceType === "REASSIGNED" ? " ring-1 ring-teal-400" : "")
+        (assignment.sourceType === "REASSIGNED" ? " ring-1 ring-[var(--dip-2)]" : "")
       }
     >
       <span className="flex flex-wrap items-center gap-1 min-w-0">
@@ -876,8 +876,8 @@ function AssignmentPill({
         )}
         {onLeave && (
           <>
-            <span aria-label="on leave" className="lg:hidden w-2 h-2 rounded-full bg-purple-500 shrink-0" />
-            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-purple-100 text-purple-700 border border-purple-300 shrink-0">
+            <span aria-label="on leave" className="lg:hidden w-2 h-2 rounded-full bg-[var(--border-strong)] shrink-0" />
+            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--cloth)] text-[var(--ink-500)] border border-dashed border-[var(--border)] shrink-0">
               on leave
             </span>
           </>
@@ -896,8 +896,8 @@ function AssignmentPill({
             from green "swapped" = staff traded voluntarily. */}
         {assignment.sourceType === "REASSIGNED" && (
           <>
-            <span aria-label="reassigned" className="lg:hidden w-2 h-2 rounded-full bg-teal-500 shrink-0" />
-            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300 shrink-0">
+            <span aria-label="reassigned" className="lg:hidden w-2 h-2 rounded-full bg-[var(--dip-2)] shrink-0" />
+            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--reassign-tint)] text-[var(--dip-5)] border border-[var(--dip-3)] shrink-0">
               reassigned
             </span>
           </>
@@ -920,7 +920,7 @@ function AssignmentPill({
         {hasConflict && (
           <span
             title={`Also scheduled as ${conflictPositionNames.join(", ")} in this same slot — double check this is intentional.`}
-            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-white text-xs font-bold leading-none cursor-help shrink-0"
+            className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-[var(--danger)] text-white text-xs font-bold leading-none cursor-help shrink-0"
           >
             !
           </span>
@@ -1017,13 +1017,13 @@ function AssignmentActionsDialog({
         <p className="text-sm text-[var(--ink-500)] mb-3">
           {assignment.date} · {assignment.period}
           {onLeaveNote && (
-            <span className="block text-purple-700 mt-0.5">
+            <span className="block text-[var(--ink-500)] mt-0.5">
               On leave this date{onLeaveNote !== "on leave" ? ` — "${onLeaveNote}"` : ""}. This slot
               needs coverage.
             </span>
           )}
           {conflictPositionNames.length > 0 && (
-            <span className="block text-orange-700 mt-0.5">
+            <span className="block text-[var(--danger-700)] mt-0.5">
               Also scheduled as {conflictPositionNames.join(", ")} in this same slot.
             </span>
           )}
@@ -1031,7 +1031,7 @@ function AssignmentActionsDialog({
               (Oliver, 2026-08-25) — the popup is where a phone user reads
               what a dot means. */}
           {assignment.sourceType === "REASSIGNED" && (
-            <span className="block text-teal-700 mt-0.5">
+            <span className="block text-[var(--dip-5)] mt-0.5">
               Was reassigned{assignment.reassignedFromName ? ` from ${assignment.reassignedFromName}` : ""} to{" "}
               {assignment.employeeName} by a manager after the week was published.
             </span>
@@ -1294,7 +1294,7 @@ function QuickAddCell({
                       <span className="flex-1">
                         {e.name}
                         {leave && (
-                          <span className="block text-xs text-[#7C3AED]">
+                          <span className="block text-xs text-[var(--ink-500)]">
                             On leave this day{leave.note ? ` — "${leave.note}"` : ""}
                           </span>
                         )}

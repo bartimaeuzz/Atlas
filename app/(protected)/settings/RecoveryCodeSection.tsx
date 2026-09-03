@@ -36,11 +36,11 @@ export function RecoveryCodeSection({ status, viewerIsAdmin }: { status: Recover
       </p>
 
       {state.code ? (
-        <div className="border border-green-300 bg-green-50 rounded-[var(--radius-md)] p-3 mb-3">
-          <p className="text-xs font-medium text-green-800 mb-1">
+        <div className="border border-[var(--success-border)] bg-[var(--success-tint)] rounded-[var(--radius-md)] p-3 mb-3">
+          <p className="text-xs font-medium text-[var(--success-700)] mb-1">
             Your new recovery code -- write this down now. It will not be shown again.
           </p>
-          <p className="font-mono text-lg tracking-wider text-green-900">{state.code}</p>
+          <p className="font-mono text-lg tracking-wider text-[var(--success-700)]">{state.code}</p>
         </div>
       ) : (
         <p className="text-xs text-[var(--ink-700)] mb-3">

@@ -68,6 +68,19 @@
    * control and card, 999 on the avatar and notification dot. The old
    * sm/md/lg names are kept (components reference them) but all resolve to
    * 6px now, so the whole app takes the single corner with no per-site edit. */
+  /* Categorical indigo ramp (2026-09-02, design-system spec): categorical
+   * distinction — things merely DIFFERENT, not better/worse — uses lightness
+   * steps of the ONE brand hue, never new hues (max six). Dips 1–3 are
+   * FILL/ring/dot only (they fail contrast as text, ~2.5–4.5:1); dips 4–6
+   * pass as text. Status stays olive/ochre/brick; the ramp never carries
+   * status meaning. Used by the schedule (reassigned) and the tip pools. */
+  --dip-1: #7F93BC;
+  --dip-2: #6A81AE;
+  --dip-3: #55709F;
+  --dip-4: #405E90;  /* == --ink-500 by design; keep in sync if either moves */
+  --dip-5: #2B4C7E;
+  --dip-6: #101B33;
+  --reassign-tint: color-mix(in srgb, var(--dip-5) 14%, var(--card));
   --radius-none: 0;
   --radius-sm: 6px;
   --radius-md: 6px;

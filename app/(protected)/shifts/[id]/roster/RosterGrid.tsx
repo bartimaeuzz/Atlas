@@ -259,7 +259,7 @@ function SubstituteBadge({ covers }: { covers: string | null }) {
   return (
     <span
       title={covers ? `Substituting for ${covers}` : "Substitute"}
-      className="whitespace-nowrap text-xs leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-teal-100 text-teal-700 border border-teal-300"
+      className="whitespace-nowrap text-xs leading-tight px-1 py-0.5 rounded-[var(--radius-sm)] bg-[var(--reassign-tint)] text-[var(--dip-5)] border border-[var(--dip-3)]"
     >
       sub{covers ? ` for ${covers}` : ""}
     </span>
