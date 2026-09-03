@@ -874,13 +874,17 @@ function AssignmentPill({
             </span>
           </>
         )}
+        {/* Word badge on BOTH viewports (2026-09-03 audit fix). It used to be
+            a bare 8px dot on phone with the word only from lg: — and once
+            leave and reassigned both moved into the indigo/neutral family
+            those two dots sat at ~1.03:1 against each other, so at phone
+            width the two states were told apart by colour ALONE (WCAG 1.4.1).
+            The DASHED border is deliberate: absence is separated by shape,
+            not only by hue. */}
         {onLeave && (
-          <>
-            <span aria-label="on leave" className="lg:hidden w-2 h-2 rounded-full bg-[var(--border-strong)] shrink-0" />
-            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--cloth)] text-[var(--ink-500)] border border-dashed border-[var(--border)] shrink-0">
-              on leave
-            </span>
-          </>
+          <span className="text-xs font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--cloth)] text-[var(--ink-500)] border border-dashed border-[var(--border-strong)] shrink-0">
+            on leave
+          </span>
         )}
         {/* Text badge, not just the old 1.5px dot (Oliver, 2026-08-25: the
             dot+ring was invisible to him — "should be highlight somehow so
@@ -891,16 +895,14 @@ function AssignmentPill({
             swapped
           </span>
         )}
-        {/* Teal, a categorical color like purple/orange (no token — three
-            uses now): manager-forced change on a published week, distinct
-            from green "swapped" = staff traded voluntarily. */}
+        {/* Manager-forced change on a published week, distinct from the olive
+            "swapped" = staff traded voluntarily. Indigo ramp, because this is
+            a CATEGORICAL difference (not better/worse) — see the ramp note in
+            globals.css. Word badge on both viewports, same reason as leave. */}
         {assignment.sourceType === "REASSIGNED" && (
-          <>
-            <span aria-label="reassigned" className="lg:hidden w-2 h-2 rounded-full bg-[var(--dip-2)] shrink-0" />
-            <span className="hidden lg:inline text-xs leading-tight px-1 rounded-[var(--radius-sm)] bg-[var(--reassign-tint)] text-[var(--dip-5)] border border-[var(--dip-3)] shrink-0">
-              reassigned
-            </span>
-          </>
+          <span className="text-xs font-semibold leading-tight px-1.5 py-px rounded-[var(--radius-sm)] bg-[var(--reassign-tint)] text-[var(--dip-5)] border border-[var(--dip-3)] shrink-0">
+            reassigned
+          </span>
         )}
         {/* Swap-family badges show the word on BOTH viewports (option C,
             Oliver 2026-08-25) — short words, and the pill wraps instead of
