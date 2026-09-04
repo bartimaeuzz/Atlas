@@ -17,7 +17,7 @@ The design-principal part specifically: Atlas project memory names a "X" role (s
 
 It auto-loads with the session as a system-reminder — no tool call needed. It carries: last-verified commit hash, what's pending on Oliver's end, and what's next. Treat it as a fast-read summary, not final truth — verify it in step 2.
 
-Since 2026-09-04 the index is under a page: current state, open questions, not-built ideas, reference, and two pointers. Mistake classes live in `LESSONS.md` (read the section for what today's task touches: money, database, permissions, screens, forms). Finished work lives in `ARCHIVE.md` (read on demand, never whole). When you finish something, move its pointer to ARCHIVE in the same turn.
+Since 2026-09-04 the index is under a page: current state, open questions, not-built ideas, reference, and two pointers. Mistake classes live in `LESSONS.md` (read the section for what today's task touches: money, database, permissions, screens, forms). Finished work lives in `ARCHIVE.md` (read on demand, never whole). When you finish something, move its pointer to ARCHIVE in the same turn. **Size guard:** if `MEMORY.md` is over 45 lines or 5KB, move finished pointers to ARCHIVE.md before doing anything else, and say so in one line. This is what keeps the cleanup of 2026-09-04 from ever being needed again.
 
 ## 2. Re-verify the commit hash yourself, every session
 
