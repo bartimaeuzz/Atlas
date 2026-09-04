@@ -127,7 +127,7 @@ export function PeopleTable({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search name, login ID, or position…"
           aria-label="Search people"
-          className="flex-1 border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-border)] focus:border-[var(--primary)]"
+          className="flex-1 border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 min-h-11 text-base bg-[var(--card)] text-[var(--ink-900)] focus:border-[var(--primary)]"
         />
         <div className="flex gap-2">
           <Select aria-label="Filter by role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}>

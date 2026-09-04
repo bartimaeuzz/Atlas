@@ -47,7 +47,7 @@ export function ManagerCancelButton({
           onChange={(e) => setReason(e.target.value)}
           rows={2}
           placeholder="e.g. schedule for that week is being redone"
-          className="w-full border border-[var(--border-strong)] rounded-[var(--radius-md)] px-2 py-1.5 text-base bg-[var(--card)] focus:outline-none focus:ring-2 focus:ring-[var(--primary-border)] focus:border-[var(--primary)]"
+          className="w-full border border-[var(--border-strong)] rounded-[var(--radius-md)] px-2 py-1.5 text-base bg-[var(--card)] focus:border-[var(--primary)]"
         />
       </label>
       <div className="flex items-center gap-2">

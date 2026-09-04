@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NoAccess } from "@/components/NoAccess";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Tip Pool Assignment (2026-08-17) — its own Settings section, split off
  * the main /settings page. A second way to edit the SAME positionTipPools
@@ -38,7 +39,7 @@ export default async function TipPoolsSettingsPage() {
 
   return (
     <main className="max-w-5xl mx-auto p-4 sm:p-8">
-      <Link href="/settings" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/settings" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         ← Settings
       </Link>
       <PageHeader

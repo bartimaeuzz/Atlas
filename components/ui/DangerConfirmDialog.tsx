@@ -61,7 +61,7 @@ export function DangerConfirmDialog({
         value={typed}
         onChange={(e) => setTyped(e.target.value)}
         placeholder={confirmWord}
-        className="w-full border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 text-base mb-4 focus:outline-none focus:ring-2 focus:ring-[var(--danger-border)] focus:border-[var(--danger)]"
+        className="w-full border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2.5 text-base mb-4"
       />
       <div className="flex gap-2 justify-end">
         <Button variant="secondary" size="sm" onClick={handleClose} disabled={loading}>

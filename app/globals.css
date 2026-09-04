@@ -191,6 +191,30 @@ input[type="number"][required]:user-invalid {
   outline-offset: -1px;
 }
 
+/* Focus ring, one rule for everything (2026-09-04, WCAG 1.4.11). The live
+   audit measured inputs/selects at a 2px `--primary-border` box-shadow ring
+   (rgb(175,180,188) on chalk = 1.9:1, below the 3:1 floor) and every plain
+   <a>/<button> without its own class on the browser default outline. The
+   ring sits at a 2px offset, i.e. on the page ground, so one indigo serves
+   every control: `--primary` #1B2B4D is 12.65:1 on chalk and 13.78:1 on
+   card. Unlayered, so it outranks Tailwind's layered `focus:` utilities —
+   the old per-component `focus:outline-none focus:ring-*` classes were
+   removed rather than left to lose silently. `.skip-link:focus` and the
+   number-input `:invalid` rule below are more specific and keep their own
+   rings on purpose. */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* The skip link lands on #main-content (tabIndex -1, NavContentWrapper.tsx).
+   Its Tailwind `outline-none` is layered and would lose to the unlayered rule
+   above, framing the whole page in indigo on every skip (scrutinize,
+   2026-09-04). The content region is a landing spot, not a control -- no ring. */
+#main-content:focus-visible {
+  outline: none;
+}
+
 /* Skip link (2026-09-02, WCAG 2.4.1) — the first focusable element on
    every page (app/layout.tsx). Off-screen until focused, then a visible
    pill top-left, so a keyboard/screen-reader user reaches the content

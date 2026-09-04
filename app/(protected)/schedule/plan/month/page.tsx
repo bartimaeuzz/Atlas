@@ -7,6 +7,57 @@ import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
+type WeekStatus = "published" | "draft" | "projected";
+
+/** Same word-badge idiom as WeeklyPlanGrid's leave/reassigned/leaving
+ * badges (2de3711, b1a69fd): a word survives where a dot is invisible, and
+ * a 6px dot was the only thing telling Published / Draft / Projected apart
+ * (WCAG 1.4.1, 2026-09-04 audit). Tokens follow the legend it replaces —
+ * olive published, neutral draft, indigo projected — so nothing recolours.
+ * A phone day cell is ~44px wide (48px collapsed rail + 16px page padding
+ * each side, seven columns), so below lg: the word is abbreviated and the
+ * badge padding shrinks to 2px so "Draft" (the longest) still fits; the
+ * legend spells the full word next to the same badge. */
+const STATUS_BADGE: Record<WeekStatus, { full: string; short: string; classes: string }> = {
+  published: {
+    full: "Published",
+    short: "Pub.",
+    classes: "bg-[var(--success-tint)] text-[var(--success-700)] border-[var(--success-border)]",
+  },
+  draft: {
+    full: "Draft",
+    short: "Draft",
+    classes: "bg-[var(--paper)] text-[var(--ink-700)] border-[var(--border-strong)]",
+  },
+  projected: {
+    full: "Projected",
+    short: "Proj.",
+    classes: "bg-[var(--primary-tint)] text-[var(--primary-700)] border-[var(--primary-border)]",
+  },
+};
+
+function WeekStatusBadge({ status, full = false }: { status: WeekStatus; full?: boolean }) {
+  const b = STATUS_BADGE[status];
+  return (
+    <span
+      className={`inline-block text-xs font-semibold leading-tight px-0.5 lg:px-1.5 py-px rounded-[var(--radius-sm)] border whitespace-nowrap ${b.classes}`}
+    >
+      {full ? (
+        b.full
+      ) : (
+        <>
+          {/* Phone cells are ~36px wide, so the eye gets the short form and
+              the screen reader gets the full word (WCAG 1.4.1 gain must
+              survive for non-visual users too -- scrutinize 2026-09-04). */}
+          <span aria-hidden="true" className="lg:hidden">{b.short}</span>
+          <span className="sr-only lg:hidden">{b.full}</span>
+          <span className="hidden lg:inline">{b.full}</span>
+        </>
+      )}
+    </span>
+  );
+}
+
 /** "Zoom out" view (2026-08-11, Oliver): a calendar covering the whole
  * month so he can see what's coming at a glance, then click into any
  * day to jump to that week's real grid. Deliberately NOT limited to
@@ -36,10 +87,10 @@ export default async function MonthOverviewPage({
         description={`${data.monthLabel}. Weeks you haven't generated yet are projected from your recurring templates — click any day to jump into that week: a read-only Preview for weeks that already exist, or straight to Generate for ones that don't.`}
         actions={
           <div className="flex items-center gap-3 text-sm">
-            <Link href={`/schedule/plan/person?month=${monthAnchor}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+            <Link href={`/schedule/plan/person?month=${monthAnchor}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
               View by person
             </Link>
-            <Link href={`/schedule/plan?week=${weekStartFor(monthAnchor)}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+            <Link href={`/schedule/plan?week=${weekStartFor(monthAnchor)}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
               Zoom in to weekly view &rarr;
             </Link>
           </div>
@@ -55,19 +106,21 @@ export default async function MonthOverviewPage({
         </Link>
       </div>
 
+      {/* Legend keeps the full word beside each badge so the phone
+          abbreviation in the cells has a key. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--ink-500)] mb-3">
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[var(--success)] inline-block" /> Published
+        <span className="flex items-center gap-1.5">
+          <WeekStatusBadge status="published" /> Published
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[var(--border-strong)] inline-block" /> Draft
+        <span className="flex items-center gap-1.5">
+          <WeekStatusBadge status="draft" /> Draft
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-[var(--primary)] inline-block" /> Projected — not generated yet
+        <span className="flex items-center gap-1.5">
+          <WeekStatusBadge status="projected" /> Projected — not generated yet
         </span>
       </div>
 
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full table-fixed border-collapse text-sm">
         <thead>
           <tr>
             {DAY_LABELS.map((label) => (
@@ -98,32 +151,13 @@ export default async function MonthOverviewPage({
                         ? `/schedule/plan?week=${weekStartFor(day.date)}`
                         : `/schedule/plan/preview?week=${weekStartFor(day.date)}&view=manager`
                     }
-                    className={"block h-20 p-1.5 hover:bg-[var(--hover)]" + (day.inMonth ? "" : " opacity-40")}
+                    className={"block h-20 p-1 lg:p-1.5 hover:bg-[var(--hover)]" + (day.inMonth ? "" : " opacity-40")}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-[var(--ink-700)]">{Number(day.date.slice(8))}</span>
-                      {/* title= kept as a desktop hover hint only; the legend above and the
-                          "N short"/"Covered" text below are the primary, mobile-visible signal
-                          — this dot alone is not the sole conveyor of status (2026-08-18).
-                          NOTE: still on the backlog list for the repo-wide title= tooltip
-                          migration (see project_atlas_ui_design.md, backlog item 2). */}
-                      <span
-                        title={
-                          day.weekStatus === "published"
-                            ? "Published"
-                            : day.weekStatus === "draft"
-                              ? "Draft"
-                              : "Projected — not generated yet"
-                        }
-                        className={
-                          "w-1.5 h-1.5 rounded-full shrink-0 " +
-                          (day.weekStatus === "published"
-                            ? "bg-[var(--success)]"
-                            : day.weekStatus === "draft"
-                              ? "bg-[var(--border-strong)]"
-                              : "bg-[var(--primary)]")
-                        }
-                      />
+                    <span className="block text-xs text-[var(--ink-700)]">{Number(day.date.slice(8))}</span>
+                    {/* Word badge, not the old 6px dot (2026-09-04 audit, WCAG
+                        1.4.1): the day's week status was told by colour alone. */}
+                    <div className="mt-0.5">
+                      <WeekStatusBadge status={day.weekStatus} />
                     </div>
                     {day.targetCells > 0 && (
                       <div

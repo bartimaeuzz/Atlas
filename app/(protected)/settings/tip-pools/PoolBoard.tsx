@@ -20,7 +20,9 @@
  * `toggle`/`changeSplitMethod` functions, same optimistic-update +
  * revert-on-failure logic, same HTML5 drag handlers). Mobile layout was
  * already "stack, don't squeeze": the `lg:grid-cols-[260px_1fr]` master/
- * board split and the pool windows' `sm:grid-cols-3` both fall back to a
+ * board split and the pool windows' `lg:grid-cols-3` (was `sm:`, moved
+ * 2026-09-04: with the 216px rail a 640 viewport swap is a ~360px content
+ * swap, so three columns squeezed and the page overflowed) both fall back to a
  * single column below their breakpoint, so at 375-390px this was already
  * master list, then Pool 1, then Pool 2, then Pool 3, each full-width and
  * scrolled vertically — never 3 squeezed columns. Kept that structure
@@ -230,7 +232,7 @@ export function PoolBoard({
           )}
         </Card>
 
-        <div className="grid sm:grid-cols-3 gap-3">
+        <div className="grid lg:grid-cols-3 gap-3">
           {POOLS.map((pool) => (
             <PoolWindow
               key={pool.key}

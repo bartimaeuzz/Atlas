@@ -353,7 +353,7 @@ export function EmployeeForm({
                 inputMode="numeric"
                 maxLength={11}
                 placeholder="XXX-XX-XXXX"
-                className="w-full box-sizing-border-box border rounded-[var(--radius-md)] px-3 py-2.5 pr-11 text-base bg-[var(--card)] text-[var(--ink-900)] min-h-11 focus:outline-none focus:ring-2 focus:ring-[var(--primary-border)] focus:border-[var(--primary)] border-[var(--border-strong)]"
+                className="w-full box-sizing-border-box border rounded-[var(--radius-md)] px-3 py-2.5 pr-11 text-base bg-[var(--card)] text-[var(--ink-900)] min-h-11 focus:border-[var(--primary)] border-[var(--border-strong)]"
               />
               <button
                 type="button"

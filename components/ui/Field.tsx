@@ -4,7 +4,7 @@ import { AlertCircleIcon } from "./icons";
 
 const fieldShell =
   "w-full box-sizing-border-box border rounded-[var(--radius-md)] px-3 py-2.5 text-base bg-[var(--card)] text-[var(--ink-900)] min-h-11 " +
-  "focus:outline-none focus:ring-2 focus:ring-[var(--primary-border)] focus:border-[var(--primary)] " +
+  "focus:border-[var(--primary)] " +
   "disabled:bg-[var(--paper)] disabled:text-[var(--ink-500)]";
 
 function fieldBorder(error?: boolean) {

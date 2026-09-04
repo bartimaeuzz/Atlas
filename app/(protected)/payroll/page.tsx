@@ -136,11 +136,11 @@ export default async function PayrollPage({
         </Link>
       </div>
       <div className="flex items-center justify-between gap-3 mb-4">
-        <Link href={`/payroll?week=${prevWeek}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href={`/payroll?week=${prevWeek}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           &larr; Prev week
         </Link>
         <div className="text-sm font-medium text-[var(--ink-900)]">{weekLabel(weekStart)}</div>
-        <Link href={`/payroll?week=${nextWeek}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href={`/payroll?week=${nextWeek}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           Next week &rarr;
         </Link>
       </div>
