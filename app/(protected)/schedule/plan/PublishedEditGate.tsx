@@ -5,6 +5,7 @@ import { AutoFillWeekButton } from "./AutoFillWeekButton";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import type { WeeklyPlanData } from "@/lib/schedule/loadWeeklyPlan";
 import type { DailyLaborByDate } from "@/lib/analytics/laborTarget";
+import type { SalesTargets } from "@/lib/analytics/salesTarget";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -39,6 +40,7 @@ export function PublishedEditGate({
   dailyLabor,
   laborTargetPct,
   laborShowAmounts,
+  salesTargets,
 }: {
   isPublished: boolean;
   data: WeeklyPlanData;
@@ -51,6 +53,7 @@ export function PublishedEditGate({
   dailyLabor?: DailyLaborByDate;
   laborTargetPct?: number | null;
   laborShowAmounts?: boolean;
+  salesTargets?: SalesTargets | null;
 }) {
   const [unlocked, setUnlocked] = useState(!isPublished);
   // Unlocking now takes a ConfirmDialog (2026-08-24, Oliver's call): the
@@ -142,6 +145,7 @@ export function PublishedEditGate({
         dailyLabor={dailyLabor}
         laborTargetPct={laborTargetPct}
         laborShowAmounts={laborShowAmounts}
+        salesTargets={salesTargets}
       />
     </>
   );

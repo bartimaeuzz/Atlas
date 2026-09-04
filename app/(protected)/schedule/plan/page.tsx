@@ -111,6 +111,7 @@ export default async function WeeklyPlanPage({
             dailyLabor={labor.dailyLabor}
             laborTargetPct={labor.laborTargetPct}
             laborShowAmounts={labor.showAmounts}
+            salesTargets={labor.salesTargets}
           />
         </>
       ) : (
@@ -136,6 +137,7 @@ export default async function WeeklyPlanPage({
             dailyLabor={labor.dailyLabor}
             laborTargetPct={labor.laborTargetPct}
             laborShowAmounts={labor.showAmounts}
+            salesTargets={labor.salesTargets}
           />
 
           <DangerZone

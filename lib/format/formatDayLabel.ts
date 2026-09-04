@@ -24,6 +24,18 @@ export function formatDayLabel(isoDate: string): string {
   return `${WEEKDAYS[d.getUTCDay()]} ${isoDate}`;
 }
 
+/** "Tuesday" — the weekday spelled out, for sentences that talk about the
+ * day of the week rather than a date ("Last 4 Tuesdays averaged ..."). Same
+ * hardcoded table and UTC-noon pin as everything else here, for the
+ * hydration reason this file's header records. */
+const WEEKDAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] as const;
+
+export function weekdayLongOf(isoDate: string): string {
+  const d = new Date(`${isoDate}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return "";
+  return WEEKDAYS_LONG[d.getUTCDay()];
+}
+
 /** Weekday alone — for the phone cards, where the ISO date is already the
  *  card title and repeating it in a field would be noise. */
 export function weekdayOf(isoDate: string): string {

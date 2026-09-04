@@ -24,13 +24,22 @@
  *
  * Neither is ungated. A person with schedule access and no analytics
  * capability sees the grid exactly as it was before this feature.
+ *
+ * SALES TARGETS ride the VIEW_PNL half (2026-09-04). A target and the
+ * difference from it are dollar figures about revenue, so they belong on
+ * exactly the side of that line the day's net sales already sits on —
+ * anything else would hand a VIEW_ANALYTICS-only viewer the revenue plan
+ * the same reasoning above withholds. `salesTargets` is therefore null
+ * whenever `showAmounts` is false, and the grid renders no target line.
  */
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import { restaurantSettings } from "@/db/schema";
 import { loadDailyLabor } from "@/lib/analytics/loadDailyLabor";
+import { loadSalesTargets } from "@/lib/analytics/loadSalesTargets";
 import type { DailyLaborByDate } from "@/lib/analytics/laborTarget";
+import type { SalesTargets } from "@/lib/analytics/salesTarget";
 
 export interface ScheduleLabor {
   /** undefined when the viewer may not see money — the grid then renders
@@ -40,6 +49,9 @@ export interface ScheduleLabor {
   /** Whether the dollar figure may be shown alongside the percentage.
    * False for a VIEW_ANALYTICS-only viewer — see the note above. */
   showAmounts: boolean;
+  /** Null when the viewer may not see dollar figures, or when nobody has
+   * set any target at all. */
+  salesTargets: SalesTargets | null;
 }
 
 export async function loadScheduleLabor(dateFrom: string, dateTo: string): Promise<ScheduleLabor> {
@@ -49,16 +61,18 @@ export async function loadScheduleLabor(dateFrom: string, dateTo: string): Promi
     hasCapability("VIEW_ANALYTICS"),
     hasCapability("VIEW_PNL"),
   ]);
-  if (!canSeeRatios) return { laborTargetPct: null, showAmounts: false };
+  if (!canSeeRatios) return { laborTargetPct: null, showAmounts: false, salesTargets: null };
 
-  const [settingsRow, dailyLabor] = await Promise.all([
+  const [settingsRow, dailyLabor, salesTargets] = await Promise.all([
     db.select().from(restaurantSettings).where(eq(restaurantSettings.restaurantId, 1)),
     loadDailyLabor(dateFrom, dateTo),
+    canSeeAmounts ? loadSalesTargets() : Promise.resolve(null),
   ]);
 
   return {
     dailyLabor,
     laborTargetPct: settingsRow[0]?.laborCostTargetPct ?? null,
     showAmounts: canSeeAmounts,
+    salesTargets,
   };
 }

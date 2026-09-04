@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { loadRestaurantSettings, loadRecoveryCodeStatus } from "@/lib/settings/loadRestaurantSettings";
 import { loadPackerBonusConfig } from "@/lib/settings/packerBonus";
 import { db } from "@/db/client";
@@ -64,6 +65,25 @@ export default async function SettingsPage() {
           <RecoveryCodeSection status={recoveryStatus} viewerIsAdmin={viewerIsAdmin} />
         </div>
       )}
+      {/* Its own page, linked rather than inlined (2026-09-04). Seven
+          weekday numbers plus a list of dated exceptions with their own add
+          and remove buttons cannot live inside this page's single-submit
+          form without one of the two lying about what its button does. */}
+      <Link
+        href="/settings/sales-targets"
+        className="mb-8 flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-4 py-3 hover:bg-[var(--hover)]"
+      >
+        <span>
+          <span className="block text-sm font-medium text-[var(--ink-900)]">Sales targets</span>
+          <span className="block text-xs text-[var(--ink-500)]">
+            What you aim to take each day — the line the schedule and closing report judge a day
+            against.
+          </span>
+        </span>
+        <span aria-hidden="true" className="text-[var(--ink-500)]">
+          &rarr;
+        </span>
+      </Link>
       {/* min-w-0 matters: a <fieldset> carries min-inline-size:
           min-content in every UA stylesheet and Tailwind's preflight
           doesn't reset it, so without this the wrapper can be pinned

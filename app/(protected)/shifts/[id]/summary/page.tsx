@@ -14,7 +14,17 @@ import { Card, Section } from "@/components/ui/Card";
 import { TableCard } from "@/components/ui/Table";
 import { StatusBadge } from "@/components/ui/Badge";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
-import { formatDayLabelLong, formatDayLabelShort } from "@/lib/format/formatDayLabel";
+import { formatDayLabelLong, formatDayLabelShort, weekdayLongOf } from "@/lib/format/formatDayLabel";
+import { loadDailyNetSales, netSalesAmounts } from "@/lib/analytics/loadDailyNetSales";
+import { loadSalesTargets } from "@/lib/analytics/loadSalesTargets";
+import {
+  TREND_WEEKS,
+  resolveSalesTarget,
+  salesDifference,
+  salesTrend,
+  salesVerdict,
+  trendLookbackStart,
+} from "@/lib/analytics/salesTarget";
 import { formatDateTime } from "@/lib/formatDateTime";
 
 export default async function SummaryPage({ params }: { params: Promise<{ id: string }> }) {
@@ -47,6 +57,24 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
       </main>
     );
   }
+
+  // Sales target and trend for the DAY this shift belongs to (2026-09-04).
+  // Day, not shift, on purpose: the target the partners set in the meeting
+  // is a day's number, and Lunch and Dinner are two shifts of one day. The
+  // block below therefore reports the whole date's net sales — which is
+  // more than the "Total sales" card above it on a two-shift day, and says
+  // so in words rather than leaving two different figures unexplained.
+  //
+  // One window covers both questions: the trend needs the four previous
+  // same weekdays, and the day itself is the last date in the same range.
+  const shiftDate = data.shift.date;
+  const [dayNetSales, salesTargets] = await Promise.all([
+    loadDailyNetSales(trendLookbackStart(shiftDate), shiftDate),
+    loadSalesTargets(),
+  ]);
+  const day = dayNetSales.byDate[shiftDate] ?? null;
+  const salesTarget = resolveSalesTarget(shiftDate, salesTargets);
+  const trend = salesTrend(shiftDate, netSalesAmounts(dayNetSales.byDate));
 
   const totalPayout = data.payouts.reduce((a, p) => a + p.totalCorePayout, 0);
   // Per-column subtotals (2026-08-31, Aey: "need subtotal in each and
@@ -139,6 +167,14 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         <StatCard label="CC tip total" value={data.tipPoolCalculation.grossCcTip} />
         <StatCard label="Cash sales" value={data.sales?.cashSales ?? 0} />
       </section>
+
+      <DayVsTarget
+        date={shiftDate}
+        netSales={day?.netSales ?? null}
+        dayComplete={day?.complete ?? false}
+        target={salesTarget}
+        trend={trend}
+      />
 
       <Section title="Tip pools">
         <Card className="max-w-md">
@@ -325,6 +361,101 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
       )}
     </main>
   );
+}
+
+/** The day's sales against the target the partners set, plus how this
+ * weekday usually goes (2026-09-04, competitor-DNA backlog item 1 — "Today
+ * / Target / Difference beside the headline number").
+ *
+ * Renders nothing at all when there is neither a target nor any history:
+ * Youk opens with exactly that, and an empty card explaining its own
+ * emptiness on every closing report for months is worse than no card.
+ *
+ * TARGET and TREND are kept visually and verbally apart because they
+ * answer different questions — the plan, and the habit. A day can beat one
+ * and miss the other, and that is the interesting case.
+ *
+ * The figure is the WHOLE DAY, not this shift: a target set in a meeting
+ * is a day's number. On a two-shift day that makes it larger than the
+ * "Total sales" card above, so the subtitle says which is which rather
+ * than leaving a manager to reconcile two numbers by themselves. And while
+ * any shift on the date is still open the comparison is stated without a
+ * verdict — "short by $1,700" is true at 6pm and useless.
+ */
+function DayVsTarget({
+  date,
+  netSales,
+  dayComplete,
+  target,
+  trend,
+}: {
+  date: string;
+  netSales: number | null;
+  dayComplete: boolean;
+  target: number | null;
+  trend: { average: number; weeks: number } | null;
+}) {
+  if (target == null && trend == null) return null;
+
+  const judgeable = target != null && dayComplete && netSales != null && netSales > 0;
+  const verdict = judgeable ? salesVerdict(netSales, target) : "none";
+  const diff = Math.abs(salesDifference(netSales, target) ?? 0);
+  const weekday = weekdayLongOf(date);
+  const trendDiff = trend && netSales != null ? Math.round((netSales - trend.average) * 100) / 100 : null;
+
+  return (
+    <Card className="mb-8 max-w-md">
+      <div className="text-xs text-[var(--ink-500)] mb-2">
+        {target != null ? "Sales target" : "How this day usually goes"} — the whole day, both
+        services
+      </div>
+
+      {/* netSales null means the day's rollup produced nothing for this
+          date. Rendering "$0 of $3,800" there would state a figure nobody
+          measured — the target line is simply absent instead, and the
+          trend below still says what this weekday usually does. */}
+      {target != null && netSales != null && (
+        <div className="text-sm text-[var(--ink-900)]">
+          <span className="tabular-nums font-medium">{money(netSales)}</span> of{" "}
+          <span className="tabular-nums">{money(target)}</span>
+          {verdict === "over" && (
+            <span className="text-[var(--success-700)] font-medium"> · beat it by {money(diff)}</span>
+          )}
+          {verdict === "under" && (
+            <span className="text-[var(--danger-700)] font-medium"> · {money(diff)} short</span>
+          )}
+        </div>
+      )}
+
+      {target != null && netSales != null && !dayComplete && (
+        <p className="text-xs text-[var(--ink-500)] mt-1">
+          Part of this day is not closed yet, so this is the day so far — no verdict until it is.
+        </p>
+      )}
+
+      {trend && (
+        <p className={"text-sm text-[var(--ink-700)] " + (target != null && netSales != null ? "mt-2" : "")}>
+          The last {trend.weeks === 1 ? weekday : `${trend.weeks} ${weekday}s`}
+          {trend.weeks < TREND_WEEKS ? " so far" : ""} averaged{" "}
+          <span className="tabular-nums">{money(trend.average)}</span>
+          {trendDiff != null && trendDiff !== 0 && (
+            <>
+              {" "}
+              — this one is <span className="tabular-nums">{money(Math.abs(trendDiff))}</span>{" "}
+              {trendDiff > 0 ? "above" : "below"} that
+            </>
+          )}
+          .
+        </p>
+      )}
+    </Card>
+  );
+}
+
+/** Whole dollars. A target is a round number decided in a meeting and the
+ * cent belongs on the table above, not in a sentence about it. */
+function money(amount: number): string {
+  return amount.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 }
 
 function StatCard({ label, value }: { label: string; value: number }) {

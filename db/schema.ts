@@ -1831,3 +1831,63 @@ export const permissionGrantLog = sqliteTable("permission_grant_log", {
   note: text("note"), // e.g. "applied Floor Manager preset" for bulk preset-apply actions
   occurredAt: text("occurred_at").notNull().default(sql`(current_timestamp)`),
 });
+
+/* ---------------------------------------------------------------------- */
+/* Sales targets (2026-09-04, Oliver)                                       */
+/* ---------------------------------------------------------------------- */
+/* "The target will come from the meeting" — partners agree a net-sales     */
+/* number and the app judges each closed day against it, the same way       */
+/* laborCostTargetPct already judges the day's labor %.                     */
+/*                                                                          */
+/* TWO tables, not one with a discriminator column. A single table would    */
+/* need "exactly one of day_of_week / date is set" enforced by a CHECK plus */
+/* two partial unique indexes, and every read would have to remember which  */
+/* shape it was looking at. Two tables make each row unambiguous and each   */
+/* index a plain one. The cost is one extra query, which runs in parallel.  */
+/*                                                                          */
+/* Resolution order is fixed in lib/analytics/salesTarget.ts: an override   */
+/* for the exact date wins, otherwise the weekday default, otherwise null.  */
+/* Null means "nobody set one" — the UI shows the sales figure with no      */
+/* verdict attached, never a 0 that would mark every day as missed. Same    */
+/* convention as laborCostTargetPct.                                        */
+/*                                                                          */
+/* The figure is NET SALES — Toast net plus every platform's net, no tax,   */
+/* no tips — because that is what lib/analytics/loadDailyNetSales.ts        */
+/* reports for the day it is compared against, and what the P&L calls       */
+/* revenue. A target measured against anything else would have the schedule */
+/* and Analytics disagree about the same Tuesday.                           */
+
+// The repeating week. One row per day-of-week that has a target; a
+// weekday nobody set is simply absent rather than stored as 0.
+// dayOfWeek: 0=Sunday..6=Saturday, the same convention as
+// positionStaffingTargets and dayOfWeekFor()'s UTC-noon pin.
+export const salesTargetWeekdays = sqliteTable(
+  "sales_target_weekdays",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    restaurantId: integer("restaurant_id").notNull().default(1),
+    dayOfWeek: integer("day_of_week").notNull(), // 0-6, Sun-Sat
+    netSalesTarget: real("net_sales_target").notNull(),
+  },
+  (t) => ({
+    uniqSalesTargetWeekday: uniqueIndex("uniq_sales_target_weekday").on(t.restaurantId, t.dayOfWeek),
+  })
+);
+
+// The exceptions: one specific calendar date, beating its weekday default.
+// Thanksgiving, a private buyout, the week the street is dug up. `label`
+// is what the manager typed as the reason — shown beside the number so a
+// list of overrides reads as a plan rather than as unexplained figures.
+export const salesTargetDates = sqliteTable(
+  "sales_target_dates",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    restaurantId: integer("restaurant_id").notNull().default(1),
+    date: text("date").notNull(), // ISO yyyy-mm-dd
+    netSalesTarget: real("net_sales_target").notNull(),
+    label: text("label"), // e.g. "Thanksgiving" — nullable, purely descriptive
+  },
+  (t) => ({
+    uniqSalesTargetDate: uniqueIndex("uniq_sales_target_date").on(t.restaurantId, t.date),
+  })
+);

@@ -54,7 +54,7 @@ export default async function WeeklyPlanPreviewPage({
   // allowed to see it elsewhere. Showing it here would make the preview
   // lie about the thing it exists to show.
   const labor =
-    view === "manager" ? await loadScheduleLabor(weekStartDate, addDays(weekStartDate, 6)) : { dailyLabor: undefined, laborTargetPct: null, showAmounts: false };
+    view === "manager" ? await loadScheduleLabor(weekStartDate, addDays(weekStartDate, 6)) : { dailyLabor: undefined, laborTargetPct: null, showAmounts: false, salesTargets: null };
 
   if (!data.week) {
     return (
@@ -113,6 +113,7 @@ export default async function WeeklyPlanPreviewPage({
         dailyLabor={labor.dailyLabor}
         laborTargetPct={labor.laborTargetPct}
         laborShowAmounts={labor.showAmounts}
+        salesTargets={labor.salesTargets}
       />
 
       {week.status === "draft" && (await hasCapability("SCHEDULE_MANAGE")) && (

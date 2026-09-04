@@ -3,6 +3,8 @@
 import { Fragment, useMemo, useRef, useState, useTransition, useId } from "react";
 import { LaborFigure } from "@/components/ui/LaborFigure";
 import type { DailyLaborByDate } from "@/lib/analytics/laborTarget";
+import type { SalesTargets } from "@/lib/analytics/salesTarget";
+import { resolveSalesTarget } from "@/lib/analytics/salesTarget";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { useRouter } from "next/navigation";
 import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment } from "@/lib/actions/schedule";
@@ -140,6 +142,7 @@ export function WeeklyPlanGrid({
   dailyLabor,
   laborTargetPct,
   laborShowAmounts = false,
+  salesTargets = null,
 }: {
   data: WeeklyPlanData;
   weekId?: number;
@@ -159,6 +162,11 @@ export function WeeklyPlanGrid({
    * percentage. Off by default so a caller that forgets it under-shares
    * rather than over-shares. */
   laborShowAmounts?: boolean;
+  /** The net-sales targets, or null when the viewer may not see dollars
+   * or nobody has set any (2026-09-04). Passed whole rather than resolved
+   * per date because the resolver is pure and the grid already knows its
+   * own dates — one rule, applied in one place, on both layouts. */
+  salesTargets?: SalesTargets | null;
   /** Preselect this date's phone day-tab on first render (e.g. arriving
    * from a swap card's "View shift" link). Falls back to today/Monday
    * when absent or outside the week. */
@@ -319,6 +327,13 @@ export function WeeklyPlanGrid({
     goDay(dx < 0 ? 1 : -1);
   };
 
+  // Whether the legend should explain the sales-target half at all. A
+  // viewer can hold VIEW_PNL and still have no targets typed anywhere, and
+  // a key to a line that never appears is worse than no key.
+  const hasSalesTarget =
+    !!salesTargets &&
+    (Object.keys(salesTargets.weekday).length > 0 || Object.keys(salesTargets.dates).length > 0);
+
   return (
     <div className="space-y-8">
       {/* Key for the labor figure (2026-09-04, Oliver picked this over
@@ -336,10 +351,16 @@ export function WeeklyPlanGrid({
       {dailyLabor && (
         <p className="text-xs text-[var(--ink-500)] leading-relaxed">
           <span className="text-[var(--ink-700)] font-medium">
-            {laborShowAmounts ? "$16,960 · Labor 8%" : "Labor 8%"}
+            {laborShowAmounts
+              ? hasSalesTarget
+                ? "$16,960 · beat target by $960 · Labor 8%"
+                : "$16,960 · Labor 8%"
+              : "Labor 8%"}
           </span>{" "}
           {laborShowAmounts
-            ? " — the day's sales, then what you spent on staff as a share of them."
+            ? hasSalesTarget
+              ? " — the day's sales, how they landed against your sales target, then what you spent on staff as a share of them."
+              : " — the day's sales, then what you spent on staff as a share of them."
             : " — what you spent on staff as a share of that day's sales."}{" "}
           Only on days you have closed.{" "}
           {laborTargetPct != null ? (
@@ -352,8 +373,17 @@ export function WeeklyPlanGrid({
               No target is set, so no day is called good or bad — pick one in Settings.{" "}
             </>
           )}
+          {hasSalesTarget && (
+            <>
+              <span className="text-[var(--danger-700)] font-medium">short of target</span> is the
+              sales half of the same idea.{" "}
+            </>
+          )}
           <span className="text-[var(--ink-700)]">so far</span> means the day is not fully closed
-          yet.
+          yet
+          {hasSalesTarget
+            ? " — a day still open is shown next to its sales target but not judged against it."
+            : "."}
         </p>
       )}
 
@@ -427,6 +457,7 @@ export function WeeklyPlanGrid({
                   day={dailyLabor[selectedDate]}
                   targetPct={laborTargetPct}
                   showAmounts={laborShowAmounts}
+                  salesTarget={salesTargets && resolveSalesTarget(selectedDate, salesTargets)}
                 />
               </div>
             )}
@@ -667,7 +698,12 @@ export function WeeklyPlanGrid({
                           where a $0 would read as a disastrous night. */}
                       {dailyLabor?.[d] && (
                         <div className="mt-0.5">
-                          <LaborFigure day={dailyLabor[d]} targetPct={laborTargetPct} showAmounts={laborShowAmounts} />
+                          <LaborFigure
+                            day={dailyLabor[d]}
+                            targetPct={laborTargetPct}
+                            showAmounts={laborShowAmounts}
+                            salesTarget={salesTargets && resolveSalesTarget(d, salesTargets)}
+                          />
                         </div>
                       )}
                     </th>

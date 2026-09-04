@@ -1,5 +1,6 @@
 import type { DailyLabor, LaborVerdict } from "@/lib/analytics/laborTarget";
 import { laborVerdict } from "@/lib/analytics/laborTarget";
+import { salesDifference, salesVerdict } from "@/lib/analytics/salesTarget";
 
 /** One day's labor % as it appears on the schedule (2026-09-04). Two
  * densities of the same figure so the week grid and the month calendar
@@ -24,12 +25,29 @@ import { laborVerdict } from "@/lib/analytics/laborTarget";
  * A day nobody has fully closed is marked "so far": the figures are real
  * but cover only the finalized half, and a number that will move must say
  * so rather than being quietly wrong for an evening.
+ *
+ * SALES TARGET (2026-09-04). When a target exists and the viewer may see
+ * dollars, the same line says how the day did against it. Three rules,
+ * each of which had an obvious wrong version:
+ *
+ *   - The words are "beat" and "short", never "over" and "under". Labor's
+ *     own verdict on this exact line is "over", and it means the opposite
+ *     kind of news. Two "over"s pointing in different directions on one
+ *     line is a defect, not a saving of characters.
+ *   - A day that is not fully closed gets the target stated and NO
+ *     verdict. At 6pm with Dinner still open the day is genuinely "$1,700
+ *     short", and saying so would be true and useless — it will be wrong
+ *     by close. "so far" already tells the reader the figure moves.
+ *   - Only the miss is coloured, matching Oliver's "colour only when over
+ *     target" call for labor: painting the good days too makes the one
+ *     that needs attention harder to find.
  */
 export function LaborFigure({
   day,
   targetPct,
   variant = "full",
   showAmounts = false,
+  salesTarget = null,
 }: {
   day: DailyLabor;
   targetPct: number | null | undefined;
@@ -39,6 +57,12 @@ export function LaborFigure({
    * `showAmounts={canSeePnL}` for the same reason), and seven days of it
    * is a week of revenue — see lib/analytics/loadScheduleLabor.ts. */
   showAmounts?: boolean;
+  /** The day's net sales target in dollars, already resolved through the
+   * date-override-then-weekday order. Null when nobody set one. Rendered
+   * only when `showAmounts` is true: a target and a difference are dollar
+   * figures about revenue and sit on the same side of the VIEW_PNL line
+   * as the sales figure itself. */
+  salesTarget?: number | null;
 }) {
   const verdict: LaborVerdict = laborVerdict(day.laborPct, targetPct);
   // Weight lives entirely in `tone`. The base class list used to carry
@@ -51,6 +75,24 @@ export function LaborFigure({
       ? "font-medium text-[var(--danger-700)]"
       : "font-normal text-[var(--ink-500)]";
   const pct = day.laborPct == null ? null : Math.round(day.laborPct * 100);
+
+  // A verdict needs a target, permission to show dollars, a day that is
+  // actually finished, and sales to judge. Miss any one of those and the
+  // line either states the target plainly or says nothing — the same
+  // "nothing honest to say" guard laborPct already uses for a day with no
+  // sales to divide by.
+  const targetAmount = variant === "full" && showAmounts ? (salesTarget ?? null) : null;
+  const judgeable = targetAmount != null && day.complete && day.netSales > 0;
+  const sales = judgeable ? salesVerdict(day.netSales, targetAmount) : "none";
+  const diff = Math.abs(salesDifference(day.netSales, targetAmount) ?? 0);
+  const salesSpoken =
+    targetAmount == null
+      ? ""
+      : sales === "over"
+        ? `Beat the ${formatMoney(targetAmount)} sales target by ${formatMoney(diff)}. `
+        : sales === "under"
+          ? `${formatMoney(diff)} short of the ${formatMoney(targetAmount)} sales target. `
+          : `Sales target ${formatMoney(targetAmount)}. `;
 
   // Screen readers get the whole sentence once; the visible text is the
   // shorthand. Without this the compact form reads as a bare "28%" with no
@@ -81,12 +123,28 @@ export function LaborFigure({
     <div className={"text-xs leading-tight tabular-nums " + tone}>
       <span aria-hidden="true">
         {showAmounts && <>{formatMoney(day.netSales)} · </>}
+        {targetAmount != null && (
+          <>
+            {sales === "over" ? (
+              <>beat target by {formatMoney(diff)}</>
+            ) : sales === "under" ? (
+              // Its own colour, not the line's: the parent tone belongs to
+              // labor, and on a day that is both over on labor and short on
+              // sales the two verdicts must not borrow each other's weight.
+              <span className="font-medium text-[var(--danger-700)]">{formatMoney(diff)} short of target</span>
+            ) : (
+              <>target {formatMoney(targetAmount)}</>
+            )}
+            {" · "}
+          </>
+        )}
         {pct == null ? "Labor —" : <>Labor {pct}%</>}
         {verdict === "over" && <> over</>}
         {!day.complete && <> · so far</>}
       </span>
       <span className="sr-only">
         {showAmounts ? `${formatMoney(day.netSales)} sales. ` : ""}
+        {salesSpoken}
         {spoken}.
       </span>
     </div>
