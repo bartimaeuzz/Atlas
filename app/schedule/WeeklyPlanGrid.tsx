@@ -696,8 +696,16 @@ export function WeeklyPlanGrid({
                           (2026-09-04). Nothing renders for an open day —
                           an absent figure reads as "not closed yet",
                           where a $0 would read as a disastrous night. */}
+                      {/* max-w caps the COLUMN, not the text. Measured live
+                          2026-09-04: with a sales target the closed Monday's
+                          header ran to one 315px line while its six open
+                          siblings sat at 77px, and the Position column was
+                          squeezed 174 -> 147 to pay for it. The figure now
+                          wraps inside a fixed box instead of widening the
+                          table, so a day's column width no longer depends on
+                          whether that day happens to be closed. */}
                       {dailyLabor?.[d] && (
-                        <div className="mt-0.5">
+                        <div className="mt-0.5 max-w-[10rem]">
                           <LaborFigure
                             day={dailyLabor[d]}
                             targetPct={laborTargetPct}

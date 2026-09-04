@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { NoAccess } from "@/components/NoAccess";
 import { Banner } from "@/components/ui/Banner";
 import { loadSalesTargetsForEditing } from "@/lib/analytics/loadSalesTargets";
@@ -31,7 +32,14 @@ export default async function SalesTargetsPage() {
 
   return (
     <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/settings" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      {/* TAP_TARGET_PAD, not a bare text link: measured live at 72x20 on
+          the first audit of this page, under WCAG 2.5.8's 24px floor at
+          both viewports. The pattern was copied from /schedule/targets,
+          which has the same defect and is one of three still open. */}
+      <Link
+        href="/settings"
+        className={"inline-block text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] " + TAP_TARGET_PAD}
+      >
         &larr; Settings
       </Link>
       <h1 className="text-2xl font-semibold mt-2 mb-1">Sales targets</h1>

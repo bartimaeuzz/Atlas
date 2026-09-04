@@ -435,8 +435,12 @@ function DayVsTarget({
 
       {trend && (
         <p className={"text-sm text-[var(--ink-700)] " + (target != null && netSales != null ? "mt-2" : "")}>
-          The last {trend.weeks === 1 ? weekday : `${trend.weeks} ${weekday}s`}
-          {trend.weeks < TREND_WEEKS ? " so far" : ""} averaged{" "}
+          {/* "so far" goes on the COUNT, not after the weekday. Read live
+              2026-09-04, "The last 2 Mondays so far averaged" parses as
+              though the Mondays were unfinished rather than the history. */}
+          {trend.weeks < TREND_WEEKS ? "Only " : "The last "}
+          {trend.weeks === 1 ? `1 ${weekday}` : `${trend.weeks} ${weekday}s`}
+          {trend.weeks < TREND_WEEKS ? " so far, and they" : ""} averaged{" "}
           <span className="tabular-nums">{money(trend.average)}</span>
           {trendDiff != null && trendDiff !== 0 && (
             <>
