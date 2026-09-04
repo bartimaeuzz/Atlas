@@ -66,6 +66,15 @@ app; unless told otherwise, all work is Track 2.
    the sweep's *scope* out loud. Extended: any list claiming completeness must be
    built from the filesystem (`ls app/\(protected\)/`), never from recalled names.
 
+10. **Token rules (2026-09-04).** No app walkthroughs by screenshot — Oliver clicks
+   himself; answer "walk me through" with a short written list. One feature, one
+   session, ~300 turns; when it gets heavy, say so and hand over in five lines.
+   One screenshot per check, never one per click. Full ritual (scrutinize + audit +
+   atlas-learn) only for money, database, migrations, permissions, login; wording,
+   colour, spacing and one-line UI fixes just run the verify gate and ship — this
+   narrows rule 8 to new screens and layout changes. Never read or append to
+   `PROGRESS.md`; the git log is the record.
+
 ## How this shell reaches the database (updated 2026-08-23)
 
 **A plain shell here cannot reach production.** Oliver moved the Turso credentials
@@ -174,3 +183,5 @@ Added 2026-08-31, Oliver's own words: answer in plain easy English or easy Thai,
 no jargon, warm human tone, concise. Prefer showing over telling — when discussing
 UI or features, make a mockup/picture first ("คุยกันด้วยภาพดีกว่าคุยกันด้วยตัวหนังสือ")
 instead of long text descriptions.
+
+**Updated 2026-09-04, Oliver's own words: "cut the crap, right to the chest, no jargon, plain English as much as possible, I'm vibe coding."** Say the point first. Short sentences. Use the plain word when one exists. If a technical word is unavoidable, say what it means in five words. No explaining why unless he asks. No lists of options he did not ask for.

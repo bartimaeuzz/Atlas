@@ -36,6 +36,16 @@ Full reasoning for this protocol (and why it replaced a "read HANDOFF.md in full
 
 9. **Sweep by behaviour, never by filename.** When auditing or fixing a class of problem across the codebase, derive the search from the defect's *code signature*, not from folder or component naming — `find app -name route.ts` for every HTTP entry point, `grep -rn "<table>" lib/actions/` for every writer of a table, `grep -rn "<loader>"` for every reader of a dataset, `grep -rn "startTransition"` for every action fired from a click. State the sweep's frame out loud before running it: "every server action" and "every way a request reaches data" sound equivalent and are not. A filename-shaped sweep succeeds, finds real instances, looks thorough, and is structurally blind to everything that doesn't follow the naming convention — which is exactly how it produces false confidence. Promoted to a standing rule 2026-08-21 after this cost twice in one day: a same-day sibling sweep for unconfirmed destructive controls missed a blocker because it was an inline function rather than its own file, and Phase A's `lib/actions/*.ts` auth audit was incapable of seeing the four `route.ts` export handlers — which had no authentication at all, leaving `/payroll/export` serving every employee's wages to anonymous requests for four days. See `feedback_atlas_sibling_sweep_shape.md` and `feedback_atlas_gate_the_data_not_the_page.md` in project memory. **Extended 2026-08-22 (third occurrence, and the first outside code):** the same applies to any *list* that claims completeness — a retrofit tracker, an audit checklist, a coverage table. Build it from the filesystem (`ls app/(protected)/`), never from recalled subsystem names, and re-derive it before declaring the list closed. A list assembled from memory is a filename-shaped sweep wearing different clothes. This cost two entire screens: the design-retrofit tracker declared its "original 5-page list" fully closed on 2026-08-21 while `/positions` and `/reports` sat at 0% adoption, never having appeared on it at all — and `/positions` was still carrying a one-tap destructive Retire that a sibling sweep had already been run for.
 
+## Token rules — non-negotiable (added 2026-09-04)
+
+Oliver audited his Atlas token use on 2026-09-04. About half of every token spent on Atlas went to sessions that produced no code: app walkthroughs by screenshot, sessions that ran past 2,000 turns, 900+ screenshots held in memory, and the full check ritual run on tiny fixes. These rules exist so that never happens again.
+
+1. **No walkthroughs by screenshot.** Never click through the app to show Oliver what it does. He clicks himself. If he asks "walk me through", answer with a short written list: what changed, where to click.
+2. **Keep sessions short.** One feature, one session. Around 300 turns is plenty. When a session is getting long, say so in one line ("this session is getting heavy, let's start a new one") and hand over in five lines or fewer.
+3. **Screenshots only when needed.** One screenshot per check, never one per click. Read the page as text where that answers the question.
+4. **Match the checks to the risk.** Money, database, migrations, permissions, login: full ritual (scrutinize, visual audit, atlas-learn). Wording, colour, spacing, one-line UI fixes: build, run the verify gate, ship. No scrutinize, no audit, no atlas-learn. This narrows rule 8: the visual audit stays required for new screens and layout changes, not for small fixes.
+5. **Don't grow or read PROGRESS.md.** It is over 300KB. The git log is the record. Never read it whole, never append to it.
+
 ## Where things live
 
 - **Code:** `https://github.com/bartimaeuzz/Atlas.git` — `main` (the real app) and `ui-design` (design-system branch).
@@ -47,6 +57,8 @@ Full reasoning for this protocol (and why it replaced a "read HANDOFF.md in full
 ## Communication
 
 Oliver writes in a mix of English and Thai and switches between them mid-conversation, sometimes to clarify something English didn't capture precisely — read both. Keep responses concise and direct; he's explicitly asked for minimal formatting and no unnecessary explanation. When something is genuinely ambiguous, ask a short, specific question rather than a long one.
+
+**Updated 2026-09-04, Oliver's own words: "cut the crap, right to the chest, no jargon, plain English as much as possible, I'm vibe coding."** Say the point first. Short sentences. Use the plain word when one exists. If a technical word is unavoidable, say what it means in five words. No explaining why unless he asks. No lists of options he did not ask for.
 
 ---
 

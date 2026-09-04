@@ -48,6 +48,18 @@ Step 2 re-verifies *code* ground truth every session. Nothing above does the equ
 8. **A live visual audit is required before UI-touching work is done — but Oliver starts it, not you.** The `visual-audit` skill (Playwright, desktop + mobile viewports) is the live-render counterpart to rule #2's code-level verification, and skipping it silently is not acceptable. Since 2026-08-19 it is **ask-first**, not automatic: when a UI change is confirmed pushed and live, say plainly that the audit is pending and offer to run it — then wait. Oliver paused the auto-run because it's slow and token-heavy, and that preference outranks the older "run it automatically" wording this rule used to carry. See step 2b above and `feedback_atlas_visual_audit_on_demand.md` in project memory.
 9. **Sweep by behaviour, never by filename.** When auditing or fixing a class of problem across the codebase, derive the search from the defect's *code signature*, not from folder or component naming — `find app -name route.ts` for every HTTP entry point, `grep -rn "<table>" lib/actions/` for every writer of a table, `grep -rn "<loader>"` for every reader of a dataset, `grep -rn "startTransition"` for every action fired from a click. State the sweep's frame out loud before running it: "every server action" and "every way a request reaches data" sound equivalent and are not. A filename-shaped sweep succeeds, finds real instances, looks thorough, and is structurally blind to everything that doesn't follow the naming convention — which is exactly how it produces false confidence. Added to `introduction.md` as rule #9 on 2026-08-21 after this cost twice in one day: a sibling sweep for unconfirmed destructive controls missed a blocker because it was an inline function rather than its own file, and Phase A's `lib/actions/*.ts` auth audit was incapable of seeing the four `route.ts` export handlers — which had no authentication at all, leaving `/payroll/export` serving every employee's wages to anonymous requests for four days. See `feedback_atlas_sibling_sweep_shape.md` and `feedback_atlas_gate_the_data_not_the_page.md`.
 
+## 3b. Token rules — read these as hard as the rules above (added 2026-09-04)
+
+Oliver's 2026-09-04 audit: about half of all Atlas tokens went to sessions that produced no code. Walkthroughs by screenshot, 2,000-turn sessions, 900+ screenshots in memory, full check ritual on tiny fixes.
+
+1. **No walkthroughs by screenshot.** He clicks himself. "Walk me through" gets a short written list: what changed, where to click.
+2. **One feature, one session, ~300 turns.** When it gets heavy, say so in one line and hand over in five lines.
+3. **One screenshot per check, never one per click.** Read the page as text when that answers the question.
+4. **Checks sized to risk.** Money, database, migrations, permissions, login: scrutinize + visual audit + atlas-learn. Wording, colour, spacing, one-line UI fixes: verify gate, ship, nothing else. This narrows rule 8 to new screens and layout changes.
+5. **Never read or append `PROGRESS.md`.** Git log is the record.
+
+**How to talk to him (his words, 2026-09-04): "cut the crap, right to the chest, no jargon, plain English, I'm vibe coding."** Point first. Short sentences. Plain words. No why unless asked.
+
 ## 4. Everything else is on-demand, not default reading
 
 - `introduction.md` (Atlas device folder): operating charter — rarely changes, worth reading in full once if you haven't internalized it, but steps 0-3 above already cover what's needed to respond safely.
