@@ -19,7 +19,7 @@
  * restyle, the toggle/drag interaction model above is untouched (same
  * `toggle`/`changeSplitMethod` functions, same optimistic-update +
  * revert-on-failure logic, same HTML5 drag handlers). Mobile layout was
- * already "stack, don't squeeze": the `lg:grid-cols-[260px_1fr]` master/
+ * already "stack, don't squeeze": the `lg:grid-cols-[320px_minmax(0,1fr)]` master/
  * board split and the pool windows' `lg:grid-cols-3` (was `sm:`, moved
  * 2026-09-04: with the 216px rail a 640 viewport swap is a ~360px content
  * swap, so three columns squeezed and the page overflowed) both fall back to a
@@ -215,8 +215,14 @@ export function PoolBoard({
        * single stacked column: master list, then the 3 pool windows (each
        * of which also stacks below sm) -- see the file-header note on why
        * that beats a tab switcher here. */}
-      <div className="grid lg:grid-cols-[260px_1fr] gap-4 items-start">
-        <Card className="p-4">
+      {/* min-w-0 on the master card and minmax(0,1fr) on the board track
+       * (2026-09-04 re-check): position rows are nowrap flex rows, so a
+       * long name like "Bag Handler (retired)" made the card's min-content
+       * 336px and the page scrolled sideways at 390. 320px, not 260px, so
+       * a name keeps ~120px beside the three 44px toggles at desktop
+       * instead of truncating to "Barte…". */}
+      <div className="grid lg:grid-cols-[320px_minmax(0,1fr)] gap-4 items-start">
+        <Card className="p-4 min-w-0">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-500)]">All positions</span>
             <Badge tone="neutral">{filtered.length}</Badge>
@@ -284,7 +290,7 @@ function MasterCard({
       }
     >
       <div className="min-w-0">
-        <div className="text-xs font-medium truncate text-[var(--ink-900)]">
+        <div className="text-xs font-medium break-words text-[var(--ink-900)]">
           {position.name}
           {!position.active && <span className="text-[var(--ink-400)] font-normal"> (retired)</span>}
         </div>
@@ -418,7 +424,7 @@ function PoolWindow({
                 }
               >
                 <div className="min-w-0">
-                  <div className="text-xs font-medium truncate text-[var(--ink-900)]">{p.name}</div>
+                  <div className="text-xs font-medium break-words text-[var(--ink-900)]">{p.name}</div>
                   {otherPools.length > 0 && (
                     <div className="text-xs text-[var(--ink-500)]">
                       also in {otherPools.map((g) => POOLS.find((pl) => pl.key === g)!.label).join(", ")}
