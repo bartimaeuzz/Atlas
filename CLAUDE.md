@@ -43,6 +43,13 @@ app; unless told otherwise, all work is Track 2.
    exceptions.** It silently no-ops or partially applies, and a partial apply on a
    payroll database is exactly the damage rule 6 exists to prevent. Use
    `npm run db:generate` (local, safe), then hand the migration to Oliver.
+   A hand-written migration is not done until the `.sql`, its
+   `meta/NNNN_snapshot.json`, and the `_journal.json` entry are in the same
+   commit (2026-09-04: 0036 and 0043 both shipped without the snapshot).
+   Prod migration state is read only from the database:
+   `SELECT created_at FROM __drizzle_migrations ORDER BY created_at DESC LIMIT 1`
+   against the journal's last `when` — never from commit messages, PROGRESS.md
+   or memory.
 5. **Oliver runs migrations, not you.** Generate and deliver; he runs
    `npm run db:migrate` himself. Afterwards you may verify via read-only queries.
 6. **Keep the money math conservative.** Tip splits, wage calculation and anything
