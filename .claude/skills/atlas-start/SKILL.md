@@ -17,6 +17,8 @@ The design-principal part specifically: Atlas project memory names a "X" role (s
 
 It auto-loads with the session as a system-reminder — no tool call needed. It carries: last-verified commit hash, what's pending on Oliver's end, and what's next. Treat it as a fast-read summary, not final truth — verify it in step 2.
 
+Since 2026-09-04 the index is under a page: current state, open questions, not-built ideas, reference, and two pointers. Mistake classes live in `LESSONS.md` (read the section for what today's task touches: money, database, permissions, screens, forms). Finished work lives in `ARCHIVE.md` (read on demand, never whole). When you finish something, move its pointer to ARCHIVE in the same turn.
+
 ## 2. Re-verify the commit hash yourself, every session
 
 Run, from the **cloud `Bash` tool** (never `device_bash` — the device bridge runs on Oliver's local sandboxed VM and has no network access at all, by design):
@@ -56,14 +58,14 @@ Oliver's 2026-09-04 audit: about half of all Atlas tokens went to sessions that 
 2. **One feature, one session, ~300 turns.** When it gets heavy, say so in one line and hand over in five lines.
 3. **One screenshot per check, never one per click.** Read the page as text when that answers the question.
 4. **Checks sized to risk.** Money, database, migrations, permissions, login: scrutinize + visual audit + atlas-learn. Wording, colour, spacing, one-line UI fixes: verify gate, ship, nothing else. This narrows rule 8 to new screens and layout changes.
-5. **Never read or append `PROGRESS.md`.** Git log is the record.
+5. **`PROGRESS.md` is retired** to `docs/atlas/archive/` (2026-09-04). Git log is the record. Never append, never read whole.
 
 **How to talk to him (his words, 2026-09-04): "cut the crap, right to the chest, no jargon, plain English, I'm vibe coding."** Point first. Short sentences. Plain words. No why unless asked.
 
 ## 4. Everything else is on-demand, not default reading
 
 - `introduction.md` (Atlas device folder): operating charter — rarely changes, worth reading in full once if you haven't internalized it, but steps 0-3 above already cover what's needed to respond safely.
-- `HANDOFF.md` (Atlas device folder, ~50KB): deep-history archive — rules, sandbox gotchas, the full mistake log. Genuinely useful for "why was this decided," but its own state section goes stale between sessions and must never be read as current. Pull it only when a specific question needs that history.
+- The archived HANDOFF (`Atlas/Atlas-output/HANDOFF_2026-08-12_archived.md`, frozen 2026-09-04): Cowork-era rules origin and mistake log. History only; its state section is wrong by definition. `ARCHIVE.md` and `LESSONS.md` in project memory are the maintained versions of the same material.
 - Individual project-memory topic files: pulled via `project_memory_read` when a specific topic is relevant — most of MEMORY.md's per-feature index bullets don't actually auto-load in the system-reminder (it truncates after roughly the first 7), so don't assume a feature has no memory file just because its bullet didn't show up automatically. If a task touches UI at all, pull `project_atlas_ui_design.md`, `project_atlas_target_users_accessibility.md`, and `project_atlas_visual_audit_skill.md` specifically — that's what makes the design-principal role in step 0 real rather than cosmetic, and step 2b's visual ground-truth check concrete rather than a slogan.
 
 ## Why this skill exists

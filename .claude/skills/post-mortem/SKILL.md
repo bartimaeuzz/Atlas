@@ -74,9 +74,9 @@ Concrete next-steps that aren't in the fix itself: regression test added, relate
 ## Output flow
 
 1. **Confirm all four required inputs are satisfied.** If any are missing, list them and stop. Do not draft.
-2. **Confirm where it goes.** For Atlas, default destination is a project-memory topic file (feedback/project type per this project's memory conventions) — HANDOFF.md's §7 mistake log entries are one-line summaries, not full post-mortems, so a full writeup belongs in memory with a one-line pointer added to the mistake log, not pasted into HANDOFF.md in full. Ask Oliver if he wants it in HANDOFF.md instead for a given bug.
+2. **Confirm where it goes.** For Atlas, default destination is a project-memory topic file (feedback/project type per this project's memory conventions) — the archived HANDOFF's §7 mistake log entries are one-line summaries, not full post-mortems, so a full writeup belongs in memory with a one-line pointer added to the mistake log, not pasted into HANDOFF.md in full. Ask Oliver if he wants it in HANDOFF.md instead for a given bug.
 3. **Produce the draft** as a single chat block.
-4. **Sign-off before saving.** Wait for Oliver's explicit go-ahead before writing it to memory or HANDOFF.md.
+4. **Sign-off before saving.** Wait for Oliver's explicit go-ahead before writing it to memory or ARCHIVE.md.
 
 ## Rules
 
@@ -85,9 +85,9 @@ Concrete next-steps that aren't in the fix itself: regression test added, relate
 - **Never strip code identifiers.** They are the index.
 - **Blameless.** Describe gaps and bugs, never people.
 - **State validation coverage honestly.** Implying broader coverage than you actually checked is the failure mode that breeds repeat regressions — especially costly here given Atlas's money-math mistake history.
-- **Get sign-off before saving to memory or HANDOFF.md.**
+- **Get sign-off before saving to memory or ARCHIVE.md.**
 - **One iteration is normal, three is a smell.** If still revising on the third pass, ask what specific section is wrong.
 
 ## Atlas project notes
 
-Source: thananon/9arm-skills (`skills/engineering/post-mortem`), adapted for Atlas — original targets JIRA-comment output; here the destination is project memory (+ optional HANDOFF.md pointer) since Atlas has no ticket tracker. Reserve this for the bugs worth a full record: anything in the money-math or roster-permission mistake categories, or anything that took real debugging effort to nail down. A one-line HANDOFF.md mistake-log entry is still enough for small, obvious fixes — don't over-formalize those.
+Source: thananon/9arm-skills (`skills/engineering/post-mortem`), adapted for Atlas — original targets JIRA-comment output; here the destination is project memory (+ optional ARCHIVE.md pointer) since Atlas has no ticket tracker. Reserve this for the bugs worth a full record: anything in the money-math or roster-permission mistake categories, or anything that took real debugging effort to nail down. A one-line HANDOFF.md mistake-log entry is still enough for small, obvious fixes — don't over-formalize those.

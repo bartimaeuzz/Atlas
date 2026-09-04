@@ -72,8 +72,9 @@ app; unless told otherwise, all work is Track 2.
    One screenshot per check, never one per click. Full ritual (scrutinize + audit +
    atlas-learn) only for money, database, migrations, permissions, login; wording,
    colour, spacing and one-line UI fixes just run the verify gate and ship — this
-   narrows rule 8 to new screens and layout changes. Never read or append to
-   `PROGRESS.md`; the git log is the record.
+   narrows rule 8 to new screens and layout changes. `PROGRESS.md` is retired to
+   `docs/atlas/archive/` (2026-09-04); the git log is the record. Never append,
+   never read it whole.
 
 ## How this shell reaches the database (updated 2026-08-23)
 
@@ -168,7 +169,7 @@ state inherited from an ancestor `<fieldset disabled>` (use `:disabled`),
 - Live app: `atlas-zeta-sandy.vercel.app`, auto-deploys from `main`.
 - Database: hosted Turso, `atlas-prod`. **Read-only for you.**
 - Repo: `github.com/bartimaeuzz/Atlas`.
-- Charter, long form: `docs/atlas/introduction.md`.
+- Charter, long form: `docs/atlas/introduction.md`. Retired changelog: `docs/atlas/archive/PROGRESS.md` (grep only).
 - Skills: `.claude/skills/` — `atlas-start`, `scrutinize`, `visual-audit`,
   `atlas-learn`, `debug-mantra`, `post-mortem`.
 

@@ -1,3 +1,5 @@
+> **RETIRED 2026-09-04.** This changelog stopped here. The git log is the record from now on. Never append to this file and never read it whole (over 300KB; see the 2026-08-20 post-mortem). Search it with grep when you need one dated section.
+
 # Atlas Track 2 — Progress
 
 ## START HERE (read this first, new session)

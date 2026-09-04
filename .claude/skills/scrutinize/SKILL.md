@@ -70,12 +70,16 @@ Source: thananon/9arm-skills (`skills/engineering/scrutinize`), adopted for Atla
 
 Trigger this explicitly (not just on request) for:
 
-- Any change to tip pool splits, wage calculation, or anything that becomes a locked/finalized payroll record — these are the costliest-mistake category per the HANDOFF.md mistake log, and step 3's "what inputs/states would break it" pass is exactly the kind of scrutiny that category needs.
-- Any change to roster-visibility or permission logic (`rosterRestrictFOHToOwnCategory`/`BOH`, `rosterShowCoworkerListFOH`/`BOH` and similar settings) — these have a history of subtle scope bugs (see HANDOFF.md mistake log entries on vacancy-cascade scope, ring-date comparisons).
+- Any change to tip pool splits, wage calculation, or anything that becomes a locked/finalized payroll record — these are the costliest-mistake category per `LESSONS.md` (Money, data, database) and the archived HANDOFF mistake log, and step 3's "what inputs/states would break it" pass is exactly the kind of scrutiny that category needs.
+- Any change to roster-visibility or permission logic (`rosterRestrictFOHToOwnCategory`/`BOH`, `rosterShowCoworkerListFOH`/`BOH` and similar settings) — these have a history of subtle scope bugs (see `LESSONS.md` and the archived HANDOFF mistake log entries on vacancy-cascade scope, ring-date comparisons).
 - Before zipping and handing off any non-trivial feature, as a last pass distinct from the test/build check — scrutinize catches "does this do what it claims," which passing tests don't guarantee if the tests themselves only exercise the happy path.
 - On any plan/design doc before it's confirmed with Oliver, per rule #1 ("never assume") — running the Intent step surfaces scope assumptions before they get built and become rework.
 
 Do not use it to replace asking Oliver when something is a business/product call, not a technical one — scrutinize's "simpler alternative" pass is about implementation approach, not about deciding scope on Oliver's behalf.
+
+### Read LESSONS.md first (added 2026-09-04)
+
+Before reviewing, open `LESSONS.md` in the Atlas project memory and read the section matching the change (money/data, permissions, screens, forms, process). Every line there is a mistake class we already paid for; check the diff against them before anything else.
 
 ### Standing checks for prose a future session will trust (added 2026-08-18 for design/plan docs; widened 2026-08-24 to handoffs and memory state notes — see `feedback_atlas_verify_against_live_code.md` and `feedback_atlas_granularity_scope_creep.md` in project memory)
 
