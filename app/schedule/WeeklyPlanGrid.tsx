@@ -327,9 +327,14 @@ export function WeeklyPlanGrid({
           was the actual gap). Same wording as the month overview's legend,
           so the two screens explain the number identically. Rendered once
           above both layouts, and only for a viewer who is seeing the
-          figures at all. */}
+          figures at all.
+
+          No negative margin on it. A -mb-4 here pulled the phone day-tabs
+          16px up OVER the legend's last line -- measured live, legend
+          bottom 507 against tabs top 491. The parent's space-y-8 gap is
+          correct as it stands. */}
       {dailyLabor && (
-        <p className="text-xs text-[var(--ink-500)] leading-relaxed -mb-4">
+        <p className="text-xs text-[var(--ink-500)] leading-relaxed">
           <span className="text-[var(--ink-700)] font-medium">
             {laborShowAmounts ? "$16,960 · Labor 8%" : "Labor 8%"}
           </span>{" "}
