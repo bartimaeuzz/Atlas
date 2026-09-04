@@ -126,7 +126,7 @@ auto-deploys.
 ```bash
 npx tsc --noEmit        # needs a build first — LayoutProps comes from .next/types
 npm run lint            # baseline is 13 problems; compare, do not aim for zero
-npm test                # 165/165 at the time of writing
+npm test                # 335/335 at the time of writing (2026-09-04)
 npm run build
 ```
 
