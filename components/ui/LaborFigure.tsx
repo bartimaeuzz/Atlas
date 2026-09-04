@@ -41,7 +41,15 @@ export function LaborFigure({
   showAmounts?: boolean;
 }) {
   const verdict: LaborVerdict = laborVerdict(day.laborPct, targetPct);
-  const tone = verdict === "over" ? "text-[var(--danger-700)] font-medium" : "text-[var(--ink-500)]";
+  // Weight lives entirely in `tone`. The base class list used to carry
+  // font-normal, which cancelled the over-target font-medium outright --
+  // measured live 2026-09-04, computed weight 400 on the 113% day. Same
+  // Tailwind v4 source-order trap CLAUDE.md records; the fix is to stop
+  // emitting both, not to reorder them.
+  const tone =
+    verdict === "over"
+      ? "font-medium text-[var(--danger-700)]"
+      : "font-normal text-[var(--ink-500)]";
   const pct = day.laborPct == null ? null : Math.round(day.laborPct * 100);
 
   // Screen readers get the whole sentence once; the visible text is the
@@ -54,7 +62,7 @@ export function LaborFigure({
 
   if (variant === "compact") {
     return (
-      <div className={"text-xs leading-tight " + tone}>
+      <div className={"text-xs leading-tight tabular-nums " + tone}>
         <span aria-hidden="true">
           {pct == null ? "—" : `${pct}%`}
           {verdict === "over" && <span className="ml-0.5">!</span>}
@@ -66,7 +74,7 @@ export function LaborFigure({
   }
 
   return (
-    <div className={"text-xs font-normal leading-tight " + tone}>
+    <div className={"text-xs leading-tight tabular-nums " + tone}>
       <span aria-hidden="true">
         {showAmounts && <>{formatMoney(day.netSales)} · </>}
         {pct == null ? "Labor —" : <>Labor {pct}%</>}

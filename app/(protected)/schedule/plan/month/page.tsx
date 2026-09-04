@@ -179,12 +179,20 @@ export default async function MonthOverviewPage({
                         : `/schedule/plan/preview?week=${weekStartFor(day.date)}&view=manager`
                     }
                     className={
-                      // h-24 once a labor line can appear: four lines
-                      // (date, status word, coverage, labor) do not fit
-                      // the old 80px, and a cell that clips is worse than
-                      // a slightly taller month.
-                      (labor.dailyLabor ? "block h-24" : "block h-20") +
-                      " p-1 lg:p-1.5 hover:bg-[var(--hover)]" +
+                      // min-h, never a fixed h (2026-09-04 audit). A fixed
+                      // h-24 measured 96px against 102px of content on
+                      // EVERY phone cell carrying a labor line -- "11
+                      // short" wraps to two lines at a 43px cell -- and the
+                      // overflow spilled the percentage down into the row
+                      // below, where it read as the next day's number. A
+                      // figure attached to the wrong date is worse than no
+                      // figure. Rows equalise themselves, so letting the
+                      // cell grow keeps the grid rectangular.
+                      (labor.dailyLabor ? "block min-h-24" : "block min-h-20") +
+                      // 2px of side padding on a phone, not 4: the cell is
+                      // ~43px wide there and "113%!" needs 46. Desktop
+                      // keeps its roomier 6px.
+                      " px-0.5 py-1 lg:p-1.5 hover:bg-[var(--hover)]" +
                       (day.inMonth ? "" : " opacity-40")
                     }
                   >
