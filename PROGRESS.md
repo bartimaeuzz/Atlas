@@ -4732,3 +4732,295 @@ Fixes the live "it is not Aug 26 yet here in nyc" bug.
 Card audit nit — Edit/Split tap targets 29–32px; card-import banner never
 exercised live. Month-view-every-day and the Position admin UI are DONE —
 struck from the deferred list above.
+
+---
+
+## 2026-08-27 — Weeks list becomes the planning front door; carried audit nits closed
+
+8 commits, all live. The `/schedule/plan` landing decision from the 08-26 backlog
+is made and shipped.
+
+- PROGRESS.md catch-up for the post-wrap batch `1be7325`..`dac3dda`; migrations
+  0028–0032 confirmed applied on prod via read-only Turso check. Docs only
+  (`12e240c`).
+- Shift/Reports headings end in the 4-digit year — "Sun, 23 Aug 26" could read
+  as the date; `formatDayLabelLong/Short` pinned by test (`6bd1225`).
+- Card Edit/Split word buttons reach 44px via new `TAP_TARGET_PAD_44` (carried
+  nit from the 08-25 Card audit, zero visual shift) (`787cba3`).
+- **Weeks is the front door:** bare `/schedule/plan` redirects to
+  `/schedule/weeks`; `?week=` deep links untouched; hub hero points at Weeks and
+  the duplicate tile is removed. Weeks page retrofit to the 08-25 conventions
+  (card shell, Published/Draft/Not-planned word badges, this-week tint,
+  TAP_TARGET_PAD). View-only managers see View, not Edit (`56ae737`).
+- Weeks: month section rows ("AUGUST 2026"), rows read "Mon, 24 Aug 2026 – Sun,
+  30 Aug 2026"; plan's back link goes to Weeks; straddling weeks file under the
+  starting month (`65600dc`).
+- Person Schedule picker grouped Floor Manager / FOH / BOH with the role under
+  each name (`3b43b91`); no-primary people group by their assigned positions
+  instead of landing mid-FOH — live audit caught Pop filed wrong (`4e059d9`).
+- scrutinize gains a standing check: run any new match/grouping rule against
+  existing prod rows before shipping (second occurrence of the class:
+  Card net-total periods 08-25, null-primary picker 08-27) (`5bbbd4d`).
+
+---
+
+## 2026-08-29 → 2026-08-30 — Aey's first test session: tip-point truth, P&L share column, swap-safe deletes
+
+Aey ran the app for real and found the class that dominates this stretch:
+a real value disappearing because a check conflated "absent" with "falsy".
+Migrations 0033–0036 (0036 is a data backfill shipped as a migration so it
+runs through the same `npm run db:migrate` Oliver already knows).
+
+- `employee_payouts.point_value_used` came back null for anyone with a per-pool
+  override — the guard compared against the legacy scalar. Compare pools
+  against each other instead; 7 of 7 override rows were affected. Finalized
+  rows keep their stored nulls (`ca48c4b`), then backfilled by migration 0036
+  for the 5 locked rows, guarded `IS NULL`, no money touched (`a876375`,
+  `bf89dce`).
+- Off-role staff: placing someone in a position they hold no row for silently
+  handed them a full 1.0 share (two BOH cooks as Packers took Pool 2 money).
+  Closing report now renders those rows empty, offers the template point, and
+  Save & Finalize refuses until decided; `pointDecidedAt` column is the only
+  record that a human chose 1.0 (migration 0033, `lib/shift/pointDecision.ts`)
+  (`6b8e4be`).
+- Payout phone cards rendered a deliberate 0 pt as nothing — truthiness check,
+  the only two sites left (`c529d32`). Same class: P&L "0.0%" beside a real
+  $16 cost now reads "<0.1%", signed-zero unreachable, shared
+  `lib/analytics/formatShare.ts` (`5afe702`).
+- Staffing targets grid displays Monday-first (Oliver's ask); underlying
+  dayOfWeek values untouched, write side reads by field name (`8d23ea6`).
+- **P&L "% of sales" column** + Total cost row and 92–97% band. Cost rows show
+  a positive share; null (no revenue) renders em dash. Closed the gate it
+  exposed: the expense chart's per-category shares could reconstruct
+  VIEW_PNL numbers, so chart + footnote are VIEW_PNL-only now. Phone header
+  wrap re-budgeted to avoid 3–4 line labels (`7791891`).
+- **Swap requests FK-crashed schedule deletes** (Aey hit raw SQLITE_CONSTRAINT).
+  `lib/schedule/swapDetach.ts`: resolved swaps detach with a date/period/position
+  snapshot (migration 0034 — HAND-CORRECTED, drizzle-kit's rebuild would have
+  overwritten all 8 prod snapshots with column-name strings; caught by a rowful
+  dry run); unresolved swaps block the delete with an actionable message.
+  `removePlannedAssignment` returns `{error}` because prod redacts thrown
+  server-action errors (`dcb0be6`).
+- Managers can cancel an open/pending swap with a required reason the requester
+  reads verbatim on My Schedule (migration 0035 `cancel_reason`); manager queue
+  shows unresolved requests regardless of date (`d328e18`).
+- Deduction column: red moves onto the value, not the `<td>` — all 21 rows of
+  shift 33 read as docked (`dfc50db`).
+
+---
+
+## 2026-08-31 — Aey's run-through, round 2: Toast cumulative close, payroll front door, supplier check lifecycle
+
+13 commits in one day. Migrations 0037 (packer bonus / POS closeout modes /
+vendor tags / split modes) and 0038 (supplier check lifecycle) — both flagged
+REQUIRES MIGRATION BEFORE DEPLOY because bare `db.select()` enumerates every
+schema column.
+
+**Closing report truth:**
+- Dinner close asks what the numbers cover — Toast may show day-to-date
+  totals. "This shift only" vs "whole day so far", answered separately for
+  Toast and platforms; whole-day subtracts the earlier shift via one pure
+  helper, refused (not clamped) when the day total is smaller than Lunch;
+  cash tip untouched; raw entries logged. All validation runs before the
+  first write so "nothing was saved" is true (`5856e91`).
+- Tax auto-suggestion froze after the first save because the action stored a
+  number unconditionally. Form now posts whether the field was untouched;
+  auto saves NULL, a typed 0 sticks (`84eb63a`).
+- Summary foot row totals every money column; tip points grouped under
+  position headers (`583b0d7`).
+
+**Form behaviour, app-wide:**
+- Pasted "$1,234.56" cleans at the keystroke (one document-level sanitizer);
+  invalid values get an instant danger ring; Saved ✓ flashes on the button
+  instead of above the fold; analytics presets are real `?range=` modes so a
+  bookmarked "This year" never freezes (`4e57d87`).
+- `--hover` / `--pressed` interaction tokens: 32 controls across 19 files
+  hovered to `--paper`, a 1.05:1 non-event. Primary-solid darkens one step
+  like brand and destructive (`c4a5e7c`).
+- People: "Set as primary" is a radio on each position row (exactly one
+  primary — a checkbox would allow a contradiction); FOH/BOH grouping;
+  `/positions` counts who can work each; `/people` headcount tiles computed
+  from the same rows the table renders (`cd69917`).
+
+**Payroll front door (`1bb3b54`):** `/payroll` lands on year → months → weeks
+like `/ledger`; a week belongs to the month its SUNDAY falls in (Oliver's
+call: months line up with the bank statement). Paid weeks read the locked
+snapshot; drafts show progress, never a moving number.
+
+**Schedule (`6e816bd`):** plan +Add is the roster's multi-select checkbox
+picker; every popup-chain gate moved into the picker as same-surface
+disclosure; the "double shift?" ConfirmDialog is deleted outright (Aey found
+it annoying — conventions memory updated); n/n counts carry red/yellow/quiet
+states; template assignments retrofitted, Mark-vacating becomes a centered
+Modal (was clipped inside the grid's scroll box).
+
+**Migration 0037 bundle (`ced09ba`):** Packer off-premise bonus — new
+takeout/delivery SALES fields, incentive engine gains PERCENT_OF_METRIC and
+PER_BLOCK_OF_METRIC equal-split pools (cent-exact, 13 tests), configured in
+Settings as a generic rule row, house-paid. POS closeout modes ASK / PER_SHIFT
+/ CUMULATIVE. Splitwise-style $ / % / shares split editor with "Balance →".
+Free-text vendor tags — REPLACED same day by `5c9ac06`: the vendor list
+follows the category, learned from the ledger's own vendor+category pairs
+(`lib/ledger/vendorCategoryLinks.ts`, ≥2 threshold, "show every vendor"
+escape always on screen; two-or-more linked categories → chips, never
+pre-filled, because this field feeds the P&L). The `ledger_vendor_tags` table
+is dropped in 0040.
+
+**Supplier check lifecycle (`79cb413`, migration 0038):** draft → ready →
+exported → closed, void as the branch. READY IS THE LOCK; approver can never
+be the logger; after export nothing is edited — a mistake voids the whole
+check (reason + auditor PIN), number burned, invoices bounce to Ready. Check
+numbers are Atlas's own forward-only sequence claimed atomically; the 9
+legacy prod checks keep empty numbers, badged. Instant check (door 2) with a
+second approver's PIN above the Settings ceiling. New grantable
+SUPPLIER_CHECK_APPROVE / _INSTANT; FA_SUPPLIER_CHECK_EDIT_LOCKED retired.
+"Printed" vocabulary retired — we only know the file was generated.
+
+- Visual-audit fixes on the lifecycle deploy (one blocker, five majors):
+  History disclosure 16px → 24px; `required` never reached the DOM through
+  TextInput/Select — fixed in Field.tsx so every red star now blocks; vendor
+  chips moved below the select (76–114px cell skew); three stranded-spinner
+  handlers caught; split editor says WHY it is disabled (`a2fc74a`).
+- Backlog round 1 (`ac1539b`): new VIEW_PAYROLL key closes the "VIEW_PNL is
+  not a boundary" finding (payroll ÷ labor % reconstructed revenue); Retired
+  grouped on /people; Settings/People Saved ✓ pattern; LogInvoiceForm and
+  AddEntryForm controlled; one-person-one-position enforced at the template
+  source; invoice logging is a popup over Supplier Check.
+
+---
+
+## 2026-09-01 — Forms that keep your work, the Mohom rename, PIN lockout, own-device sessions
+
+17 commits. Migrations 0039 (two-person switches), 0040 (restaurant name, job
+title, drop vendor tags, clear retired grant), 0041 (lockout), 0042
+(own-device sessions). All flagged NOT deploy-safe until run on prod.
+
+- **The app speaks English; Thai is how we talk about it** (Oliver's rule).
+  The four Thai hint strings `5c9ac06` shipped verbatim from a brief are
+  replaced; swept `[ก-๙]` across the tree — remaining hits are code comments
+  quoting design rationale, kept (`f6c9d18`).
+- **An error hands your work back.** Login dead end: wrong PIN → React 19
+  reset blanked the NAME too, and the now-`required` select failed silently.
+  Controlled state is NOT the fix (proven live — React writes a controlled
+  value only when the prop changes). `components/forms/useKeepValuesOnError.ts`
+  snapshots `form.elements` at submit and restores after the action settles,
+  never restoring passwords/files/hidden. 25 files wired, 3 skipped with
+  reasons (`eff6a41`). Follow-up audit: Banner gets `role`/`aria-live`
+  (~47 files of silent errors, WCAG 4.1.3); login focus lands in the PIN box;
+  consent dialog at 390 hid the 17th item → 60vh + keyboard-scrollable
+  labelled group (`98d43db`).
+- **Permissions page:** checkboxes lied after applying a preset —
+  `defaultChecked` attribute flipped but the live property did not; remount
+  the form keyed on STORED grants (pre-existing, not from the sweep)
+  (`a9c8248`). Confirm dialog now names every capability via the shared
+  DiffList; card separated from the page by shadow + border-strong and open
+  rows by hue (primary tint + 3px rail) because `--paper` == page ground at
+  1.05:1 (`5cb2e3a`).
+- **Two-person money controls, off** (`288448e`, migration 0039): recording is
+  open, COMMITTING needs a second person — a Setting, not a per-person
+  capability, Admin-only, every flip activity-logged, switchable until Aey's
+  finance work is shared out (Oliver's call; supplier-check logger≠approver
+  rule left alone, option ข). Off is not silent: `single_person` stamped on
+  the row and shown as "locked by one person". Pending: folding
+  supplierCheck.ts's cosigner check into the shared helper is a
+  behaviour-preserving refactor of a live payment path — separate PR.
+- Migration 0040 (`b0928f4`) + fields (`c979a28`, `f8b1f9d`):
+  `restaurant_settings.restaurant_name` (prerequisite for the wordmark) and
+  `employees.title` (a free label, grants nothing, forces no tip-point
+  decision); vendor tags dropped (Oliver abandoned the 4 prod rows);
+  FA_SUPPLIER_CHECK_EDIT_LOCKED grants deleted.
+- **The product is Mohom** (`fe31042`): Atlas stays the repo name. Wordmark
+  in three renderings (rail tile / rail lockup / sign-in with the restaurant
+  name large and MOHOM small beneath). Landed before Youk installs the PWA —
+  manifest name and iOS title are cached at install. 15 strings in 10 files,
+  not the planned 8 in 5. Not renamed: PWA icons (need art), repo, Vercel
+  project, Turso DB.
+- **Five wrong PINs lock the account for fifteen minutes** — one pure rule
+  (`lib/auth/lockout.ts`) serves login and recovery; per account, not per
+  terminal (migration 0041, `ca7b3e0`). People edit page shows the unlock time
+  (`05b75ed`).
+- **"Keep me logged in"** — own-device box, off by default; on gives a 30-day
+  session with no idle sign-out; any PIN reset signs that person out
+  everywhere in the same batch (migration 0042, `6f507cf`, `f7ef7ff`).
+- People wear a two-tone FOH/BOH + title chip (`6741456`); My Pay shows each
+  pool's total and your share as a percent, gated per pool on whether every
+  other member's tips are visible to the viewer (`eeaee99`).
+
+---
+
+## 2026-09-02 → 2026-09-03 — Mohom design-system rollout, lint guardrails, swap gate deleted
+
+13 commits, live at `b902e6c`. No new migrations (prod stands at 0042). The
+design system lands as per-module steps so each is verifiable on its own.
+
+**Design-system rollout:**
+- Phase 2 accessibility, brand-independent: sidebar expands at 1024px (was
+  640, leaving a 424px content box); skip link via a token class because this
+  build never generated `focus:not-sr-only`; Banner messages go through two
+  always-present live regions with a serialised announcer (`d9e473b`).
+- **Mohom colours** (`09d7318`): token VALUES remapped to chalk ground, indigo
+  ink/actions, olive/ochre/brick for done/pending/over — names unchanged, so
+  every screen repaints with no component edit. Dark mode deleted outright
+  (nothing used it; a dormant block invites the half-dark regression). Every
+  pair clears AA, most AAA.
+- **Mohom type** (`bb89ce5`): Archivo 700 on every h1 and the display number;
+  IBM Plex Sans for everything else with Plex Sans Thai as glyph fallback for
+  user-entered data. Eight Noto imports removed.
+- **Mohom scale** (`7d5bd23`): every product corner is one 6px token (mark
+  keeps 0, avatar/dot keep the pill); 122 hardcoded pixel sizes become named
+  utilities; nothing renders below the 13px caption floor. Audit follow-up:
+  15 ad-hoc `rounded` inputs on Settings/recovery/targets re-pointed to
+  `--radius-md` (`0531606`).
+- **The real Mohom mark** (`a909a9a`): the hourglass M — one currentColor
+  path — replaces "MHM" everywhere; new favicon and app icons incl. a
+  maskable icon so Android's circle crop can't clip it. Sign-in keeps the
+  restaurant name large with the drawn wordmark beneath (locked decision);
+  the tall column stays a print asset.
+- Off-palette colour cleanup (`cb8105a`): schedule, tip pools and KPI meters
+  onto Mohom. Status stays semantic (conflict brick, swapped olive, extra
+  ochre); merely-different states move to one indigo ramp `--dip-1..6`; on
+  leave goes neutral (the scheduling convention for absence). Pending: the
+  analytics chart series palette stays as is until a colour-vision re-check.
+- **Lint guardrails** (`2dd7f36`) — the load-bearing part: build fails on
+  `text-[Npx]`, `rounded-[Npx]`, raw hex in a class, and Tailwind named
+  colours. Each swept to zero first. Scoped to app + components; the chart
+  palette is exempt; an unlabelled-nav rule waits on a custom rule. Native
+  `confirm/alert/prompt` banned now the seven call sites are gone; two stale
+  comments corrected (`3c0e332`).
+- Phone chips said it by colour alone: on-leave vs reassigned differed by an
+  8px dot at ~1.03:1 (the ring I cited as mitigation does not render at that
+  width — read in code, not measured). Both carry the always-visible word
+  badge; on leave keeps its dashed border (`2de3711`). "Leaving" gets its word
+  too — no `hidden lg:inline` status badge remains in the grid (`b1a69fd`).
+
+**Schedule logic:**
+- Auto-fill and template generation both skip people on leave; the rule lives
+  once in `lib/schedule/onLeave.ts`, bounded in SQL to the week. Auto-fill
+  reports who it skipped. Prod carries 7 planned assignments on top of
+  approved leave (3 written by auto-fill) — left alone deliberately (Oliver)
+  (`e944610`).
+- **Swap approval gate deleted** (`b902e6c`): taking an offered shift completes
+  it immediately at any notice; `pending_manager_approval` is never written
+  again. The gate never prevented a failure the code didn't already catch and
+  caused one (a swap sat unapproved 9 days while the schedule asserted the
+  wrong worker). The manager's veto moves after the fact: "Put it back"
+  reverses a completed swap until the shift starts, required reason read
+  verbatim by both staff. Past-shift requests become terminal `unclaimed` /
+  `unresolved` inside `prepareAssignmentsForDelete`, so they never block a
+  week delete. Four defects fixed on the way: put-back could steal a shift;
+  plan row and roster row moved in two writes (now one `db.batch()`); the
+  taker never saw the put-back; swapDetach's two hand-kept status arrays
+  became a Record over the enum so an unclassified status fails the build.
+  Plus five visual-audit fixes at 1440/390. No migration.
+
+**Standing after this batch (2026-09-04):** prod migrations through 0042;
+Mohom rename shipped to users. Open: SSN/address masking with step-up PIN
+(`lib/permissions/capabilities.ts:367`); permissions form direct-edit
+fast-follow (`lib/actions/permissions.ts:115`); analytics chart palette
+pending colour-vision check; WeeklyPlanGrid small-screen deferred
+(`app/schedule/WeeklyPlanGrid.tsx:93`); incentive engine WEEK/MONTH +
+weighted pools deferred; week-view retrofit and `/me/schedule/week` scope
+still awaiting Oliver's call. Three data cleanups decided 2026-09-04 and
+being drafted as migration 0043: the 7 leave-overlapping assignments, card
+draft periods 2 and 4 (net totals from `0258ab6`), and the 9
+empty-check-number legacy checks. Full visual audit running 2026-09-04.
