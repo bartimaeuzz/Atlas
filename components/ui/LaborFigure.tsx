@@ -63,10 +63,14 @@ export function LaborFigure({
   if (variant === "compact") {
     return (
       <div className={"text-xs leading-tight tabular-nums " + tone}>
+        {/* No margin before the marks. A three-digit day ("113%!") needs
+            every pixel of a ~43px phone cell -- measured live 2026-09-04 at
+            44px against 43 with a 2px gap in place, 1px over. The glyphs
+            read fine tight against the number. */}
         <span aria-hidden="true">
           {pct == null ? "—" : `${pct}%`}
-          {verdict === "over" && <span className="ml-0.5">!</span>}
-          {!day.complete && <span className="ml-0.5 opacity-70">*</span>}
+          {verdict === "over" && <span>!</span>}
+          {!day.complete && <span className="opacity-70">*</span>}
         </span>
         <span className="sr-only">{spoken}</span>
       </div>
