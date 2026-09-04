@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useMemo, useRef, useState, useTransition, useId } from "react";
+import { LaborFigure } from "@/components/ui/LaborFigure";
+import type { DailyLaborByDate } from "@/lib/analytics/laborTarget";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { useRouter } from "next/navigation";
 import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment } from "@/lib/actions/schedule";
@@ -135,6 +137,9 @@ export function WeeklyPlanGrid({
   readOnly = false,
   hideDiagnostics = false,
   initialDate,
+  dailyLabor,
+  laborTargetPct,
+  laborShowAmounts = false,
 }: {
   data: WeeklyPlanData;
   weekId?: number;
@@ -142,6 +147,18 @@ export function WeeklyPlanGrid({
   employeeAssignedPositionIds?: Record<number, number[]>;
   readOnly?: boolean;
   hideDiagnostics?: boolean;
+  /** Per-day net sales / labor % for closed days (2026-09-04). Optional
+   * and absent by default ON PURPOSE: this is restaurant money, so only a
+   * page that has checked VIEW_ANALYTICS passes it. Staff's own My
+   * Schedule week renders the same grid and must never receive it. */
+  dailyLabor?: DailyLaborByDate;
+  /** The labor-cost line from Settings, or null when nobody has set one —
+   * null shows the percentage with no verdict rather than guessing. */
+  laborTargetPct?: number | null;
+  /** VIEW_PNL — whether the day's net sales may appear beside the
+   * percentage. Off by default so a caller that forgets it under-shares
+   * rather than over-shares. */
+  laborShowAmounts?: boolean;
   /** Preselect this date's phone day-tab on first render (e.g. arriving
    * from a swap card's "View shift" link). Falls back to today/Monday
    * when absent or outside the week. */
@@ -368,6 +385,15 @@ export function WeeklyPlanGrid({
             <span className="font-semibold text-[var(--ink-900)]">{DAY_LABELS[dayOfWeekFor(selectedDate)]}</span>
             <span className="text-[var(--ink-500)] text-sm ml-2">{selectedDate}</span>
             {selectedDate === todayIso && <span className="text-xs text-[var(--primary)] ml-2">today</span>}
+            {dailyLabor?.[selectedDate] && (
+              <div className="mt-0.5">
+                <LaborFigure
+                  day={dailyLabor[selectedDate]}
+                  targetPct={laborTargetPct}
+                  showAmounts={laborShowAmounts}
+                />
+              </div>
+            )}
           </div>
           <div className={PHONE_COLS + " text-xs font-medium text-[var(--ink-500)]"}>
             <span>Position</span>
@@ -599,6 +625,15 @@ export function WeeklyPlanGrid({
                         {d.slice(5)}
                         {isToday && <span className="ml-1">· today</span>}
                       </div>
+                      {/* Sales and labor % for a day that has been closed
+                          (2026-09-04). Nothing renders for an open day —
+                          an absent figure reads as "not closed yet",
+                          where a $0 would read as a disastrous night. */}
+                      {dailyLabor?.[d] && (
+                        <div className="mt-0.5">
+                          <LaborFigure day={dailyLabor[d]} targetPct={laborTargetPct} showAmounts={laborShowAmounts} />
+                        </div>
+                      )}
                     </th>
                   );
                 })}

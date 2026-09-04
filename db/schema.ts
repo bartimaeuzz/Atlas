@@ -491,6 +491,27 @@ export const restaurantSettings = sqliteTable("restaurant_settings", {
   // visible without building an audit-log viewer nobody's asked for yet.
   recoveryCodeLastUsedAt: text("recovery_code_last_used_at"),
   recoveryCodeLastUsedForEmployeeId: integer("recovery_code_last_used_for_employee_id").references(() => employees.id),
+  // Labor-cost target as a share of net sales (2026-09-04, Oliver) -- the
+  // line a day's labor % is judged against on the schedule's week grid and
+  // month overview. One number, not a mode enum: the UI offers the three
+  // researched presets (tight 0.25 / standard 0.30 / generous 0.35, the
+  // 25-35% full-service band already cited in lib/analytics/loadPnL.ts's
+  // laborCostPct benchmark) and derives the word back from the number, so
+  // a restaurant that wants 0.28 is not forced into somebody else's label.
+  //
+  // NULLABLE on purpose, same "null = nobody has set this" convention as
+  // shiftSales.salesTax: while it is null the schedule shows the day's
+  // labor % as a plain figure with no verdict attached. A notNull default
+  // would start colouring days red on the strength of a number nobody
+  // chose. The percentage itself is NOT gated on this -- only the
+  // over/under judgement is.
+  //
+  // Scope note: "labor cost" here is the same employer-spend definition
+  // loadPayrollCost.ts already uses (wages + extra pay + incentives -
+  // deductions, never tips) and excludes payroll tax, which Mohom does not
+  // compute. The Settings copy says so rather than leaving a manager to
+  // compare this against a tax-inclusive number from their accountant.
+  laborCostTargetPct: real("labor_cost_target_pct"),
 });
 
 export const onlinePlatforms = sqliteTable("online_platforms", {

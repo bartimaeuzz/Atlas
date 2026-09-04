@@ -4,6 +4,8 @@ import { loadMonthOverview } from "@/lib/schedule/loadMonthOverview";
 import { shiftMonth, weekStartFor } from "@/lib/schedule/weekMath";
 import { PageHeader } from "@/components/ui/Card";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { LaborFigure } from "@/components/ui/LaborFigure";
+import { loadScheduleLabor } from "@/lib/analytics/loadScheduleLabor";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -73,6 +75,13 @@ export default async function MonthOverviewPage({
   const monthAnchor = params.month || businessTodayIso();
   const data = await loadMonthOverview(monthAnchor);
 
+  // The grid runs from the Sunday before the 1st to the Saturday after
+  // the last, so the labor range is taken from the grid itself rather
+  // than from the month — otherwise the leading and trailing days would
+  // be the only cells on the screen with nothing to say.
+  const gridDates = data.weeks.flat().map((d) => d.date);
+  const labor = await loadScheduleLabor(gridDates[0], gridDates[gridDates.length - 1]);
+
   const prevMonth = shiftMonth(monthAnchor, -1);
   const nextMonth = shiftMonth(monthAnchor, 1);
 
@@ -118,6 +127,24 @@ export default async function MonthOverviewPage({
         <span className="flex items-center gap-1.5">
           <WeekStatusBadge status="projected" /> Projected — not generated yet
         </span>
+        {/* Key for the bare percentage in the cells — a month cell is far
+            too narrow to carry the word "labor" itself, so the legend
+            carries it, the same way it already keys the status badges.
+            Only shown to a viewer who is actually seeing the figures. */}
+        {labor.dailyLabor && (
+          <span>
+            <span className="text-[var(--ink-700)] font-medium">28%</span> — labor cost as a share of
+            that day&apos;s sales, once the day is closed
+            {labor.laborTargetPct != null && (
+              <>
+                {" "}
+                (<span className="text-[var(--danger-700)] font-medium">red !</span> = over your{" "}
+                {Math.round(labor.laborTargetPct * 100)}% target)
+              </>
+            )}
+            . <span className="text-[var(--ink-700)]">*</span> = day not fully closed yet.
+          </span>
+        )}
       </div>
 
       <table className="w-full table-fixed border-collapse text-sm">
@@ -151,7 +178,15 @@ export default async function MonthOverviewPage({
                         ? `/schedule/plan?week=${weekStartFor(day.date)}`
                         : `/schedule/plan/preview?week=${weekStartFor(day.date)}&view=manager`
                     }
-                    className={"block h-20 p-1 lg:p-1.5 hover:bg-[var(--hover)]" + (day.inMonth ? "" : " opacity-40")}
+                    className={
+                      // h-24 once a labor line can appear: four lines
+                      // (date, status word, coverage, labor) do not fit
+                      // the old 80px, and a cell that clips is worse than
+                      // a slightly taller month.
+                      (labor.dailyLabor ? "block h-24" : "block h-20") +
+                      " p-1 lg:p-1.5 hover:bg-[var(--hover)]" +
+                      (day.inMonth ? "" : " opacity-40")
+                    }
                   >
                     <span className="block text-xs text-[var(--ink-700)]">{Number(day.date.slice(8))}</span>
                     {/* Word badge, not the old 6px dot (2026-09-04 audit, WCAG
@@ -164,6 +199,15 @@ export default async function MonthOverviewPage({
                         className={"text-xs mt-1 " + (day.shortfallCells > 0 ? "text-[var(--danger-700)] font-medium" : "text-[var(--success-700)]")}
                       >
                         {day.shortfallCells > 0 ? `${day.shortfallCells} short` : "Covered"}
+                      </div>
+                    )}
+                    {labor.dailyLabor?.[day.date] && (
+                      <div className="mt-0.5">
+                        <LaborFigure
+                          day={labor.dailyLabor[day.date]}
+                          targetPct={labor.laborTargetPct}
+                          variant="compact"
+                        />
                       </div>
                     )}
                   </Link>

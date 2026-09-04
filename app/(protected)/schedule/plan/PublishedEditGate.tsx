@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AutoFillWeekButton } from "./AutoFillWeekButton";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import type { WeeklyPlanData } from "@/lib/schedule/loadWeeklyPlan";
+import type { DailyLaborByDate } from "@/lib/analytics/laborTarget";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -35,6 +36,9 @@ export function PublishedEditGate({
   allEmployees,
   employeeAssignedPositionIds,
   initialDate,
+  dailyLabor,
+  laborTargetPct,
+  laborShowAmounts,
 }: {
   isPublished: boolean;
   data: WeeklyPlanData;
@@ -42,6 +46,11 @@ export function PublishedEditGate({
   allEmployees: { id: number; name: string; primaryPositionId: number | null }[];
   employeeAssignedPositionIds: Record<number, number[]>;
   initialDate?: string;
+  /** Passed straight through to the grid — the VIEW_ANALYTICS check
+   * happened on the server page that rendered this gate. */
+  dailyLabor?: DailyLaborByDate;
+  laborTargetPct?: number | null;
+  laborShowAmounts?: boolean;
 }) {
   const [unlocked, setUnlocked] = useState(!isPublished);
   // Unlocking now takes a ConfirmDialog (2026-08-24, Oliver's call): the
@@ -130,6 +139,9 @@ export function PublishedEditGate({
         employeeAssignedPositionIds={employeeAssignedPositionIds}
         readOnly={locked}
         initialDate={initialDate}
+        dailyLabor={dailyLabor}
+        laborTargetPct={laborTargetPct}
+        laborShowAmounts={laborShowAmounts}
       />
     </>
   );

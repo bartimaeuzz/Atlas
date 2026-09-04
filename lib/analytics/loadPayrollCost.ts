@@ -29,6 +29,19 @@ function round2(n: number): number {
   return Math.round((n + 1e-9) * 100) / 100;
 }
 
+/** The one definition of employer labor spend for one payout row, exported
+ * so the schedule's per-day labor % (lib/analytics/loadDailyLabor.ts) reads
+ * the same money rule as the P&L instead of restating it. Restating it is
+ * exactly how two screens end up disagreeing about the same day. */
+export function laborCostOfPayout(p: {
+  flatWageAmount: number;
+  extraPayAmount: number;
+  incentiveAmount: number;
+  deductionAmount: number;
+}): number {
+  return p.flatWageAmount + p.extraPayAmount + p.incentiveAmount - p.deductionAmount;
+}
+
 export interface PayrollCostBreakdown {
   dateFrom: string;
   dateTo: string;
@@ -85,7 +98,7 @@ export async function loadPayrollCost(dateFrom: string, dateTo: string): Promise
   let foh = 0;
   let boh = 0;
   for (const p of payoutRows) {
-    const laborCost = p.flatWageAmount + p.extraPayAmount + p.incentiveAmount - p.deductionAmount;
+    const laborCost = laborCostOfPayout(p);
     const category = categoryByShiftEmployee.get(`${p.shiftId}:${p.employeeId}`) ?? "FOH"; // same fallback as loadSummaryData.ts
     if (category === "BOH") boh += laborCost;
     else foh += laborCost;

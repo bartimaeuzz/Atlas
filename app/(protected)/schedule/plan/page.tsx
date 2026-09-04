@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { loadWeeklyPlan } from "@/lib/schedule/loadWeeklyPlan";
 import { loadEmployeesList, loadEmployeeAssignedPositionIds } from "@/lib/employees/loadEmployeesList";
-import { shiftWeek } from "@/lib/schedule/weekMath";
+import { addDays, shiftWeek } from "@/lib/schedule/weekMath";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { loadScheduleLabor } from "@/lib/analytics/loadScheduleLabor";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import { GenerateWeekButton } from "./GenerateWeekButton";
 import { PublishedEditGate } from "./PublishedEditGate";
@@ -26,11 +27,14 @@ export default async function WeeklyPlanPage({
   const weekStartDate = params.week;
   const initialDay = params.day;
 
-  const [data, employeeList, employeeAssignedPositionIds, canManage] = await Promise.all([
+  const [data, employeeList, employeeAssignedPositionIds, canManage, labor] = await Promise.all([
     loadWeeklyPlan(weekStartDate),
     loadEmployeesList(),
     loadEmployeeAssignedPositionIds(),
     hasCapability("SCHEDULE_MANAGE"),
+    // Whole week in one pass; loadScheduleLabor returns nothing at all
+    // for a viewer without VIEW_ANALYTICS.
+    loadScheduleLabor(weekStartDate, addDays(weekStartDate, 6)),
   ]);
 
   const activeEmployees = employeeList
@@ -100,7 +104,14 @@ export default async function WeeklyPlanPage({
               permission.
             </p>
           </Card>
-          <WeeklyPlanGrid data={data} readOnly initialDate={initialDay} />
+          <WeeklyPlanGrid
+            data={data}
+            readOnly
+            initialDate={initialDay}
+            dailyLabor={labor.dailyLabor}
+            laborTargetPct={labor.laborTargetPct}
+            laborShowAmounts={labor.showAmounts}
+          />
         </>
       ) : (
         <>
@@ -122,6 +133,9 @@ export default async function WeeklyPlanPage({
             allEmployees={activeEmployees}
             employeeAssignedPositionIds={employeeAssignedPositionIds}
             initialDate={initialDay}
+            dailyLabor={labor.dailyLabor}
+            laborTargetPct={labor.laborTargetPct}
+            laborShowAmounts={labor.showAmounts}
           />
 
           <DangerZone

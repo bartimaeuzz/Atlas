@@ -32,6 +32,11 @@ export interface RestaurantSettingsData {
    * Settings UI itself takes/shows this as a percent (8.875), not a raw
    * fraction — see lib/actions/settings.ts. */
   defaultSalesTaxRate: number;
+  /** Labor-cost line as a fraction of net sales (0.3 = 30%), or null
+   * while nobody has set one — null means the schedule shows a day's
+   * labor % with no verdict attached. Stored as a fraction like the two
+   * rates above; the Settings UI takes it as a percent. 2026-09-04. */
+  laborCostTargetPct: number | null;
   /** Staff login method (2026-08-17) — "NAME" = pick-your-name dropdown +
    * PIN (original, default), "ID" = type your YK login ID + PIN. See
    * app/login/page.tsx and db/schema.ts's restaurantSettings comment. */
@@ -77,6 +82,7 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
       pool3SplitMethod: "EQUAL_SPLIT",
       hostDrinkBonusPerDrinkAmount: 0,
       defaultSalesTaxRate: 0.08875, // NYC default, matches the schema column default — see db/schema.ts
+      laborCostTargetPct: null, // no target until somebody chooses one — see db/schema.ts
       staffLoginMethod: "NAME",
       toastCloseoutMode: "ASK",
       platformCloseoutMode: "ASK",
@@ -102,6 +108,7 @@ export async function loadRestaurantSettings(): Promise<RestaurantSettingsData> 
     pool3SplitMethod: row.pool3SplitMethod as PoolSplitMethod,
     hostDrinkBonusPerDrinkAmount: row.hostDrinkBonusPerDrinkAmount,
     defaultSalesTaxRate: row.defaultSalesTaxRate,
+    laborCostTargetPct: row.laborCostTargetPct,
     staffLoginMethod: row.staffLoginMethod as "NAME" | "ID",
     toastCloseoutMode: row.toastCloseoutMode,
     platformCloseoutMode: row.platformCloseoutMode,

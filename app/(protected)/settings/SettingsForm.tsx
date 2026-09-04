@@ -7,6 +7,7 @@ import type { RestaurantSettingsData } from "@/lib/settings/loadRestaurantSettin
 import type { PackerBonusConfig } from "@/lib/settings/packerBonus";
 import { useEffect, useState } from "react";
 import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
+import { LABOR_TARGET_PRESETS, laborTargetLabel } from "@/lib/analytics/laborTarget";
 
 const initialState: SettingsActionState = { error: null, saved: false };
 
@@ -55,6 +56,18 @@ export function SettingsForm({
   // above-the-fold class after staffing targets and the People form) —
   // same derived nonce-and-timer pattern as ClosingReportForm.
   const [clearedSavedAt, setClearedSavedAt] = useState<number | null>(null);
+  // Labor-cost target mode. Derived once from the stored fraction: a
+  // number matching a preset selects that preset, any other number is
+  // Custom, null is None. Held in state only so the Custom box can be
+  // enabled/disabled — the value the server reads is the radio itself.
+  const storedLaborPct = settings.laborCostTargetPct;
+  const [laborMode, setLaborMode] = useState<string>(
+    storedLaborPct == null
+      ? "none"
+      : laborTargetLabel(storedLaborPct) === "Custom"
+        ? "custom"
+        : String(Math.round(storedLaborPct * 100))
+  );
   const justSaved = !!state.savedAt && state.savedAt !== clearedSavedAt;
   useEffect(() => {
     if (!state.savedAt || state.savedAt === clearedSavedAt) return;
@@ -146,6 +159,96 @@ export function SettingsForm({
             </span>
           </label>
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend className="text-lg font-medium mb-3">Labor cost target</legend>
+        <p className="text-xs text-[var(--ink-500)] mb-3">
+          Each closed day on the schedule shows what you spent on staff as a share of that
+          day&rsquo;s sales. Pick the line you want to stay under and a day above it is marked in
+          red. Wages, extra pay and bonuses count;{" "}
+          <span className="font-medium">tips do not</span> — those are the customer&rsquo;s money,
+          not yours. Payroll tax is not counted either, so your accountant&rsquo;s figure will be
+          higher than this one.
+        </p>
+        <div className="space-y-2" role="group" aria-label="Labor cost target">
+          <label className={`flex items-start gap-2 text-sm min-h-11 ${DISABLED_TOGGLE}`}>
+            <input
+              type="radio"
+              name="laborCostTargetMode"
+              value="none"
+              checked={laborMode === "none"}
+              onChange={() => setLaborMode("none")}
+              className={`mt-1 ${DISABLED_TOGGLE}`}
+            />
+            <span>
+              <span className="block">No target</span>
+              <span className="block text-xs text-[var(--ink-400)]">
+                Show the percentage on each day, but never call it good or bad
+              </span>
+            </span>
+          </label>
+          {LABOR_TARGET_PRESETS.map((preset) => {
+            const value = String(Math.round(preset.value * 100));
+            return (
+              <label key={value} className={`flex items-start gap-2 text-sm min-h-11 ${DISABLED_TOGGLE}`}>
+                <input
+                  type="radio"
+                  name="laborCostTargetMode"
+                  value={value}
+                  checked={laborMode === value}
+                  onChange={() => setLaborMode(value)}
+                  className={`mt-1 ${DISABLED_TOGGLE}`}
+                />
+                <span>
+                  <span className="block">
+                    {preset.label} — {value}% of sales
+                  </span>
+                  <span className="block text-xs text-[var(--ink-400)]">{preset.hint}</span>
+                </span>
+              </label>
+            );
+          })}
+          <label className={`flex items-start gap-2 text-sm min-h-11 ${DISABLED_TOGGLE}`}>
+            <input
+              type="radio"
+              name="laborCostTargetMode"
+              value="custom"
+              checked={laborMode === "custom"}
+              onChange={() => setLaborMode("custom")}
+              className={`mt-1 ${DISABLED_TOGGLE}`}
+            />
+            <span>
+              <span className="block mb-1">Something else</span>
+              <span className="relative block w-32">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="100"
+                  name="laborCostTargetCustomPercent"
+                  aria-label="Custom labor cost target, percent of sales"
+                  defaultValue={
+                    storedLaborPct != null && laborTargetLabel(storedLaborPct) === "Custom"
+                      ? Math.round(storedLaborPct * 1000) / 10
+                      : ""
+                  }
+                  // Only live while "Something else" is picked, so a number
+                  // left in the box after switching back to a preset can
+                  // never quietly become the saved target.
+                  disabled={laborMode !== "custom"}
+                  className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
+                />
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">
+                  %
+                </span>
+              </span>
+            </span>
+          </label>
+        </div>
+        <p className="text-xs text-[var(--ink-400)] mt-2">
+          Full-service restaurants usually land between 25% and 35%.
+        </p>
       </fieldset>
 
       <fieldset>

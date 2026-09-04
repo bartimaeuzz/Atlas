@@ -1,0 +1,1 @@
+ALTER TABLE `restaurant_settings` ADD `labor_cost_target_pct` real;

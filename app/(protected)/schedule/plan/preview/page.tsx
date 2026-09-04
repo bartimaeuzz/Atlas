@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/Badge";
 import { LinkButton } from "@/components/ui/Button";
 import { Tabs, Tab } from "@/components/ui/Tabs";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { loadScheduleLabor } from "@/lib/analytics/loadScheduleLabor";
+import { addDays } from "@/lib/schedule/weekMath";
 
 /** Safety-check step between the editable draft grid and actually
  * publishing (2026-08-11, Oliver). Two views, toggled by ?view=:
@@ -46,6 +48,13 @@ export default async function WeeklyPlanPreviewPage({
   }
 
   const data = await loadWeeklyPlan(weekStartDate);
+
+  // The staff view is a faithful preview of what an employee sees, so it
+  // gets no money on it even though the manager reading the page is
+  // allowed to see it elsewhere. Showing it here would make the preview
+  // lie about the thing it exists to show.
+  const labor =
+    view === "manager" ? await loadScheduleLabor(weekStartDate, addDays(weekStartDate, 6)) : { dailyLabor: undefined, laborTargetPct: null, showAmounts: false };
 
   if (!data.week) {
     return (
@@ -97,7 +106,14 @@ export default async function WeeklyPlanPreviewPage({
           : "What employees will see once this is published — no manager-only warnings."}
       </p>
 
-      <WeeklyPlanGrid data={data} readOnly hideDiagnostics={view === "staff"} />
+      <WeeklyPlanGrid
+        data={data}
+        readOnly
+        hideDiagnostics={view === "staff"}
+        dailyLabor={labor.dailyLabor}
+        laborTargetPct={labor.laborTargetPct}
+        laborShowAmounts={labor.showAmounts}
+      />
 
       {week.status === "draft" && (await hasCapability("SCHEDULE_MANAGE")) && (
         <Card className="mt-8 flex flex-wrap items-center justify-between gap-3 !bg-[var(--paper)]">

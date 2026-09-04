@@ -75,6 +75,29 @@ export async function updateRestaurantSettings(
     }
     const defaultSalesTaxRate = defaultSalesTaxRatePercent / 100;
 
+    // Labor-cost target (2026-09-04). A radio picks the mode and the
+    // number box is only read when the mode is "custom" — so switching
+    // from Custom to Standard cannot leave a stale typed number silently
+    // in force, and "None" genuinely clears the column rather than
+    // storing a 0 that would mark every day over target. Same
+    // percent-in / fraction-out convention as the two rates above.
+    const laborCostTargetMode = String(formData.get("laborCostTargetMode") ?? "none");
+    let laborCostTargetPct: number | null = null;
+    if (laborCostTargetMode === "custom") {
+      const raw = String(formData.get("laborCostTargetCustomPercent") ?? "").trim();
+      const pct = Number(raw);
+      if (raw === "" || Number.isNaN(pct) || pct <= 0 || pct > 100) {
+        throw new Error("Custom labor cost target must be a percent between 0 and 100 (e.g. 28 for 28%)");
+      }
+      laborCostTargetPct = pct / 100;
+    } else if (laborCostTargetMode !== "none") {
+      const pct = Number(laborCostTargetMode);
+      if (Number.isNaN(pct) || pct <= 0 || pct > 100) {
+        throw new Error("Labor cost target must be a percent between 0 and 100");
+      }
+      laborCostTargetPct = pct / 100;
+    }
+
     const flag = (name: string) => formData.get(name) === "on";
 
     // Staff login method (2026-08-17, Oliver: wants both the name-dropdown
@@ -251,6 +274,7 @@ export async function updateRestaurantSettings(
         ccTipDeductionRate,
         hostDrinkBonusPerDrinkAmount,
         defaultSalesTaxRate,
+        laborCostTargetPct,
         staffLoginMethod,
         // pool1/2/3SplitMethod moved to /settings/tip-pools (2026-08-17) —
         // that page's split-method dropdowns save immediately via
