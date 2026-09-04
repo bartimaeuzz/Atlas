@@ -321,6 +321,37 @@ export function WeeklyPlanGrid({
 
   return (
     <div className="space-y-8">
+      {/* Key for the labor figure (2026-09-04, Oliver picked this over
+          writing "not closed" on every open day -- that repeats itself four
+          times a week and still never says what the percentage IS, which
+          was the actual gap). Same wording as the month overview's legend,
+          so the two screens explain the number identically. Rendered once
+          above both layouts, and only for a viewer who is seeing the
+          figures at all. */}
+      {dailyLabor && (
+        <p className="text-xs text-[var(--ink-500)] leading-relaxed -mb-4">
+          <span className="text-[var(--ink-700)] font-medium">
+            {laborShowAmounts ? "$16,960 · Labor 8%" : "Labor 8%"}
+          </span>{" "}
+          {laborShowAmounts
+            ? " — the day's sales, then what you spent on staff as a share of them."
+            : " — what you spent on staff as a share of that day's sales."}{" "}
+          Only on days you have closed.{" "}
+          {laborTargetPct != null ? (
+            <>
+              <span className="text-[var(--danger-700)] font-medium">Red, and the word over</span>,
+              means above your {Math.round(laborTargetPct * 100)}% target.{" "}
+            </>
+          ) : (
+            <>
+              No target is set, so no day is called good or bad — pick one in Settings.{" "}
+            </>
+          )}
+          <span className="text-[var(--ink-700)]">so far</span> means the day is not fully closed
+          yet.
+        </p>
+      )}
+
       {/* Day picker + sticky day header, phone only. Rendered once here
           rather than inside the period loop, so Lunch and Dinner for the
           chosen day read as one day rather than two separate lists. */}
