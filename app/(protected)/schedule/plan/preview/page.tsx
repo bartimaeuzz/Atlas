@@ -9,6 +9,7 @@ import { Tabs, Tab } from "@/components/ui/Tabs";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { loadScheduleLabor } from "@/lib/analytics/loadScheduleLabor";
 import { addDays } from "@/lib/schedule/weekMath";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /** Safety-check step between the editable draft grid and actually
  * publishing (2026-08-11, Oliver). Two views, toggled by ?view=:
@@ -40,7 +41,7 @@ export default async function WeeklyPlanPreviewPage({
     return (
       <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
         <p className="text-sm text-[var(--ink-500)] mb-4">Missing week.</p>
-        <Link href="/schedule/weeks" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href="/schedule/weeks" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           &larr; Back to Weeks
         </Link>
       </main>
@@ -62,7 +63,7 @@ export default async function WeeklyPlanPreviewPage({
         <p className="text-sm text-[var(--ink-500)] mb-4">This week hasn&apos;t been generated yet.</p>
         <Link
           href={`/schedule/plan?week=${weekStartDate}`}
-          className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline"
+          className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
         >
           &larr; Back to Weekly Plan
         </Link>
@@ -74,7 +75,7 @@ export default async function WeeklyPlanPreviewPage({
 
   return (
     <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href={`/schedule/plan?week=${weekStartDate}`} className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href={`/schedule/plan?week=${weekStartDate}`} className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Schedule Planner
       </Link>
 

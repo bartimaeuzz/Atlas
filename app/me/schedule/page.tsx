@@ -14,6 +14,7 @@ import { shiftMonth } from "@/lib/schedule/weekMath";
 import { LeaveRequestsPanel } from "./LeaveRequestsPanel";
 import { SwapBoardPanel } from "./SwapBoardPanel";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -74,10 +75,10 @@ export default async function MyScheduleView({
           My Pay
         </Link>
         <span className="text-[var(--border-strong)]">|</span>
-        <Link href={`/me/schedule?month=${prevMonth}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/me/schedule?month=${prevMonth}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           &larr; Previous month
         </Link>
-        <Link href={`/me/schedule?month=${nextMonth}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/me/schedule?month=${nextMonth}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           Next month &rarr;
         </Link>
         <span className="text-[var(--border-strong)]">|</span>
@@ -87,7 +88,7 @@ export default async function MyScheduleView({
             instead of clicking one day at a time. Always lands on the
             week containing today; the page itself has its own
             prev/next week nav from there. */}
-        <Link href="/me/schedule/week" className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href="/me/schedule/week" className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           View full week &rarr;
         </Link>
       </div>

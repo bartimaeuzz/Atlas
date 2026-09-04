@@ -7,6 +7,7 @@ import { Banner } from "@/components/ui/Banner";
 import { StatusBadge } from "@/components/ui/Badge";
 import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
 import { ShiftStageNav } from "../ShiftStageNav";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 export default async function ClosingReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -32,7 +33,7 @@ export default async function ClosingReportPage({ params }: { params: Promise<{ 
             tone="warning"
             title="This shift is finalized — figures are locked."
             description={
-              <Link href={`/shifts/${shiftId}/summary`} className="underline">
+              <Link href={`/shifts/${shiftId}/summary`} className={`underline ${TAP_TARGET_PAD}`}>
                 View the Summary Report →
               </Link>
             }

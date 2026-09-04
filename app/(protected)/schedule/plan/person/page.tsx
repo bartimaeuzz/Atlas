@@ -4,6 +4,7 @@ import { loadEmployeeSchedule } from "@/lib/schedule/loadEmployeeSchedule";
 import { loadEmployeesList } from "@/lib/employees/loadEmployeesList";
 import { shiftMonth, weekStartFor } from "@/lib/schedule/weekMath";
 import { PageHeader, Card } from "@/components/ui/Card";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -53,7 +54,7 @@ export default async function EmployeeSchedulePage({
 
     return (
       <main className="max-w-3xl mx-auto p-4 sm:p-8 font-sans">
-        <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href="/schedule" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           &larr; Schedule Planner
         </Link>
         <PageHeader title="Person Schedule" description="Pick someone to see their shifts for the month." />
@@ -93,7 +94,7 @@ export default async function EmployeeSchedulePage({
 
   return (
     <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/schedule/plan/person" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/schedule/plan/person" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Change person
       </Link>
       <PageHeader title={data.employeeName} description={data.monthLabel} />
@@ -101,13 +102,13 @@ export default async function EmployeeSchedulePage({
       <div className="flex items-center gap-3 mb-4 text-sm">
         <Link
           href={`/schedule/plan/person?employeeId=${employeeId}&month=${prevMonth}`}
-          className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline"
+          className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
         >
           &larr; Previous month
         </Link>
         <Link
           href={`/schedule/plan/person?employeeId=${employeeId}&month=${nextMonth}`}
-          className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline"
+          className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
         >
           Next month &rarr;
         </Link>

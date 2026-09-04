@@ -2,6 +2,7 @@ import Link from "next/link";
 import { loadAllPositionsForAssignment } from "@/lib/employees/loadEmployeesList";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { EmployeeForm } from "../EmployeeForm";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 export default async function NewEmployeePage() {
   // Same two capability flags as the edit page (2026-08-23) -- which
@@ -15,7 +16,7 @@ export default async function NewEmployeePage() {
 
   return (
     <main className="max-w-2xl mx-auto p-6 sm:p-8">
-      <Link href="/people" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/people" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; People
       </Link>
       <h1 className="text-3xl font-bold text-[var(--ink-900)] mt-2 mb-6">New employee</h1>

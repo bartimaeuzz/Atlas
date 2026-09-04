@@ -7,6 +7,7 @@ import { weekStartFor, shiftWeek } from "@/lib/schedule/weekMath";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 /**
  * Staff-facing full-week schedule view (2026-08-16, Oliver's ask: "staff
@@ -43,7 +44,7 @@ export default async function StaffWeeklyPlanPage({
 
   return (
     <main className="max-w-5xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/me/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/me/schedule" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; My Schedule
       </Link>
       <PageHeader
@@ -52,10 +53,10 @@ export default async function StaffWeeklyPlanPage({
       />
 
       <div className="flex items-center gap-3 mb-4 text-sm">
-        <Link href={`/me/schedule/week?week=${prevWeek}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/me/schedule/week?week=${prevWeek}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           &larr; Previous week
         </Link>
-        <Link href={`/me/schedule/week?week=${nextWeek}`} className="text-[var(--ink-500)] hover:text-[var(--ink-900)] underline">
+        <Link href={`/me/schedule/week?week=${nextWeek}`} className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}>
           Next week &rarr;
         </Link>
       </div>

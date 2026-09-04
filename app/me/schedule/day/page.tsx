@@ -4,6 +4,7 @@ import { getCurrentStaffSession } from "@/lib/auth/session";
 import { loadScheduleDayPreview, type DayPreviewEntry } from "@/lib/schedule/loadScheduleDayPreview";
 import { PageHeader, EmptyState } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -34,7 +35,7 @@ export default async function ScheduleDayPreviewPage({
   if (!date) {
     return (
       <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
-        <Link href="/me/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+        <Link href="/me/schedule" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
           &larr; My Schedule
         </Link>
         <p className="text-sm text-[var(--ink-500)] mt-4">Missing date.</p>
@@ -46,7 +47,7 @@ export default async function ScheduleDayPreviewPage({
 
   return (
     <main className="max-w-2xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/me/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/me/schedule" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; My Schedule
       </Link>
       <PageHeader title={formatDateLabel(date)} />

@@ -51,7 +51,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         <p className="text-sm text-[var(--ink-500)] mb-4">
           This shift ({data.shift.date}, {data.shift.period}) hasn&apos;t been saved &amp; finalized yet.
         </p>
-        <Link href={`/shifts/${shiftId}/closing-report`} className="text-[var(--primary)] font-medium hover:underline">
+        <Link href={`/shifts/${shiftId}/closing-report`} className={`text-[var(--primary)] font-medium hover:underline ${TAP_TARGET_PAD}`}>
           Go to Closing Report →
         </Link>
       </main>

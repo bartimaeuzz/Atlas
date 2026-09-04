@@ -3,13 +3,14 @@ import { loadStaffingTargets } from "@/lib/schedule/loadStaffingTargets";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { Banner } from "@/components/ui/Banner";
 import { TargetsForm } from "./TargetsForm";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 export default async function StaffingTargetsPage() {
   const [data, canManage] = await Promise.all([loadStaffingTargets(), hasCapability("SCHEDULE_MANAGE")]);
 
   return (
     <main className="max-w-4xl mx-auto p-4 sm:p-8 font-sans">
-      <Link href="/schedule" className="text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)]">
+      <Link href="/schedule" className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}>
         &larr; Schedule Planner
       </Link>
       <h1 className="text-2xl font-semibold mt-2 mb-1">Staffing targets</h1>

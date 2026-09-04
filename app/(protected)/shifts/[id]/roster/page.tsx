@@ -64,7 +64,7 @@ export default async function RosterPage({ params }: { params: Promise<{ id: str
         <div className="mt-4 mb-6">
           <Banner tone="warning" title="This shift is finalized — the roster is locked." />
           <p className="text-sm mt-2">
-            <Link href={`/shifts/${shiftId}/summary`} className="text-[var(--primary)] font-medium hover:underline">
+            <Link href={`/shifts/${shiftId}/summary`} className={`text-[var(--primary)] font-medium hover:underline ${TAP_TARGET_PAD}`}>
               View the Summary Report →
             </Link>
           </p>
