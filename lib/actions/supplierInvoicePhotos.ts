@@ -4,19 +4,21 @@ import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { put } from "@vercel/blob";
 import { db } from "@/db/client";
-import { supplierInvoices, supplierInvoicePhotos } from "@/db/schema";
+import { supplierInvoices, supplierInvoicePhotos, ledgerVendors } from "@/db/schema";
 import { requireCapability } from "@/lib/permissions/requireCapability";
-import { deleteBlobQuietly } from "@/lib/ledger/invoicePhotos";
+import { hasCapability } from "@/lib/permissions/viewerCapabilities";
+import { deleteBlobQuietly, loadInvoicePhotos } from "@/lib/ledger/invoicePhotos";
 import {
   ALLOWED_PHOTO_TYPES,
   MAX_PHOTO_BYTES,
   MAX_PHOTOS_PER_INVOICE,
   describeStoreError,
+  type InvoicePhotoView,
 } from "@/lib/ledger/invoicePhotoLimits";
 
 /** Photos of the paper invoice (2026-09-05, build-queue items 5+6).
  *
- * ONLY the two actions below may be exported from this file — every
+ * ONLY the three actions below may be exported from this file — every
  * export of a "use server" module becomes a callable endpoint, so the
  * helpers live in lib/ledger/invoicePhotos.ts instead.
  *
@@ -42,6 +44,87 @@ import {
  * mirrors it; this is what makes it true. Once an invoice is ready, the
  * picture the approver looked at can no longer change — same reasoning
  * as the amount itself. */
+
+/** Everything the photo popup needs, in one round trip (2026-09-05).
+ *
+ *  WHY LAZY AND NOT PASSED DOWN: the invoice list already knows each
+ *  row's photo COUNT, and that is all it should know. Loading every
+ *  invoice's photo rows so a popup that usually never opens can render
+ *  instantly would pay for hundreds of rows to save one. The count is
+ *  what the list draws; the rows are what the popup draws; they load
+ *  when they are looked at.
+ *
+ *  The header fields come back with the photos because the popup has no
+ *  page heading to sit under — the person who tapped "No photo" on a
+ *  list of twenty needs the dialog to say which invoice it opened. */
+export interface InvoicePhotosView {
+  invoiceNumber: string;
+  vendorName: string;
+  receivedDate: string;
+  photos: InvoicePhotoView[];
+  /** Draft AND holds SUPPLIER_CHECK_LOG — the same two conditions the
+   *  upload action enforces for itself. */
+  canEdit: boolean;
+  /** Why editing is off, in plain words, or null when it is on. */
+  lockedReason: string | null;
+}
+
+export interface OpenInvoicePhotosResult {
+  error: string | null;
+  view?: InvoicePhotosView;
+}
+
+/** Read one invoice's photos for the popup. Same capability the photos
+ *  page checks, because it renders the same thing. */
+export async function openInvoicePhotos(invoiceId: number): Promise<OpenInvoicePhotosResult> {
+  try {
+    await requireCapability("VIEW_LEDGER_OVERVIEW");
+
+    if (!Number.isFinite(invoiceId) || invoiceId <= 0) throw new Error("Missing invoice.");
+
+    const [invoice] = await db
+      .select({
+        invoiceNumber: supplierInvoices.invoiceNumber,
+        receivedDate: supplierInvoices.receivedDate,
+        status: supplierInvoices.status,
+        vendorName: ledgerVendors.name,
+      })
+      .from(supplierInvoices)
+      .innerJoin(ledgerVendors, eq(supplierInvoices.vendorId, ledgerVendors.id))
+      .where(eq(supplierInvoices.id, invoiceId));
+    if (!invoice) throw new Error("That invoice no longer exists.");
+
+    const photos = await loadInvoicePhotos(invoiceId);
+    const canLog = await hasCapability("SUPPLIER_CHECK_LOG");
+    const isDraft = invoice.status === "draft";
+
+    // Two different reasons editing can be off, and they need different
+    // words: the invoice moved past draft, or this person only has view
+    // access. Saying "locked" for the second would be wrong. Kept
+    // word-for-word in step with the photos page so the popup and the
+    // page never explain the same state differently.
+    const lockedReason = !isDraft
+      ? "This invoice has been approved, so its photos can't change. Ask the approver to send it back to draft first."
+      : !canLog
+        ? "You can look at these photos but not change them."
+        : null;
+
+    return {
+      error: null,
+      view: {
+        invoiceNumber: invoice.invoiceNumber,
+        vendorName: invoice.vendorName,
+        receivedDate: invoice.receivedDate,
+        photos,
+        canEdit: isDraft && canLog,
+        lockedReason,
+      },
+    };
+  } catch (e) {
+    // Returned, never thrown — see PhotoActionResult below.
+    return { error: describeStoreError(e) };
+  }
+}
 
 export interface PhotoActionResult {
   error: string | null;

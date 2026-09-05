@@ -7,7 +7,7 @@ import { EditInvoiceForm } from "./EditInvoiceForm";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import Link from "next/link";
+import { InvoicePhotosButton } from "./InvoicePhotosButton";
 import { XIcon, AlertTriangleIcon } from "@/components/ui/icons";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
@@ -94,8 +94,13 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
               something the approver needs to see. It warns and nothing
               more — approving without a photo stays allowed (Oliver's
               call), because a dead camera must never stop the week. */}
-          <Link
-            href={`/ledger/supplier-check/${inv.id}/photos`}
+          <InvoicePhotosButton
+            invoiceId={inv.id}
+            label={
+              inv.photoCount === 0
+                ? `Add a photo of invoice ${inv.invoiceNumber}`
+                : `${inv.photoCount} photo${inv.photoCount === 1 ? "" : "s"} of invoice ${inv.invoiceNumber}`
+            }
             className={`inline-flex items-center gap-1 text-xs underline mt-0.5 ${
               inv.photoCount > 0
                 ? "text-[var(--ink-500)] hover:text-[var(--ink-900)]"
@@ -110,7 +115,7 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
             ) : (
               `${inv.photoCount} photo${inv.photoCount === 1 ? "" : "s"}`
             )}
-          </Link>
+          </InvoicePhotosButton>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="font-medium tabular-nums text-[var(--ink-900)]">{formatMoney(inv.amount)}</span>

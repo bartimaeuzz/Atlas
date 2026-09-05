@@ -11,11 +11,17 @@ import { InvoicePhotosClient } from "./InvoicePhotosClient";
 
 /** The photo screen for one invoice (2026-09-05, build-queue items 5+6).
  *
- * Its own page rather than a control buried in the invoice row: the
- * person logging an invoice is standing there holding the paper, so
- * logging redirects straight here and the camera is the one obvious
- * next action. The same page is where photos are reviewed and removed
- * later, so there is a single surface to learn instead of two. */
+ * NOTHING IN THE APP LINKS HERE ANY MORE (2026-09-05, same day). Photos
+ * became a popup on the invoice row instead — first for logging, then
+ * everywhere — because navigating away from the Invoices list costs the
+ * person their place in it, and they are usually part-way down a stack
+ * of paper bills. See InvoicePhotosButton.tsx.
+ *
+ * The page is kept, not deleted: it is a plain URL that still works for
+ * anyone who bookmarked or shared one, and it costs a few lines to hold
+ * open. It renders the same InvoicePhotosClient the popup does, under
+ * the same two capability checks, so the two can never disagree about
+ * what a person is allowed to do. */
 export default async function InvoicePhotosPage({
   params,
 }: {

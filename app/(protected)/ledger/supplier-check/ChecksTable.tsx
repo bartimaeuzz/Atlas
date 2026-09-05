@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
-import Link from "next/link";
 import { markSupplierCheckPaid, voidSupplierCheck } from "@/lib/actions/supplierCheck";
 import type { SupplierCheckView, CheckAuditLogEntry } from "@/lib/ledger/loadSupplierCheck";
 import { Modal } from "@/components/ui/Modal";
@@ -11,6 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { InvoicePhotosButton } from "./InvoicePhotosButton";
 import { formatMoney } from "../formatMoney";
 import { formatDateTime } from "@/lib/formatDateTime";
 
@@ -160,12 +160,13 @@ function CheckRow({
                       exported invoice: the moment to fix that has passed,
                       so saying it here would only be noise. */}
                   {inv.photoCount > 0 && (
-                    <Link
-                      href={`/ledger/supplier-check/${inv.id}/photos`}
+                    <InvoicePhotosButton
+                      invoiceId={inv.id}
+                      label={`${inv.photoCount} photo${inv.photoCount === 1 ? "" : "s"} of invoice ${inv.invoiceNumber}`}
                       className={`inline-block text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
                     >
                       {inv.photoCount} photo{inv.photoCount === 1 ? "" : "s"}
-                    </Link>
+                    </InvoicePhotosButton>
                   )}
                 </div>
                 <span className="font-medium tabular-nums text-[var(--ink-900)] shrink-0">{formatMoney(inv.amount)}</span>

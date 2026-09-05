@@ -93,14 +93,24 @@ export function Modal({
     if (!open) return;
 
     function onKey(e: KeyboardEvent) {
+      const panel = panelRef.current;
+      if (!panel) return;
+
+      // A DIALOG INSIDE THIS ONE OWNS THE KEYBOARD (2026-09-05). Nested
+      // modals are real here — the photo viewer opens on top of the
+      // invoice-photos popup — and both shells listen on `document`, so
+      // without this both handlers ran: one Escape closed the viewer AND
+      // the popup underneath it, and Tab was trapped by two rings at
+      // once. Nested shells render inside this panel's own DOM (no
+      // portal), so "is there a dialog under me?" is the whole test, and
+      // it does not care which effect happened to run first.
+      if (panel.querySelector('[role="dialog"]')) return;
+
       if (e.key === "Escape") {
         onClose();
         return;
       }
       if (e.key !== "Tab") return;
-
-      const panel = panelRef.current;
-      if (!panel) return;
       const items = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
         (el) => el.offsetParent !== null || el === document.activeElement
       );
