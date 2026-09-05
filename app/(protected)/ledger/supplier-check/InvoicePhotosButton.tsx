@@ -39,8 +39,13 @@ export function InvoicePhotosButton({
    *  about either list's appearance changes. */
   className?: string;
   /** What the trigger is, spoken in full. The visible text is "No photo"
-   *  or "3 photos", which out of context says nothing about what
-   *  pressing it does — so the row passes the invoice number in. */
+   *  or "3 photos", which out of context does not say which invoice it
+   *  belongs to — so the row passes the invoice number in.
+   *
+   *  MUST CONTAIN THE VISIBLE TEXT, and start with it. WCAG 2.5.3 Label
+   *  in Name (level A): someone driving the screen by voice says the
+   *  words they can see, and a name that does not contain them leaves
+   *  the control unreachable. */
   label: string;
   children: React.ReactNode;
 }) {

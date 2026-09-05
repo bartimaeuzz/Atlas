@@ -96,9 +96,16 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
               call), because a dead camera must never stop the week. */}
           <InvoicePhotosButton
             invoiceId={inv.id}
+            /* The spoken name STARTS WITH THE VISIBLE WORDS (2026-09-05
+               live audit). It said "Add a photo of invoice 170962",
+               which broke two things at once: WCAG 2.5.3 Label in Name
+               (level A) — voice-control users say what they see, and
+               "No photo" appeared nowhere in the name — and on an
+               approved invoice it promised an action the popup then
+               refuses, since photos lock when the invoice leaves draft. */
             label={
               inv.photoCount === 0
-                ? `Add a photo of invoice ${inv.invoiceNumber}`
+                ? `No photo of invoice ${inv.invoiceNumber}`
                 : `${inv.photoCount} photo${inv.photoCount === 1 ? "" : "s"} of invoice ${inv.invoiceNumber}`
             }
             className={`inline-flex items-center gap-1 text-xs underline mt-0.5 ${
