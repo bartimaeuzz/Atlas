@@ -8,6 +8,7 @@ import { requireCapability } from "@/lib/permissions/requireCapability";
 import { logActivity } from "@/lib/activityLog/log";
 import { backfillWeather } from "@/lib/weather/captureShiftWeather";
 import { loadShiftsMissingWeather } from "@/lib/weather/loadWeather";
+import { isTemperatureUnit } from "@/lib/weather/units";
 import { searchPlaces, type GeocodeResult } from "@/lib/weather/openMeteo";
 
 const RESTAURANT_ID = 1;
@@ -126,6 +127,57 @@ export async function saveWeatherLocation(
     return { error: null, saved: true, savedAt: Date.now() };
   } catch (error) {
     return { error: messageFor(error, "Could not save the location. Try again."), saved: false };
+  }
+}
+
+/** Switches every weather figure in the app between Fahrenheit/inches and
+ * Celsius/millimetres. Display only — nothing stored is touched, so a
+ * locked record's weather does not change when the preference does. Needs a
+ * location row to hang off; the Settings panel only offers the choice once
+ * a town is set, so reaching this without one is not a state a person can
+ * get into by clicking. */
+export async function saveWeatherUnit(
+  _prevState: WeatherActionState,
+  formData: FormData
+): Promise<WeatherActionState> {
+  try {
+    const session = await requireCapability("EDIT_SETTINGS");
+    const unit = String(formData.get("unit") ?? "");
+    if (!isTemperatureUnit(unit)) {
+      return { error: "Pick either Fahrenheit or Celsius.", saved: false };
+    }
+
+    const [existing] = await db
+      .select()
+      .from(weatherLocations)
+      .where(eq(weatherLocations.restaurantId, RESTAURANT_ID));
+    if (!existing) {
+      return { error: "Set the town first, then choose the units.", saved: false };
+    }
+    if (existing.temperatureUnit === unit) {
+      return { error: null, saved: true, savedAt: Date.now() };
+    }
+
+    await db
+      .update(weatherLocations)
+      .set({ temperatureUnit: unit, updatedAt: new Date().toISOString(), updatedByEmployeeId: session.id })
+      .where(eq(weatherLocations.id, existing.id));
+
+    await logActivity({
+      actorEmployeeId: session.id,
+      type: "settings.weather_location_changed",
+      entityType: "restaurant_settings",
+      entityId: String(RESTAURANT_ID),
+      summary: `Weather units changed to ${unit === "C" ? "Celsius and millimetres" : "Fahrenheit and inches"}.`,
+      detail: { from: existing.temperatureUnit, to: unit },
+    });
+
+    revalidatePath("/settings");
+    revalidatePath("/");
+    revalidatePath("/analytics");
+    return { error: null, saved: true, savedAt: Date.now() };
+  } catch (error) {
+    return { error: messageFor(error, "Could not change the units. Try again."), saved: false };
   }
 }
 

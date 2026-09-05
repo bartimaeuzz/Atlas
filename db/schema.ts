@@ -1952,6 +1952,15 @@ export const weatherLocations = sqliteTable("weather_locations", {
   label: text("label").notNull(),
   latitude: real("latitude").notNull(),
   longitude: real("longitude").notNull(),
+  /** Display units for every weather figure in the app (2026-09-05, Oliver).
+   * "F" shows Fahrenheit and inches, "C" shows Celsius and millimetres —
+   * one choice, because a screen mixing the two reads as a mistake.
+   *
+   * Display only. Every row in shift_weather_records is stored in
+   * Fahrenheit and inches whatever this says, so changing it never rewrites
+   * a locked record and never leaves the table holding two units at once.
+   * Defaults to F: Mohom ships to US restaurants. */
+  temperatureUnit: text("temperature_unit", { enum: ["F", "C"] }).notNull().default("F"),
   updatedAt: text("updated_at").notNull(),
   updatedByEmployeeId: integer("updated_by_employee_id").references(() => employees.id),
 });

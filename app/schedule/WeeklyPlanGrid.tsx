@@ -6,6 +6,7 @@ import type { DailyLaborByDate } from "@/lib/analytics/laborTarget";
 import type { SalesTargets } from "@/lib/analytics/salesTarget";
 import { resolveSalesTarget } from "@/lib/analytics/salesTarget";
 import { WeatherFigure, type WeatherFigureData } from "@/components/ui/WeatherFigure";
+import type { TemperatureUnit } from "@/lib/weather/units";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { useRouter } from "next/navigation";
 import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment } from "@/lib/actions/schedule";
@@ -145,6 +146,7 @@ export function WeeklyPlanGrid({
   laborShowAmounts = false,
   salesTargets = null,
   weatherByDate = null,
+  weatherUnit = "F",
 }: {
   data: WeeklyPlanData;
   weekId?: number;
@@ -176,6 +178,9 @@ export function WeeklyPlanGrid({
    * about last Tuesday, and the day that HAS a fact shows it on its closing
    * report instead. */
   weatherByDate?: Record<string, WeatherFigureData> | null;
+  /** Display units for those figures. Passed rather than looked up: this is
+   * a client component and the setting lives in the database. */
+  weatherUnit?: TemperatureUnit;
   /** Preselect this date's phone day-tab on first render (e.g. arriving
    * from a swap card's "View shift" link). Falls back to today/Monday
    * when absent or outside the week. */
@@ -462,7 +467,7 @@ export function WeeklyPlanGrid({
             {selectedDate === todayIso && <span className="text-xs text-[var(--primary)] ml-2">today</span>}
             {weatherByDate?.[selectedDate] && (
               <div className="mt-0.5">
-                <WeatherFigure weather={weatherByDate[selectedDate]} />
+                <WeatherFigure weather={weatherByDate[selectedDate]} unit={weatherUnit} />
               </div>
             )}
             {dailyLabor?.[selectedDate] && (
@@ -720,7 +725,7 @@ export function WeeklyPlanGrid({
                           whether that day happens to be closed. */}
                       {weatherByDate?.[d] && (
                         <div className="mt-0.5 font-normal">
-                          <WeatherFigure weather={weatherByDate[d]} />
+                          <WeatherFigure weather={weatherByDate[d]} unit={weatherUnit} />
                         </div>
                       )}
                       {dailyLabor?.[d] && (

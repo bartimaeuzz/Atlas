@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { AutoFillWeekButton } from "./AutoFillWeekButton";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
+import type { TemperatureUnit } from "@/lib/weather/units";
 import type { WeeklyPlanData } from "@/lib/schedule/loadWeeklyPlan";
 import type { DailyLaborByDate } from "@/lib/analytics/laborTarget";
 import type { SalesTargets } from "@/lib/analytics/salesTarget";
@@ -42,6 +43,7 @@ export function PublishedEditGate({
   laborShowAmounts,
   salesTargets,
   weatherByDate,
+  weatherUnit,
 }: {
   isPublished: boolean;
   data: WeeklyPlanData;
@@ -56,6 +58,7 @@ export function PublishedEditGate({
   laborShowAmounts?: boolean;
   salesTargets?: SalesTargets | null;
   weatherByDate?: Record<string, { weatherCode: number; tempHighF: number | null; precipInches: number | null }> | null;
+  weatherUnit?: TemperatureUnit;
 }) {
   const [unlocked, setUnlocked] = useState(!isPublished);
   // Unlocking now takes a ConfirmDialog (2026-08-24, Oliver's call): the
@@ -149,6 +152,7 @@ export function PublishedEditGate({
         laborShowAmounts={laborShowAmounts}
         salesTargets={salesTargets}
         weatherByDate={weatherByDate}
+        weatherUnit={weatherUnit}
       />
     </>
   );

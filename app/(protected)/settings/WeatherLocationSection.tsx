@@ -7,10 +7,12 @@ import { TextInput } from "@/components/ui/Field";
 import {
   runWeatherBackfill,
   saveWeatherLocation,
+  saveWeatherUnit,
   searchWeatherPlaces,
   type PlaceSearchState,
   type WeatherActionState,
 } from "@/lib/actions/weather";
+import type { TemperatureUnit } from "@/lib/weather/units";
 
 /** "Where is the restaurant" plus the one-press backfill (2026-09-05).
  *
@@ -33,13 +35,14 @@ export function WeatherLocationSection({
   missingCount,
   canEdit,
 }: {
-  location: { label: string; updatedAt: string } | null;
+  location: { label: string; unit: TemperatureUnit; updatedAt: string } | null;
   missingCount: number;
   canEdit: boolean;
 }) {
   const [search, searchAction, searching] = useActionState(searchWeatherPlaces, searchInitial);
   const [save, saveAction, saving] = useActionState(saveWeatherLocation, saveInitial);
   const [backfill, backfillAction, backfilling] = useActionState(runWeatherBackfill, saveInitial);
+  const [units, unitsAction, savingUnits] = useActionState(saveWeatherUnit, saveInitial);
   const [changing, setChanging] = useState(false);
   // `true`, not `!!search.error`: React 19 resets a form's uncontrolled
   // fields once its action completes, success included, so without this the
@@ -127,6 +130,48 @@ export function WeatherLocationSection({
 
           {save.error && <p className="mt-2 text-sm text-[var(--danger-700)]">{save.error}</p>}
         </>
+      )}
+
+      {/* Units, offered only once a town is set — there is nothing to show
+          in either unit before that, and an inert pair of buttons above an
+          empty section is a control that does nothing. One choice, not two:
+          Celsius brings millimetres with it, because "18° · 1.4 inches" is
+          the half-converted line that makes a reader distrust both halves. */}
+      {location && (
+        <div className="mt-4 border-t border-[var(--border)] pt-3">
+          <p className="text-xs text-[var(--ink-500)] mb-2">
+            Shown in {location.unit === "C" ? "Celsius and millimetres" : "Fahrenheit and inches"}.
+            Changing this changes how weather is displayed everywhere — it never changes a
+            closed day&apos;s record.
+          </p>
+          {canEdit && (
+            <form action={unitsAction} className="flex flex-wrap gap-2">
+              {(["F", "C"] as const).map((option) => {
+                const active = location.unit === option;
+                return (
+                  <button
+                    key={option}
+                    type="submit"
+                    name="unit"
+                    value={option}
+                    disabled={savingUnits || active}
+                    aria-current={active ? "true" : undefined}
+                    className={
+                      "min-h-11 rounded-[var(--radius-md)] border px-3 text-sm outline-offset-2 " +
+                      "focus-visible:outline-2 focus-visible:outline-[var(--primary)] " +
+                      (active
+                        ? "border-[var(--primary)] bg-[var(--primary)] font-medium text-white"
+                        : "border-[var(--border-strong)] bg-[var(--card)] text-[var(--ink-900)] hover:bg-[var(--hover)]")
+                    }
+                  >
+                    {option === "F" ? "Fahrenheit · inches" : "Celsius · millimetres"}
+                  </button>
+                );
+              })}
+            </form>
+          )}
+          {units.error && <p className="mt-2 text-sm text-[var(--danger-700)]">{units.error}</p>}
+        </div>
       )}
 
       {canEdit && location && (

@@ -1,5 +1,12 @@
 import { WeatherIcon } from "./WeatherIcon";
 import { weatherMeaning } from "@/lib/weather/wmo";
+import {
+  DEFAULT_TEMPERATURE_UNIT,
+  PRECIPITATION_FLOOR_INCHES,
+  displayPrecipitation,
+  displayTemperature,
+  type TemperatureUnit,
+} from "@/lib/weather/units";
 
 /** One day's or one service's weather, everywhere it appears (2026-09-05).
  * Four densities of the same figure, in one file for the same reason
@@ -29,17 +36,29 @@ export interface WeatherFigureData {
 export function WeatherFigure({
   weather,
   variant = "row",
+  unit = DEFAULT_TEMPERATURE_UNIT,
   className = "",
 }: {
   weather: WeatherFigureData;
   variant?: "row" | "column" | "detail" | "banner";
+  /** Display units, from the restaurant's weather setting. The DATA is
+   * always Fahrenheit and inches — see lib/weather/units.ts for why the
+   * conversion lives here and not at write time. */
+  unit?: TemperatureUnit;
   className?: string;
 }) {
   const meaning = weatherMeaning(weather.weatherCode);
-  const temp = formatTemp(weather.tempHighF);
-  const rain = formatPrecip(weather.precipInches);
+  const temp = formatTemp(weather.tempHighF, unit);
+  const rain = formatPrecip(weather.precipInches, unit);
   const tone = meaning.severe ? "text-[var(--danger-700)] font-medium" : "text-[var(--ink-500)]";
-  const spoken = [meaning.label, temp && `${temp.replace("°", " degrees")}`, rain && `${rain.replace('"', " inches of rain")}`]
+  // Spoken form for the two dense variants, which show figures without the
+  // condition in words. Built from the parts rather than by patching the
+  // rendered string: "18°C" and "36mm" have nothing in common to replace.
+  const spoken = [
+    meaning.label,
+    weather.tempHighF != null && `${displayTemperature(weather.tempHighF, unit)} degrees`,
+    rain && `${rain.replace(/["]|mm/, "")} ${unit === "C" ? "millimetres" : "inches"} of rain`,
+  ]
     .filter(Boolean)
     .join(", ");
 
@@ -75,15 +94,18 @@ export function WeatherFigure({
   );
 }
 
-function formatTemp(f: number | null | undefined): string {
-  return f == null ? "" : `${Math.round(f)}°`;
+function formatTemp(fahrenheit: number | null | undefined, unit: TemperatureUnit): string {
+  return fahrenheit == null ? "" : `${displayTemperature(fahrenheit, unit)}°`;
 }
 
 /** Below a twentieth of an inch is a damp pavement, not a reason a service
- * was quiet, and printing 0.0" next to every dry day is noise. Rounded
- * before the comparison so a float artefact can never print as 0.0". */
-function formatPrecip(inches: number | null | undefined): string {
-  if (inches == null) return "";
-  const rounded = Math.round(inches * 10) / 10;
-  return rounded < 0.1 ? "" : `${rounded.toFixed(1)}"`;
+ * was quiet, and printing 0.0" next to every dry day is noise. The floor is
+ * checked in INCHES, the stored unit, so the same weather is hidden in both
+ * settings rather than two different amounts of rain depending on the one
+ * you picked. */
+function formatPrecip(inches: number | null | undefined, unit: TemperatureUnit): string {
+  if (inches == null || inches < PRECIPITATION_FLOOR_INCHES) return "";
+  const { value, suffix } = displayPrecipitation(inches, unit);
+  if (value <= 0) return "";
+  return unit === "C" ? `${value}${suffix}` : `${value.toFixed(1)}${suffix}`;
 }

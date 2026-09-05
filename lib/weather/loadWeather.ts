@@ -24,6 +24,7 @@ import {
 } from "./openMeteo";
 import type { ShiftPeriod } from "./serviceWindow";
 import type { WeatherRecord } from "./dayWeather";
+import { DEFAULT_TEMPERATURE_UNIT, type TemperatureUnit } from "./units";
 
 const RESTAURANT_ID = 1;
 
@@ -31,6 +32,7 @@ export interface WeatherLocation {
   label: string;
   latitude: number;
   longitude: number;
+  unit: TemperatureUnit;
   updatedAt: string;
 }
 
@@ -51,6 +53,7 @@ export const loadWeatherLocation = cache(async (): Promise<WeatherLocation | nul
       label: row.label,
       latitude: row.latitude,
       longitude: row.longitude,
+      unit: row.temperatureUnit,
       updatedAt: row.updatedAt,
     };
   } catch (error) {
@@ -89,6 +92,14 @@ export const loadForecastByDate = cache(
     }
   }
 );
+
+/** Just the display unit, for a surface that renders saved weather and has
+ * no other reason to read the location. Falls back to Fahrenheit when no
+ * location is set — there is nothing to render in that case anyway, and a
+ * throw here would take a page down over a preference. */
+export async function loadWeatherUnit(): Promise<TemperatureUnit> {
+  return (await loadWeatherLocation())?.unit ?? DEFAULT_TEMPERATURE_UNIT;
+}
 
 /** The forecast as a plain object, for handing to a client component.
  * A Map does not survive the server/client boundary; this is the same data

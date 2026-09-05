@@ -1,5 +1,5 @@
 import { WeatherFigure } from "@/components/ui/WeatherFigure";
-import { loadLiveWindowWeather, loadWeatherRecord } from "@/lib/weather/loadWeather";
+import { loadLiveWindowWeather, loadWeatherRecord, loadWeatherUnit } from "@/lib/weather/loadWeather";
 import { describeServiceWindow, type ShiftPeriod } from "@/lib/weather/serviceWindow";
 
 /** The weather for one service, on the shift's own pages (2026-09-05).
@@ -24,7 +24,7 @@ export async function ShiftWeatherLine({
   period: ShiftPeriod;
   isFinalized: boolean;
 }) {
-  const record = await loadWeatherRecord(date, period);
+  const [record, unit] = await Promise.all([loadWeatherRecord(date, period), loadWeatherUnit()]);
   const weather = record ?? (isFinalized ? null : await loadLiveWindowWeather(date, period));
   if (!weather) return null;
 
@@ -42,7 +42,7 @@ export async function ShiftWeatherLine({
 
   return (
     <div className="mb-6 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-4 py-3">
-      <WeatherFigure weather={weather} variant="banner" />
+      <WeatherFigure weather={weather} variant="banner" unit={unit} />
       <p className="mt-1 text-xs text-[var(--ink-500)]">{caption}</p>
     </div>
   );

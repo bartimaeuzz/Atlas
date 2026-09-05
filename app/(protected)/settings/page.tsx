@@ -72,7 +72,13 @@ export default async function SettingsPage() {
       )}
       <div className="mb-8">
         <WeatherLocationSection
-          location={weatherLocation && { label: weatherLocation.label, updatedAt: weatherLocation.updatedAt }}
+          location={
+            weatherLocation && {
+              label: weatherLocation.label,
+              unit: weatherLocation.unit,
+              updatedAt: weatherLocation.updatedAt,
+            }
+          }
           missingCount={missingWeatherCount}
           canEdit={canEdit}
         />

@@ -7,7 +7,7 @@ import { addDays, shiftWeek } from "@/lib/schedule/weekMath";
 import { hasCapability } from "@/lib/permissions/viewerCapabilities";
 import { loadScheduleLabor } from "@/lib/analytics/loadScheduleLabor";
 import { WeeklyPlanGrid } from "@/app/schedule/WeeklyPlanGrid";
-import { loadForecastForGrid } from "@/lib/weather/loadWeather";
+import { loadForecastForGrid, loadWeatherUnit } from "@/lib/weather/loadWeather";
 import { GenerateWeekButton } from "./GenerateWeekButton";
 import { PublishedEditGate } from "./PublishedEditGate";
 import { DangerZone } from "./DangerZone";
@@ -28,7 +28,8 @@ export default async function WeeklyPlanPage({
   const weekStartDate = params.week;
   const initialDay = params.day;
 
-  const [data, employeeList, employeeAssignedPositionIds, canManage, labor, weatherByDate] = await Promise.all([
+  const [data, employeeList, employeeAssignedPositionIds, canManage, labor, weatherByDate, weatherUnit] =
+    await Promise.all([
     loadWeeklyPlan(weekStartDate),
     loadEmployeesList(),
     loadEmployeeAssignedPositionIds(),
@@ -42,6 +43,7 @@ export default async function WeeklyPlanPage({
     // differently when Saturday is going to be wet. Returns {} on any
     // failure, so a weather outage costs an icon, not the schedule.
     loadForecastForGrid(weekStartDate, addDays(weekStartDate, 6)),
+    loadWeatherUnit(),
   ]);
 
   const activeEmployees = employeeList
@@ -120,6 +122,7 @@ export default async function WeeklyPlanPage({
             laborShowAmounts={labor.showAmounts}
             salesTargets={labor.salesTargets}
             weatherByDate={weatherByDate}
+            weatherUnit={weatherUnit}
           />
         </>
       ) : (
@@ -147,6 +150,7 @@ export default async function WeeklyPlanPage({
             laborShowAmounts={labor.showAmounts}
             salesTargets={labor.salesTargets}
             weatherByDate={weatherByDate}
+            weatherUnit={weatherUnit}
           />
 
           <DangerZone

@@ -1,0 +1,1 @@
+ALTER TABLE `weather_locations` ADD `temperature_unit` text DEFAULT 'F' NOT NULL;

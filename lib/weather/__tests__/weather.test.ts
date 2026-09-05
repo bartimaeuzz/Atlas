@@ -4,6 +4,11 @@ import { weatherMeaning, worstWeatherCode } from "../wmo";
 import { describeServiceWindow, serviceWindowHours } from "../serviceWindow";
 import { windowFromHours } from "../openMeteo";
 import { mergeDayWeather } from "../dayWeather";
+import {
+  PRECIPITATION_FLOOR_INCHES,
+  displayPrecipitation,
+  displayTemperature,
+} from "../units";
 
 test("an unknown weather code renders instead of blanking the screen", () => {
   const meaning = weatherMeaning(4242);
@@ -130,4 +135,37 @@ test("a merged day claims 'recorded at close' only when both services were", () 
     record("Dinner", 95, 72, 66, 1.4, "BACKFILL"),
   ]);
   assert.equal(oneBackfilled?.source, "BACKFILL");
+});
+
+test("Celsius converts at display time and never touches what is stored", () => {
+  // 32°F is freezing, 212°F is boiling — the two anchors that catch a
+  // formula written backwards, which is the only way this function fails.
+  assert.equal(displayTemperature(32, "C"), 0);
+  assert.equal(displayTemperature(212, "C"), 100);
+  assert.equal(displayTemperature(68, "C"), 20);
+  assert.equal(displayTemperature(68, "F"), 68);
+  // Rounded to whole degrees in both, so a stored 77.4 never renders as
+  // 25.222222 next to a dollar figure.
+  assert.equal(displayTemperature(77.4, "C"), 25);
+  assert.equal(displayTemperature(77.4, "F"), 77);
+});
+
+test("picking Celsius brings millimetres with it", () => {
+  assert.deepEqual(displayPrecipitation(1.4, "C"), { value: 36, suffix: "mm" });
+  assert.deepEqual(displayPrecipitation(1.4, "F"), { value: 1.4, suffix: '"' });
+  // Different useful resolution per unit: whole millimetres, tenths of an inch.
+  assert.deepEqual(displayPrecipitation(0.45, "C"), { value: 11, suffix: "mm" });
+  assert.deepEqual(displayPrecipitation(0.45, "F"), { value: 0.5, suffix: '"' });
+});
+
+test("the drizzle floor hides the same weather in both units", () => {
+  // The floor is checked in inches, the stored unit — otherwise a shower
+  // could be printed in one setting and hidden in the other.
+  assert.equal(0.04 < PRECIPITATION_FLOOR_INCHES, true);
+  assert.equal(0.06 < PRECIPITATION_FLOOR_INCHES, false);
+});
+
+test("a negative Fahrenheit reading still converts", () => {
+  assert.equal(displayTemperature(-40, "C"), -40);
+  assert.equal(displayTemperature(0, "C"), -18);
 });

@@ -72,7 +72,7 @@ export async function TodayWeatherStrip({
               </p>
             )}
           </div>
-          <WeatherFigure weather={todayForecast} variant="banner" />
+          <WeatherFigure weather={todayForecast} variant="banner" unit={location.unit} />
         </div>
       )}
 
@@ -98,7 +98,7 @@ export async function TodayWeatherStrip({
                   {isToday ? "Today" : DAY_NAMES[dayOfWeekFor(date)]}
                 </span>
                 {day ? (
-                  <WeatherFigure weather={day} variant="column" className="mt-0.5" />
+                  <WeatherFigure weather={day} variant="column" unit={location.unit} className="mt-0.5" />
                 ) : (
                   <span className="mt-0.5 block text-xs text-[var(--ink-500)]">—</span>
                 )}

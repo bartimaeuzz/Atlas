@@ -2,7 +2,12 @@ import { WeatherFigure } from "@/components/ui/WeatherFigure";
 import { loadDailyNetSales } from "@/lib/analytics/loadDailyNetSales";
 import { loadSalesTargets } from "@/lib/analytics/loadSalesTargets";
 import { resolveSalesTarget, salesDifference, salesVerdict } from "@/lib/analytics/salesTarget";
-import { loadWeatherRecordsForRange, mergeDayWeather, type WeatherRecord } from "@/lib/weather/loadWeather";
+import {
+  loadWeatherRecordsForRange,
+  loadWeatherUnit,
+  mergeDayWeather,
+  type WeatherRecord,
+} from "@/lib/weather/loadWeather";
 
 /** "Which days missed, and what the weather was doing" (2026-09-05, Oliver:
  * build-queue item 12 — weather as a P&L explainer, not an icon).
@@ -29,10 +34,11 @@ import { loadWeatherRecordsForRange, mergeDayWeather, type WeatherRecord } from 
 const MAX_ROWS = 31;
 
 export async function DaysVsTarget({ from, to }: { from: string; to: string }) {
-  const [daily, targets, weatherRows] = await Promise.all([
+  const [daily, targets, weatherRows, unit] = await Promise.all([
     loadDailyNetSales(from, to),
     loadSalesTargets(),
     loadWeatherRecordsForRange(from, to),
+    loadWeatherUnit(),
   ]);
 
   const weatherByDay = new Map<string, WeatherRecord[]>();
@@ -90,7 +96,7 @@ export async function DaysVsTarget({ from, to }: { from: string; to: string }) {
                   </td>
                   <td className="py-2 px-3">
                     {weather ? (
-                      <WeatherFigure weather={weather} variant="detail" />
+                      <WeatherFigure weather={weather} variant="detail" unit={unit} />
                     ) : (
                       <span className="text-xs text-[var(--ink-500)]">—</span>
                     )}
