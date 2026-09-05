@@ -344,6 +344,13 @@
       "when": 1788630066485,
       "tag": "0048_damp_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1788641337004,
+      "tag": "0049_brief_killer_shrike",
+      "breakpoints": true
     }
   ]
 }

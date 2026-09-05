@@ -165,7 +165,7 @@ export async function loadSalesTaxReport(dateFrom: string, dateTo: string): Prom
       onlinePlatformId: onlinePlatformSalesRecords.onlinePlatformId,
       salesAmount: onlinePlatformSalesRecords.salesAmount,
       taxAmount: onlinePlatformSalesRecords.taxAmount,
-      tipAmountPlatformCourier: onlinePlatformSalesRecords.tipAmountPlatformCourier,
+      tipAmountPlatformPickup: onlinePlatformSalesRecords.tipAmountPlatformPickup,
       tipAmountRestaurantDelivery: onlinePlatformSalesRecords.tipAmountRestaurantDelivery,
     })
     .from(onlinePlatformSalesRecords)
@@ -175,7 +175,10 @@ export async function loadSalesTaxReport(dateFrom: string, dateTo: string): Prom
   const platformNameById = new Map(platforms.map((p) => [p.id, p.name]));
   const byDatePlatform = new Map<string, DailyPlatformRow>();
   for (const r of platformRows) {
-    const tips = round2(r.tipAmountPlatformCourier + r.tipAmountRestaurantDelivery);
+    // Corrected 2026-09-05: the platform-courier tip used to be added here.
+    // The restaurant never receives that money — the platform pays its own
+    // driver — so reporting it as a tip the restaurant took overstated tips.
+    const tips = round2(r.tipAmountPlatformPickup + r.tipAmountRestaurantDelivery);
     const tax = resolveTax(r.taxAmount, r.salesAmount, taxRate);
     const key = `${r.date}:${r.onlinePlatformId}`;
     const existing = byDatePlatform.get(key) ?? {

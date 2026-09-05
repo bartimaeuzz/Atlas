@@ -17,6 +17,7 @@ export interface PlatformSalesRow {
   platformName: string;
   salesAmount: number;
   commissionFee: number;
+  tipAmountPlatformPickup: number;
   tipAmountPlatformCourier: number;
   tipAmountRestaurantDelivery: number;
   /** Resolved tax: the explicit saved value if set, else a SUGGESTED value
@@ -160,6 +161,7 @@ export interface ClosingReportData {
     toastDeliverySales: number;
     cashSales: number;
     cashTip: number;
+    pickupCashTip: number;
     grossFoodSales: number;
     grossBeverageSales: number;
     /** Resolved tax: explicit saved value if set, else SUGGESTED
@@ -237,6 +239,7 @@ export async function loadPriorShiftFigures(
         salesAmount: r.salesAmount,
         taxAmount: r.taxAmount == null ? round2(r.salesAmount * taxRate) : r.taxAmount,
         commissionFee: r.commissionFee,
+        tipAmountPlatformPickup: r.tipAmountPlatformPickup,
         tipAmountPlatformCourier: r.tipAmountPlatformCourier,
         tipAmountRestaurantDelivery: r.tipAmountRestaurantDelivery,
       },
@@ -271,6 +274,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
       platformName: p.name,
       salesAmount,
       commissionFee: r?.commissionFee ?? 0,
+      tipAmountPlatformPickup: r?.tipAmountPlatformPickup ?? 0,
       tipAmountPlatformCourier: r?.tipAmountPlatformCourier ?? 0,
       tipAmountRestaurantDelivery: r?.tipAmountRestaurantDelivery ?? 0,
       taxAmount: taxAmountIsAuto ? round2(salesAmount * taxRate) : r!.taxAmount!,
@@ -493,6 +497,7 @@ export async function loadClosingReportData(shiftId: number): Promise<ClosingRep
           toastDeliverySales: sales.toastDeliverySales,
           cashSales: sales.cashSales,
           cashTip: sales.cashTip,
+          pickupCashTip: sales.pickupCashTip,
           grossFoodSales: sales.grossFoodSales,
           grossBeverageSales: sales.grossBeverageSales,
           salesTax: sales.salesTax == null ? round2(sales.totalSales * taxRate) : sales.salesTax,

@@ -129,10 +129,32 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                 )}
                 <Row label="Pool 1 (dine-in)" value={`$${(preview.result.tipPoolCalculation.perRoleBreakdown.pool1 ?? 0).toFixed(2)}`} />
                 <Row
-                  label="Pool 2 (takeout + platform-courier)"
+                  label="Pool 2 (pickup / takeout)"
                   value={`$${(preview.result.tipPoolCalculation.perRoleBreakdown.pool2 ?? 0).toFixed(2)}`}
                 />
+                {/* Oliver, 2026-09-05: show what Pool 2 is made of, not just
+                 * its total. One number hides which source a figure came from,
+                 * and that is how a platform-courier tip funded this pool for
+                 * a month without anyone seeing it. */}
+                <Row
+                  label="— from takeout at the register (4.5% off)"
+                  value={`$${preview.result.tipPoolCalculation.pool2Breakdown.netTakeoutCcTip.toFixed(2)}`}
+                />
+                <Row
+                  label="— from platform orders the customer collected"
+                  value={`$${preview.result.tipPoolCalculation.pool2Breakdown.platformPickupTips.toFixed(2)}`}
+                />
+                <Row
+                  label="— from the pickup cash jar"
+                  value={`$${preview.result.tipPoolCalculation.pool2Breakdown.pickupCashTip.toFixed(2)}`}
+                />
                 <Row label="Pool 3 (delivery)" value={`$${(preview.result.tipPoolCalculation.perRoleBreakdown.pool3 ?? 0).toFixed(2)}`} />
+                {preview.result.tipPoolCalculation.platformCourierTips > 0 && (
+                  <Row
+                    label="Platform courier tips — not paid to staff"
+                    value={`$${preview.result.tipPoolCalculation.platformCourierTips.toFixed(2)}`}
+                  />
+                )}
               </dl>
             </Card>
           </Section>
@@ -202,7 +224,7 @@ export default async function PreviewPage({ params }: { params: Promise<{ id: st
                   <th className="py-2 px-3 font-medium">Position</th>
                   <th className="py-2 px-3 text-right font-medium">Point value</th>
                   <th className="py-2 px-3 text-right font-medium" title="Pool 1 — dine-in">Pool 1</th>
-                  <th className="py-2 px-3 text-right font-medium" title="Pool 2 — takeout/online">Pool 2</th>
+                  <th className="py-2 px-3 text-right font-medium" title="Pool 2 — pickup / takeout">Pool 2</th>
                   <th className="py-2 px-3 text-right font-medium" title="Pool 3 — delivery">Pool 3</th>
                   <th className="py-2 px-3 text-right font-medium">Drink bonus</th>
                   <th className="py-2 px-3 text-right font-medium">Total tip</th>

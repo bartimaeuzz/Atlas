@@ -14,6 +14,8 @@ test("Pool 1: takeout tip is carved out before the dine-in deduction, not double
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: [{ employeeId: 1, pointValue: 1.0 }],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -40,6 +42,8 @@ test("Pool 1: host TEAM drink bonus (one shared count) is pulled off the top bef
       { employeeId: 1, pointValue: 1.0 },
       { employeeId: 5, pointValue: 1.0 }, // Erika also shares the remaining pool
     ],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -69,6 +73,8 @@ test("Pool 1: host team drink bonus splits EQUALLY across multiple hosts, exact-
       { employeeId: 2, pointValue: 0.1 },
       { employeeId: 3, pointValue: 1.0 },
     ],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -100,6 +106,8 @@ test("Pool 1: host earns from the drink bonus AND their normal point-weighted sh
       { employeeId: 1, pointValue: 1.0 },
       { employeeId: 5, pointValue: 1.2 }, // Erika's point value bumped +0.2 for good upsell work
     ],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -123,6 +131,8 @@ test("Pool 1: throws rather than going negative if the drink bonus would exceed 
       cashTip: 0,
       hostDrinkBonus: { qualifyingDrinkCount: 50, perDrinkAmount: 1, recipientEmployeeIds: [5] },
       pool1Roster: [{ employeeId: 5, pointValue: 1.0 }],
+      platformPickupTips: 0,
+      pickupCashTip: 0,
       platformCourierTips: 0,
       pool2Roster: [],
       deliveryToastTip: 0,
@@ -143,14 +153,16 @@ test("Pool 2: takeout tip gets the deduction, online-platform tips do not", () =
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: [{ employeeId: 1, pointValue: 1.0 }],
-    platformCourierTips: 100,
+    platformPickupTips: 100,
+    pickupCashTip: 0,
+    platformCourierTips: 0,
     pool2Roster: [{ employeeId: 5, pointValue: 1.0 }], // Host in Pool 2
     deliveryToastTip: 0,
     platformDeliveryTips: 0,
     pool3Roster: [],
   });
   assert.equal(result.pool2.netTakeoutCcTip, round2(45 * 0.955)); // 42.98
-  assert.equal(result.pool2.platformCourierTips, 100); // untouched
+  assert.equal(result.pool2.platformPickupTips, 100); // untouched
   assert.equal(result.pool2.totalPool2, round2(42.975 + 100));
 });
 
@@ -165,7 +177,9 @@ test("Pool 2: Host shares Pool 2 with Operator/Packer/Bag Handler — even if so
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: [],
-    platformCourierTips: 200,
+    platformPickupTips: 200,
+    pickupCashTip: 0,
+    platformCourierTips: 0,
     pool2Roster: [{ employeeId: 5, pointValue: 1.0 }], // only Host staffed today, no Operator/Packer/BagHandler yet
     deliveryToastTip: 0,
     platformDeliveryTips: 0,
@@ -185,6 +199,8 @@ test("Pool 3: Delivery Guy tips are split EQUALLY, not by point value, even if p
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: [],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -207,6 +223,8 @@ test("Pool 3: Toast delivery tip gets the 4.5% deduction, platform-delivered tip
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: [],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 100,
@@ -230,6 +248,8 @@ test("rejects takeoutCcTip + deliveryToastTip greater than grossCcTip", () => {
       cashTip: 0,
       hostDrinkBonus: null,
       pool1Roster: [],
+      platformPickupTips: 0,
+      pickupCashTip: 0,
       platformCourierTips: 0,
       pool2Roster: [],
       deliveryToastTip: 6,
@@ -257,7 +277,9 @@ test("Both pools reconcile exactly to the cent even with uneven points", () => {
       { employeeId: 5, pointValue: 1.0 },
       { employeeId: 6, pointValue: 1.0 }, // busser
     ],
-    platformCourierTips: 87.33,
+    platformPickupTips: 87.33,
+    pickupCashTip: 0,
+    platformCourierTips: 0,
     pool2Roster: [
       { employeeId: 5, pointValue: 1.0 },
       { employeeId: 7, pointValue: 1.0 },
@@ -286,6 +308,8 @@ test("rejects takeoutCcTip greater than grossCcTip", () => {
       cashTip: 0,
       hostDrinkBonus: null,
       pool1Roster: [],
+      platformPickupTips: 0,
+      pickupCashTip: 0,
       platformCourierTips: 0,
       pool2Roster: [],
       deliveryToastTip: 0,
@@ -311,6 +335,8 @@ test("Pool split method is configurable per pool — EQUAL_SPLIT ignores point v
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: roster,
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -331,6 +357,8 @@ test("Pool split method is configurable per pool — EQUAL_SPLIT ignores point v
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: roster,
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -358,6 +386,8 @@ test("Pool split method: Pool 3 can be switched to POINT_WEIGHTED instead of its
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: [],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -378,6 +408,8 @@ test("Pool split method: Pool 3 can be switched to POINT_WEIGHTED instead of its
     cashTip: 0,
     hostDrinkBonus: null,
     pool1Roster: [],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -409,6 +441,8 @@ test("cash tip is pooled into Pool 1 WITHOUT the deduction, on top of the deduct
     cashTip: 50, // no deduction on this portion
     hostDrinkBonus: null,
     pool1Roster: roster,
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -436,6 +470,8 @@ test("cash tip can't be negative", () => {
         cashTip: -10,
         hostDrinkBonus: null,
         pool1Roster: [{ employeeId: 10, pointValue: 1.0 }],
+        platformPickupTips: 0,
+        pickupCashTip: 0,
         platformCourierTips: 0,
         pool2Roster: [],
         deliveryToastTip: 0,
@@ -458,6 +494,8 @@ test("host drink bonus is pulled off Pool 1's top including the cash tip portion
     cashTip: 50, // Pool 1 total before bonus = 100
     hostDrinkBonus: { qualifyingDrinkCount: 5, perDrinkAmount: 2, recipientEmployeeIds: [10] }, // $10 bonus
     pool1Roster: roster,
+    platformPickupTips: 0,
+    pickupCashTip: 0,
     platformCourierTips: 0,
     pool2Roster: [],
     deliveryToastTip: 0,
@@ -475,3 +513,95 @@ test("host drink bonus is pulled off Pool 1's top including the cash tip portion
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/* ---------------------------------------------------------------------- */
+/* The 2026-09-05 correction. The rule recorded on 2026-08-08 sent a       */
+/* platform-courier tip into Pool 2; Oliver confirmed the restaurant never */
+/* receives that money at all, and that the case nobody had considered —   */
+/* the customer collecting the bag themselves — is the one that funds      */
+/* Pool 2. These three tests exist so the old behaviour cannot come back.  */
+/* ---------------------------------------------------------------------- */
+
+test("Pool 2: a platform-courier tip reaches no pool and no person — it is the platform's money", () => {
+  const result = calculateTwoPoolTips({
+    deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 0,
+    takeoutCcTip: 0,
+    cashTip: 0,
+    hostDrinkBonus: null,
+    pool1Roster: [{ employeeId: 1, pointValue: 1.0 }],
+    platformPickupTips: 0,
+    pickupCashTip: 0,
+    platformCourierTips: 500,
+    pool2Roster: [{ employeeId: 5, pointValue: 1.0 }],
+    deliveryToastTip: 0,
+    platformDeliveryTips: 0,
+    pool3Roster: [{ employeeId: 8, pointValue: 1.0 }],
+  });
+  assert.equal(result.pool2.totalPool2, 0);
+  assert.equal(result.reference.platformCourierTips, 500); // recorded, for the cross-check
+  // Not "Pool 2 is zero" — nobody anywhere gets a cent of it.
+  const everyShare = [
+    ...Object.values(result.pool1.shareByEmployee),
+    ...Object.values(result.pool2.shareByEmployee),
+    ...Object.values(result.pool3.shareByEmployee),
+  ];
+  assert.equal(everyShare.reduce((a, b) => a + b, 0), 0);
+});
+
+test("Pool 2: a platform PICKUP tip funds the pool and takes no 4.5% deduction", () => {
+  const result = calculateTwoPoolTips({
+    deductionRate: 0.045,
+    pool1SplitMethod: "POINT_WEIGHTED",
+    pool2SplitMethod: "POINT_WEIGHTED",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 0,
+    takeoutCcTip: 0,
+    cashTip: 0,
+    hostDrinkBonus: null,
+    pool1Roster: [],
+    platformPickupTips: 40,
+    pickupCashTip: 0,
+    platformCourierTips: 0,
+    pool2Roster: [{ employeeId: 5, pointValue: 1.0 }],
+    deliveryToastTip: 0,
+    platformDeliveryTips: 0,
+    pool3Roster: [],
+  });
+  // 40, not 38.20 — that money never touched the restaurant's card terminal.
+  assert.equal(result.pool2.totalPool2, 40);
+  assert.equal(result.pool2.shareByEmployee[5], 40);
+});
+
+test("the two cash jars are independent: the server jar funds Pool 1, the pickup jar funds Pool 2", () => {
+  // Confirmed by Oliver 2026-09-05: two physically separate jars, counted
+  // separately and added separately. Neither is a subset of the other, so
+  // neither pool may be computed as a remainder of the other's cash.
+  const result = calculateTwoPoolTips({
+    deductionRate: 0.045,
+    pool1SplitMethod: "EQUAL_SPLIT",
+    pool2SplitMethod: "EQUAL_SPLIT",
+    pool3SplitMethod: "EQUAL_SPLIT",
+    grossCcTip: 0,
+    takeoutCcTip: 0,
+    cashTip: 60, // jar one — the servers'
+    hostDrinkBonus: null,
+    pool1Roster: [{ employeeId: 1, pointValue: 1.0 }],
+    platformPickupTips: 0,
+    pickupCashTip: 25, // jar two — the host's and packer's
+    platformCourierTips: 0,
+    pool2Roster: [{ employeeId: 5, pointValue: 1.0 }],
+    deliveryToastTip: 0,
+    platformDeliveryTips: 0,
+    pool3Roster: [],
+  });
+  assert.equal(result.pool1.cashTip, 60); // not 60 - 25
+  assert.equal(result.pool2.pickupCashTip, 25);
+  assert.equal(result.pool1.shareByEmployee[1], 60);
+  assert.equal(result.pool2.shareByEmployee[5], 25);
+  // Neither jar is deducted — cash never touches a card processor.
+  assert.equal(result.pool1.netPool1AfterHostBonus + result.pool2.totalPool2, 85);
+});

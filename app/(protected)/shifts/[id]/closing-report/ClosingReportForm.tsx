@@ -899,7 +899,16 @@ function ToastSalesCard({
           <Field label="Toast takeout sales (subset of Total)" name="toastTakeoutSales" defaultValue={s?.toastTakeoutSales} />
           <Field label="Toast delivery sales (subset of Total)" name="toastDeliverySales" defaultValue={s?.toastDeliverySales} />
           <Field label="Cash sales" name="cashSales" defaultValue={s?.cashSales} />
-          <Field label="Cash tip (entered by floor manager, no deduction)" name="cashTip" defaultValue={s?.cashTip} />
+          <Field label="Cash tip — dine-in jar (servers, no deduction)" name="cashTip" defaultValue={s?.cashTip} />
+          {/* Two physically separate jars, confirmed by Oliver 2026-09-05:
+              jar one at the servers' station funds Pool 1, jar two at the
+              pickup counter funds Pool 2 (host and packer). Counted
+              separately and added separately — neither is a subset of the
+              other, so neither may be entered as a remainder of the other.
+              Source is deliberately not asked: a customer collecting a bag
+              drops cash without anyone knowing whether that order came
+              through Toast or a platform. */}
+          <Field label="Cash tip — pickup jar (host + packer, no deduction)" name="pickupCashTip" defaultValue={s?.pickupCashTip} />
           <Field label="Gross food sales" name="grossFoodSales" defaultValue={s?.grossFoodSales} />
           <Field label="Gross beverage sales" name="grossBeverageSales" defaultValue={s?.grossBeverageSales} />
         </div>
@@ -1056,8 +1065,27 @@ function PlatformSalesRow({
           {!taxTouched && <p className="text-xs text-[var(--ink-400)] mt-1">Auto-calculated, edit if it differs.</p>}
         </div>
         <Field label="Commission fee" name={`platform_${p.platformId}_commissionFee`} defaultValue={p.commissionFee} alignLabel />
-        <Field label="Tip — platform courier" name={`platform_${p.platformId}_tipCourier`} defaultValue={p.tipAmountPlatformCourier} alignLabel />
+        <Field label="Tip — customer collected" name={`platform_${p.platformId}_tipPickup`} defaultValue={p.tipAmountPlatformPickup} alignLabel />
         <Field label="Tip — restaurant delivery" name={`platform_${p.platformId}_tipRestaurantDelivery`} defaultValue={p.tipAmountRestaurantDelivery} alignLabel />
+        {/* Separated on purpose (2026-09-05). Sitting in the run of fields
+            above, this read as one more figure that gets paid out — which is
+            how it ended up funding Pool 2 for a month. The restaurant never
+            receives this money: the platform holds it and pays its own
+            driver. It is captured only to reconcile against the platform
+            statement and to leave a trace if a Toast integration later
+            pushes the number in. Never blocks, never warns. */}
+        {/* sm:col-span-5 — the parent is `grid sm:grid-cols-5`, so without it
+            this band renders as a sixth narrow cell beside the money boxes
+            instead of a full-width block under them. No margin either: the
+            grid's own gap-3 spaces it. */}
+        <div className="sm:col-span-5 rounded-[var(--radius-md)] border border-dashed border-[var(--line)] bg-[var(--paper)] p-3">
+          <p className="text-xs font-medium text-[var(--ink-500)] mb-2">
+            Recorded for reference — not paid to staff
+          </p>
+          <div className="sm:max-w-56">
+            <Field label="Tip — platform&apos;s own courier" name={`platform_${p.platformId}_tipCourier`} defaultValue={p.tipAmountPlatformCourier} />
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -62,7 +62,9 @@ export interface FinalizeShiftInput {
   cashTip: number; // pooled into Pool 1, no deduction (2026-08-10)
   deliveryToastTip: number;
   hostDrinkBonus: HostDrinkBonusInput | null;
-  platformCourierTips: number;
+  platformPickupTips: number; // customer collected the platform order -> Pool 2 (2026-09-05)
+  pickupCashTip: number; // the pickup jar -> Pool 2, separate from Pool 1's server jar (2026-09-05)
+  platformCourierTips: number; // recorded only — the platform pays its own driver, this reaches no pool
   platformDeliveryTips: number;
   pool1SplitMethod: PoolSplitMethod;
   pool2SplitMethod: PoolSplitMethod;
@@ -133,6 +135,17 @@ export interface FinalizeShiftResult {
     netHostUpsellTip: number;
     netGeneralCcTip: number;
     perRoleBreakdown: Record<string, number>;
+    /** What Pool 2 is actually made of. Oliver asked for this on 2026-09-05:
+     * one total tells nobody whether the money came off the register, off a
+     * platform, or out of the jar, and it was exactly that opacity that let a
+     * courier tip sit inside Pool 2 unnoticed. */
+    pool2Breakdown: {
+      netTakeoutCcTip: number;
+      platformPickupTips: number;
+      pickupCashTip: number;
+    };
+    /** Recorded, paid to nobody. See tipPool.ts's Pool 2 notes. */
+    platformCourierTips: number;
   };
   employeePayouts: FinalizeEmployeePayout[];
 }
@@ -140,7 +153,7 @@ export interface FinalizeShiftResult {
 export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShiftResult {
   const {
     deductionRate, grossCcTip, takeoutCcTip, cashTip, deliveryToastTip, hostDrinkBonus,
-    platformCourierTips, platformDeliveryTips,
+    platformPickupTips, pickupCashTip, platformCourierTips, platformDeliveryTips,
     pool1SplitMethod, pool2SplitMethod, pool3SplitMethod, roster, wageAdjustments,
     incentiveAmounts,
   } = input;
@@ -164,6 +177,8 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
     hostDrinkBonus,
     pool1Roster,
     pool1SplitMethod,
+    platformPickupTips,
+    pickupCashTip,
     platformCourierTips,
     pool2Roster,
     pool2SplitMethod,
@@ -266,6 +281,12 @@ export function buildFinalizationResult(input: FinalizeShiftInput): FinalizeShif
         pool2: calc.pool2.totalPool2,
         pool3: calc.pool3.totalPool3,
       },
+      pool2Breakdown: {
+        netTakeoutCcTip: calc.pool2.netTakeoutCcTip,
+        platformPickupTips: calc.pool2.platformPickupTips,
+        pickupCashTip: calc.pool2.pickupCashTip,
+      },
+      platformCourierTips: calc.reference.platformCourierTips,
     },
     employeePayouts,
   };

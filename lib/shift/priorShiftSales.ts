@@ -41,7 +41,8 @@ export const PLATFORM_DAY_TOTAL_FIELDS: DayTotalField[] = [
   { key: "salesAmount", label: "Sales amount" },
   { key: "taxAmount", label: "Sales tax" },
   { key: "commissionFee", label: "Commission fee" },
-  { key: "tipAmountPlatformCourier", label: "Tip — platform courier" },
+  { key: "tipAmountPlatformPickup", label: "Tip — customer collected" },
+  { key: "tipAmountPlatformCourier", label: "Tip — platform courier (not paid to staff)" },
   { key: "tipAmountRestaurantDelivery", label: "Tip — restaurant delivery" },
 ];
 

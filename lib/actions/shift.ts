@@ -580,6 +580,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     toastDeliverySales: num("toastDeliverySales"),
     cashSales: num("cashSales"),
     cashTip: num("cashTip"),
+    pickupCashTip: num("pickupCashTip"),
     grossFoodSales: num("grossFoodSales"),
     grossBeverageSales: num("grossBeverageSales"),
     salesTax: num("salesTax"),
@@ -673,6 +674,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     const enteredValues: Record<string, number> = {
       salesAmount: num(`platform_${platform.id}_salesAmount`),
       commissionFee: num(`platform_${platform.id}_commissionFee`),
+      tipAmountPlatformPickup: num(`platform_${platform.id}_tipPickup`),
       tipAmountPlatformCourier: num(`platform_${platform.id}_tipCourier`),
       tipAmountRestaurantDelivery: num(`platform_${platform.id}_tipRestaurantDelivery`),
       taxAmount: num(`platform_${platform.id}_taxAmount`), // null-when-auto applied at the write below (2026-08-31)
@@ -738,6 +740,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
       salesAmount: finalValues.salesAmount,
       commissionFee: finalValues.commissionFee,
       netAmount,
+      tipAmountPlatformPickup: finalValues.tipAmountPlatformPickup,
       tipAmountPlatformCourier: finalValues.tipAmountPlatformCourier,
       tipAmountRestaurantDelivery: finalValues.tipAmountRestaurantDelivery,
       taxAmount: taxWasAuto ? null : finalValues.taxAmount,

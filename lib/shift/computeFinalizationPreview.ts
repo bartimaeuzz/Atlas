@@ -119,6 +119,7 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     .select()
     .from(onlinePlatformSalesRecords)
     .where(eq(onlinePlatformSalesRecords.shiftId, shiftId));
+  const platformPickupTips = round2(sum(platformRecords.map((r) => r.tipAmountPlatformPickup)));
   const platformCourierTips = round2(sum(platformRecords.map((r) => r.tipAmountPlatformCourier)));
   const platformDeliveryTips = round2(sum(platformRecords.map((r) => r.tipAmountRestaurantDelivery)));
 
@@ -214,6 +215,8 @@ export async function computeFinalizationPreview(shiftId: number): Promise<Final
     cashTip: sales.cashTip,
     deliveryToastTip: sales.deliveryToastTip,
     hostDrinkBonus,
+    platformPickupTips,
+    pickupCashTip: sales.pickupCashTip,
     platformCourierTips,
     platformDeliveryTips,
     pool1SplitMethod,

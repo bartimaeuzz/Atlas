@@ -724,6 +724,16 @@ export const shiftSales = sqliteTable("shift_sales", {
   // fee on cash, so nothing to deduct. Distinct from cashSales above
   // (total cash revenue, not tips).
   cashTip: real("cash_tip").notNull().default(0),
+  // Cash left by a customer who walked in to collect a takeout bag (2026-09-05,
+  // Oliver). Deliberately NOT split by source: the customer drops it at the
+  // counter, and nobody can tell whether that order came through Toast or a
+  // platform — so one number, not one per platform. Pools into POOL 2 (the
+  // people who packed the bag), no deduction, same reason as cashTip above:
+  // cash never touches a card processor. Optional — plenty of nights are $0.
+  // OPEN: whether this is a SUBSET of cashTip above (one drawer, Pool 1 gets
+  // the remainder) or a separate count (two jars, both added). Asked
+  // 2026-09-05, unanswered — the pool math must not ship until it is settled.
+  pickupCashTip: real("pickup_cash_tip").notNull().default(0),
   grossFoodSales: real("gross_food_sales").notNull().default(0),
   grossBeverageSales: real("gross_beverage_sales").notNull().default(0),
   // Sales tax collected on totalSales (2026-08-10) — reporting-only, never
@@ -751,7 +761,21 @@ export const onlinePlatformSalesRecords = sqliteTable("online_platform_sales_rec
   // Neither bucket gets the 4.5% CC deduction — confirmed, never touches the
   // restaurant's own card terminal. Split into two buckets because routing
   // depends on WHO delivered the order (confirmed 2026-08-08):
-  tipAmountPlatformCourier: real("tip_amount_platform_courier").notNull().default(0), // platform's own courier delivered -> Pool 2
+  // CORRECTED 2026-09-05. The 2026-08-08 rule split these by "who delivered"
+  // and had no bucket for the case where NOBODY delivered — the customer came
+  // and collected the bag. It also routed the platform-courier tip into Pool 2,
+  // which was wrong: Oliver confirmed 2026-09-05 that the restaurant never
+  // receives that money at all. The platform holds it and pays its own driver.
+  // Route by who physically moved the food:
+  //   customer collected  -> tipAmountPlatformPickup    -> Pool 2 (staff)
+  //   the platform's own courier -> tipAmountPlatformCourier -> NO POOL
+  //   the restaurant's own driver -> tipAmountRestaurantDelivery -> Pool 3
+  tipAmountPlatformPickup: real("tip_amount_platform_pickup").notNull().default(0),
+  // Recorded, never paid to anyone. Kept on purpose (Oliver, 2026-09-05): it
+  // cross-checks that the in-house tip figures reconcile against the platform
+  // statement, and when a Toast integration eventually pushes this number in,
+  // it can be traced instead of quietly re-entering the pool math.
+  tipAmountPlatformCourier: real("tip_amount_platform_courier").notNull().default(0),
   tipAmountRestaurantDelivery: real("tip_amount_restaurant_delivery").notNull().default(0), // restaurant's own Delivery Guy delivered -> Pool 3
   // Sales tax for this platform's orders (2026-08-10) — same auto-fill-then-
   // override pattern as shiftSales.salesTax above, computed off salesAmount.

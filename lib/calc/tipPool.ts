@@ -19,13 +19,25 @@
  *   bumped by up to the rule's cap, e.g. +0.2 points, when Pool 1 is
  *   point-weighted). These are two additive components, not alternatives.
  *
- *   Pool 2 (takeout + platform-courier) — Host, Operator, Packer, Bag
- *   Handler share this. Youk Thai defaults this to POINT-WEIGHTED. Funded
- *   by: takeout tips paid at the restaurant's own register (4.5% deducted —
- *   manually-identified subset of the day's total CC tip, same pattern as
- *   host-upsell identification) PLUS online-platform tips for orders where
- *   the PLATFORM'S OWN COURIER did the delivery (not deducted — restaurant
- *   staff only packed/handed off).
+ *   Pool 2 (pickup / takeout) — Host, Operator, Packer, Bag Handler share
+ *   this. Youk Thai defaults this to POINT-WEIGHTED. Funded by three things,
+ *   all of them tips left by a customer who came and collected the bag:
+ *     1. takeout tips paid at the restaurant's own register (4.5% deducted —
+ *        manually-identified subset of the day's total CC tip, same pattern
+ *        as host-upsell identification)
+ *     2. online-platform tips where the CUSTOMER collected the order
+ *        (not deducted — never touched the restaurant's card terminal)
+ *     3. cash dropped in the pickup jar (not deducted — cash never touches a
+ *        card processor). Corrected 2026-09-05: this is a SECOND, physically
+ *        separate jar from the dine-in cash tips that fund Pool 1 — the two
+ *        are counted separately and added separately, neither is a subset of
+ *        the other. Jar one belongs to the servers, jar two to the host and
+ *        packer.
+ *   NOT funded by the platform's own courier's tip. That money is the
+ *   platform's, paid to the platform's driver, and the restaurant never
+ *   receives it — confirmed by Oliver 2026-09-05, correcting the 2026-08-08
+ *   rule that routed it here. It is still recorded, as a cross-check and a
+ *   trace, but it reaches no pool and no person.
  *
  *   Pool 3 (delivery) — Delivery Guy only. Youk Thai defaults this to
  *   EQUAL_SPLIT (their reasoning: delivery work doesn't vary by skill the
@@ -88,9 +100,15 @@ export interface TwoPoolTipCalcInput {
   pool1SplitMethod: PoolSplitMethod;
 
   // Pool 2 inputs
-  platformCourierTips: number; // online-platform tips where the PLATFORM'S courier delivered (not deducted)
+  platformPickupTips: number; // online-platform tips where the CUSTOMER collected the order (not deducted)
+  pickupCashTip: number; // the pickup jar — host/packer's cash, separate from Pool 1's server jar (not deducted)
   pool2Roster: PoolRosterEntry[]; // Host/Operator/Packer/Bag Handler on shift
   pool2SplitMethod: PoolSplitMethod;
+
+  // NOT a pool input. Recorded and reported so the in-house figures can be
+  // reconciled against the platform statement, and so this number can be
+  // traced if a Toast integration ever pushes it in. It funds nothing.
+  platformCourierTips: number;
 
   // Pool 3 inputs
   deliveryToastTip: number; // manually-identified subset of grossCcTip from phone/own-platform delivery orders (gets deducted)
@@ -112,9 +130,17 @@ export interface TwoPoolTipCalcResult {
   hostDrinkBonusByEmployee: Record<number, number>;
   pool2: {
     netTakeoutCcTip: number;
-    platformCourierTips: number;
+    platformPickupTips: number;
+    pickupCashTip: number;
     totalPool2: number;
     shareByEmployee: Record<number, number>;
+  };
+  /** Money the restaurant never received. Reported so the closing report can
+   * show it under "recorded for reference, not paid to staff", and so it is
+   * impossible to read it as part of a pool — which is exactly what it looked
+   * like while it sat inside `pool2`. */
+  reference: {
+    platformCourierTips: number;
   };
   pool3: {
     netDeliveryToastTip: number;
@@ -127,7 +153,7 @@ export interface TwoPoolTipCalcResult {
 export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalcResult {
   const {
     deductionRate, grossCcTip, takeoutCcTip, cashTip, hostDrinkBonus, pool1Roster, pool1SplitMethod,
-    platformCourierTips, pool2Roster, pool2SplitMethod,
+    platformPickupTips, pickupCashTip, platformCourierTips, pool2Roster, pool2SplitMethod,
     deliveryToastTip, platformDeliveryTips, pool3Roster, pool3SplitMethod,
   } = input;
 
@@ -139,6 +165,8 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
   if (grossCcTip < 0) throw new Error(`Gross CC tip can't be negative — got ${grossCcTip}. Check the Total CC Tip field.`);
   if (takeoutCcTip < 0) throw new Error(`Takeout CC tip can't be negative — got ${takeoutCcTip}.`);
   if (cashTip < 0) throw new Error(`Cash tip can't be negative — got ${cashTip}.`);
+  if (platformPickupTips < 0) throw new Error(`Platform pickup tip can't be negative — got ${platformPickupTips}.`);
+  if (pickupCashTip < 0) throw new Error(`Pickup cash tip can't be negative — got ${pickupCashTip}.`);
   if (deliveryToastTip < 0) throw new Error(`Delivery Toast tip can't be negative — got ${deliveryToastTip}.`);
   if (takeoutCcTip + deliveryToastTip > grossCcTip) {
     throw new Error(
@@ -184,10 +212,12 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
   // The deduction applies to takeout at the SAME rate as dine-in — confirmed
   // by Oliver 2026-08-23, having sat as an assumption since 2026-08-10. Both
   // run through the same card terminal, so the processor charges the same
-  // either way. platformCourierTips below is deliberately NOT deducted: that
-  // money never touched the restaurant's terminal.
+  // either way. The other two are deliberately NOT deducted: a platform pickup
+  // tip never touched the restaurant's terminal, and cash never touches a card
+  // processor at all. platformCourierTips is absent on purpose — it is the
+  // platform's money, not the restaurant's (Oliver, 2026-09-05).
   const netTakeoutCcTip = round2(takeoutCcTip * (1 - deductionRate));
-  const totalPool2 = round2(netTakeoutCcTip + platformCourierTips);
+  const totalPool2 = round2(netTakeoutCcTip + platformPickupTips + pickupCashTip);
   const pool2ShareByEmployee = splitByMethod(totalPool2, pool2Roster, pool2SplitMethod);
 
   // ---- Pool 3: delivery (Toast phone/own-platform orders + restaurant-driver-delivered online orders) ----
@@ -208,9 +238,13 @@ export function calculateTwoPoolTips(input: TwoPoolTipCalcInput): TwoPoolTipCalc
     hostDrinkBonusByEmployee,
     pool2: {
       netTakeoutCcTip,
-      platformCourierTips: round2(platformCourierTips),
+      platformPickupTips: round2(platformPickupTips),
+      pickupCashTip: round2(pickupCashTip),
       totalPool2,
       shareByEmployee: pool2ShareByEmployee,
+    },
+    reference: {
+      platformCourierTips: round2(platformCourierTips),
     },
     pool3: {
       netDeliveryToastTip,

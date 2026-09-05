@@ -415,6 +415,7 @@ async function seed() {
       const deliveryToastTip = round2(totalSales * 0.01);
       const cashSales = round2(totalSales * 0.07);
       const cashTip = round2(cashSales * 0.1);
+      const pickupCashTip = round2(cashSales * 0.02); // the second jar, at the pickup counter
       const grossFoodSales = round2(totalSales * 0.8);
       const grossBeverageSales = round2(totalSales - grossFoodSales);
 
@@ -426,6 +427,7 @@ async function seed() {
         deliveryToastTip,
         cashSales,
         cashTip,
+        pickupCashTip,
         grossFoodSales,
         grossBeverageSales,
       });
@@ -437,6 +439,10 @@ async function seed() {
       for (const platform of platformRows) {
         const salesAmount = round2(totalSales * 0.03);
         const commissionFee = round2(salesAmount * 0.15);
+        // Two tips on every platform record so seeded data exercises both
+        // paths: the pickup tip is staff money and funds Pool 2, the courier
+        // tip is the platform's own and funds nothing (2026-09-05).
+        const tipAmountPlatformPickup = round2(salesAmount * 0.06);
         const tipAmountPlatformCourier = round2(salesAmount * 0.1);
         await db.insert(onlinePlatformSalesRecords).values({
           shiftId: shift.id,
@@ -444,6 +450,7 @@ async function seed() {
           salesAmount,
           commissionFee,
           netAmount: round2(salesAmount - commissionFee),
+          tipAmountPlatformPickup,
           tipAmountPlatformCourier,
           tipAmountRestaurantDelivery: 0,
         });
