@@ -15,6 +15,7 @@ import {
   payrollPeriods, incentivePayoutRecords, restaurantSettings,
 } from "@/db/schema";
 import { finalizeShiftWrites } from "@/lib/shift/finalizeShiftWrites";
+import { captureShiftWeather } from "@/lib/weather/captureShiftWeather";
 import { describeUndecided, loadUndecidedPointRows } from "@/lib/shift/pointDecision";
 import { loadPriorShiftFigures } from "@/lib/shift/loadClosingReportData";
 import { subtractDayTotals, TOAST_DAY_TOTAL_FIELDS, PLATFORM_DAY_TOTAL_FIELDS } from "@/lib/shift/priorShiftSales";
@@ -990,6 +991,21 @@ async function runFinalize(shiftId: number, finalizedByEmployeeId: number) {
   // shared with db/seed.ts, which needs to finalize a whole week of test
   // shifts at once. See that file's header comment.
   await finalizeShiftWrites(shiftId, finalizedByEmployeeId);
+
+  // Stamp the weather this service actually had (2026-09-05, Oliver's rule
+  // for build-queue item 12: recorded at lock time and never re-fetched, so
+  // a locked record cannot change under itself).
+  //
+  // AFTER the lock, not inside finalizeShiftWrites, for two reasons. The
+  // seed finalizes a week of fixture shifts in bulk and has no business
+  // calling a weather service. And this is a network call: captureShiftWeather
+  // swallows every failure and returns false, so a slow or down weather
+  // server can never stop a payroll record from locking. AWAITED rather than
+  // fired and forgotten — an unhandled rejection in a Vercel function takes
+  // the whole lambda down with it, which is the open watch item from
+  // 2026-09-04. A service missed here is picked up by the Settings backfill.
+  const [shift] = await db.select().from(shifts).where(eq(shifts.id, shiftId));
+  if (shift) await captureShiftWeather(shift.date, shift.period);
 }
 
 /** The real tip-point gate (2026-08-29). The closing report disables its

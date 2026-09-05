@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
+import { TodayWeatherStrip } from "./TodayWeatherStrip";
 import { resolveLedgerHref } from "./navItemCapabilities";
 
 /**
@@ -246,6 +248,17 @@ export default async function Home() {
       <p className="text-[var(--ink-500)] text-sm mb-6">
         {isManager ? "Pick where you want to work." : "Your schedule and pay, in one place."}
       </p>
+      {/* Suspended with a null fallback (2026-09-05): the forecast is a
+          network call to somebody else's server, and the tiles are the
+          reason anyone opened this page. A slow sky must never hold up the
+          way in — the strip appears when it arrives, or never. */}
+      <Suspense fallback={null}>
+        <TodayWeatherStrip
+          canSeeTargets={viewer.has("VIEW_PNL")}
+          canEditSettings={viewer.has("EDIT_SETTINGS")}
+        />
+      </Suspense>
+
       <div
         className={
           isManager

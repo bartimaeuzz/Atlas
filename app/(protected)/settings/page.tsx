@@ -8,6 +8,8 @@ import { NoAccess } from "@/components/NoAccess";
 import { Banner } from "@/components/ui/Banner";
 import { SettingsForm } from "./SettingsForm";
 import { RecoveryCodeSection } from "./RecoveryCodeSection";
+import { WeatherLocationSection } from "./WeatherLocationSection";
+import { countShiftsMissingWeather, loadWeatherLocation } from "@/lib/weather/loadWeather";
 
 /**
  * Permission System Phase C (2026-08-21) — two capabilities, one page,
@@ -35,12 +37,15 @@ export default async function SettingsPage() {
   if (!viewer?.has("VIEW_SETTINGS")) return <NoAccess pageLabel="Settings" />;
   const canEdit = viewer.has("EDIT_SETTINGS");
 
-  const [settings, recoveryStatus, packerBonus, allPositions] = await Promise.all([
-    loadRestaurantSettings(),
-    loadRecoveryCodeStatus(),
-    loadPackerBonusConfig(),
-    db.select().from(positions),
-  ]);
+  const [settings, recoveryStatus, packerBonus, allPositions, weatherLocation, missingWeatherCount] =
+    await Promise.all([
+      loadRestaurantSettings(),
+      loadRecoveryCodeStatus(),
+      loadPackerBonusConfig(),
+      db.select().from(positions),
+      loadWeatherLocation(),
+      countShiftsMissingWeather(),
+    ]);
   const activePositions = allPositions
     .filter((p) => p.active)
     .map((p) => ({ id: p.id, name: p.name, category: p.category as "FOH" | "BOH" }))
@@ -65,6 +70,14 @@ export default async function SettingsPage() {
           <RecoveryCodeSection status={recoveryStatus} viewerIsAdmin={viewerIsAdmin} />
         </div>
       )}
+      <div className="mb-8">
+        <WeatherLocationSection
+          location={weatherLocation && { label: weatherLocation.label, updatedAt: weatherLocation.updatedAt }}
+          missingCount={missingWeatherCount}
+          canEdit={canEdit}
+        />
+      </div>
+
       {/* Its own page, linked rather than inlined (2026-09-04). Seven
           weekday numbers plus a list of dated exceptions with their own add
           and remove buttons cannot live inside this page's single-submit

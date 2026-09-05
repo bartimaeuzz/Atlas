@@ -5,6 +5,7 @@ import { LaborFigure } from "@/components/ui/LaborFigure";
 import type { DailyLaborByDate } from "@/lib/analytics/laborTarget";
 import type { SalesTargets } from "@/lib/analytics/salesTarget";
 import { resolveSalesTarget } from "@/lib/analytics/salesTarget";
+import { WeatherFigure, type WeatherFigureData } from "@/components/ui/WeatherFigure";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { useRouter } from "next/navigation";
 import { addPlannedAssignment, removePlannedAssignment, replacePlannedAssignment } from "@/lib/actions/schedule";
@@ -143,6 +144,7 @@ export function WeeklyPlanGrid({
   laborTargetPct,
   laborShowAmounts = false,
   salesTargets = null,
+  weatherByDate = null,
 }: {
   data: WeeklyPlanData;
   weekId?: number;
@@ -167,6 +169,13 @@ export function WeeklyPlanGrid({
    * per date because the resolver is pure and the grid already knows its
    * own dates — one rule, applied in one place, on both layouts. */
   salesTargets?: SalesTargets | null;
+  /** Forecast per ISO date for the days this week that are still ahead
+   * (2026-09-05, Oliver, build-queue item 8/12). Plain data, not a loader:
+   * this is a client component and the fetch happens on the server. Days
+   * already past are absent — a forecast for last Tuesday is not a fact
+   * about last Tuesday, and the day that HAS a fact shows it on its closing
+   * report instead. */
+  weatherByDate?: Record<string, WeatherFigureData> | null;
   /** Preselect this date's phone day-tab on first render (e.g. arriving
    * from a swap card's "View shift" link). Falls back to today/Monday
    * when absent or outside the week. */
@@ -451,6 +460,11 @@ export function WeeklyPlanGrid({
             <span className="font-semibold text-[var(--ink-900)]">{DAY_LABELS[dayOfWeekFor(selectedDate)]}</span>
             <span className="text-[var(--ink-500)] text-sm ml-2">{selectedDate}</span>
             {selectedDate === todayIso && <span className="text-xs text-[var(--primary)] ml-2">today</span>}
+            {weatherByDate?.[selectedDate] && (
+              <div className="mt-0.5">
+                <WeatherFigure weather={weatherByDate[selectedDate]} />
+              </div>
+            )}
             {dailyLabor?.[selectedDate] && (
               <div className="mt-0.5">
                 <LaborFigure
@@ -704,6 +718,11 @@ export function WeeklyPlanGrid({
                           wraps inside a fixed box instead of widening the
                           table, so a day's column width no longer depends on
                           whether that day happens to be closed. */}
+                      {weatherByDate?.[d] && (
+                        <div className="mt-0.5 font-normal">
+                          <WeatherFigure weather={weatherByDate[d]} />
+                        </div>
+                      )}
                       {dailyLabor?.[d] && (
                         <div className="mt-0.5 max-w-[10rem]">
                           <LaborFigure

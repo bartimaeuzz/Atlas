@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { loadClosingReportData } from "@/lib/shift/loadClosingReportData";
 import { loadShiftAttendanceSummary } from "@/lib/shift/loadRosterPageData";
@@ -7,6 +8,7 @@ import { Banner } from "@/components/ui/Banner";
 import { StatusBadge } from "@/components/ui/Badge";
 import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
 import { ShiftStageNav } from "../ShiftStageNav";
+import { ShiftWeatherLine } from "../ShiftWeatherLine";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 
 export default async function ClosingReportPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +28,17 @@ export default async function ClosingReportPage({ params }: { params: Promise<{ 
         Status: <StatusBadge status={isFinalized ? "finalized" : "draft"} />
       </p>
       <ShiftStageNav shiftId={shiftId} current="closing" />
+
+      {/* Suspended (2026-09-05): on an open day this reaches Open-Meteo, and
+          nothing about a weather icon justifies delaying the form a manager
+          came here to fill in. */}
+      <Suspense fallback={null}>
+        <ShiftWeatherLine
+          date={data.shift.date}
+          period={data.shift.period as "Lunch" | "Dinner"}
+          isFinalized={isFinalized}
+        />
+      </Suspense>
 
       {isFinalized && (
         <div className="mb-6">

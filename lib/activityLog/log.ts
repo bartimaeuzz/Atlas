@@ -49,7 +49,12 @@ export type ActivityType =
   // ceiling just raises it and it gates nothing.
   | "settings.check_sequence_changed"
   | "settings.instant_ceiling_changed"
-  | "settings.two_person_control_changed";
+  | "settings.two_person_control_changed"
+  // Weather (2026-09-05). The location decides what every recorded sky
+  // means, and a backfill writes rows onto records already locked — both
+  // are the kind of change someone should be able to find later.
+  | "settings.weather_location_changed"
+  | "weather.backfilled";
 
 export interface ActivityEntry {
   actorEmployeeId: number;

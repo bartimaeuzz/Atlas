@@ -10,6 +10,7 @@ import { formatMoney } from "@/app/(protected)/ledger/formatMoney";
 import { formatShare } from "@/lib/analytics/formatShare";
 import { getViewerCapabilities } from "@/lib/permissions/viewerCapabilities";
 import { NoAccess } from "@/components/NoAccess";
+import { DaysVsTarget } from "./DaysVsTarget";
 
 /** Pinned to UTC noon, same fix as Reports/MyEarningsView — avoids the
  * classic "YYYY-MM-DD parses as the previous day" bug in negative-UTC-
@@ -294,6 +295,13 @@ export default async function AnalyticsPage({
           </Button>
         </form>
       </Card>
+
+      {/* The miss and its reason on one line (2026-09-05, item 12). Above
+          the KPI cards deliberately: "which day went wrong and why" is the
+          question a manager opens this page with, and the ratios are what
+          they read afterwards. VIEW_PNL — every column but the sky is
+          revenue in dollars. */}
+      {canSeePnL && <DaysVsTarget from={from} to={to} />}
 
       {/* Benchmarked KPIs -- the "sweet spot" indicators Oliver asked for */}
       <h2 className="text-sm font-semibold text-[var(--ink-900)] mb-3">Health indicators</h2>

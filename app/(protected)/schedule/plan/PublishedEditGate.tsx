@@ -41,6 +41,7 @@ export function PublishedEditGate({
   laborTargetPct,
   laborShowAmounts,
   salesTargets,
+  weatherByDate,
 }: {
   isPublished: boolean;
   data: WeeklyPlanData;
@@ -54,6 +55,7 @@ export function PublishedEditGate({
   laborTargetPct?: number | null;
   laborShowAmounts?: boolean;
   salesTargets?: SalesTargets | null;
+  weatherByDate?: Record<string, { weatherCode: number; tempHighF: number | null; precipInches: number | null }> | null;
 }) {
   const [unlocked, setUnlocked] = useState(!isPublished);
   // Unlocking now takes a ConfirmDialog (2026-08-24, Oliver's call): the
@@ -146,6 +148,7 @@ export function PublishedEditGate({
         laborTargetPct={laborTargetPct}
         laborShowAmounts={laborShowAmounts}
         salesTargets={salesTargets}
+        weatherByDate={weatherByDate}
       />
     </>
   );

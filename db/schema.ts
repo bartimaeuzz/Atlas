@@ -1929,3 +1929,67 @@ export const salesTargetDates = sqliteTable(
     uniqSalesTargetDate: uniqueIndex("uniq_sales_target_date").on(t.restaurantId, t.date),
   })
 );
+
+// ---------------------------------------------------------------------------
+// Weather (2026-09-05, Oliver — build-queue items 8/12). Two tables, and
+// deliberately NO new column on restaurant_settings: Drizzle's bare
+// db.select().from(restaurantSettings) enumerates every column in this file,
+// so a column that exists here and not yet in the database breaks every
+// screen that reads settings. A new TABLE can only ever break the feature
+// that reads it, which keeps the window between "code pushed" and "migration
+// run" survivable. See CLAUDE.md, "Adding a column is not deploy-safe".
+// ---------------------------------------------------------------------------
+
+// Where the restaurant is. One row per restaurant, written from Settings by
+// picking a place off a search list — never by typing coordinates, which is
+// not something a manager on a shared terminal should ever have to do.
+// Nullable in practice by absence: no row means no location set, and every
+// weather surface renders nothing at all rather than guessing a city.
+export const weatherLocations = sqliteTable("weather_locations", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  restaurantId: integer("restaurant_id").notNull().default(1).unique(),
+  /** What the manager picked, shown back to them verbatim: "Brooklyn, New York". */
+  label: text("label").notNull(),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  updatedAt: text("updated_at").notNull(),
+  updatedByEmployeeId: integer("updated_by_employee_id").references(() => employees.id),
+});
+
+// The weather a shift actually had, frozen. Written once when the shift is
+// finalized (source LOCK) or by the Settings backfill for days already closed
+// (source BACKFILL), and never re-fetched — Oliver's stated rule for item 12
+// is that a locked record must not change under itself. The live forecast
+// shown on the home page, the week grid and an open day is NOT stored here;
+// it is fetched per request and is allowed to move.
+//
+// Keyed by date + period, NOT by a foreign key to shifts.id, for two reasons:
+// backfill has to be able to write a day whose shift row may since have been
+// reopened or replaced, and a weather row must never be the thing that blocks
+// deleting a shift — which is exactly the defect 0cbd535 had to fix on the
+// invoice audit log a day ago.
+export const shiftWeatherRecords = sqliteTable(
+  "shift_weather_records",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    restaurantId: integer("restaurant_id").notNull().default(1),
+    date: text("date").notNull(), // ISO yyyy-mm-dd
+    period: text("period", { enum: ["Lunch", "Dinner"] }).notNull(),
+    /** WMO weather interpretation code, the shape both Open-Meteo endpoints
+     * return. Stored raw so the wording and icon can be changed later without
+     * a migration; lib/weather/wmo.ts owns the translation. */
+    weatherCode: integer("weather_code").notNull(),
+    /** Fahrenheit, high and low WITHIN the service window — not the calendar
+     * day's. A 95° afternoon says nothing about a 68° dinner. */
+    tempHighF: real("temp_high_f"),
+    tempLowF: real("temp_low_f"),
+    /** Inches of rain/snow that fell during the window. 0 is a real answer
+     * and means "checked, none"; null means the source did not report it. */
+    precipInches: real("precip_inches"),
+    capturedAt: text("captured_at").notNull(),
+    source: text("source", { enum: ["LOCK", "BACKFILL"] }).notNull(),
+  },
+  (t) => ({
+    uniqShiftWeather: uniqueIndex("uniq_shift_weather").on(t.restaurantId, t.date, t.period),
+  })
+);

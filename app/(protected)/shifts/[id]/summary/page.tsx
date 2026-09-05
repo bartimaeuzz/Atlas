@@ -9,6 +9,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { ReopenShiftButton } from "./ReopenShiftButton";
 import { AttendanceCoverageCard } from "../AttendanceCoverageCard";
 import { ShiftStageNav } from "../ShiftStageNav";
+import { ShiftWeatherLine } from "../ShiftWeatherLine";
 import { Fragment } from "react";
 import { Card, Section } from "@/components/ui/Card";
 import { TableCard } from "@/components/ui/Table";
@@ -174,6 +175,16 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
         dayComplete={day?.complete ?? false}
         target={salesTarget}
         trend={trend}
+      />
+
+      {/* Directly under the target verdict, deliberately (2026-09-05,
+          Oliver): the miss and the reason for it are one thought, and a
+          weather line three sections away is a fact nobody connects. Reads
+          from the frozen row only — no network call on a locked record. */}
+      <ShiftWeatherLine
+        date={data.shift.date}
+        period={data.shift.period as "Lunch" | "Dinner"}
+        isFinalized
       />
 
       <Section title="Tip pools">
