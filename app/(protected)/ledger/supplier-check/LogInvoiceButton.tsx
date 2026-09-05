@@ -27,9 +27,10 @@ import type { VendorCategoryLinkProps } from "@/lib/ledger/vendorCategoryLinks";
  * reasoning already says approving without a photo stays allowed,
  * because a camera must never stop the week.
  *
- * Step 2 is genuinely optional — Done closes with no photo attached, and
- * the list marks that invoice "No photo" until someone adds one from the
- * photo page. */
+ * Step 2 is genuinely optional, and the exit button says so out loud:
+ * "Finish without a photo" until one is attached, "Done" after. Skipping
+ * stays one tap — it just can't happen by accident any more. The list
+ * marks that invoice "No photo" until someone adds one. */
 export function LogInvoiceButton({
   vendors,
   categories,
@@ -44,6 +45,7 @@ export function LogInvoiceButton({
   const [open, setOpen] = useState(false);
   /** null while the form is up; the new invoice's id once it is saved. */
   const [loggedId, setLoggedId] = useState<number | null>(null);
+  const [photoCount, setPhotoCount] = useState(0);
 
   function close() {
     setOpen(false);
@@ -51,6 +53,7 @@ export function LogInvoiceButton({
     // the same tick: Modal returns null while closed, so nothing renders
     // the reset. Both setStates batch into one paint either way.
     setLoggedId(null);
+    setPhotoCount(0);
   }
 
   return (
@@ -87,20 +90,36 @@ export function LogInvoiceButton({
           />
         ) : (
           <div className="space-y-3 mb-4">
-            {/* Stated outright, because the whole reason this step is
-                second is that the bill is already safe. */}
-            <Banner
-              tone="success"
-              title="Invoice saved"
-              description="Now take a photo of the paper bill, or press Done if you have nothing to photograph."
+            {/* INFO, not SUCCESS (2026-09-05, Oliver testing it: "my first
+                gut said it is done"). A green tint and a tick are the
+                universal finished signal, and colour is read before text,
+                so the old banner contradicted the "Step 2 of 2" beside it
+                and won. Neutral indigo and a plain circle report the fact
+                without calling the job over. The sentence carries forward
+                rather than back: it asks for the next thing. */}
+            <Banner tone="info" title="Saved. Please add a photo." />
+            <InvoicePhotosClient
+              invoiceId={loggedId}
+              photos={[]}
+              canEdit
+              lockedReason={null}
+              onCountChange={setPhotoCount}
             />
-            <InvoicePhotosClient invoiceId={loggedId} photos={[]} canEdit lockedReason={null} />
           </div>
         )}
 
         <div className="flex justify-end">
+          {/* The exit button names its own consequence (2026-09-05). "Done"
+              on a photoless invoice reads as "you are finished", which is
+              exactly the misread this step caused. A person cannot skip by
+              accident when the button says what skipping is — and this
+              costs nothing to anyone who does take a photo, unlike a
+              confirm dialog, which would nag the people doing it right and
+              train everyone to tap through the confirmations that matter.
+              Once a photo is attached it IS done, so the word comes back.
+              The list's own orange "No photo" marker is the backstop. */}
           <Button variant="secondary" size="sm" onClick={close}>
-            {loggedId === null ? "Cancel" : "Done"}
+            {loggedId === null ? "Cancel" : photoCount === 0 ? "Finish without a photo" : "Done"}
           </Button>
         </div>
       </Modal>

@@ -68,6 +68,7 @@ export function InvoicePhotosClient({
   photos: initialPhotos,
   canEdit,
   lockedReason,
+  onCountChange,
 }: {
   invoiceId: number;
   /** Seeds the list ONCE, on mount. After that this component owns the
@@ -84,6 +85,14 @@ export function InvoicePhotosClient({
   /** Why editing is off, in plain words — shown instead of the buttons
    *  so the state reads as a fact rather than as a failure. */
   lockedReason: string | null;
+  /** How many photos are attached now (2026-09-05). Called only when the
+   *  number actually changes, from the two handlers — deliberately NOT
+   *  from an effect: callers pass an inline arrow, whose identity changes
+   *  every render, so an effect depending on it would set state in the
+   *  parent, re-render, and run again forever. The "+ Add item" popup
+   *  uses this to decide whether its exit button says "Finish without a
+   *  photo" or "Done". */
+  onCountChange?: (count: number) => void;
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -105,7 +114,11 @@ export function InvoicePhotosClient({
       const result = await uploadInvoicePhoto(fd);
       if (result.error) setError(result.error);
       else if (result.photo) {
-        setPhotos((list) => [...list, result.photo!]);
+        setPhotos((list) => {
+          const next = [...list, result.photo!];
+          onCountChange?.(next.length);
+          return next;
+        });
         router.refresh();
       }
     } catch (e) {
@@ -126,7 +139,11 @@ export function InvoicePhotosClient({
       const result = await removeInvoicePhoto(photoId);
       if (result.error) setError(result.error);
       else {
-        setPhotos((list) => list.filter((p) => p.id !== photoId));
+        setPhotos((list) => {
+          const next = list.filter((p) => p.id !== photoId);
+          onCountChange?.(next.length);
+          return next;
+        });
         setViewing(null);
         router.refresh();
       }
