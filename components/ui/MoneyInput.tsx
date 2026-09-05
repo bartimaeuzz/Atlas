@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { groupThousands, ungroupThousands } from "@/lib/format/groupThousands";
+import { groupThousands, ungroupThousands, ungroupedOffset } from "@/lib/format/groupThousands";
 
 /** A dollar field that obeys both of the rules that apply to it: it SHOWS
  * a thousands separator, and it POSTS BACK exactly the number that was
@@ -50,7 +50,22 @@ export function MoneyInput({
       // lib/format/groupThousands.ts.
       defaultValue={defaultValue == null ? "" : groupThousands(String(defaultValue))}
       onFocus={(e) => {
-        e.currentTarget.value = ungroupThousands(e.currentTarget.value);
+        // The selection has to survive the swap. Assigning `value` collapses
+        // it, which silently turned a browser's tab-into-field select-all
+        // into a caret at the end — so typing APPENDED to the target instead
+        // of replacing it. Live since this component shipped (94d3d09),
+        // found in the 2026-09-05 audit. See lib/format/groupThousands.ts.
+        const el = e.currentTarget;
+        const grouped = el.value;
+        const plain = ungroupThousands(grouped);
+        if (plain !== grouped) {
+          const start = el.selectionStart;
+          const end = el.selectionEnd;
+          el.value = plain;
+          if (start != null && end != null) {
+            el.setSelectionRange(ungroupedOffset(grouped, start), ungroupedOffset(grouped, end));
+          }
+        }
         rest.onFocus?.(e);
       }}
       onBlur={(e) => {

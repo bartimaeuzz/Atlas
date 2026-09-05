@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { groupThousands, ungroupThousands } from "../groupThousands";
+import { groupThousands, ungroupThousands, ungroupedOffset } from "../groupThousands";
 
 test("commas go in where the money rule says they go", () => {
   assert.equal(groupThousands("15000"), "15,000");
@@ -42,4 +42,18 @@ test("ungrouping removes separators and nothing else", () => {
   assert.equal(ungroupThousands("3,800.50"), "3800.50");
   assert.equal(ungroupThousands("15,000"), "15000");
   assert.equal(ungroupThousands("no commas here"), "no commas here");
+});
+
+test("a selection offset survives the commas coming out", () => {
+  // Tab into "18,500.75" and the browser has selected 0-9; after the commas
+  // go the same selection must be 0-8, not a caret parked at the end.
+  assert.equal(ungroupedOffset("18,500.75", 0), 0);
+  assert.equal(ungroupedOffset("18,500.75", 9), 8);
+  assert.equal(ungroupedOffset("1,000,000", 9), 7);
+  // A caret placed just after a comma lands on the digit that followed it.
+  assert.equal(ungroupedOffset("18,500.75", 3), 2);
+  // No commas, nothing moves.
+  assert.equal(ungroupedOffset("500", 3), 3);
+  // An index past the end counts only the commas that actually exist.
+  assert.equal(ungroupedOffset("1,000", 99), 98);
 });

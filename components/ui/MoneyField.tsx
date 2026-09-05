@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef, useState, type ComponentPropsWithRef } from "react";
+import { useLayoutEffect, useRef, useState, type ComponentPropsWithRef } from "react";
 import { TextInput } from "./Field";
-import { groupThousands, ungroupThousands } from "@/lib/format/groupThousands";
+import { groupThousands, ungroupThousands, ungroupedOffset } from "@/lib/format/groupThousands";
 
 /** A labelled dollar box that reads like every other dollar figure in the
  * app: `18,500`, not `18500` (2026-09-05, the money-comma rollout).
@@ -22,6 +22,15 @@ import { groupThousands, ungroupThousands } from "@/lib/format/groupThousands";
  *                   reads the screen in, which is the whole request.
  *   focused      →  shows the plain digits. Typing, arrow keys, select-all
  *                   and backspace all behave like a plain number field.
+ *
+ * Taking the commas out is a `value` write, though, and that COLLAPSES the
+ * selection — including the select-all a browser does when you TAB into a
+ * text field. Left alone it meant tabbing into "18,500.75" and typing 9 gave
+ * "18500.759" rather than "9", appending to a statement total the manager
+ * believed they had replaced, with nothing on screen to show it (found in the
+ * 2026-09-05 live audit; a plain text field beside it selected 0-5 where this
+ * one reported 8-8). Both variants below therefore carry the selection across
+ * the swap with `ungroupedOffset`.
  *
  * ## Why the parent's state never contains a comma
  *
@@ -87,15 +96,35 @@ export function MoneyField(props: ControlledProps | UncontrolledProps) {
 
 function ControlledMoneyField({ value, onValueChange, onFocus, onBlur, className = "", ...rest }: ControlledProps) {
   const [focused, setFocused] = useState(false);
+  const ref = useRef<HTMLInputElement>(null);
+  // Where the selection has to land once React has re-rendered the ungrouped
+  // value. Read during the focus event, applied after the paint that removes
+  // the commas — doing it in the handler would be undone by that render.
+  const pendingSelection = useRef<[number, number] | null>(null);
   const raw = value == null ? "" : String(value);
+
+  useLayoutEffect(() => {
+    const range = pendingSelection.current;
+    pendingSelection.current = null;
+    if (!focused || !range || !ref.current) return;
+    ref.current.setSelectionRange(range[0], range[1]);
+  }, [focused]);
 
   return (
     <TextInput
+      ref={ref}
       type="text"
       inputMode="decimal"
       value={focused ? raw : groupThousands(raw)}
       onChange={(e) => onValueChange(ungroupThousands(e.target.value))}
       onFocus={(e) => {
+        const grouped = e.currentTarget.value;
+        const start = e.currentTarget.selectionStart;
+        const end = e.currentTarget.selectionEnd;
+        pendingSelection.current =
+          start == null || end == null
+            ? null
+            : [ungroupedOffset(grouped, start), ungroupedOffset(grouped, end)];
         setFocused(true);
         onFocus?.(e);
       }}
@@ -126,7 +155,17 @@ function UncontrolledMoneyField({ defaultValue, onFocus, onBlur, className = "",
       // on the next unrelated save. See lib/format/groupThousands.ts.
       defaultValue={defaultValue == null ? "" : groupThousands(String(defaultValue))}
       onFocus={(e) => {
-        e.currentTarget.value = ungroupThousands(e.currentTarget.value);
+        const el = e.currentTarget;
+        const grouped = el.value;
+        const plain = ungroupThousands(grouped);
+        if (plain !== grouped) {
+          const start = el.selectionStart;
+          const end = el.selectionEnd;
+          el.value = plain;
+          if (start != null && end != null) {
+            el.setSelectionRange(ungroupedOffset(grouped, start), ungroupedOffset(grouped, end));
+          }
+        }
         onFocus?.(e);
       }}
       onBlur={(e) => {

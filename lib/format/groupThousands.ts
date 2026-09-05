@@ -48,3 +48,20 @@ export function groupThousands(raw: string): string {
 export function ungroupThousands(raw: string): string {
   return raw.replace(/,/g, "");
 }
+
+/** Where an offset in the GROUPED string lands in the ungrouped one.
+ *
+ * Needed because taking the commas out on focus is a `value` assignment, and
+ * assigning to `input.value` collapses the selection to the end — including
+ * the select-all a browser performs when you TAB into a text field. Without
+ * this, tabbing into a box holding "18,500.75" and typing 9 gives
+ * "18500.759" instead of "9": the digits append to a number the manager
+ * believed they were replacing, on a statement total, silently
+ * (2026-09-05 visual audit). Map the offsets across, then put them back.
+ */
+export function ungroupedOffset(grouped: string, index: number): number {
+  let commas = 0;
+  const upTo = Math.min(index, grouped.length);
+  for (let i = 0; i < upTo; i++) if (grouped[i] === ",") commas += 1;
+  return index - commas;
+}
