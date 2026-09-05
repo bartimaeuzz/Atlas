@@ -65,6 +65,10 @@ app; unless told otherwise, all work is Track 2.
    code signature (`grep -rn "startTransition"`), not from folder naming, and state
    the sweep's *scope* out loud. Extended: any list claiming completeness must be
    built from the filesystem (`ls app/\(protected\)/`), never from recalled names.
+   Extended 2026-09-05: an *attribute*-shaped sweep is blind the same way —
+   `grep 'inputMode="decimal"'` was recorded as every money box and missed the one
+   Amount field that lacks the attribute. Sweep for what the thing IS, not for one
+   attribute it happens to carry.
 
 10. **Token rules (2026-09-04).** No app walkthroughs by screenshot — Oliver clicks
    himself; answer "walk me through" with a short written list. One feature, one
