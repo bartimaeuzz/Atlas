@@ -215,6 +215,112 @@ export async function editSupplierInvoice(input: {
   return { error: null };
 }
 
+/** Fix ANYTHING on the invoice you just logged, from step 2 of the
+ * "+ Add item" popup (2026-09-05, Oliver's call). Three ways this is
+ * deliberately not editSupplierInvoice above:
+ *
+ *  - ALL SIX FIELDS, including date, vendor and category. Step 2 is the
+ *    moment a person looks back at what they typed with the paper still
+ *    in their hand; "typo or wrong amount" is the right scope for a bill
+ *    logged last Tuesday, not for one logged eight seconds ago where the
+ *    likeliest mistake is the wrong supplier picked from a dropdown.
+ *  - NO TYPED REASON. The reason field exists so a later reader knows why
+ *    a recorded number moved. Nothing has been recorded to anyone yet —
+ *    nobody has approved it, nothing has been exported — so the honest
+ *    entry is that it was corrected while being logged, and the log says
+ *    exactly that rather than making someone invent a sentence.
+ *  - ONLY YOUR OWN INVOICE, and only a draft. That guard is what makes
+ *    dropping the reason safe: this path can never touch a bill somebody
+ *    else logged. Correcting one of those still goes through Edit on the
+ *    list, reason and all.
+ *
+ * Deleting is NOT here. Step 2 exists to attach a photo to this invoice;
+ * a delete would leave the popup holding nothing. It stays on the list. */
+export async function correctLoggedInvoice(input: {
+  invoiceId: number;
+  receivedDate: string;
+  vendorId: number;
+  categoryId: number;
+  invoiceNumber: string;
+  description: string;
+  amount: number;
+}): Promise<{ error: string | null }> {
+  try {
+    const session = await requireCapability("SUPPLIER_CHECK_LOG");
+
+    const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, input.invoiceId));
+    if (!invoice) return { error: "Invoice not found." };
+    if (invoice.status !== "draft") {
+      return {
+        error:
+          invoice.status === "ready"
+            ? "This invoice has been approved and is locked. The approver can bounce it back to draft to allow edits."
+            : "This invoice is already on a check. Nothing on a check is edited — if it's wrong, the check has to be voided and reissued.",
+      };
+    }
+    if (invoice.createdByEmployeeId !== session.id) {
+      return { error: "Someone else logged this invoice. Change it from Edit on the invoice list instead." };
+    }
+
+    const receivedDate = input.receivedDate.trim();
+    if (!receivedDate) return { error: "Date received is required." };
+    if (!input.vendorId) return { error: "Vendor is required." };
+    if (!input.categoryId) return { error: "Category is required." };
+    const invoiceNumber = input.invoiceNumber.trim();
+    if (!invoiceNumber) return { error: "Invoice number is required." };
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      return { error: "Amount must be a positive number." };
+    }
+    const description = input.description.trim() || null;
+
+    // One batch, not two awaits: the row and the line explaining it have
+    // to land together or neither lands.
+    await db.batch([
+      db
+        .update(supplierInvoices)
+        .set({
+          receivedDate,
+          vendorId: input.vendorId,
+          categoryId: input.categoryId,
+          invoiceNumber,
+          description,
+          amount: input.amount,
+        })
+        .where(eq(supplierInvoices.id, input.invoiceId)),
+      db.insert(supplierCheckAuditLog).values({
+        invoiceId: invoice.id,
+        paymentId: null,
+        // The vendor it was filed under when the edit happened, matching
+        // every other row on this invoice. Any change is in `details`.
+        vendorId: invoice.vendorId,
+        action: "EDITED_INVOICE",
+        performedByEmployeeId: session.id,
+        performedByName: session.name,
+        reason: "Corrected while logging, before the photo step.",
+        details: JSON.stringify({
+          receivedDateBefore: invoice.receivedDate,
+          receivedDateAfter: receivedDate,
+          vendorIdBefore: invoice.vendorId,
+          vendorIdAfter: input.vendorId,
+          categoryIdBefore: invoice.categoryId,
+          categoryIdAfter: input.categoryId,
+          invoiceNumberBefore: invoice.invoiceNumber,
+          invoiceNumberAfter: invoiceNumber,
+          descriptionBefore: invoice.description,
+          descriptionAfter: description,
+          amountBefore: invoice.amount,
+          amountAfter: input.amount,
+        }),
+      }),
+    ]);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+
+  revalidatePath("/ledger/supplier-check");
+  return { error: null };
+}
+
 /** Draft → Ready: the approver checked this invoice against the actual
  * bill. THE two-person control lives on this line: the approver can
  * never be the person who logged it — otherwise one account both writes

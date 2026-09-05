@@ -26,9 +26,16 @@ import type { VendorCategoryLinkProps } from "@/lib/ledger/vendorCategoryLinks";
  * also carries the "we filled this in, change it if it's wrong" hint;
  * the moment the field is touched the flag is gone and so is the hint.
  */
-export function useVendorCategoryPair(links: VendorCategoryLinkProps) {
-  const [vendorId, setVendorIdState] = useState("");
-  const [categoryId, setCategoryIdState] = useState("");
+export function useVendorCategoryPair(
+  links: VendorCategoryLinkProps,
+  /** Where the two fields start. Empty on a fresh form; the invoice's own
+   *  values when an already-saved bill is being corrected (2026-09-05,
+   *  step 2 of the "+ Add item" popup). Read once, on mount — after that
+   *  the hook owns both fields, exactly as before. */
+  initial?: { vendorId: string; categoryId: string }
+) {
+  const [vendorId, setVendorIdState] = useState(initial?.vendorId ?? "");
+  const [categoryId, setCategoryIdState] = useState(initial?.categoryId ?? "");
   const [categoryAutofilled, setCategoryAutofilled] = useState(false);
   const [suggestedCategoryIds, setSuggestedCategoryIds] = useState<number[]>([]);
 

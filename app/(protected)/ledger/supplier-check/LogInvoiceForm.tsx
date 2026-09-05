@@ -4,16 +4,25 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { logSupplierInvoice, type SupplierInvoiceActionState } from "@/lib/actions/supplierCheck";
-import { Select, TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
-import { VendorPicker, type PickerVendor } from "@/app/(protected)/ledger/VendorPicker";
-import { AUTOFILLED_CATEGORY_HINT, useVendorCategoryPair } from "@/app/(protected)/ledger/useVendorCategoryPair";
-import { CategorySuggestions } from "@/app/(protected)/ledger/CategorySuggestions";
+import { type PickerVendor } from "@/app/(protected)/ledger/VendorPicker";
+import { useVendorCategoryPair } from "@/app/(protected)/ledger/useVendorCategoryPair";
 import type { VendorCategoryLinkProps } from "@/lib/ledger/vendorCategoryLinks";
 import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
+import { InvoiceFields, type InvoiceFieldValues } from "./InvoiceFields";
 
 const initialState: SupplierInvoiceActionState = { error: null };
+
+/** Everything the manager typed, handed back to the caller alongside the
+ *  new id (2026-09-05). Step 2 offers "Edit details", and it prefills from
+ *  this rather than re-fetching the row it just wrote — the values are
+ *  already here, and a round-trip would put a spinner in the middle of a
+ *  20-second task. Strings, because that is what the fields take back. */
+export interface LoggedInvoiceValues extends InvoiceFieldValues {
+  vendorId: string;
+  categoryId: string;
+}
 
 /** Logging an invoice is its own form, separate from Petty Cash's
  * AddEntryForm -- Oliver's own words: "the input form on petty cash
@@ -34,88 +43,51 @@ export function LogInvoiceForm({
    *  invoice list never moves. With no handler — the /new page — this
    *  navigates to the photo screen, which is what the action used to do
    *  with a redirect of its own. */
-  onLogged?: (invoiceId: number) => void;
+  onLogged?: (invoiceId: number, values: LoggedInvoiceValues) => void;
 }) {
   const router = useRouter();
   const [state, formAction, isPending] = useActionState(logSupplierInvoice, initialState);
 
-  // useActionState keeps the last result, so this would fire again on any
-  // later re-render. The ref makes it once per invoice, not once per paint.
-  const handled = useRef<number | null>(null);
-  useEffect(() => {
-    const id = state.invoiceId;
-    if (!id || handled.current === id) return;
-    handled.current = id;
-    if (onLogged) onLogged(id);
-    else router.push(`/ledger/supplier-check/${id}/photos`);
-  }, [state.invoiceId, onLogged, router]);
   const formRef = useKeepValuesOnError(isPending, !!state.error);
   // Controlled (2026-08-31): React 19 resets uncontrolled fields after a
   // form action — a server refusal wiped the whole invoice the manager
   // had typed. Same fix as InstantCheckButton; see
   // feedback-form-actions-reset-uncontrolled-fields.
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<InvoiceFieldValues>({
     receivedDate: businessTodayIso(),
     invoiceNumber: "",
     description: "",
     amount: "",
   });
-  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
   // Vendor and category are controlled together, not separately -- see
   // useVendorCategoryPair.
   const pair = useVendorCategoryPair(links);
 
+  // useActionState keeps the last result, so this would fire again on any
+  // later re-render. The ref makes it once per invoice, not once per paint.
+  // It also makes the form values safe to list as dependencies: the effect
+  // re-runs on every keystroke and does nothing until an id it has not
+  // seen arrives, which is the render where those values are what the
+  // manager just submitted.
+  const handled = useRef<number | null>(null);
+  useEffect(() => {
+    const id = state.invoiceId;
+    if (!id || handled.current === id) return;
+    handled.current = id;
+    if (onLogged) onLogged(id, { ...form, vendorId: pair.vendorId, categoryId: pair.categoryId });
+    else router.push(`/ledger/supplier-check/${id}/photos`);
+  }, [state.invoiceId, onLogged, router, form, pair.vendorId, pair.categoryId]);
+
   return (
     <form ref={formRef} action={formAction} className="border border-[var(--border)] rounded-[var(--radius-lg)] p-3 bg-[var(--paper)] space-y-2 mb-4">
       {state.error && <Banner tone="danger" title="Couldn't log invoice" description={state.error} />}
-      <TextInput type="date" name="receivedDate" label="Date received" required value={form.receivedDate} onChange={set("receivedDate")} />
-      <div className="grid grid-cols-2 gap-2 items-start">
-        <VendorPicker
-          name="vendorId"
-          label="Vendor"
-          required
-          vendors={vendors}
-          value={pair.vendorId}
-          onChange={pair.setVendorId}
-          categoryId={pair.categoryId}
-          links={links}
-        />
-        <div>
-          <Select
-            name="categoryId"
-            label="Category"
-            required
-            value={pair.categoryId}
-            onChange={(e) => pair.setCategoryId(e.target.value)}
-            hint={pair.categoryAutofilled ? AUTOFILLED_CATEGORY_HINT : undefined}
-          >
-            <option value="">Choose…</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </Select>
-          <CategorySuggestions
-            categoryIds={pair.suggestedCategoryIds}
-            categories={categories}
-            onPick={pair.setCategoryId}
-          />
-        </div>
-      </div>
-      <TextInput type="text" name="invoiceNumber" label="Invoice number" required placeholder="e.g. 142675" value={form.invoiceNumber} onChange={set("invoiceNumber")} />
-      <TextInput type="text" name="description" label="Nature / package (optional)" placeholder="e.g. weekly produce order" value={form.description} onChange={set("description")} />
-      <TextInput
-        type="number"
-        name="amount"
-        label="Amount"
-        step="0.01"
-        min="0.01"
-        required
-        placeholder="0.00"
-        inputMode="decimal"
-        value={form.amount}
-        onChange={set("amount")}
+      <InvoiceFields
+        values={form}
+        onChange={setForm}
+        pair={pair}
+        vendors={vendors}
+        categories={categories}
+        links={links}
       />
       <Button type="submit" loading={isPending} className="w-full">
         {isPending ? "Logging…" : "+ Log invoice"}
