@@ -630,7 +630,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     const toastMode = resolveMode(String(formData.get("toastEntryMode") ?? ""), settings?.toastCloseoutMode);
     if (toastMode === null) {
       throw new Error(
-        `${prior.period} was already closed today, so Atlas needs to know what the Toast numbers cover — ` +
+        `${prior.period} was already closed today, so Mohom needs to know what the Toast numbers cover — ` +
           `choose "This shift only" or "Whole day" at the top of the Sales card. Nothing was saved.`
       );
     }
@@ -655,7 +655,7 @@ async function upsertClosingReportSales(shiftId: number, formData: FormData, dec
     const platformMode = resolveMode(String(formData.get("platformEntryMode") ?? ""), settings?.platformCloseoutMode);
     if (platformMode === null) {
       throw new Error(
-        `${prior.period} already recorded online-platform sales today, so Atlas needs to know what the ` +
+        `${prior.period} already recorded online-platform sales today, so Mohom needs to know what the ` +
           `platform numbers cover — choose "This shift only" or "Whole day" in the Online platform sales card. ` +
           `Nothing was saved.`
       );

@@ -49,7 +49,7 @@ export async function buildSupplierCheckWorkbook(
   variant: SupplierCheckWorkbookVariant
 ): Promise<ExcelJS.Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Atlas";
+  wb.creator = "Mohom";
   wb.created = new Date();
 
   const sheet = wb.addWorksheet("Supplier Check");

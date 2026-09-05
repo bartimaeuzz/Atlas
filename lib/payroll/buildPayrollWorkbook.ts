@@ -42,7 +42,7 @@ function usDate(iso: string): string {
 
 export async function buildPayrollWorkbook(register: PayrollRegister): Promise<ExcelJS.Buffer> {
   const wb = new ExcelJS.Workbook();
-  wb.creator = "Atlas";
+  wb.creator = "Mohom";
   wb.created = new Date();
 
   const memo = `${usDate(register.weekStartDate)} - ${usDate(register.weekEndDate)}`;

@@ -58,7 +58,7 @@ export async function uploadInvoicePhoto(formData: FormData): Promise<PhotoActio
     const file = formData.get("photo");
     if (!(file instanceof File) || file.size === 0) throw new Error("No photo was chosen.");
     if (!ALLOWED_PHOTO_TYPES.includes(file.type)) {
-      throw new Error("That file isn't a photo Atlas can read. Use the camera, or pick a JPG or PNG.");
+      throw new Error("That file isn't a photo Mohom can read. Use the camera, or pick a JPG or PNG.");
     }
     if (file.size > MAX_PHOTO_BYTES) {
       throw new Error("That photo is too big. Take it again with the camera button.");
