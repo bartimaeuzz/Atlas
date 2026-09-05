@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { logSupplierInvoice, type SupplierInvoiceActionState } from "@/lib/actions/supplierCheck";
 import { Select, TextInput } from "@/components/ui/Field";
@@ -23,12 +24,31 @@ export function LogInvoiceForm({
   vendors,
   categories,
   links,
+  onLogged,
 }: {
   vendors: PickerVendor[];
   categories: { id: number; name: string }[];
   links: VendorCategoryLinkProps;
+  /** What happens once the invoice exists (2026-09-05). The "+ Add item"
+   *  popup passes a handler and swaps itself to the photo step, so the
+   *  invoice list never moves. With no handler — the /new page — this
+   *  navigates to the photo screen, which is what the action used to do
+   *  with a redirect of its own. */
+  onLogged?: (invoiceId: number) => void;
 }) {
+  const router = useRouter();
   const [state, formAction, isPending] = useActionState(logSupplierInvoice, initialState);
+
+  // useActionState keeps the last result, so this would fire again on any
+  // later re-render. The ref makes it once per invoice, not once per paint.
+  const handled = useRef<number | null>(null);
+  useEffect(() => {
+    const id = state.invoiceId;
+    if (!id || handled.current === id) return;
+    handled.current = id;
+    if (onLogged) onLogged(id);
+    else router.push(`/ledger/supplier-check/${id}/photos`);
+  }, [state.invoiceId, onLogged, router]);
   const formRef = useKeepValuesOnError(isPending, !!state.error);
   // Controlled (2026-08-31): React 19 resets uncontrolled fields after a
   // form action — a server refusal wiped the whole invoice the manager

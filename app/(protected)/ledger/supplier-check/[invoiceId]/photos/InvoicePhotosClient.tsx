@@ -7,6 +7,7 @@ import { MAX_PHOTOS_PER_INVOICE } from "@/lib/ledger/invoicePhotoLimits";
 import type { InvoicePhotoView } from "@/lib/ledger/invoicePhotoLimits";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { BusyBar } from "@/components/ui/BusyBar";
 import { Modal } from "@/components/ui/Modal";
 import { XIcon } from "@/components/ui/icons";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
@@ -64,11 +65,18 @@ async function toUploadableJpeg(file: File): Promise<File> {
 
 export function InvoicePhotosClient({
   invoiceId,
-  photos,
+  photos: initialPhotos,
   canEdit,
   lockedReason,
 }: {
   invoiceId: number;
+  /** Seeds the list ONCE, on mount. After that this component owns the
+   *  list: the upload action hands back the row it created and the
+   *  thumbnail appears from that, rather than from a server round-trip.
+   *  It has to work this way because the same component also runs inside
+   *  the "+ Add item" popup, where nothing server-rendered is holding a
+   *  photo list to refresh into. `router.refresh()` still fires, for the
+   *  invoice list's own "2 photos" / "No photo" marker. */
   photos: InvoicePhotoView[];
   /** Draft + holds SUPPLIER_CHECK_LOG. Mirrors the server's own rule;
    *  the server is what enforces it. */
@@ -79,7 +87,8 @@ export function InvoicePhotosClient({
 }) {
   const router = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
+  const [photos, setPhotos] = useState<InvoicePhotoView[]>(initialPhotos);
+  const [busy, setBusy] = useState<null | "upload" | "remove">(null);
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
 
@@ -87,7 +96,7 @@ export function InvoicePhotosClient({
 
   async function handleFile(file: File) {
     setError(null);
-    setBusy(true);
+    setBusy("upload");
     try {
       const jpeg = await toUploadableJpeg(file);
       const fd = new FormData();
@@ -95,32 +104,36 @@ export function InvoicePhotosClient({
       fd.set("photo", jpeg);
       const result = await uploadInvoicePhoto(fd);
       if (result.error) setError(result.error);
-      else router.refresh();
+      else if (result.photo) {
+        setPhotos((list) => [...list, result.photo!]);
+        router.refresh();
+      }
     } catch (e) {
       // Every path out of here clears `busy` — an async handler that
       // throws without one of these leaves the user watching a spinner
       // that never stops, and no automated check would catch it.
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
       if (fileRef.current) fileRef.current.value = ""; // let the same file be re-picked
     }
   }
 
   async function handleRemove(photoId: number) {
     setError(null);
-    setBusy(true);
+    setBusy("remove");
     try {
       const result = await removeInvoicePhoto(photoId);
       if (result.error) setError(result.error);
       else {
+        setPhotos((list) => list.filter((p) => p.id !== photoId));
         setViewing(null);
         router.refresh();
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -155,6 +168,8 @@ export function InvoicePhotosClient({
         </ul>
       )}
 
+      {busy === "upload" && <BusyBar label="Saving the photo…" />}
+
       {canEdit && (
         <>
           <input
@@ -174,11 +189,16 @@ export function InvoicePhotosClient({
           <Button
             type="button"
             className="w-full"
-            loading={busy}
-            disabled={full}
+            loading={busy === "upload"}
+            disabled={full || busy !== null}
             onClick={() => fileRef.current?.click()}
           >
-            {busy ? "Saving…" : photos.length === 0 ? "+ Add a photo" : "+ Add another page"}
+            {/* "another photo", not "another page" (2026-09-05, Oliver).
+                "Page" reads as a page of the app. "Attach file" was the
+                other candidate and was dropped: this input takes images
+                only and refuses a PDF, which is exactly what the word
+                "file" invites someone to try. */}
+            {photos.length === 0 ? "+ Add a photo" : "+ Add another photo"}
           </Button>
           {full && (
             <p className="text-xs text-[var(--ink-500)] text-center">
@@ -210,12 +230,18 @@ export function InvoicePhotosClient({
               alt="The paper invoice, full size"
               className="w-full rounded-[var(--radius-md)] border border-[var(--border)]"
             />
+            {busy === "remove" && (
+              <div className="mt-3">
+                <BusyBar label="Removing the photo…" />
+              </div>
+            )}
             {canEdit && (
               <Button
                 type="button"
                 variant="destructive-outline"
                 className="w-full mt-3"
-                loading={busy}
+                loading={busy === "remove"}
+                disabled={busy !== null}
                 onClick={() => void handleRemove(viewing)}
               >
                 Remove this photo

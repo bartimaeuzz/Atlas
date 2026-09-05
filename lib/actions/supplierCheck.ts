@@ -3,7 +3,6 @@
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
 import { businessTodayIso } from "@/lib/formatDateTime";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { supplierInvoices, supplierInvoicePhotos, supplierCheckPayments, employees, supplierCheckAuditLog, restaurantSettings, employeeCapabilities } from "@/db/schema";
@@ -13,6 +12,12 @@ import { requireCapability } from "@/lib/permissions/requireCapability";
 
 export interface SupplierInvoiceActionState {
   error: string | null;
+  /** The row just created, on success only (2026-09-05). The action used
+   *  to redirect to the photo page; it returns the id instead so the
+   *  caller decides what happens next -- the "+ Add item" popup swaps to
+   *  its photo step without the page moving, and the /new page navigates
+   *  as before. A redirect here would have made the popup impossible. */
+  invoiceId?: number;
 }
 
 /** Supplier Check lifecycle, rebuilt 2026-08-31 from the spec Oliver and
@@ -85,12 +90,11 @@ export async function logSupplierInvoice(
   }
 
   revalidatePath("/ledger/supplier-check");
-  // Straight to the camera, not back to the list (2026-09-05). Whoever
-  // logged this is holding the paper invoice right now; making them find
-  // the row again later is how an invoice ends up with no picture. The
-  // photo page carries a Done link back to the list for anyone who has
-  // nothing to photograph.
-  redirect(`/ledger/supplier-check/${newInvoiceId}/photos`);
+  // The id goes back to the caller rather than a redirect (2026-09-05).
+  // Whoever logged this is holding the paper invoice right now, so the
+  // camera has to be the next thing they see -- but inside the popup they
+  // are already in, not on a page that replaces the list underneath them.
+  return { error: null, invoiceId: newInvoiceId };
 }
 
 /** Delete is DRAFT-only, for everyone (approved decision #5): a draft is

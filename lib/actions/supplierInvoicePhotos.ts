@@ -45,10 +45,17 @@ import {
 
 export interface PhotoActionResult {
   error: string | null;
+  /** The row just created, on a successful upload only (2026-09-05).
+   *  The caller appends it to its own list so a thumbnail appears at
+   *  once. Needed because the photo step also runs inside the "+ Add
+   *  item" popup, where there is no server-rendered photo list to
+   *  refresh into. */
+  photo?: { id: number; uploadedAt: string };
 }
 
 export async function uploadInvoicePhoto(formData: FormData): Promise<PhotoActionResult> {
   let invoiceId = 0;
+  let created: { id: number; uploadedAt: string } | undefined;
   try {
     const session = await requireCapability("SUPPLIER_CHECK_LOG");
 
@@ -91,12 +98,15 @@ export async function uploadInvoicePhoto(formData: FormData): Promise<PhotoActio
       contentType: file.type,
     });
 
-    await db.insert(supplierInvoicePhotos).values({
-      invoiceId,
-      url: stored.url,
-      pathname: stored.pathname,
-      uploadedByEmployeeId: session.id,
-    });
+    [created] = await db
+      .insert(supplierInvoicePhotos)
+      .values({
+        invoiceId,
+        url: stored.url,
+        pathname: stored.pathname,
+        uploadedByEmployeeId: session.id,
+      })
+      .returning({ id: supplierInvoicePhotos.id, uploadedAt: supplierInvoicePhotos.uploadedAt });
   } catch (e) {
     // Returned, never thrown: a thrown server-action error is redacted to
     // a generic digest in production, leaving the manager nothing to act on.
@@ -105,7 +115,7 @@ export async function uploadInvoicePhoto(formData: FormData): Promise<PhotoActio
 
   revalidatePath("/ledger/supplier-check");
   revalidatePath(`/ledger/supplier-check/${invoiceId}/photos`);
-  return { error: null };
+  return { error: null, photo: created };
 }
 
 export async function removeInvoicePhoto(photoId: number): Promise<PhotoActionResult> {
