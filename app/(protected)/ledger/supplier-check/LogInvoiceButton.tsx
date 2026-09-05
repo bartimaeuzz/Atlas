@@ -155,8 +155,18 @@ export function LogInvoiceButton({
                   so the old banner contradicted the "Step 2 of 2" beside it
                   and won. Neutral indigo and a plain circle report the fact
                   without calling the job over. The sentence carries forward
-                  rather than back: it asks for the next thing. */}
-              <Banner tone="info" title="Saved. Please add a photo." />
+                  rather than back: it asks for the next thing.
+
+                  AND IT STOPS ASKING ONCE A PHOTO IS THERE (2026-09-05).
+                  It used to say "Please add a photo" over a thumbnail of
+                  the photo, beside a button already reading "Done" — the
+                  screen contradicting itself, with the contradiction sat
+                  at the top where it is read first. It still carries
+                  forward; there is simply a different next thing now. */}
+              <Banner
+                tone="info"
+                title={photoCount === 0 ? "Saved. Please add a photo." : "Saved. You can close this now."}
+              />
 
               <InvoiceSummary
                 values={logged.values}
