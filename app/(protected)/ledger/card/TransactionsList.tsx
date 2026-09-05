@@ -5,7 +5,7 @@ import { deleteCardTransaction } from "@/lib/actions/card";
 import type { CardTransactionView } from "@/lib/ledger/loadCard";
 import { EmptyState } from "@/components/ui/Card";
 import { XIcon } from "@/components/ui/icons";
-import { TAP_TARGET_PAD, TAP_TARGET_PAD_44 } from "@/components/ui/touchTarget";
+import { TAP_TARGET_PAD_44, ICON_TAP_TARGET_TALL } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EditTransactionDialog } from "./EditTransactionDialog";
@@ -103,7 +103,7 @@ function TransactionRow({
             type="button"
             disabled={isPending}
             onClick={() => setConfirmOpen(true)}
-            className={`text-[var(--ink-500)] hover:text-[var(--danger)] disabled:opacity-50 ${TAP_TARGET_PAD}`}
+            className={`text-[var(--ink-500)] hover:text-[var(--danger)] disabled:opacity-50 ${ICON_TAP_TARGET_TALL}`}
             aria-label={`Remove ${transaction.categoryName} transaction`}
           >
             <XIcon width={16} height={16} />

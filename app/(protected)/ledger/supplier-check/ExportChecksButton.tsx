@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { XIcon } from "@/components/ui/icons";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { TAP_TARGET_PAD, ICON_TAP_TARGET_44 } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
 
 /** Export Ready invoices as checks (2026-08-31 lifecycle rebuild —
@@ -96,7 +96,9 @@ export function ExportChecksButton({ groups, sequenceReady }: { groups: VendorPe
             type="button"
             onClick={() => setOpen(false)}
             aria-label="Close"
-            className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
+            /* -mr-2.5 spends the dialog's own 20px padding, so the box
+               reaches 44px without the glyph sliding away from the edge. */
+            className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] -mr-2.5 ${ICON_TAP_TARGET_44}`}
           >
             <XIcon width={18} height={18} />
           </button>

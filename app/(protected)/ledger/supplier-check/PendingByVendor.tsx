@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { InvoicePhotosButton } from "./InvoicePhotosButton";
 import { XIcon, AlertTriangleIcon } from "@/components/ui/icons";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { TAP_TARGET_PAD, ICON_TAP_TARGET_TALL } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
 
 /** One vendor's open (Draft + Ready) invoices — the review surface of
@@ -139,7 +139,7 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
                 type="button"
                 disabled={isBusy}
                 onClick={() => run(() => deleteDraftInvoice(inv.id))}
-                className={`text-[var(--ink-500)] hover:text-[var(--danger)] disabled:opacity-50 ${TAP_TARGET_PAD}`}
+                className={`text-[var(--ink-500)] hover:text-[var(--danger)] disabled:opacity-50 ${ICON_TAP_TARGET_TALL}`}
                 aria-label={`Remove invoice ${inv.invoiceNumber}`}
               >
                 <XIcon width={16} height={16} />

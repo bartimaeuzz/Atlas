@@ -29,3 +29,36 @@ export const TAP_TARGET_PAD = "-my-2 py-2 px-1";
  * interactive element above or below (overlapping 14px margin bleeds
  * would otherwise invite mistaps). */
 export const TAP_TARGET_PAD_44 = "-my-3.5 py-3.5 px-2";
+
+/** ICON-ONLY controls, which the two helpers above cannot serve.
+ *
+ * Those work by padding a text box, so the result depends on how wide the
+ * text is — and an icon has no text. Measured live 2026-09-05: every
+ * icon-only button in the app carrying TAP_TARGET_PAD came out between
+ * 24x32 and 26x34, clearing WCAG 2.5.8's 24px floor and missing the 44px
+ * comfort tier that the rest of the app's controls hold.
+ *
+ * The pattern is not new — MaskedValue.tsx's reveal button already sized
+ * itself this way. These two constants just give the decision a name so
+ * the next icon button does not have to re-derive it.
+ */
+
+/** The full 44x44 box, for an icon button with room around it — a modal
+ *  header's close, say, where the nearest thing is a heading inches away.
+ *  The negative vertical margin keeps the row the height it was. */
+export const ICON_TAP_TARGET_44 = "inline-flex items-center justify-center min-w-11 min-h-11 -my-3";
+
+/** 44px TALL, width deliberately untouched — for an icon button in a
+ *  crowded row.
+ *
+ *  Height is free; width is not. Measured at 390 on the invoice list, the
+ *  "Remove invoice" X has 8px of gap to "Edit" on one side and 8px to
+ *  "Approve" on the other, so a 44px-wide box would overlap both — and
+ *  Remove and Approve are opposite outcomes on the same bill. In the card
+ *  transaction list and the split editor the neighbour is the amount
+ *  itself, so widening would put a delete target under a number.
+ *
+ *  A taller box is a real gain (24x32 -> 24x44, +37% area) that costs
+ *  nobody anything. The remaining width is a LAYOUT problem, not a
+ *  padding one — see the note in project memory. */
+export const ICON_TAP_TARGET_TALL = "inline-flex items-center justify-center min-h-11 -my-3 px-1";

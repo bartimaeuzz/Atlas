@@ -10,7 +10,7 @@ import { Banner } from "@/components/ui/Banner";
 import { BusyBar } from "@/components/ui/BusyBar";
 import { Modal } from "@/components/ui/Modal";
 import { XIcon } from "@/components/ui/icons";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { ICON_TAP_TARGET_44 } from "@/components/ui/touchTarget";
 
 /** The longest edge we keep. An invoice is read, not admired: 1800px
  *  across a US Letter page is ~150 dpi, comfortably enough to read a
@@ -234,7 +234,9 @@ export function InvoicePhotosClient({
             type="button"
             onClick={() => setViewing(null)}
             aria-label="Close photo"
-            className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
+            /* -mr-2.5 spends the dialog's own 20px padding — see
+               ExportChecksButton, same header shape. */
+            className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] -mr-2.5 ${ICON_TAP_TARGET_44}`}
           >
             <XIcon />
           </button>

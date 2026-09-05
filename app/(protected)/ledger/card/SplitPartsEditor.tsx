@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Select, TextInput } from "@/components/ui/Field";
 import { XIcon } from "@/components/ui/icons";
-import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
+import { TAP_TARGET_PAD, ICON_TAP_TARGET_TALL } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
 
 /** Shared parts editor for splitting one statement line across
@@ -225,7 +225,7 @@ export function SplitPartsEditor({
                     recomputeFromWeights(next);
                   }
                 }}
-                className={`mt-6 text-[var(--ink-500)] hover:text-[var(--danger)] shrink-0 ${TAP_TARGET_PAD}`}
+                className={`mt-6 text-[var(--ink-500)] hover:text-[var(--danger)] shrink-0 ${ICON_TAP_TARGET_TALL}`}
                 aria-label={`Remove part ${i + 1}`}
               >
                 <XIcon width={16} height={16} />
