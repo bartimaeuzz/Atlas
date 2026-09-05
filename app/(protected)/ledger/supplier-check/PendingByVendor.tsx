@@ -39,14 +39,32 @@ export function PendingByVendor({
 
       <ul className="divide-y divide-[var(--border)] text-sm">
         {group.invoices.map((inv) => (
-          <InvoiceRow key={inv.id} inv={inv} canApprove={canApprove} viewerId={viewerId} />
+          <InvoiceRow
+            key={inv.id}
+            inv={inv}
+            vendorName={group.vendorName}
+            canApprove={canApprove}
+            viewerId={viewerId}
+          />
         ))}
       </ul>
     </Card>
   );
 }
 
-function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; canApprove: boolean; viewerId: number }) {
+function InvoiceRow({
+  inv,
+  vendorName,
+  canApprove,
+  viewerId,
+}: {
+  inv: PendingInvoiceView;
+  /** Only for the delete confirm's wording — the row itself sits under
+   *  the vendor's own heading and does not repeat it. */
+  vendorName: string;
+  canApprove: boolean;
+  viewerId: number;
+}) {
   const [isBusy, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +88,8 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
           invoiceNumber={inv.invoiceNumber}
           description={inv.description}
           amount={inv.amount}
+          vendorName={vendorName}
+          photoCount={inv.photoCount}
           onDone={() => setEditing(false)}
         />
       </li>

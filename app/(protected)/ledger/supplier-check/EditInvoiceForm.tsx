@@ -6,6 +6,8 @@ import { editSupplierInvoice, deleteDraftInvoice } from "@/lib/actions/supplierC
 import { TextInput } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { formatMoney } from "../formatMoney";
 
 /** Inline "fix a typo or wrong amount" form (2026-08-15, Oliver's ask;
  * narrowed to DRAFT-only by the 2026-08-31 lifecycle rebuild — the old
@@ -29,20 +31,38 @@ import { Banner } from "@/components/ui/Banner";
  * already does with "Remove this photo", which lives inside the photo
  * viewer rather than on the thumbnail.
  *
- * Still no typed confirmation, deliberately: getting here is already two
- * deliberate taps on a labelled control, and a draft invoice is the one
- * thing in this app that can simply be typed again. */
+ * IT ASKS FIRST (2026-09-05, Oliver's call, reversing the same day's
+ * decision not to). The argument for going straight through was that two
+ * deliberate taps on a labelled control is already enough. Two things
+ * beat it: a draft invoice is NOT the only thing at stake — its photos
+ * go with it, and a photo of a paper bill the driver has taken away
+ * cannot be typed again — and Petty Cash has asked before removing an
+ * expense since the 2026-08-21 audit, so the two money screens disagreed
+ * about the same question.
+ *
+ * A plain ConfirmDialog, not the typed-word DangerConfirmDialog: the
+ * heavy tier is for voiding a check, and making people type a word for
+ * every draft trains them to type it without reading. The dialog names
+ * the invoice, the vendor, the amount and the photo count, so what is
+ * about to go is on screen rather than remembered — and it stays open if
+ * the delete fails, so the reason is not hidden behind a dialog that
+ * dismissed itself. */
 export function EditInvoiceForm({
   invoiceId,
   invoiceNumber,
   description,
   amount,
+  vendorName,
+  photoCount,
   onDone,
 }: {
   invoiceId: number;
   invoiceNumber: string;
   description: string | null;
   amount: number;
+  /** Both only for the delete confirm's wording. */
+  vendorName: string;
+  photoCount: number;
   onDone: () => void;
 }) {
   // `busy` below is the spinner state; the transition flag is not used.
@@ -58,6 +78,8 @@ export function EditInvoiceForm({
     reason: "",
   });
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function handleSave() {
     const parsedAmount = Number(form.amount);
@@ -93,23 +115,27 @@ export function EditInvoiceForm({
     });
   }
 
+  /** Runs only from the confirm dialog. Failures stay INSIDE it — the
+   *  dialog closes on success alone, so a refusal is read where the eye
+   *  already is rather than behind a dialog that dismissed itself. */
   function handleDelete() {
-    setError(null);
+    setDeleteError(null);
     setBusy("delete");
     startTransition(async () => {
       try {
         const result = await deleteDraftInvoice(invoiceId);
         if (result.error) {
-          setError(result.error);
+          setDeleteError(result.error);
           return;
         }
+        setConfirmingDelete(false);
         router.refresh();
         onDone();
       } catch (e) {
         // An async transition that throws with nothing catching it leaves
         // the manager watching a button spin forever, and every automated
         // check passes.
-        setError(e instanceof Error ? e.message : String(e));
+        setDeleteError(e instanceof Error ? e.message : String(e));
       } finally {
         setBusy(null);
       }
@@ -167,7 +193,10 @@ export function EditInvoiceForm({
           className="w-full"
           loading={busy === "delete"}
           disabled={busy !== null}
-          onClick={handleDelete}
+          onClick={() => {
+            setDeleteError(null);
+            setConfirmingDelete(true);
+          }}
         >
           {busy === "delete" ? "Deleting…" : "Delete this invoice"}
         </Button>
@@ -175,6 +204,21 @@ export function EditInvoiceForm({
           Any photos of it go too. Only a draft can be deleted.
         </p>
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        title="Delete this invoice?"
+        description={`#${invoiceNumber} · ${vendorName} — ${formatMoney(amount)}. ${
+          photoCount === 0
+            ? "This deletes the invoice for good."
+            : `This deletes the invoice and its ${photoCount} photo${photoCount === 1 ? "" : "s"} for good.`
+        } It can't be undone.`}
+        confirmLabel="Delete"
+        loading={busy === "delete"}
+        body={deleteError ? <Banner tone="danger" title="Couldn't delete it" description={deleteError} /> : undefined}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }
