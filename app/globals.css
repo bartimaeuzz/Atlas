@@ -241,3 +241,27 @@ input[type="number"][required]:user-invalid {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
+
+/* iOS Safari sizes input[type="date"] itself, from its own localised text
+   ("Sep 4, 2026"), and ignores width:100% until -webkit-appearance is
+   reset. On a phone that made the date field wider than the card holding
+   it while every other field fitted — Oliver's iPhone, 2026-09-05. It does
+   not reproduce in Chromium at the same width, which is why nothing caught
+   it: measured 341px right edge inside a 354px form there.
+
+   Scoped to iOS with the -webkit-touch-callout support test on purpose.
+   Applying appearance:none everywhere would strip the calendar button out
+   of desktop Chrome's date field, which is a control people click. Our own
+   border, padding and background already style the field, so iOS loses
+   nothing by dropping its native chrome. */
+@supports (-webkit-touch-callout: none) {
+  input[type="date"],
+  input[type="time"],
+  input[type="datetime-local"],
+  input[type="month"] {
+    min-width: 0;
+    max-width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+}
