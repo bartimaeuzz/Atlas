@@ -12,6 +12,7 @@ import {
 } from "@/lib/actions/salesTargets";
 import type { SalesTargetDateOverride } from "@/lib/analytics/loadSalesTargets";
 import { formatDayLabel } from "@/lib/format/formatDayLabel";
+import { MoneyInput } from "@/components/ui/MoneyInput";
 
 // Indexed BY dayOfWeek value, so this stays in JS 0=Sun..6=Sat order — the
 // same convention the database column and every date helper use.
@@ -70,22 +71,18 @@ function WeekdayTargets({ weekday }: { weekday: Record<number, number> }) {
               <span aria-hidden="true" className="text-sm text-[var(--ink-500)]">
                 $
               </span>
-              {/* type="text" with a numeric keypad, not type="number": the
-                  action accepts "3,800" and "$3,800" as readily as "3800",
-                  and a number input silently discards a typed comma, which
-                  turns 3,800 into an empty box in front of someone who has
-                  no idea why. inputMode still brings up the phone keypad. */}
-              <input
-                type="text"
-                inputMode="decimal"
+              {/* MoneyInput, not a bare input (2026-09-05): the stored
+                  number is shown with a thousands separator like every
+                  other money figure in the app, and still posts back
+                  exactly what is stored — grouping is a string transform,
+                  so a $3,800.50 target cannot become $3,801 on the next
+                  unrelated save. */}
+              <MoneyInput
                 name={`weekday-${day}`}
-                // Not rounded for display: re-saving an untouched form
-                // must hand back exactly what is stored, or a $3,800.50
-                // target quietly becomes $3,801 on the next unrelated save.
-                defaultValue={weekday[day] != null ? String(weekday[day]) : ""}
+                defaultValue={weekday[day] ?? null}
                 placeholder="no target"
                 aria-label={`${DAY_NAMES[day]} sales target in dollars`}
-                className="w-32 min-h-11 rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--card)] px-3 text-right tabular-nums text-[var(--ink-900)]"
+                className="w-32"
               />
             </span>
           </label>
@@ -151,13 +148,12 @@ function DateOverrides({ dates }: { dates: SalesTargetDateOverride[] }) {
           </label>
           <label className="text-sm">
             <span className="block text-[var(--ink-500)] mb-1">Target</span>
-            <input
-              type="text"
-              inputMode="decimal"
+            <MoneyInput
               name="amount"
               required
               placeholder="6,000"
-              className="w-32 min-h-11 rounded-[var(--radius-md)] border border-[var(--border-strong)] bg-[var(--card)] px-3 text-right tabular-nums text-[var(--ink-900)]"
+              aria-label="Target for this date, in dollars"
+              className="w-32"
             />
           </label>
           <label className="text-sm grow min-w-[10rem]">
