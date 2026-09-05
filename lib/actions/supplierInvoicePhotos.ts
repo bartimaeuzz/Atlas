@@ -6,13 +6,13 @@ import { put } from "@vercel/blob";
 import { db } from "@/db/client";
 import { supplierInvoices, supplierInvoicePhotos } from "@/db/schema";
 import { requireCapability } from "@/lib/permissions/requireCapability";
+import { deleteBlobQuietly } from "@/lib/ledger/invoicePhotos";
 import {
   ALLOWED_PHOTO_TYPES,
   MAX_PHOTO_BYTES,
   MAX_PHOTOS_PER_INVOICE,
-  deleteBlobQuietly,
   describeStoreError,
-} from "@/lib/ledger/invoicePhotos";
+} from "@/lib/ledger/invoicePhotoLimits";
 
 /** Photos of the paper invoice (2026-09-05, build-queue items 5+6).
  *

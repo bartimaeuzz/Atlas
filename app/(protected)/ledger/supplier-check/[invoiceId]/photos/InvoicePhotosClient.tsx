@@ -3,8 +3,8 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { uploadInvoicePhoto, removeInvoicePhoto } from "@/lib/actions/supplierInvoicePhotos";
-import { MAX_PHOTOS_PER_INVOICE } from "@/lib/ledger/invoicePhotos";
-import type { InvoicePhotoView } from "@/lib/ledger/invoicePhotos";
+import { MAX_PHOTOS_PER_INVOICE } from "@/lib/ledger/invoicePhotoLimits";
+import type { InvoicePhotoView } from "@/lib/ledger/invoicePhotoLimits";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { Modal } from "@/components/ui/Modal";
