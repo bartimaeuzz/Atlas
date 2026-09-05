@@ -117,9 +117,16 @@ export function InstantCheckButton({
                 Over the {formatMoney(ceiling)} single-person ceiling — a second person who can approve
                 checks enters their PIN here.
               </p>
+              {/* autoComplete="off" is not boilerplate here (2026-09-05).
+                  This box takes a SECOND PERSON's credential, so the one
+                  thing it must never do is offer the signed-in manager's
+                  own saved PIN — that would let one person clear a
+                  two-person control by accepting an autofill. Matches
+                  card/ReconcilePanel.tsx, which already had it. */}
               <TextInput
                 type="password"
                 inputMode="numeric"
+                autoComplete="off"
                 name="secondPin"
                 label="Second person's PIN"
                 className="max-w-[160px]"

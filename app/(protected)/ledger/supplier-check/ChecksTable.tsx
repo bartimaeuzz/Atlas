@@ -253,9 +253,13 @@ function CheckRow({
                 onChange={(e) => setVoidReason(e.target.value)}
                 placeholder="e.g. wrong amount on invoice #4471"
               />
+              {/* Same reason as the instant-check co-signer box: this is
+                  the auditor's code, not the signed-in user's, and an
+                  autofill would collapse a two-person control into one. */}
               <TextInput
                 type="password"
                 inputMode="numeric"
+                autoComplete="off"
                 label="Financial auditor's code"
                 value={auditorCode}
                 onChange={(e) => setAuditorCode(e.target.value)}
