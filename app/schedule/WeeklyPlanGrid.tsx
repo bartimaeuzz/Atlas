@@ -723,8 +723,14 @@ export function WeeklyPlanGrid({
                           wraps inside a fixed box instead of widening the
                           table, so a day's column width no longer depends on
                           whether that day happens to be closed. */}
+                      {/* max-w caps the COLUMN, same fix and same reason as
+                          the labor figure below: measured live 2026-09-05,
+                          the two days carrying weather ran to 124 and 119px
+                          while their bare siblings sat at 66-94, so a day's
+                          width depended on whether it happened to have a
+                          forecast. */}
                       {weatherByDate?.[d] && (
-                        <div className="mt-0.5 font-normal">
+                        <div className="mt-0.5 max-w-[7rem] font-normal">
                           <WeatherFigure weather={weatherByDate[d]} unit={weatherUnit} />
                         </div>
                       )}

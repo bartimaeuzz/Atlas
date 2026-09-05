@@ -33,6 +33,33 @@ import {
  * than silently truncating. */
 const MAX_ROWS = 31;
 
+/** One row's verdict, computed once and read by both the phone cards and the
+ * desktop table — two renderers of the same figures that must not drift into
+ * judging a day differently.
+ *
+ * `netSales > 0` is the guard `LaborFigure` already applies to this same
+ * data, and it is here for the same reason: a closed day showing $0 is
+ * almost always a shift finalized before its sales were entered, and
+ * "Short by $15,000" states as fact something nobody measured. Seen live on
+ * production 2026-09-05 (Tue Aug 11). The target is still shown — there is
+ * simply no verdict attached to it. */
+function judge(day: { netSales: number; complete: boolean }, target: number | null) {
+  const judgeable = target != null && day.complete && day.netSales > 0;
+  const verdict = judgeable ? salesVerdict(day.netSales, target) : "none";
+  const diff = judgeable ? salesDifference(day.netSales, target) : null;
+  return {
+    missed: verdict === "under",
+    text:
+      target == null
+        ? "No target set"
+        : diff == null
+          ? `Target ${formatDollars(target)}`
+          : verdict === "under"
+            ? `Short by ${formatDollars(Math.abs(diff))}`
+            : `Beat by ${formatDollars(Math.abs(diff))}`,
+  };
+}
+
 export async function DaysVsTarget({ from, to }: { from: string; to: string }) {
   const [daily, targets, weatherRows, unit] = await Promise.all([
     loadDailyNetSales(from, to),
@@ -54,7 +81,54 @@ export async function DaysVsTarget({ from, to }: { from: string; to: string }) {
   return (
     <section className="mb-8">
       <h2 className="text-sm font-semibold text-[var(--ink-900)] mb-3">Days against target</h2>
-      <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)]">
+      {/* Cards on a phone, table on a wide screen (2026-09-05 live audit).
+          The table version was measured on production at 390px: the content
+          column is 308px against a 480px table, so the Weather column began
+          at x=427 and was entirely off screen — the one column this feature
+          exists for, invisible on the device a manager actually carries,
+          behind a sideways scroll with no affordance that it was there.
+
+          `lg:`, not `sm:`, per the charter: the nav rail costs 216px, so a
+          640px viewport breakpoint is really a ~360px content breakpoint.
+          Same swap point Table.tsx already uses. */}
+      <ul className="lg:hidden space-y-2">
+        {days.map((day) => {
+          const target = resolveSalesTarget(day.date, targets);
+          const { missed, text } = judge(day, target);
+          const weather = mergeDayWeather(weatherByDay.get(day.date) ?? []);
+          return (
+            <li
+              key={day.date}
+              className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--card)] px-3 py-2.5"
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm text-[var(--ink-900)]">{dayLabel(day.date)}</span>
+                <span className="text-sm font-medium text-[var(--ink-900)]">
+                  {formatDollars(day.netSales)}
+                  {!day.complete && (
+                    <span className="ml-1 text-xs font-normal text-[var(--ink-500)]">so far</span>
+                  )}
+                </span>
+              </div>
+              <p
+                className={
+                  "mt-0.5 text-xs " +
+                  (missed ? "text-[var(--danger-700)] font-medium" : "text-[var(--ink-500)]")
+                }
+              >
+                {text}
+              </p>
+              {weather && (
+                <div className="mt-1">
+                  <WeatherFigure weather={weather} variant="detail" unit={unit} />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="hidden lg:block overflow-x-auto rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--card)]">
         <table className="w-full min-w-[30rem] text-sm border-collapse">
           <thead>
             <tr className="text-left text-xs text-[var(--ink-500)] border-b border-[var(--border)]">
@@ -67,9 +141,7 @@ export async function DaysVsTarget({ from, to }: { from: string; to: string }) {
           <tbody>
             {days.map((day) => {
               const target = resolveSalesTarget(day.date, targets);
-              const verdict = day.complete ? salesVerdict(day.netSales, target) : "none";
-              const diff = salesDifference(day.netSales, target);
-              const missed = verdict === "under";
+              const { missed, text } = judge(day, target);
               const weather = mergeDayWeather(weatherByDay.get(day.date) ?? []);
               return (
                 <tr key={day.date} className="border-b border-[var(--border)] last:border-b-0">
@@ -84,15 +156,7 @@ export async function DaysVsTarget({ from, to }: { from: string; to: string }) {
                       (missed ? "text-[var(--danger-700)] font-medium" : "text-[var(--ink-500)]")
                     }
                   >
-                    {target == null
-                      ? "No target set"
-                      : !day.complete
-                        ? `Target ${formatDollars(target)}`
-                        : diff == null
-                          ? "—"
-                          : missed
-                            ? `Short by ${formatDollars(Math.abs(diff))}`
-                            : `Beat by ${formatDollars(Math.abs(diff))}`}
+                    {text}
                   </td>
                   <td className="py-2 px-3">
                     {weather ? (

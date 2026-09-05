@@ -154,7 +154,14 @@ export function WeatherLocationSection({
                     type="submit"
                     name="unit"
                     value={option}
-                    disabled={savingUnits || active}
+                    // NOT disabled when it is the active one (2026-09-05
+                    // live audit). A disabled button is dropped from the tab
+                    // order, so aria-current on it is never announced and a
+                    // keyboard or screen-reader user cannot reach the control
+                    // that says which unit is in force — WCAG 4.1.2. Pressing
+                    // it is already a no-op: saveWeatherUnit returns early
+                    // when the value has not changed.
+                    disabled={savingUnits}
                     aria-current={active ? "true" : undefined}
                     className={
                       "min-h-11 rounded-[var(--radius-md)] border px-3 text-sm outline-offset-2 " +

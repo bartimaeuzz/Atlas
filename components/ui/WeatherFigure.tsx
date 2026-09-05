@@ -79,7 +79,11 @@ export function WeatherFigure({
     return (
       <span className={`inline-flex items-center gap-2 ${tone} ${className}`}>
         <WeatherIcon name={meaning.icon} size={iconSize} />
-        <span className={variant === "banner" ? "text-sm" : "text-xs"}>
+        {/* nowrap: at 390px this line broke after the "·", stranding the
+            separator at the end of one line and the temperature on the next
+            (live audit 2026-09-05, home page). It is short enough to keep
+            whole at every width the app supports. */}
+        <span className={"whitespace-nowrap " + (variant === "banner" ? "text-sm" : "text-xs")}>
           {[meaning.label, temp, rain].filter(Boolean).join(" · ")}
         </span>
       </span>
