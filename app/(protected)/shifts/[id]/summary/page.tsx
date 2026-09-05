@@ -205,7 +205,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               <>
                 <Row label="Pool 1 (dine-in)" value={`$${(data.tipPoolCalculation.perRoleBreakdown.pool1 ?? 0).toFixed(2)}`} />
                 <Row
-                  label="Pool 2 (takeout + platform-courier)"
+                  label="Pool 2 (pickup / takeout)"
                   value={`$${(data.tipPoolCalculation.perRoleBreakdown.pool2 ?? 0).toFixed(2)}`}
                 />
                 <Row label="Pool 3 (delivery, equal split)" value={`$${(data.tipPoolCalculation.perRoleBreakdown.pool3 ?? 0).toFixed(2)}`} />
@@ -284,7 +284,7 @@ export default async function SummaryPage({ params }: { params: Promise<{ id: st
               <th className="py-2 px-3 font-medium">Position</th>
               <th className="py-2 px-3 text-right font-medium">Point value</th>
               <th className="py-2 px-3 text-right font-medium" title="Pool 1 — dine-in">Pool 1</th>
-              <th className="py-2 px-3 text-right font-medium" title="Pool 2 — takeout/online">Pool 2</th>
+              <th className="py-2 px-3 text-right font-medium" title="Pool 2 — pickup / takeout">Pool 2</th>
               <th className="py-2 px-3 text-right font-medium" title="Pool 3 — delivery">Pool 3</th>
               <th className="py-2 px-3 text-right font-medium">Drink bonus</th>
               <th className="py-2 px-3 text-right font-medium">Total tip</th>

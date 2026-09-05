@@ -950,8 +950,10 @@ function PlatformSalesCard({
       <fieldset disabled={isFinalized}>
         <legend className="text-lg font-medium text-[var(--ink-900)] mb-3">Online platform sales</legend>
         <p className="text-xs text-[var(--ink-500)] mb-3">
-          Split tips by who delivered: platform-courier tips feed Pool 2 (Host/Operator/Packer/Bag
-          Handler), restaurant-driver tips feed Pool 3 (Delivery Guy).
+          Split tips by who took the food. The customer collected it: Pool 2
+          (Host/Operator/Packer/Bag Handler). Your own driver took it: Pool 3 (Delivery Guy). The
+          platform&apos;s courier took it: nobody here — the platform pays its own driver, so that
+          tip is recorded for reference only and never paid to staff.
         </p>
         {askable && !isFinalized && prior && closeoutMode !== "PER_SHIFT" && (
           <DayTotalChooser
