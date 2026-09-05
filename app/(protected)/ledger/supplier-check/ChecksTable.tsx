@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState, useTransition } from "react";
+import Link from "next/link";
 import { markSupplierCheckPaid, voidSupplierCheck } from "@/lib/actions/supplierCheck";
 import type { SupplierCheckView, CheckAuditLogEntry } from "@/lib/ledger/loadSupplierCheck";
 import { Modal } from "@/components/ui/Modal";
@@ -151,6 +152,21 @@ function CheckRow({
                   </div>
                   {inv.description && <div className="text-[var(--ink-500)]">{inv.description}</div>}
                   <div className="text-[var(--ink-500)] opacity-75">received {inv.receivedDate}</div>
+                  {/* The photo stays reachable after export (2026-09-05).
+                      Nothing here can be edited any more, and the photo
+                      page enforces that itself — this is the read-only
+                      archive door, which is the one somebody actually
+                      needs months later. No "No photo" warning on an
+                      exported invoice: the moment to fix that has passed,
+                      so saying it here would only be noise. */}
+                  {inv.photoCount > 0 && (
+                    <Link
+                      href={`/ledger/supplier-check/${inv.id}/photos`}
+                      className={`inline-block text-[var(--ink-500)] hover:text-[var(--ink-900)] underline ${TAP_TARGET_PAD}`}
+                    >
+                      {inv.photoCount} photo{inv.photoCount === 1 ? "" : "s"}
+                    </Link>
+                  )}
                 </div>
                 <span className="font-medium tabular-nums text-[var(--ink-900)] shrink-0">{formatMoney(inv.amount)}</span>
               </li>

@@ -7,7 +7,8 @@ import { EditInvoiceForm } from "./EditInvoiceForm";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { XIcon } from "@/components/ui/icons";
+import Link from "next/link";
+import { XIcon, AlertTriangleIcon } from "@/components/ui/icons";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
 
@@ -88,6 +89,28 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
             {inv.receivedDate} · logged by {inv.createdByName}
             {!isDraft && inv.readyByName ? ` · approved by ${inv.readyByName}` : ""}
           </div>
+          {/* Photos (2026-09-05). Zero is stated, not left blank: this
+              list is walked against the paper bills, so "no picture" is
+              something the approver needs to see. It warns and nothing
+              more — approving without a photo stays allowed (Oliver's
+              call), because a dead camera must never stop the week. */}
+          <Link
+            href={`/ledger/supplier-check/${inv.id}/photos`}
+            className={`inline-flex items-center gap-1 text-xs underline mt-0.5 ${
+              inv.photoCount > 0
+                ? "text-[var(--ink-500)] hover:text-[var(--ink-900)]"
+                : "text-[var(--warning-700)] hover:brightness-90"
+            } ${TAP_TARGET_PAD}`}
+          >
+            {inv.photoCount === 0 ? (
+              <>
+                <AlertTriangleIcon width={12} height={12} aria-hidden="true" />
+                No photo
+              </>
+            ) : (
+              `${inv.photoCount} photo${inv.photoCount === 1 ? "" : "s"}`
+            )}
+          </Link>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span className="font-medium tabular-nums text-[var(--ink-900)]">{formatMoney(inv.amount)}</span>

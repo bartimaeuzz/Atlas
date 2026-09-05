@@ -40,6 +40,33 @@ export async function requireManagerRoute(): Promise<NextResponse | null> {
   return null;
 }
 
+/** A specific capability, WITHOUT the standing manager/admin role —
+ * the route-handler mirror of a page's own `hasCapability()` gate.
+ *
+ * Use this, not requireCapabilityRoute, when the route serves the very
+ * same data as a page that is gated with `hasCapability()`. The two
+ * guards are not interchangeable: requireCapabilityRoute additionally
+ * requires systemRole MANAGER/ADMIN, so a non-manager who legitimately
+ * holds the capability passes the page and fails the route. For a file
+ * download that mismatch is invisible; for an <img> the page renders
+ * perfectly with every picture broken and nothing on screen saying why —
+ * and tsc, eslint, the tests and the build all pass (2026-09-05, caught
+ * on the invoice-photo route by scrutinize, not by any automated check).
+ *
+ * This is deliberately NOT a relaxation: it grants the route to exactly
+ * the people who can already open the page the data appears on. The
+ * export routes keep the stricter tier on purpose — a whole-dataset
+ * download is a bigger thing than one image on a page you are reading. */
+export async function requireViewCapabilityRoute(capabilityKey: string): Promise<NextResponse | null> {
+  const session = await getCurrentStaffSession();
+  if (!session) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+  const viewer = await getViewerCapabilities();
+  if (!viewer?.has(capabilityKey)) {
+    return NextResponse.json({ error: "Not authorized." }, { status: 403 });
+  }
+  return null;
+}
+
 /** Manager/Admin AND a specific capability — for exports whose on-page
  * equivalent is behind a view guard, so downloading the file can't be an
  * end-run around the page you aren't allowed to open. */

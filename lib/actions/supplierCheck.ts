@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "@/db/client";
-import { supplierInvoices, supplierCheckPayments, employees, supplierCheckAuditLog, restaurantSettings, employeeCapabilities } from "@/db/schema";
+import { supplierInvoices, supplierInvoicePhotos, supplierCheckPayments, employees, supplierCheckAuditLog, restaurantSettings, employeeCapabilities } from "@/db/schema";
+import { deleteBlobQuietly } from "@/lib/ledger/invoicePhotos";
 import { verifyPin } from "@/lib/auth/pin";
 import { requireCapability } from "@/lib/permissions/requireCapability";
 
@@ -49,6 +50,7 @@ export async function logSupplierInvoice(
   const invoiceNumber = String(formData.get("invoiceNumber") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim() || null;
   const amountRaw = formData.get("amount");
+  let newInvoiceId = 0;
 
   try {
     const session = await requireCapability("SUPPLIER_CHECK_LOG");
@@ -62,24 +64,33 @@ export async function logSupplierInvoice(
     const amount = Number(amountRaw);
     if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be a positive number");
 
-    await db.insert(supplierInvoices).values({
-      receivedDate,
-      vendorId,
-      categoryId,
-      invoiceNumber,
-      description,
-      amount,
-      // Explicit, not the schema default — the code must not depend on
-      // which DDL default a given database carries (2026-08-31).
-      status: "draft",
-      createdByEmployeeId: session.id,
-    });
+    const [created] = await db
+      .insert(supplierInvoices)
+      .values({
+        receivedDate,
+        vendorId,
+        categoryId,
+        invoiceNumber,
+        description,
+        amount,
+        // Explicit, not the schema default — the code must not depend on
+        // which DDL default a given database carries (2026-08-31).
+        status: "draft",
+        createdByEmployeeId: session.id,
+      })
+      .returning({ id: supplierInvoices.id });
+    newInvoiceId = created.id;
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
 
   revalidatePath("/ledger/supplier-check");
-  redirect("/ledger/supplier-check");
+  // Straight to the camera, not back to the list (2026-09-05). Whoever
+  // logged this is holding the paper invoice right now; making them find
+  // the row again later is how an invoice ends up with no picture. The
+  // photo page carries a Done link back to the list for anyone who has
+  // nothing to photograph.
+  redirect(`/ledger/supplier-check/${newInvoiceId}/photos`);
 }
 
 /** Delete is DRAFT-only, for everyone (approved decision #5): a draft is
@@ -93,7 +104,26 @@ export async function deleteDraftInvoice(invoiceId: number) {
   if (invoice.status !== "draft") {
     throw new Error("Only a draft can be removed. This invoice has been approved — ask the approver to bounce it back to draft first.");
   }
-  await db.delete(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
+
+  // Its photos go with it (2026-09-05). The FK carries ON DELETE cascade
+  // and db/client.ts does set `PRAGMA foreign_keys = ON`, but that pragma
+  // is fired and forgotten per connection, so the rows are deleted
+  // explicitly rather than left to it. The pathnames are needed here
+  // regardless: the stored FILES have no cascade of any kind, and without
+  // this they sit in the Blob store forever with nothing pointing at them.
+  const photos = await db
+    .select({ pathname: supplierInvoicePhotos.pathname })
+    .from(supplierInvoicePhotos)
+    .where(eq(supplierInvoicePhotos.invoiceId, invoiceId));
+
+  await db.batch([
+    db.delete(supplierInvoicePhotos).where(eq(supplierInvoicePhotos.invoiceId, invoiceId)),
+    db.delete(supplierInvoices).where(eq(supplierInvoices.id, invoiceId)),
+  ]);
+  // After the rows are gone, so a storage failure cannot leave an invoice
+  // the manager was told is deleted.
+  for (const photo of photos) await deleteBlobQuietly(photo.pathname);
+
   revalidatePath("/ledger/supplier-check");
 }
 

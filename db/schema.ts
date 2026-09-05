@@ -1318,8 +1318,10 @@ export const activityLog = sqliteTable(
 // export to check format at the end of the week"); the check is then
 // marked PAID once it's actually been handed to the supplier. No due
 // date field -- confirmed NOT needed ("supplier check no need due
-// date"). photoUrl reserved, unused, same as pettyCashEntries -- doesn't
-// block a later photo-attachment round with a migration.
+// date"). photoUrl is reserved and STILL UNUSED: the photo round landed
+// 2026-09-05 in its own supplier_invoice_photos table instead, because an
+// invoice can have several pages and one column holds one. Nothing reads
+// this column; it is left in place rather than dropped.
 export const supplierInvoices = sqliteTable("supplier_invoices", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   receivedDate: text("received_date").notNull(), // ISO date -- the delivery date
@@ -1352,6 +1354,42 @@ export const supplierInvoices = sqliteTable("supplier_invoices", {
   createdByEmployeeId: integer("created_by_employee_id").notNull().references(() => employees.id),
   createdAt: text("created_at").notNull().default(sql`(current_timestamp)`),
 });
+
+// Photos of the paper invoice (2026-09-05, build-queue items 5+6). The
+// lifecycle comment above says the approver "walks this list against the
+// attached bills" — until now that meant paper physically in hand. These
+// rows are what replaces it: Aey can approve from the picture.
+//
+// A SEPARATE TABLE, not the reserved supplier_invoices.photo_url column,
+// on Oliver's call (2026-09-05): a real delivery invoice runs to two or
+// three pages, and one column can only ever hold the first of them.
+// photo_url stays in place, still unused — dropping a column is a
+// destructive migration for no gain. Nothing reads it.
+//
+// `pathname` is stored alongside `url` because deleting from Vercel Blob
+// needs the pathname, and parsing it back out of the URL would be a
+// guess about their URL format. Cheap to store, exact to use.
+//
+// Photos follow the invoice's own lock: attach and remove are DRAFT-only,
+// enforced in lib/actions/supplierInvoicePhotos.ts. Once an invoice is
+// ready the picture the approver looked at can no longer change.
+export const supplierInvoicePhotos = sqliteTable(
+  "supplier_invoice_photos",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    invoiceId: integer("invoice_id")
+      .notNull()
+      .references(() => supplierInvoices.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    pathname: text("pathname").notNull(),
+    uploadedByEmployeeId: integer("uploaded_by_employee_id").notNull().references(() => employees.id),
+    uploadedAt: text("uploaded_at").notNull().default(sql`(current_timestamp)`),
+  },
+  (t) => ({
+    // The only read: every photo for one invoice, oldest first.
+    invoiceIdx: index("supplier_invoice_photos_invoice_idx").on(t.invoiceId),
+  })
+);
 
 // One row per check written -- confirmed with Oliver: "printed payment
 // check can reconcile into one check for each supplier," i.e. one check

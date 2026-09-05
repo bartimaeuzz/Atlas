@@ -8,11 +8,12 @@
  * printSupplierCheck), then marked PAID once actually delivered.
  */
 
-import { eq, desc, inArray, and, gte, lte } from "drizzle-orm";
+import { eq, desc, inArray, and, gte, lte, count } from "drizzle-orm";
 import { alias } from "drizzle-orm/sqlite-core";
 import { db } from "@/db/client";
 import {
   supplierInvoices,
+  supplierInvoicePhotos,
   supplierCheckPayments,
   ledgerVendors,
   ledgerCategories,
@@ -36,6 +37,12 @@ export interface PendingInvoiceView {
   status: "draft" | "ready";
   createdByEmployeeId: number;
   readyByName: string | null;
+  /** How many photos of the paper invoice are attached (2026-09-05).
+   *  Zero is shown as an explicit "No photo" marker rather than as
+   *  nothing at all — the approver is checking the row against the bill,
+   *  so "there is no picture" is information, not an empty state. It
+   *  warns; it does not block approval (Oliver's call, 2026-09-05). */
+  photoCount: number;
 }
 
 export interface VendorPendingGroup {
@@ -72,6 +79,20 @@ export async function loadPendingInvoicesByVendor(): Promise<VendorPendingGroup[
     .where(inArray(supplierInvoices.status, ["draft", "ready"]))
     .orderBy(supplierInvoices.receivedDate);
 
+  // One grouped count for the whole list rather than a count per row --
+  // this list is every open invoice across every vendor, so a per-row
+  // query would be an N+1 that grows with the week.
+  const invoiceIds = rows.map((r) => r.id);
+  const photoCounts = new Map<number, number>();
+  if (invoiceIds.length > 0) {
+    const counted = await db
+      .select({ invoiceId: supplierInvoicePhotos.invoiceId, n: count() })
+      .from(supplierInvoicePhotos)
+      .where(inArray(supplierInvoicePhotos.invoiceId, invoiceIds))
+      .groupBy(supplierInvoicePhotos.invoiceId);
+    for (const c of counted) photoCounts.set(c.invoiceId, c.n);
+  }
+
   const byVendor = new Map<number, VendorPendingGroup>();
   for (const r of rows) {
     let group = byVendor.get(r.vendorId);
@@ -90,6 +111,7 @@ export async function loadPendingInvoicesByVendor(): Promise<VendorPendingGroup[
       status: r.status as "draft" | "ready",
       createdByEmployeeId: r.createdByEmployeeId,
       readyByName: r.readyByName,
+      photoCount: photoCounts.get(r.id) ?? 0,
     });
     group.totalPending += r.amount;
   }
@@ -104,6 +126,12 @@ export interface PaymentInvoiceDetail {
   description: string | null;
   amount: number;
   receivedDate: string;
+  /** Photos of the paper invoice (2026-09-05). Carried here as well as
+   *  on the pending list so the picture stays reachable after the
+   *  invoice is exported onto a check — the archive is most of the point
+   *  of keeping it, and an exported invoice is exactly the one somebody
+   *  goes back to months later. */
+  photoCount: number;
 }
 
 /** One entry in a check's audit trail (2026-08-15, Oliver: "as it
@@ -194,6 +222,19 @@ export async function loadSupplierChecks({ from, to }: { from: string; to: strin
     .innerJoin(ledgerCategories, eq(supplierInvoices.categoryId, ledgerCategories.id))
     .where(inArray(supplierInvoices.paymentId, paymentIds));
 
+  // One grouped count for every invoice on every check in the range,
+  // rather than one query per invoice.
+  const checkInvoiceIds = invoiceRows.map((r) => r.id);
+  const checkPhotoCounts = new Map<number, number>();
+  if (checkInvoiceIds.length > 0) {
+    const counted = await db
+      .select({ invoiceId: supplierInvoicePhotos.invoiceId, n: count() })
+      .from(supplierInvoicePhotos)
+      .where(inArray(supplierInvoicePhotos.invoiceId, checkInvoiceIds))
+      .groupBy(supplierInvoicePhotos.invoiceId);
+    for (const c of counted) checkPhotoCounts.set(c.invoiceId, c.n);
+  }
+
   const invoicesByPaymentId = new Map<number, PaymentInvoiceDetail[]>();
   for (const r of invoiceRows) {
     if (r.paymentId == null) continue;
@@ -205,6 +246,7 @@ export async function loadSupplierChecks({ from, to }: { from: string; to: strin
       description: r.description,
       amount: r.amount,
       receivedDate: r.receivedDate,
+      photoCount: checkPhotoCounts.get(r.id) ?? 0,
     });
     invoicesByPaymentId.set(r.paymentId, list);
   }
