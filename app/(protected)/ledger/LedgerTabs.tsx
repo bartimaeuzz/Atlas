@@ -52,8 +52,14 @@ export function LedgerTabs({
             <Tab href="/ledger" active={active === "petty-cash"}>
               Petty Cash
             </Tab>
+            {/* "Invoices", not "Supplier" (2026-09-05, Oliver). The old label was a
+                synonym of the "Vendors" link a few inches to its right, so someone
+                looking for their supplier LIST landed on the invoice list instead.
+                "Invoices" also matches the page's own first heading, "Open
+                invoices". The page prints the checks too; that half keeps its own
+                heading on the page rather than a share of a one-word tab. */}
             <Tab href="/ledger/supplier-check" active={active === "supplier"}>
-              Supplier
+              Invoices
             </Tab>
           </>
         )}

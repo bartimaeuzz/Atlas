@@ -59,7 +59,7 @@ export default async function InvoicePhotosPage({
         href="/ledger/supplier-check"
         className={`text-sm text-[var(--ink-500)] hover:text-[var(--ink-900)] ${TAP_TARGET_PAD}`}
       >
-        &larr; Supplier
+        &larr; Invoices
       </Link>
       <h1 className="text-2xl font-bold text-[var(--ink-900)] mt-2">Invoice photos</h1>
       <p className="text-sm text-[var(--ink-500)] mb-4">
