@@ -10,3 +10,12 @@ tsconfig.tsbuildinfo
 # sandbox-quirks notes). Excluded from delivery zips too, so these never
 # reach the real repo; this just keeps them out of `git status` here.
 *.stale
+
+# Real Soothr financial records — NEVER commit. github.com/bartimaeuzz/Atlas is
+# a PUBLIC repo, so one `git add -A` would publish a real restaurant's closing
+# reports, and git history is not easy to clean afterwards. Verified never
+# committed as of 2026-09-05 (no .xlsx has ever entered this history), so this
+# line is a real guard and not a fig leaf. The money RULES decoded from these
+# workbooks live in project memory; the workbooks themselves are Oliver's and
+# belong outside the repo.
+DNA Closing report/
