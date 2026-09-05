@@ -563,7 +563,7 @@ function VacancyPopoverForm({
           <select
             value={reason}
             onChange={(e) => setReason(e.target.value as typeof reason)}
-            className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2 min-h-11 w-full text-sm bg-[var(--card)]"
+            className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2 min-h-11 w-full bg-[var(--card)]"
           >
             <option value="RESIGNATION">Resigning</option>
             <option value="PROMOTION">Promoted/moved to another position</option>
@@ -576,7 +576,7 @@ function VacancyPopoverForm({
             type="date"
             value={startsOn}
             onChange={(e) => setStartsOn(e.target.value)}
-            className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2 min-h-11 w-full text-sm bg-[var(--card)]"
+            className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-3 py-2 min-h-11 w-full bg-[var(--card)]"
           />
         </label>
         <p className="text-xs text-[var(--ink-500)] mb-3">{scopeHint[reason]}</p>

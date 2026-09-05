@@ -138,7 +138,7 @@ export function PresetApplyForm({ employee }: { employee: CapabilityMatrixEmploy
           onChange={(e) => setChoice(e.target.value as "" | AccountType)}
           required
           aria-describedby={diff ? previewId : undefined}
-          className="border border-[var(--border-strong)] rounded-[var(--radius-md)] text-sm px-2 py-1.5 min-h-11"
+          className="border border-[var(--border-strong)] rounded-[var(--radius-md)] px-2 py-1.5 min-h-11"
         >
           {/* Empty and selected by default: nothing can be applied by
               reflex, and the control never implies it is showing this

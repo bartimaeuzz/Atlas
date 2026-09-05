@@ -56,7 +56,7 @@ export function ExpiryField({ name, defaultValue }: { name: string; defaultValue
           if (v === "never") setValue("");
           else if (v !== "custom") setValue(addDays(today, Number(v)));
         }}
-        className="min-h-11 border border-[var(--border-strong)] rounded-[var(--radius-md)] px-2 text-sm bg-[var(--card)] text-[var(--ink-900)]"
+        className="min-h-11 border border-[var(--border-strong)] rounded-[var(--radius-md)] px-2 bg-[var(--card)] text-[var(--ink-900)]"
       >
         <option value="never">Never</option>
         {PRESET_DAYS.map((d) => (
@@ -76,7 +76,7 @@ export function ExpiryField({ name, defaultValue }: { name: string; defaultValue
         min={today}
         onChange={(e) => setValue(e.target.value)}
         aria-label="Expiry date"
-        className="min-h-11 border border-[var(--border-strong)] rounded-[var(--radius-md)] px-2 py-1 text-sm bg-[var(--card)] text-[var(--ink-900)]"
+        className="min-h-11 border border-[var(--border-strong)] rounded-[var(--radius-md)] px-2 py-1 bg-[var(--card)] text-[var(--ink-900)]"
       />
 
       {/* Says the consequence in words, because a date alone does not.

@@ -91,7 +91,7 @@ export function SettingsForm({
             defaultValue={settings.restaurantName ?? ""}
             placeholder="e.g. Youk Thai"
             autoComplete="organization"
-            className={`border rounded-[var(--radius-md)] px-3 py-1.5 text-sm w-full max-w-sm min-h-11 ${DISABLED_FIELD}`}
+            className={`border rounded-[var(--radius-md)] px-3 py-1.5 w-full max-w-sm min-h-11 ${DISABLED_FIELD}`}
           />
           <span className="block text-xs text-[var(--ink-500)] mt-1">
             Your restaurant&rsquo;s name as staff should see it. Optional for now — it will appear on the sign-in screen and side menu once that part ships.
@@ -112,7 +112,7 @@ export function SettingsForm({
                 max="100"
                 name="ccTipDeductionRatePercent"
                 defaultValue={settings.ccTipDeductionRate * 100}
-                className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
+                className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 w-full ${DISABLED_FIELD}`}
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">%</span>
             </div>
@@ -128,7 +128,7 @@ export function SettingsForm({
                 min="0"
                 name="hostDrinkBonusPerDrinkAmount"
                 defaultValue={settings.hostDrinkBonusPerDrinkAmount}
-                className={`border rounded-[var(--radius-md)] pl-6 pr-3 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
+                className={`border rounded-[var(--radius-md)] pl-6 pr-3 py-1.5 w-full ${DISABLED_FIELD}`}
               />
             </div>
             <span className="block text-xs text-[var(--ink-400)] mt-1">0 turns the bonus off entirely</span>
@@ -149,7 +149,7 @@ export function SettingsForm({
                 max="100"
                 name="defaultSalesTaxRatePercent"
                 defaultValue={settings.defaultSalesTaxRate * 100}
-                className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
+                className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 w-full ${DISABLED_FIELD}`}
               />
               <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">%</span>
             </div>
@@ -237,7 +237,7 @@ export function SettingsForm({
                   // left in the box after switching back to a preset can
                   // never quietly become the saved target.
                   disabled={laborMode !== "custom"}
-                  className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 text-sm w-full ${DISABLED_FIELD}`}
+                  className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 w-full ${DISABLED_FIELD}`}
                 />
                 <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">
                   %
@@ -276,7 +276,7 @@ export function SettingsForm({
                 name="packerBonusStyle"
                 defaultValue={packerBonus.style}
                 onChange={(e) => setPackerStyle(e.target.value as "PERCENT" | "PER_BLOCK")}
-                className={`border rounded-[var(--radius-md)] px-3 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}
+                className={`border rounded-[var(--radius-md)] px-3 py-1.5 w-full min-h-11 ${DISABLED_FIELD}`}
               >
                 <option value="PERCENT">% of off-premise sales</option>
                 <option value="PER_BLOCK">$ per full $100 of sales</option>
@@ -291,7 +291,7 @@ export function SettingsForm({
                   min="0"
                   name="packerBonusRate"
                   defaultValue={packerBonus.rate}
-                  className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}
+                  className={`border rounded-[var(--radius-md)] pl-3 pr-6 py-1.5 w-full min-h-11 ${DISABLED_FIELD}`}
                 />
                 <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--ink-400)] text-sm pointer-events-none">
                   {packerStyle === "PERCENT" ? "%" : "$"}
@@ -308,7 +308,7 @@ export function SettingsForm({
               <select
                 name="packerBonusPositionId"
                 defaultValue={packerBonus.positionId ?? ""}
-                className={`border rounded-[var(--radius-md)] px-3 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}
+                className={`border rounded-[var(--radius-md)] px-3 py-1.5 w-full min-h-11 ${DISABLED_FIELD}`}
               >
                 <option value="">— pick a position —</option>
                 {positions.map((p) => (
@@ -338,7 +338,7 @@ export function SettingsForm({
               name="nextCheckNumber"
               defaultValue={settings.nextCheckNumber ?? ""}
               placeholder="not set"
-              className={`border rounded-[var(--radius-md)] px-3 py-1.5 text-sm w-40 min-h-11 ${DISABLED_FIELD}`}
+              className={`border rounded-[var(--radius-md)] px-3 py-1.5 w-40 min-h-11 ${DISABLED_FIELD}`}
             />
             <span className="block text-xs text-[var(--ink-400)] mt-1">
               Set once to the next unused number in the physical checkbook — Mohom assigns and
@@ -356,7 +356,7 @@ export function SettingsForm({
                 min="0"
                 name="instantCheckCeiling"
                 defaultValue={settings.instantCheckCeiling}
-                className={`border rounded-[var(--radius-md)] pl-6 pr-3 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}
+                className={`border rounded-[var(--radius-md)] pl-6 pr-3 py-1.5 w-full min-h-11 ${DISABLED_FIELD}`}
               />
             </div>
             <span className="block text-xs text-[var(--ink-400)] mt-1">
@@ -437,7 +437,7 @@ export function SettingsForm({
           ).map((f) => (
             <label key={f.name} className="text-sm block">
               <span className="block text-[var(--ink-500)] mb-1">{f.label}</span>
-              <select name={f.name} defaultValue={f.value} className={`border rounded-[var(--radius-md)] px-3 py-1.5 text-sm w-full min-h-11 ${DISABLED_FIELD}`}>
+              <select name={f.name} defaultValue={f.value} className={`border rounded-[var(--radius-md)] px-3 py-1.5 w-full min-h-11 ${DISABLED_FIELD}`}>
                 <option value="ASK">Ask every time (safe default)</option>
                 <option value="PER_SHIFT">Clears each shift — numbers are per-shift</option>
                 <option value="CUMULATIVE">Shows the whole day — subtract the earlier shift</option>

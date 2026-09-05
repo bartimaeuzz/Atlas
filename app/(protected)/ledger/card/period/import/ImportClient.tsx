@@ -93,7 +93,7 @@ export function ImportClient({
             name="file"
             accept=".csv,.pdf,text/csv,application/pdf"
             required
-            className="block w-full text-sm text-[var(--ink-700)] border border-[var(--border)] rounded-[var(--radius-md)] bg-[var(--card)] p-2 min-h-11 file:mr-3 file:border-0 file:rounded-[var(--radius-sm)] file:bg-[var(--paper)] file:px-3 file:py-2 file:text-sm"
+            className="block w-full text-[var(--ink-700)] border border-[var(--border)] rounded-[var(--radius-md)] bg-[var(--card)] p-2 min-h-11 file:mr-3 file:border-0 file:rounded-[var(--radius-sm)] file:bg-[var(--paper)] file:px-3 file:py-2 file:text-sm"
           />
           <span className="block text-xs text-[var(--ink-500)] mt-1">
             PDF (text-based) or CSV from the bank&apos;s website, up to 4 MB. Scanned/photographed statements
@@ -163,7 +163,7 @@ export function ImportClient({
         <label className="flex items-center gap-2 text-sm text-[var(--ink-700)]">
           Apply to all uncategorized:
           <select
-            className="border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 text-sm bg-[var(--card)]"
+            className="border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 bg-[var(--card)]"
             value=""
             onChange={(e) => {
               const id = Number(e.target.value);
@@ -213,7 +213,7 @@ export function ImportClient({
                   value={r.memo}
                   onChange={(e) => update(i, { memo: e.target.value })}
                   disabled={!r.included}
-                  className="w-full border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 text-sm bg-[var(--card)] disabled:bg-[var(--paper)]"
+                  className="w-full border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 bg-[var(--card)] disabled:bg-[var(--paper)]"
                 />
               </label>
               <label className="block">
@@ -224,7 +224,7 @@ export function ImportClient({
                   value={r.amount}
                   onChange={(e) => update(i, { amount: Number(e.target.value) || 0 })}
                   disabled={!r.included}
-                  className="w-full border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 text-sm bg-[var(--card)] disabled:bg-[var(--paper)]"
+                  className="w-full border border-[var(--border)] rounded-[var(--radius-sm)] px-2 py-1 min-h-9 bg-[var(--card)] disabled:bg-[var(--paper)]"
                 />
               </label>
               <label className="block">
@@ -234,7 +234,7 @@ export function ImportClient({
                   onChange={(e) => update(i, { categoryId: e.target.value ? Number(e.target.value) : "" })}
                   disabled={!r.included}
                   className={
-                    "w-full border rounded-[var(--radius-sm)] px-2 py-1 min-h-9 text-sm bg-[var(--card)] disabled:bg-[var(--paper)] " +
+                    "w-full border rounded-[var(--radius-sm)] px-2 py-1 min-h-9 bg-[var(--card)] disabled:bg-[var(--paper)] " +
                     (r.included && r.categoryId === "" ? "border-[var(--warning-border)]" : "border-[var(--border)]")
                   }
                 >

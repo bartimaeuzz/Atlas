@@ -630,7 +630,7 @@ function PersonActionDialog({
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder={action === "replace" ? "e.g. A came to help" : "e.g. called at 11am"}
-              className="mt-1 w-full text-sm border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
+              className="mt-1 w-full border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
             />
           </label>
           <div className="flex justify-end gap-2 pt-1">
@@ -848,7 +848,7 @@ function RosterQuickAdd({
                 value={extraNote}
                 onChange={(e) => setExtraNote(e.target.value)}
                 placeholder="e.g. came to help on a busy night"
-                className="mt-1 w-full text-sm border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
+                className="mt-1 w-full border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
               />
             </label>
           ) : undefined

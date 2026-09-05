@@ -191,6 +191,27 @@ input[type="number"][required]:user-invalid {
   outline-offset: -1px;
 }
 
+/* Every typed-into control is at least 16px (2026-09-05). iOS Safari zooms
+   the whole page when a focused input, select or textarea is under 16px,
+   and a live measurement on /shifts/40/closing-report found 91 of 96 boxes
+   at 15px: Tailwind's preflight gives inputs `font: inherit`, so a hand-
+   rolled <input> inside a `text-sm` label was 14px before the 2026-09-02
+   type scale and 15px after it. Field.tsx's shared TextInput/Select were
+   already `text-base`; this brings the hand-rolled boxes into line with
+   them at one site instead of 91. `max(16px, 1em)` keeps a deliberately
+   larger box larger. In @layer base on purpose: it outranks preflight's
+   inherit (same layer, later) and still yields to an explicit size
+   utility on the element, so a future `text-2xl` money box keeps working
+   -- which is also why the 15 stray `text-sm` classes that sat on inputs
+   were removed rather than out-ranked. */
+@layer base {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
 /* Focus ring, one rule for everything (2026-09-04, WCAG 1.4.11). The live
    audit measured inputs/selects at a 2px `--primary-border` box-shadow ring
    (rgb(175,180,188) on chalk = 1.9:1, below the 3:1 floor) and every plain

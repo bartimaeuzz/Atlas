@@ -71,7 +71,7 @@ export function ReopenShiftButton({ shiftId, shiftLabel }: { shiftId: number; sh
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="e.g. CC tip total was typed as 630 instead of 360"
-            className="mt-1 w-full text-sm border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
+            className="mt-1 w-full border border-[var(--border-strong)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
           />
         </label>
         <label className="block text-xs text-[var(--ink-500)] mb-4">
@@ -81,7 +81,7 @@ export function ReopenShiftButton({ shiftId, shiftLabel }: { shiftId: number; sh
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
             autoComplete="off"
-            className="mt-1 w-full text-sm border border-[var(--danger-border)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
+            className="mt-1 w-full border border-[var(--danger-border)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--card)] text-[var(--ink-900)]"
           />
         </label>
         <div className="flex justify-end gap-2">
