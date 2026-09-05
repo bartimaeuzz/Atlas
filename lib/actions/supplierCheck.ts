@@ -127,7 +127,25 @@ export async function deleteDraftInvoice(invoiceId: number): Promise<{ error: st
       .from(supplierInvoicePhotos)
       .where(eq(supplierInvoicePhotos.invoiceId, invoiceId));
 
+    // ITS AUDIT ROWS LET GO OF IT FIRST (2026-09-05). supplier_check_audit_log
+    // has a foreign key onto supplier_invoices with no cascade, so a draft
+    // that has ever been EDITED could not be deleted at all: the whole batch
+    // failed and a restaurant manager was shown the words
+    // "SQLITE_CONSTRAINT: FOREIGN KEY constraint failed". Live on production
+    // since the row Edit form started writing that row; step 2's "Edit
+    // details" made it a one-tap path into the same wall.
+    //
+    // The rows are KEPT and pointed at nothing, not deleted with the
+    // invoice. They are the audit trail — `details` still carries the
+    // invoice number and every before/after value, and the only column
+    // anything reads them by is paymentId. Discarding a record to make a
+    // delete work is the wrong trade in a payroll tool; letting go of the
+    // reference is not.
     await db.batch([
+      db
+        .update(supplierCheckAuditLog)
+        .set({ invoiceId: null })
+        .where(eq(supplierCheckAuditLog.invoiceId, invoiceId)),
       db.delete(supplierInvoicePhotos).where(eq(supplierInvoicePhotos.invoiceId, invoiceId)),
       db.delete(supplierInvoices).where(eq(supplierInvoices.id, invoiceId)),
     ]);
