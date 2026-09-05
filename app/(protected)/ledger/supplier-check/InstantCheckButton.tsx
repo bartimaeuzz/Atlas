@@ -6,6 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { Select, TextInput } from "@/components/ui/Field";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { formatMoney } from "../formatMoney";
 import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
 
@@ -39,6 +40,9 @@ export function InstantCheckButton({
   // of throwing.
   const [form, setForm] = useState({ vendorId: "", categoryId: "", invoiceNumber: "", description: "", amount: "", instantReason: "", secondPin: "" });
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  /** Same, for MoneyField — it hands back the plain string rather than
+   * an event, because the comma it displays must never reach state. */
+  const setValue = (k: keyof typeof form) => (next: string) => setForm((f) => ({ ...f, [k]: next }));
   const [state, formAction, isPending] = useActionState(issueInstantCheck, initialState);
   const formRef = useKeepValuesOnError(isPending, !!state.error);
 
@@ -90,17 +94,13 @@ export function InstantCheckButton({
           </div>
           <TextInput type="text" name="invoiceNumber" label="Invoice / receipt number" required placeholder="e.g. 4471" value={form.invoiceNumber} onChange={set("invoiceNumber")} />
           <TextInput type="text" name="description" label="What was the work? (optional)" placeholder="e.g. hood cleaning" value={form.description} onChange={set("description")} />
-          <TextInput
-            type="number"
+          <MoneyField
             name="amount"
             label="Amount"
-            step="0.01"
-            min="0.01"
             required
             placeholder="0.00"
-            inputMode="decimal"
             value={form.amount}
-            onChange={set("amount")}
+            onValueChange={setValue("amount")}
           />
           <TextInput
             type="text"

@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { createStatementPeriod, type CardActionState } from "@/lib/actions/card";
 import { Select, TextInput } from "@/components/ui/Field";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { useKeepValuesOnError } from "@/components/forms/useKeepValuesOnError";
@@ -34,26 +35,18 @@ export function NewPeriodForm({ cards }: { cards: { id: number; name: string }[]
         <TextInput type="date" name="periodEnd" label="Statement end" required />
       </div>
       <p className="text-xs text-[var(--ink-500)]">Copy the dates and both totals from the statement&rsquo;s own summary box.</p>
-      <TextInput
-        type="number"
+      <MoneyField
         name="statementTotal"
         label="Charges & fees total"
         hint="Purchases + fees + interest, as printed on the statement."
-        step="0.01"
-        min="0"
         required
         placeholder="0.00"
-        inputMode="decimal"
       />
-      <TextInput
-        type="number"
+      <MoneyField
         name="paymentsCreditsTotal"
         label="Payments & credits total"
         hint="Bill payments and refunds. Leave 0 if the statement shows none."
-        step="0.01"
-        min="0"
         defaultValue="0"
-        inputMode="decimal"
       />
       <Button type="submit" loading={isPending} className="w-full">
         {isPending ? "Starting…" : "Start period"}

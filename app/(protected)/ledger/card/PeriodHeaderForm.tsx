@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TextInput } from "@/components/ui/Field";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
 
@@ -67,25 +68,17 @@ export function PeriodHeaderForm({
         <TextInput type="date" label="Statement start" value={start} onChange={(e) => setStart(e.target.value)} />
         <TextInput type="date" label="Statement end" value={end} onChange={(e) => setEnd(e.target.value)} />
       </div>
-      <TextInput
-        type="number"
+      <MoneyField
         label="Charges & fees total"
         hint="Purchases + fees + interest, as printed on the statement."
-        step="0.01"
-        min="0"
         value={total}
-        onChange={(e) => setTotal(e.target.value)}
-        inputMode="decimal"
+        onValueChange={setTotal}
       />
-      <TextInput
-        type="number"
+      <MoneyField
         label="Payments & credits total"
         hint="Bill payments and refunds. Leave 0 if the statement shows none."
-        step="0.01"
-        min="0"
         value={creditsTotal}
-        onChange={(e) => setCreditsTotal(e.target.value)}
-        inputMode="decimal"
+        onValueChange={setCreditsTotal}
       />
       <div className="flex items-center gap-2">
         {/* Cancel left, primary right -- 2026-08-24 consistency decision. */}

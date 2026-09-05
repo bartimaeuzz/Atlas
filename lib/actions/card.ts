@@ -21,6 +21,7 @@ import { loadRestaurantSettings } from "@/lib/settings/loadRestaurantSettings";
 import { cardReconcileMismatch, cardSideTotals } from "@/lib/ledger/cardReconcile";
 import { logActivityStatement } from "@/lib/activityLog/log";
 import { validateSplitParts, isSplitFailure } from "@/lib/ledger/cardSplit";
+import { parseMoneyAmount } from "@/lib/format/parseMoneyAmount";
 
 export interface CardActionState {
   error: string | null;
@@ -194,12 +195,15 @@ export async function createStatementPeriod(_prevState: CardActionState, formDat
   const cardId = Number(formData.get("cardId"));
   const periodStart = String(formData.get("periodStart") ?? "");
   const periodEnd = String(formData.get("periodEnd") ?? "");
-  const statementTotal = Number(formData.get("statementTotal"));
+  const statementTotal = parseMoneyAmount(formData.get("statementTotal"));
   // Two reconcile targets since 2026-08-25 (see cardStatementPeriods'
   // schema comment): charges side and payments/credits side, both copied
   // from the statement's own summary box. An omitted field parses to 0,
   // which is the right meaning for a statement with no payments/refunds.
-  const paymentsCreditsTotal = Number(formData.get("paymentsCreditsTotal") || 0);
+  // `|| "0"` stays: an omitted or blank field means a statement with no
+  // payments/refunds, and parseMoneyAmount returns NaN for blank on purpose
+  // so that each caller says what blank means rather than guessing zero.
+  const paymentsCreditsTotal = parseMoneyAmount(formData.get("paymentsCreditsTotal") || "0");
 
   let periodId: number;
   try {
@@ -355,7 +359,9 @@ export async function addCardTransaction(
     const categoryId = Number(categoryIdRaw);
     if (!categoryId) throw new Error("Category is required");
 
-    const amount = Number(amountRaw);
+    // Negative is meaningful here (a credit/refund), so this is the one
+    // money box in the app where a leading "-" must survive the parse.
+    const amount = parseMoneyAmount(amountRaw);
     if (!Number.isFinite(amount) || amount === 0) throw new Error("Amount is required (enter a negative number for a credit/refund)");
 
     const [period] = await db.select().from(cardStatementPeriods).where(eq(cardStatementPeriods.id, periodId));

@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveDailyCount, finalizePettyCashDay } from "@/lib/actions/ledger";
 import type { PettyCashDayData } from "@/lib/ledger/loadPettyCashDay";
-import { Card, Button, Banner, TextInput } from "@/components/ui";
+import { Card, Button, Banner, MoneyField, TextInput } from "@/components/ui";
 import { formatMoney } from "../formatMoney";
 import { stepHref } from "./StepNav";
 
@@ -59,14 +59,11 @@ export function FinalizeStep({ data, seen, locked }: { data: PettyCashDayData; s
       )}
 
       <Card>
-        <TextInput
+        <MoneyField
           label="What you counted"
-          type="number"
-          step="0.01"
-          inputMode="decimal"
           value={countedAmount}
           disabled={locked}
-          onChange={(e) => setCountedAmount(e.target.value)}
+          onValueChange={setCountedAmount}
           placeholder="0.00"
           hint="The physical count of the drawer, right now."
         />

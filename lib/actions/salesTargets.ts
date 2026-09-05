@@ -6,6 +6,7 @@ import { db } from "@/db/client";
 import { salesTargetDates, salesTargetWeekdays } from "@/db/schema";
 import { requireCapability } from "@/lib/permissions/requireCapability";
 import { asActionResult, type ActionResult } from "@/lib/actions/actionResult";
+import { parseMoneyAmount } from "@/lib/format/parseMoneyAmount";
 
 /** EDIT_SETTINGS, the same gate the labor-cost target already sits behind
  * in lib/actions/settings.ts — a sales target is a settings-shaped number
@@ -23,9 +24,11 @@ const MAX_TARGET = 1_000_000;
 function parseAmount(raw: string, what: string): number {
   // Managers type "$3,800" and "3,800" as readily as "3800", and rejecting
   // those would be an error message where error prevention was available.
-  const cleaned = raw.replace(/[$,\s]/g, "");
-  const amount = Number(cleaned);
-  if (cleaned === "" || Number.isNaN(amount)) {
+  // The stripping and the cents rounding moved to lib/format/parseMoneyAmount
+  // on 2026-09-05 so that every money box in the app reads its number the
+  // same way; only the sentences below are this screen's own.
+  const amount = parseMoneyAmount(raw);
+  if (Number.isNaN(amount)) {
     throw new Error(`${what} must be a number, for example 3800.`);
   }
   if (amount <= 0) {
@@ -34,7 +37,7 @@ function parseAmount(raw: string, what: string): number {
   if (amount > MAX_TARGET) {
     throw new Error(`${what} looks wrong — it is above $1,000,000. Check the number.`);
   }
-  return Math.round(amount * 100) / 100;
+  return amount;
 }
 
 function assertIsoDate(raw: string): string {

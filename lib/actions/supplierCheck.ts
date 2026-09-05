@@ -9,6 +9,7 @@ import { supplierInvoices, supplierInvoicePhotos, supplierCheckPayments, employe
 import { deleteBlobQuietly } from "@/lib/ledger/invoicePhotos";
 import { verifyPin } from "@/lib/auth/pin";
 import { requireCapability } from "@/lib/permissions/requireCapability";
+import { parseMoneyAmount } from "@/lib/format/parseMoneyAmount";
 
 export interface SupplierInvoiceActionState {
   error: string | null;
@@ -66,7 +67,7 @@ export async function logSupplierInvoice(
     const categoryId = Number(categoryIdRaw);
     if (!categoryId) throw new Error("Category is required");
     if (!invoiceNumber) throw new Error("Invoice number is required");
-    const amount = Number(amountRaw);
+    const amount = parseMoneyAmount(amountRaw);
     if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be a positive number");
 
     const [created] = await db
@@ -579,7 +580,7 @@ export async function issueInstantCheck(
     const categoryId = Number(formData.get("categoryId"));
     const invoiceNumber = String(formData.get("invoiceNumber") ?? "").trim();
     const description = String(formData.get("description") ?? "").trim() || null;
-    const amount = Number(formData.get("amount"));
+    const amount = parseMoneyAmount(formData.get("amount"));
     const instantReason = String(formData.get("instantReason") ?? "").trim();
 
     if (!vendorId) throw new Error("Vendor is required");

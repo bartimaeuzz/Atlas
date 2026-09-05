@@ -1,6 +1,7 @@
 "use client";
 
 import { Select, TextInput } from "@/components/ui/Field";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { VendorPicker, type PickerVendor } from "@/app/(protected)/ledger/VendorPicker";
 import { AUTOFILLED_CATEGORY_HINT, type useVendorCategoryPair } from "@/app/(protected)/ledger/useVendorCategoryPair";
 import { CategorySuggestions } from "@/app/(protected)/ledger/CategorySuggestions";
@@ -42,6 +43,9 @@ export function InvoiceFields({
 }) {
   const set = (k: keyof InvoiceFieldValues) => (e: { target: { value: string } }) =>
     onChange({ ...values, [k]: e.target.value });
+  /** Same, for MoneyField — it hands back the plain string rather than
+   * an event, because the comma it displays must never reach state. */
+  const setValue = (k: keyof InvoiceFieldValues) => (next: string) => onChange({ ...values, [k]: next });
 
   return (
     <>
@@ -104,17 +108,13 @@ export function InvoiceFields({
         value={values.description}
         onChange={set("description")}
       />
-      <TextInput
-        type="number"
+      <MoneyField
         name="amount"
         label="Amount"
-        step="0.01"
-        min="0.01"
         required
         placeholder="0.00"
-        inputMode="decimal"
         value={values.amount}
-        onChange={set("amount")}
+        onValueChange={setValue("amount")}
       />
     </>
   );

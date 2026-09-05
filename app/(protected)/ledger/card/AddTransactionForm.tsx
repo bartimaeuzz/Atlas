@@ -8,6 +8,7 @@ import {
 } from "@/lib/actions/card";
 import { transactionDateWarning } from "@/lib/ledger/cardDateWarning";
 import { Select, TextInput } from "@/components/ui/Field";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
@@ -117,14 +118,11 @@ export function AddTransactionForm({
       </div>
       {dateWarningBanner}
       <TextInput type="text" name="memo" label="Memo" placeholder="e.g. Restaurant Depot online order" />
-      <TextInput
-        type="number"
+      <MoneyField
         name="amount"
         label="Amount (negative for a credit/refund)"
-        step="0.01"
         required
         placeholder="0.00"
-        inputMode="decimal"
       />
       <Button type="submit" loading={isPending} className="w-full">
         {isPending ? "Adding…" : "+ Add transaction"}

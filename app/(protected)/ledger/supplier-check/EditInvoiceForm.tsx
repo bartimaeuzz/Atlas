@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { editSupplierInvoice, deleteDraftInvoice } from "@/lib/actions/supplierCheck";
 import { TextInput } from "@/components/ui/Field";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -150,13 +151,10 @@ export function EditInvoiceForm({
           value={form.invoiceNumber}
           onChange={(e) => setForm((f) => ({ ...f, invoiceNumber: e.target.value }))}
         />
-        <TextInput
-          type="number"
+        <MoneyField
           label="Amount"
-          step="0.01"
-          min="0"
           value={form.amount}
-          onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+          onValueChange={(next) => setForm((f) => ({ ...f, amount: next }))}
         />
       </div>
       <TextInput

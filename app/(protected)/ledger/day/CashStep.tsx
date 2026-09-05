@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveDailyReconciliationDraft } from "@/lib/actions/ledger";
 import type { PettyCashDayData } from "@/lib/ledger/loadPettyCashDay";
-import { Card, Button, Banner, TextInput } from "@/components/ui";
+import { Card, Button, Banner, MoneyField, TextInput } from "@/components/ui";
 import { formatMoney } from "../formatMoney";
 import { stepHref } from "./StepNav";
 import { requiresOtherCashReason } from "@/lib/ledger/otherCashRule";
@@ -23,17 +23,29 @@ import { requiresOtherCashReason } from "@/lib/ledger/otherCashRule";
  */
 export function CashStep({ data, seen, locked }: { data: PettyCashDayData; seen: number; locked: boolean }) {
   const router = useRouter();
+  // STRINGS, not numbers (2026-09-05). These two boxes used to hold
+  // `Number(e.target.value)`, which eats the decimal point the instant it
+  // is typed: "12." parses to 12, the state rewrites the box as "12", and
+  // the next keystroke lands on the wrong side of a point that is no longer
+  // there. Parse at the math and submit boundary instead — the same rule
+  // SplitPartsEditor documents and FinalizeStep already followed.
   const [beginningBalance, setBeginningBalance] = useState(
-    data.reconciliationId ? data.beginningBalance : (data.suggestedBeginningBalance ?? 0)
+    String(data.reconciliationId ? data.beginningBalance : (data.suggestedBeginningBalance ?? 0))
   );
-  const [otherCash, setOtherCash] = useState(data.otherCash);
+  const [otherCash, setOtherCash] = useState(String(data.otherCash));
   const [reason, setReason] = useState(data.otherCashReason ?? "");
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const needsReason = requiresOtherCashReason(otherCash);
-  const totalCashIn = data.cashSales + data.cashTip + otherCash;
+  // A half-typed or empty box means "nothing", which is what a blank
+  // drawer line has always meant on this screen.
+  const toAmount = (raw: string) => (Number.isFinite(Number(raw)) ? Number(raw) : 0) || 0;
+  const beginningBalanceAmount = toAmount(beginningBalance);
+  const otherCashAmount = toAmount(otherCash);
+
+  const needsReason = requiresOtherCashReason(otherCashAmount);
+  const totalCashIn = data.cashSales + data.cashTip + otherCashAmount;
 
   function save(then?: () => void) {
     setError(null);
@@ -47,8 +59,8 @@ export function CashStep({ data, seen, locked }: { data: PettyCashDayData; seen:
       // "Minified React error #441" in production (2026-08-24 sweep).
       const result = await saveDailyReconciliationDraft(
         data.date,
-        beginningBalance,
-        otherCash,
+        beginningBalanceAmount,
+        otherCashAmount,
         data.countedAmount,
         data.note,
         reason.trim() || null
@@ -67,28 +79,22 @@ export function CashStep({ data, seen, locked }: { data: PettyCashDayData; seen:
     <div className="flex flex-col gap-3">
       <Card>
         <div className="flex flex-col gap-3">
-          <TextInput
+          <MoneyField
             label="Cash in the drawer at open"
-            type="number"
-            step="0.01"
-            inputMode="decimal"
             value={beginningBalance}
             disabled={locked}
-            onChange={(e) => setBeginningBalance(Number(e.target.value))}
+            onValueChange={setBeginningBalance}
             hint={
               data.reconciliationId
                 ? undefined
                 : "Carried over from yesterday's closing count. Change it if the drawer actually held something different."
             }
           />
-          <TextInput
+          <MoneyField
             label="Anything else added"
-            type="number"
-            step="0.01"
-            inputMode="decimal"
             value={otherCash}
             disabled={locked}
-            onChange={(e) => setOtherCash(Number(e.target.value))}
+            onValueChange={setOtherCash}
           />
           {needsReason && (
             <TextInput

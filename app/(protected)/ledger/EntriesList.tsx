@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { deletePettyCashEntry, updatePettyCashEntry } from "@/lib/actions/ledger";
 import type { PettyCashEntryView } from "@/lib/ledger/loadPettyCashDay";
-import { Banner, Button, ConfirmDialog, EmptyState, Select, TextInput } from "@/components/ui";
+import { Banner, Button, ConfirmDialog, EmptyState, MoneyField, Select, TextInput } from "@/components/ui";
 import { formatMoney } from "./formatMoney";
 
 type Option = { id: number; name: string };
@@ -120,14 +120,7 @@ function EntryRow({
             ))}
           </Select>
           <TextInput label="Note" type="text" value={note} onChange={(e) => setNote(e.target.value)} />
-          <TextInput
-            label="Amount"
-            type="number"
-            step="0.01"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
+          <MoneyField label="Amount" value={amount} onValueChange={setAmount} />
           {error && <Banner tone="danger" title={error} />}
           <div className="flex gap-2 justify-end">
             <Button variant="secondary" size="sm" onClick={cancel} disabled={isPending}>

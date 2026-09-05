@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Select, TextInput } from "@/components/ui/Field";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { XIcon } from "@/components/ui/icons";
 import { TAP_TARGET_PAD, ICON_TAP_TARGET_TALL } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
@@ -164,15 +165,12 @@ export function SplitPartsEditor({
               </Select>
               {mode === "AMOUNT" ? (
                 <div>
-                  <TextInput
-                    type="number"
+                  <MoneyField
                     label="Amount"
-                    step="0.01"
                     required
                     placeholder="0.00"
-                    inputMode="decimal"
                     value={part.amount}
-                    onChange={(e) => setPart(i, { amount: e.target.value })}
+                    onValueChange={(next) => setPart(i, { amount: next })}
                   />
                   {/* One-tap auto-balance (2026-08-31, Aey: "auto sum
                       other amount") — sets THIS part to whatever still

@@ -11,6 +11,7 @@ import { logActivityStatement, logMoney } from "@/lib/activityLog/log";
 import { requiresOtherCashReason } from "@/lib/ledger/otherCashRule";
 import { getCurrentStaffSession } from "@/lib/auth/session";
 import { requireCapability } from "@/lib/permissions/requireCapability";
+import { parseMoneyAmount } from "@/lib/format/parseMoneyAmount";
 
 export interface LedgerAdminActionState {
   error: string | null;
@@ -175,7 +176,9 @@ export async function addPettyCashEntry(
     if (date > todayIso()) throw new Error("Can't log petty cash for a day that hasn't happened yet.");
     const categoryId = Number(categoryIdRaw);
     if (!categoryId) throw new Error("Category is required");
-    const amount = Number(amountRaw);
+    // parseMoneyAmount, not Number(): the box shows "1,250" when it is not
+    // being typed in, and Number("1,250") is NaN (2026-09-05).
+    const amount = parseMoneyAmount(amountRaw);
     if (!Number.isFinite(amount) || amount <= 0) throw new Error("Amount must be a positive number");
     const vendorId = vendorIdRaw && String(vendorIdRaw).trim() !== "" ? Number(vendorIdRaw) : null;
 

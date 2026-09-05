@@ -16,11 +16,20 @@ import { useEffect } from "react";
  * ways a field can still go bad after that.
  *
  * One document-level listener instead of a per-field component on
- * purpose: every `<input type="number">` in the app — 16 files today,
- * and every one added tomorrow — gets the behaviour with zero per-form
- * wiring, and there is no second copy to forget (the silent-miss class
- * this repo keeps meeting). The native value setter + an `input` event
- * is what makes React controlled fields see the change as if typed.
+ * purpose: every numeric field in the app — and every one added
+ * tomorrow — gets the behaviour with zero per-form wiring, and there is
+ * no second copy to forget (the silent-miss class this repo keeps
+ * meeting). The native value setter + an `input` event is what makes
+ * React controlled fields see the change as if typed.
+ *
+ * The match is `type="number"` OR `inputMode="decimal"`, and the second
+ * half is load-bearing (2026-09-05). The money-comma rollout turned every
+ * dollar box into `type="text"` — a number input silently discards a
+ * typed comma, so it could not stay — and a `type`-only guard would have
+ * switched this listener off on precisely the fields Aey asked for it on,
+ * with nothing failing anywhere: pasting "$1,234.56" would land the
+ * literal string in the box and the save would be refused for a figure
+ * that looks perfectly correct on screen.
  *
  * Whole-value replace, deliberately: the real gesture is "copy the
  * figure from Toast, paste it into the box". Splicing the clipboard into
@@ -31,7 +40,9 @@ export function NumberPasteSanitizer() {
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
       const target = e.target;
-      if (!(target instanceof HTMLInputElement) || target.type !== "number") return;
+      if (!(target instanceof HTMLInputElement)) return;
+      const numeric = target.type === "number" || target.inputMode === "decimal";
+      if (!numeric) return;
       const raw = e.clipboardData?.getData("text") ?? "";
       // Strip everything that isn't a digit, a decimal point, or a
       // leading minus. Covers "$1,234.56", "1 234,56"-style thousand

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { addPettyCashEntry, type PettyCashEntryActionState } from "@/lib/actions/ledger";
 import { Select, TextInput } from "@/components/ui/Field";
+import { MoneyField } from "@/components/ui/MoneyField";
 import { Button } from "@/components/ui/Button";
 import { Banner } from "@/components/ui/Banner";
 import { VendorPicker, type PickerVendor } from "./VendorPicker";
@@ -39,6 +40,9 @@ export function AddEntryForm({
   // a SUCCESSFUL add by remounting via resetKey, unchanged.
   const [form, setForm] = useState({ note: "", amount: "" });
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  /** Same, for MoneyField — it hands back the plain string rather than
+   * an event, because the comma it displays must never reach state. */
+  const setValue = (k: keyof typeof form) => (next: string) => setForm((f) => ({ ...f, [k]: next }));
   // Vendor and category are controlled together, not separately -- see
   // useVendorCategoryPair.
   const pair = useVendorCategoryPair(links);
@@ -82,17 +86,13 @@ export function AddEntryForm({
         />
       </div>
       <TextInput type="text" name="note" label="Note" placeholder="e.g. Pay out to Tommy: flowers" value={form.note} onChange={set("note")} />
-      <TextInput
-        type="number"
+      <MoneyField
         name="amount"
         label="Amount"
-        step="0.01"
-        min="0.01"
         required
         placeholder="0.00"
-        inputMode="decimal"
         value={form.amount}
-        onChange={set("amount")}
+        onValueChange={setValue("amount")}
       />
       <Button type="submit" loading={isPending} className="w-full">
         {isPending ? "Adding…" : "+ Add expense"}
