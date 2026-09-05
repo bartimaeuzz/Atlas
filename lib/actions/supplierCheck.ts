@@ -101,34 +101,48 @@ export async function logSupplierInvoice(
  * the one state with nothing attached to it — no approval, no check, no
  * paper in a supplier's hands. From ready upward the paths are bounce
  * back / void, never delete. */
-export async function deleteDraftInvoice(invoiceId: number) {
-  await requireCapability("SUPPLIER_CHECK_LOG");
-  const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
-  if (!invoice) return;
-  if (invoice.status !== "draft") {
-    throw new Error("Only a draft can be removed. This invoice has been approved — ask the approver to bounce it back to draft first.");
+/** Returns its failure instead of throwing (2026-09-05). A thrown
+ *  server-action error is redacted to a generic digest in production, so
+ *  the manager was shown nothing at all — and the one message this action
+ *  has ("ask the approver to bounce it back to draft") is the whole
+ *  instruction. Matches uploadInvoicePhoto's shape. */
+export async function deleteDraftInvoice(invoiceId: number): Promise<{ error: string | null }> {
+  let photos: { pathname: string }[] = [];
+  try {
+    await requireCapability("SUPPLIER_CHECK_LOG");
+    const [invoice] = await db.select().from(supplierInvoices).where(eq(supplierInvoices.id, invoiceId));
+    if (!invoice) return { error: null }; // already gone — nothing to undo
+    if (invoice.status !== "draft") {
+      throw new Error("Only a draft can be removed. This invoice has been approved — ask the approver to bounce it back to draft first.");
+    }
+
+    // Its photos go with it (2026-09-05). The FK carries ON DELETE cascade
+    // and db/client.ts does set `PRAGMA foreign_keys = ON`, but that pragma
+    // is fired and forgotten per connection, so the rows are deleted
+    // explicitly rather than left to it. The pathnames are needed here
+    // regardless: the stored FILES have no cascade of any kind, and without
+    // this they sit in the Blob store forever with nothing pointing at them.
+    photos = await db
+      .select({ pathname: supplierInvoicePhotos.pathname })
+      .from(supplierInvoicePhotos)
+      .where(eq(supplierInvoicePhotos.invoiceId, invoiceId));
+
+    await db.batch([
+      db.delete(supplierInvoicePhotos).where(eq(supplierInvoicePhotos.invoiceId, invoiceId)),
+      db.delete(supplierInvoices).where(eq(supplierInvoices.id, invoiceId)),
+    ]);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
   }
 
-  // Its photos go with it (2026-09-05). The FK carries ON DELETE cascade
-  // and db/client.ts does set `PRAGMA foreign_keys = ON`, but that pragma
-  // is fired and forgotten per connection, so the rows are deleted
-  // explicitly rather than left to it. The pathnames are needed here
-  // regardless: the stored FILES have no cascade of any kind, and without
-  // this they sit in the Blob store forever with nothing pointing at them.
-  const photos = await db
-    .select({ pathname: supplierInvoicePhotos.pathname })
-    .from(supplierInvoicePhotos)
-    .where(eq(supplierInvoicePhotos.invoiceId, invoiceId));
-
-  await db.batch([
-    db.delete(supplierInvoicePhotos).where(eq(supplierInvoicePhotos.invoiceId, invoiceId)),
-    db.delete(supplierInvoices).where(eq(supplierInvoices.id, invoiceId)),
-  ]);
   // After the rows are gone, so a storage failure cannot leave an invoice
-  // the manager was told is deleted.
+  // the manager was told is deleted. Outside the try for the same reason:
+  // the invoice IS deleted by now, and a Blob hiccup must not report that
+  // as a failure.
   for (const photo of photos) await deleteBlobQuietly(photo.pathname);
 
   revalidatePath("/ledger/supplier-check");
+  return { error: null };
 }
 
 export interface EditSupplierInvoiceActionState {

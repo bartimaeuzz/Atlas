@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { deleteDraftInvoice, approveInvoice, unapproveInvoice } from "@/lib/actions/supplierCheck";
+import { approveInvoice, unapproveInvoice } from "@/lib/actions/supplierCheck";
 import type { VendorPendingGroup, PendingInvoiceView } from "@/lib/ledger/loadSupplierCheck";
 import { EditInvoiceForm } from "./EditInvoiceForm";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { InvoicePhotosButton } from "./InvoicePhotosButton";
-import { XIcon, AlertTriangleIcon } from "@/components/ui/icons";
-import { TAP_TARGET_PAD, ICON_TAP_TARGET_TALL } from "@/components/ui/touchTarget";
+import { AlertTriangleIcon } from "@/components/ui/icons";
+import { TAP_TARGET_PAD } from "@/components/ui/touchTarget";
 import { formatMoney } from "../formatMoney";
 
 /** One vendor's open (Draft + Ready) invoices — the review surface of
@@ -134,15 +134,6 @@ function InvoiceRow({ inv, canApprove, viewerId }: { inv: PendingInvoiceView; ca
                 className={`text-[var(--ink-500)] hover:text-[var(--ink-900)] text-xs underline ${TAP_TARGET_PAD}`}
               >
                 Edit
-              </button>
-              <button
-                type="button"
-                disabled={isBusy}
-                onClick={() => run(() => deleteDraftInvoice(inv.id))}
-                className={`text-[var(--ink-500)] hover:text-[var(--danger)] disabled:opacity-50 ${ICON_TAP_TARGET_TALL}`}
-                aria-label={`Remove invoice ${inv.invoiceNumber}`}
-              >
-                <XIcon width={16} height={16} />
               </button>
               {/* The approve control renders only for approvers looking at
                   someone ELSE's invoice — an approver's own drafts show
